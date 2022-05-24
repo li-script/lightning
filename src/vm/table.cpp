@@ -10,6 +10,21 @@ namespace lightning::core {
 		return tbl;
 	}
 
+	// Duplicates the table.
+	//
+	table* table::duplicate(vm* L) {
+		table* tbl = L->alloc<table>();
+		if (auto* pnodes = tbl->node_list) {
+			size_t len    = pnodes->object_bytes();
+			auto   nnodes = L->alloc<table_nodes>(len);
+			memcpy(nnodes->entries, pnodes->entries, len);
+			tbl->node_list = nnodes;
+		} else {
+			memcpy(tbl->small_table, small_table, sizeof(small_table));
+		}
+		return tbl;
+	}
+
 	// Rehashing resize.
 	//
 	void table::resize(vm* L, size_t n) {

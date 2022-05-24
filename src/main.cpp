@@ -90,234 +90,12 @@ namespace lightning::debug {
 #include <algorithm>
 #include <tuple>
 
-
-namespace lightning::bc {
-// Bytecode definitions.
-//
-#define LIGHTNING_ENUM_BC(_)                                                           \
-	/* Unary operators */                                                               \
-	_(LNOT, reg, reg, ___) /* A=!B */                                                   \
-	_(ANEG, reg, reg, ___) /* A=-B */                                                   \
-	_(MOVE, reg, reg, ___) /* A=B */                                                    \
-	_(TYPE, reg, reg, ___) /* A=TYPE(B) */                                              \
-                                                                                       \
-	/* Binary operators.  */                                                            \
-	_(AADD, reg, reg, reg) /* A=B+C */                                                  \
-	_(ASUB, reg, reg, reg) /* A=B-C */                                                  \
-	_(AMUL, reg, reg, reg) /* A=B*C */                                                  \
-	_(ADIV, reg, reg, reg) /* A=B/C */                                                  \
-	_(AMOD, reg, reg, reg) /* A=B%C */                                                  \
-	_(LAND, reg, reg, reg) /* A=B&&C */                                                 \
-	_(LOR,  reg, reg, reg) /* A=B||C */                                                 \
-	_(SCAT, reg, reg, reg) /* A=B..C */                                                 \
-	_(CEQ,  reg, reg, reg) /* A=B==C */                                                 \
-	_(CNE,  reg, reg, reg) /* A=B!=C */                                                 \
-	_(CLT,  reg, reg, reg) /* A=B<C */                                                  \
-	_(CGT,  reg, reg, reg) /* A=B>C */                                                  \
-	_(CLE,  reg, reg, reg) /* A=B<=C */                                                 \
-	_(CGE,  reg, reg, reg) /* A=B>=C */                                                 \
-                                                                                       \
-	/* Upvalue operators. */                                                            \
-	_(KGET, reg, kvl, ___) /* A=KVAL[B] */                                              \
-	_(UGET, reg, uvl, ___) /* A=UVAL[B] */                                              \
-	_(USET, uvl, reg, ___) /* UVAL[A]=B */                                              \
-                                                                                       \
-	/* Table operators. */                                                              \
-	_(TNEW, reg, imm, ___) /* A=TABLE{Reserved=B} */                                    \
-	_(TDUP, reg, kvl, ___) /* A=Duplicate(KVAL[B]) */                                   \
-	_(TGET, reg, reg, reg) /* A=C[B] */                                                 \
-	_(TSET, reg, reg, reg) /* C[A]=B */                                                 \
-	_(GGET, reg, reg, ___) /* A=G[B] */                                                 \
-	_(GSET, reg, reg, ___) /* G[A]=B */                                                 \
-                                                                                       \
-	/* Closure operators. */                                                            \
-	_(FDUP, reg, kvl, reg) /* A=Duplicate(KVAL[B]), A.UVAL[0]=C, A.UVAL[1]=C+1... */    \
-                                                                                       \
-	/* Control flow. */                                                                 \
-	_(CALL, reg, imm, rel) /* CALL A(B x args @(a+1, a+2...)), JMP C if throw */        \
-	_(RETN, reg, ___, ___) /* RETURN A */                                               \
-	_(THRW, reg, ___, ___) /* THROW A */                                                \
-	_(JMP,  rel, ___, ___) /* JMP A */                                                  \
-	_(JCC,  rel, reg, ___) /* JMP A if B */                                             \
-	_(BP,   ___, ___, ___) /* Breakpoint */
-
-	// Enum of bytecode ops.
-	//
-	enum opcode : uint8_t {
-#define BC_WRITE(name, a, b, c) name,
-		LIGHTNING_ENUM_BC(BC_WRITE)
-#undef BC_WRITE
-	};
-
-	// Write all descriptors.
-	//
-	enum class op_t : uint8_t { none, reg, uvl, kvl, imm, rel, ___ = none };
-	using  op = uint16_t;
-	struct desc {
-		const char* name;
-		op_t        a, b, c;
-	};
-	static constexpr desc opcode_descs[] = {
-#define BC_WRITE(name, a, b, c) {LI_STRINGIFY(name), op_t::a, op_t::b, op_t::c},
-		 LIGHTNING_ENUM_BC(BC_WRITE)
-#undef BC_WRITE
-	};
-
-	// Define the instruction type.
-	//
-	using imm = int32_t;
-	using reg = int32_t;
-	using rel = int32_t;
-	struct insn {
-		opcode o;
-		reg    a = 0;
-		reg    b = 0;
-		reg    c = 0;
-
-		void print(uint32_t ip) const {
-			auto& d = opcode_descs[(uint8_t) o];
-
-			std::optional<rel> rel_pr;
-			std::optional<reg> kvl_pr;
-
-			auto print_op = [&](op_t o, reg value) LI_INLINE {
-				char op[16];
-				const char* col = "";
-				switch (o) {
-					case op_t::none:
-						op[0] = 0;
-						break;
-					case op_t::reg:
-						if (value >= 0) {
-							col = LI_RED;
-							sprintf_s(op, "r%u", (uint32_t) value);
-						} else {
-							col = LI_YLW;
-							sprintf_s(op, "a%u", (uint32_t) - (value + 1));
-						}
-						break;
-					case op_t::rel:
-						if (value >= 0) {
-							col = LI_GRN; 
-							sprintf_s(op, "@%x", ip + value);
-						} else {
-							col = LI_YLW; 
-							sprintf_s(op, "@%x", ip - value);
-						}
-						rel_pr = (rel) value;
-						break;
-					case op_t::uvl:
-						col = LI_CYN;
-						sprintf_s(op, "u%u", (uint32_t) value);
-						break;
-					case op_t::kvl:
-						kvl_pr = value;
-						col    = LI_BLU; 
-						sprintf_s(op, "k%u", (uint32_t) value);
-						break;
-					case op_t::imm:
-						col = LI_BLU;
-						sprintf_s(op, "$%d", (int32_t) value);
-						break;
-				}
-				printf("%s%-12s " LI_DEF, col, op);
-			};
-
-			// IP: OP
-			printf(LI_PRP "%05x:" LI_BRG " %-6s", ip, d.name);
-			// ... Operands.
-			print_op(d.a, a);
-			print_op(d.b, b);
-			print_op(d.c, c);
-			printf("|");
-
-			// TODO: print constant.
-
-			// Special effect for relative.
-			//
-			if (rel_pr) {
-				if (*rel_pr < 0) {
-					printf(LI_GRN " v" LI_DEF);
-				} else {
-					printf(LI_RED " ^" LI_DEF);
-				}
-			}
-			printf("\n");
-		}
-	};
-};
+#include <vm/bc.hpp>
+#include <vm/function.hpp>
 
 namespace lightning::core {
-	static constexpr size_t max_argument_count = 16;
-	struct function : gc_node<function> {
-		static function* create(vm* L, std::span<const bc::insn> opcodes, std::span<const any> kval, uint32_t uval);
-
-		// Function details.
-		//
-		uint32_t num_uval      = 0;        // Number of upvalues.
-		uint32_t num_kval      = 0;        // Number of constants.
-		uint32_t num_arguments = 0;        // Vararg if zero, else n-1 args.
-		uint32_t num_locals    = 0;        // Number of local variables we need to reserve on stack.
-		uint32_t length        = 0;        // Bytecode length.
-		uint32_t src_line      = 0;        // Line of definition.
-		string*  src_chunk     = nullptr;  // Source of definition.
-		table*   environment   = nullptr;  // Table environment.
-
-		// Variable length part.
-		//
-		bc::insn opcode_array[];
-		// any upvalue_array[];
-		// any constant_array[];
-
-		// Range observers.
-		//
-		std::span<bc::insn> opcodes() { return {opcode_array, length}; }
-		std::span<any>      uvals() { return {(any*) &opcode_array[length], num_uval}; }
-		std::span<any>      kvals() { return {num_uval + (any*) &opcode_array[length], num_kval}; }
-
-		// GC enumerator.
-		//
-		template<typename F>
-		void enum_for_gc(F&& fn) {
-			fn(src_chunk);
-			for (auto& v : uvals()) {
-				if (v.is_gc())
-					fn(v.as_gc());
-			}
-			for (auto& v : kvals()) {
-				if (v.is_gc())
-					fn(v.as_gc());
-			}
-		}
-	};
-
-	function* function::create(vm* L, std::span<const bc::insn> opcodes, std::span<const any> kval, uint32_t uval) {
-
-		uint32_t routine_length = std::max((uint32_t) opcodes.size(), 1u);
-		uint32_t kval_n         = (uint32_t) kval.size();
-
-		// Set function details.
-		//
-		function* result        = L->alloc<function>(sizeof(bc::insn) * routine_length + sizeof(any) * (uval + kval_n));
-		result->num_uval        = uval;
-		result->num_kval        = kval_n;
-		result->length          = routine_length;
-		result->src_chunk       = string::create(L);
-		result->opcode_array[0] = bc::insn{bc::BP};
-		result->environment     = L->globals;
-
-		// Copy bytecode and constants, <none> initialize upvalues.
-		//
-		std::copy_n(opcodes.data(), opcodes.size(), result->opcode_array);
-		std::copy_n(kval.data(), kval.size(), result->kvals().begin());
-		memset(result->uvals().data(), 0xFF, result->uvals().size_bytes());
-		return result;
-	}
 
 	LI_COLD static any arg_error(vm* L, any a, const char* expected) { return string::format(L, "expected '%s', got '%s'", expected, type_names[a.type()]); }
-
-	// Operators.
-	//
 
 	// TODO: Coerce + Meta
 	LI_INLINE static std::pair<any, bool> apply_uop(vm* L, any a, bc::op op) {
@@ -372,6 +150,12 @@ namespace lightning::core {
 				if (!b.is(type_number)) [[unlikely]]
 					return {arg_error(L, b, "number"), false};
 				return {any(fmod(a.as_num(), b.as_num())), true};
+			case bc::APOW:
+				if (!a.is(type_number)) [[unlikely]]
+					return {arg_error(L, a, "number"), false};
+				if (!b.is(type_number)) [[unlikely]]
+					return {arg_error(L, b, "number"), false};
+				return {any(pow(a.as_num(), b.as_num())), true};
 			case bc::LAND:
 				return {any(bool(a.as_bool() & b.as_bool())), true};
 			case bc::LOR:
@@ -491,6 +275,7 @@ namespace lightning::core {
 				case bc::AMUL:
 				case bc::ADIV:
 				case bc::AMOD:
+				case bc::APOW:
 				case bc::LAND:
 				case bc::LOR:
 				case bc::SCAT:
@@ -561,8 +346,12 @@ namespace lightning::core {
 					ref_reg(a) = any{table::create(L, b)};
 					continue;
 				}
-				// _(TDUP, reg, cst, ___) /* A=Duplicate(CONST[B]) */
-				case bc::TDUP:
+				case bc::TDUP: {
+					auto tbl = ref_kval(b);
+					LI_ASSERT(tbl.is(type_table));
+					ref_reg(a) = tbl.as_tbl()->duplicate(L);
+					continue;
+				}
 				// _(FDUP, reg, cst, reg) /* A=Duplicate(CONST[B]), A.UPVAL[0]=C, A.UPVAL[1]=C+1... */
 				case bc::FDUP:
 				// _(CALL, reg, imm, rel) /* CALL A(B x args @(a+1, a+2...)), JMP C if throw */
@@ -580,18 +369,32 @@ namespace lightning::core {
 
 namespace lightning::parser {
 
+	struct func_scope;
+	struct func_state : lexer::state {
+		func_scope*                scope;         // Current scope.
+		std::vector<core::string*> uvalues = {};  // Upvalues mapped by name.
+		std::vector<core::any>     kvalues = {};  // Constant pool.
 
+		// Inserts a new constant into the pool.
+		//
+		bc::reg add_const(core::any c) {
+			for (size_t i = 0; i != kvalues.size(); i++) {
+				if (kvalues[i] == c)
+					return (bc::reg) i;
+			}
+			kvalues.emplace_back(c);
+			return (bc::reg) kvalues.size();
+		}
+	};
 	struct local_state {
-		core::string* id       = nullptr;
-		bool          is_const = false;
+		core::string* id       = nullptr;  // Local name.
+		bool          is_const = false;    // Set if declared as const.
 	};
 	struct func_scope {
-		func_scope*              prev   = nullptr;
-		std::vector<local_state> locals = {};
-	};
-	struct func_state : lexer::state {
-		func_scope*                scope;
-		std::vector<core::string*> upvalues = {};
+		func_scope*              prev     = nullptr;  // Outer scope.
+		bc::reg                  reg_map  = 0;        // Register mapping to the value of the scope.
+		bc::reg                  reg_next = 0;        // Next free register.
+		std::vector<local_state> locals   = {};       // Locals declared in this scope.
 	};
 
 	enum class expression {
@@ -599,7 +402,11 @@ namespace lightning::parser {
 	};
 
 	static void parse_statement( core::vm* L, core::function* f ) {
-
+		// real statements:
+		//  fn
+		//  let x =
+		//  const x =
+		// => fallback to expression with discarded result.
 	}
 
 	static core::function* parse(core::vm* L, std::string_view source) {
@@ -648,7 +455,7 @@ int main() {
 		ins[i].print(i);
 	}
 
-	core::function* f = core::function::create(L, ins, constants, 0);
+	core::function* f = core::function::create(L, ins, constants, 0 /*no upvalues*/);
 	f->num_locals     = 1;
 
 	L->push_stack(core::number(1));

@@ -1,4 +1,7 @@
 #pragma once
+#include <stdint.h>
+#include <cstring>
+
 #ifndef __has_builtin
 	#define __has_builtin(...) 0
 #endif

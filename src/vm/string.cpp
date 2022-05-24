@@ -39,6 +39,17 @@ namespace lightning::core {
 			return {it, it + overflow_factor};
 		}
 
+		// GC enumerator.
+		//
+		template<typename F>
+		void enum_for_gc(F&& fn) {
+			for (auto& k : *this) {
+				if (k) {
+					fn(k);
+				}
+			}
+		}
+
 		// Simpler implementation of the same algorithm as table with no fixed holder.
 		//
 		[[nodiscard]] string_set* push(vm* L, string* s, bool assert_no_resize = false) {

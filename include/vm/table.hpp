@@ -11,13 +11,13 @@ namespace lightning::core {
 		any key;
 		any value;
 	};
-	struct table_nodes : gc_node<table_nodes> {
+	struct table_nodes : gc_leaf<table_nodes> {
 		table_entry entries[];
 	};
 
 	// Implemented inline as its templated.
 	//
-	struct table : gc_leaf<table> {
+	struct table : gc_node<table> {
 		static table* create(vm* L, size_t reserved_entry_count = 0);
 
 		table_nodes* node_list = nullptr;
@@ -32,6 +32,18 @@ namespace lightning::core {
 		std::span<table_entry> find(size_t hash) {
 			auto it = begin() + (hash & mask());
 			return {it, it + overflow_factor};
+		}
+
+		// GC enumerator.
+		//
+		template<typename F>
+		void enum_for_gc(F&& fn) {
+			for (auto& [k, v] : *this) {
+				if (k.type & type_gc)
+					fn(k.gc);
+				if (v.type & type_gc)
+					fn(v.gc);
+			}
 		}
 
 		// Rehashing resize.

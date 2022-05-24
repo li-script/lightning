@@ -23,6 +23,7 @@ namespace lightning::core {
 
 	// GC types (forward).
 	//
+	struct gc_header;
 	struct array;
 	struct table;
 	struct string;
@@ -53,17 +54,17 @@ namespace lightning::core {
 	//
 	struct LI_ALIGN(16) any {
 		union {
-			number    n;
-			integer   i;
-			vec2      v2;
-			vec3      v3;
-			array*    a;
-			table*    t;
-			string*   s;
-			userdata* u;
-			function* f;
-			thread*   v;
-			uint8_t   _fill[15] = {};
+			number     n;
+			integer    i;
+			vec2       v2;
+			vec3       v3;
+			array*     a;
+			table*     t;
+			string*    s;
+			userdata*  u;
+			function*  f;
+			thread*    z;
+			gc_header* gc;
 		};
 		uint8_t type;
 
@@ -90,7 +91,7 @@ namespace lightning::core {
 		inline any(string* v) : any() { type = type_string, s = v; }
 		inline any(userdata* v) : any() { type = type_userdata, u = v; }
 		inline any(function* v) : any() { type = type_function, f = v; }
-		inline any(thread* w) : any() { type = type_thread, v = w; }
+		inline any(thread* v) : any() { type = type_thread, z = v; }
 
 		// Bytewise equal comparsion.
 		//

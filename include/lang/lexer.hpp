@@ -3,7 +3,7 @@
 #include <string>
 #include <string_view>
 
-namespace lightning {
+namespace lightning::lexer {
 	// Token enumerator:
 	//  _    => keyword        | "let"
 	//  __   => symbol mapped  | "--"
@@ -31,12 +31,12 @@ namespace lightning {
 		__(index_if, ?.) ___(pbegin, '(') ___(pend, ')') 							 \
 		___(sbegin, '[') ___(send, ']') ___(bbegin, '{') ___(bend, '}')		 \
 		/* Literal tokens */																	 \
-		____(unknown, <?>) ____(eof, <eof>) ____(number, <number>)				 \
-		____(name, <name>) ____(string, <string>) _(true) _(false)				 \
+		____(eof, <eof>) ____(number, <number>) ____(integer, <integer>)      \
+		____(name, <name>) ____(string, <string>) 				                \
 		/* Keywords */																			 \
 		_(let) _(const) _(if) _(else) _(switch) _(while) _(for)					 \
 		_(loop) _(case) _(default) _(break) _(continue) _(try)					 \
-		_(catch) _(return) _(fn)															 \
+		_(catch) _(return) _(fn) _(true) _(false)							          \
 
 	// Token identifiers.
 	//
@@ -60,7 +60,7 @@ namespace lightning {
 		
 		token_lit_max_plus_one,
 		token_lit_max =  token_lit_max_plus_one - 1,
-		token_sym_min =  []() { LIGHTNING_ENUM_TOKENS(TK_NOOP, TK_RET, TK_NOOP, TK_NOOP); }(),
+		token_sym_min =  token_char_max + 1,
 		token_name_min = []() { LIGHTNING_ENUM_TOKENS(TK_RET, TK_NOOP, TK_NOOP, TK_NOOP); }(),
 		token_lit_min =  []() { LIGHTNING_ENUM_TOKENS(TK_NOOP, TK_NOOP, TK_NOOP, TK_RET); }(),
 		token_sym_max =  token_name_min,
@@ -74,7 +74,7 @@ namespace lightning {
 
 	// Complex token to string conversion.
 	//
-	static constexpr const char* cx_token_to_str_map[] = {
+	static constexpr std::string_view cx_token_to_str_map[] = {
 		#define TK_NOOP(...)
 		#define TK_SYM(name)       #name,
 		#define TK_NAME(name, sym) #sym,
@@ -90,6 +90,16 @@ namespace lightning {
 		#undef TK_NAME
 		#undef TK_NOOP
 	};
+	static constexpr std::string_view cx_token_to_strv(uint8_t tk) {
+		if (token_sym_min <= tk && tk <= token_lit_max) {
+			return cx_token_to_str_map[uint8_t(tk) - token_sym_min];
+		}
+		return {};
+	}
+
+	// Handles escapes within a string.
+	//
+	std::string escape(std::string_view str);
 
 	// Token value.
 	//
@@ -101,14 +111,56 @@ namespace lightning {
 		// Value.
 		//
 		union {
-			std::string_view str_val; // token_string, token_name, token_unknown
-			double num_val;
+			std::string_view str_val; // token_string, token_name, note: token_string is not escaped!
+			double           num_val; // token_number
+			int64_t          int_val; // token_integer
 		};
+
+		// String conversion.
+		//
+		std::string to_string() const {
+			// Char token.
+			if (id <= token_char_max) {
+				std::string result;
+				result += (char) id;
+				return result;
+			}
+			// Named/Symbolic token.
+			else if (id < token_lit_min) {
+				return std::string(cx_token_to_strv(id));
+			}
+			// String literal.
+			else if (id == token_string) {
+				std::string result{"\""};
+				result += str_val;
+				result += '\"';
+				return result;
+			}
+			// Identifier.
+			else if (id == token_name) {
+				std::string result{"<name: '"};
+				result += str_val;
+				result += "\'>";
+				return result;
+			} 
+			// Numeric literal.
+			else if (id == token_number) {
+				std::string result{"<num: '"};
+				result += std::to_string(num_val);
+				result += "\'>";
+				return result;
+			} else {
+				std::string result{"<int: '"};
+				result += std::to_string(int_val);
+				result += "\'>";
+				return result;
+			}
+		}
 	};
 
 	// Lexer state.
 	//
-	struct lexer_state {
+	struct state {
 		// Input data and current location.
 		//
 		std::string input_buffer;
@@ -125,12 +177,12 @@ namespace lightning {
 
 		// Initialized with a string buffer.
 		//
-		lexer_state(std::string data);
+		state(std::string data);
 
 		// No copy.
 		//
-		lexer_state(const lexer_state&)            = delete;
-		lexer_state& operator=(const lexer_state&) = delete;
+		state(const state&)            = delete;
+		state& operator=(const state&) = delete;
 
 		// Gets the next/lookahead token.
 		//

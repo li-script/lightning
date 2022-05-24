@@ -13,29 +13,30 @@ namespace lightning::lexer {
 	//  ___  => single char    | '+'
 	//  ____ => literal        | <string>
 	//
-#define LIGHTNING_ENUM_TOKENS(_, __, ___, ____)                             \
-		/* Logical operators */																 \
-		__(land, &&) __(lor, ||) ___(lnot, '!') __(eq, ==) __(ne, !=)			 \
-		___(lt, '<') ___(gt, '>') __(le, <=) __(ge, >=)						       \
-		/* Arithmetic operators */															 \
-		___(add, '+') ___(sub, '-') ___(mul, '*') ___(div, '/') 					 \
-		___(mod, '%')																			 \
-		/* Ternary operator */																 \
-		___(tif, '?') ___(telse, ':')														 \
-		/* Compound operators */															 \
-		__(cinc, ++) __(cdec, --) __(cadd, +=) __(csub, -=)						 \
-		__(cmul, *=) __(cdiv, /=) __(cmod, %=) __(cband, &=)						 \
-		__(cbor, |=) __(cbxor, ^=) __(cbshr, >>=) __(cbshl, <<=)					 \
-		__(ccat, ..=)                                      					    \
-		/* Language operators */															 \
-		__(dots, ...) __(cat, ..)                                             \
-		/* Literal tokens */																	 \
-		____(eof, <eof>) ____(number, <number>) ____(name, <name>)            \
-		____(string, <string>) ____(error, <error>) 		                      \
-		/* Keywords */																			 \
-		_(true) _(false)  _(let) _(const) _(if) _(else) _(switch) _(while)    \
-		_(for) _(loop) _(case) _(default) _(break) _(continue) _(try)			 \
-		_(catch) _(return) _(fn) _(in)
+#define LIGHTNING_ENUM_TOKENS(_, __, ___, ____)                                \
+	/* Logical operators */                                                     \
+		__(land, &&) __(lor, ||) ___(lnot, '!') __(eq, ==) __(ne, !=)			    \
+		___(lt, '<') ___(gt, '>') __(le, <=) __(ge, >=)						          \
+		/* Arithmetic operators */															    \
+		___(add, '+') ___(sub, '-') ___(mul, '*') ___(div, '/') 					    \
+		___(mod, '%')																			    \
+		/* Ternary operator */																    \
+		___(tif, '?') ___(telse, ':')														    \
+		/* Compound operators */															    \
+		__(cinc, ++) __(cdec, --) __(cadd, +=) __(csub, -=)						    \
+		__(cmul, *=) __(cdiv, /=) __(cmod, %=) __(cband, &=)						    \
+		__(cbor, |=) __(cbxor, ^=) __(cbshr, >>=) __(cbshl, <<=)					    \
+		__(ccat, ..=)                                      					       \
+		/* Language operators */															    \
+		__(dots, ...) __(cat, ..)                                                \
+		/* Literal tokens */																	    \
+		____(eof, <eof>) ____(lnum, <number>) ____(name, <name>)                 \
+		____(lstr, <string>) ____(error, <error>) 		                         \
+		/* Keywords */																			    \
+		_(true) _(false)  _(let) _(const) _(if) _(else) _(switch) _(while)       \
+		_(for) _(loop) _(case) _(default) _(break) _(continue) _(try)			    \
+		_(catch) _(return) _(fn) _(in) _(is) _(bool) _(number) _(table) _(array) \
+		_(userdata) _(function) _(thread)
 
 	// Token identifiers.
 	//
@@ -55,7 +56,7 @@ namespace lightning::lexer {
 		// Literal tokens.
 		LIGHTNING_ENUM_TOKENS(TK_NOOP, TK_NOOP, TK_NOOP, TK_NAME)
 
-			 token_lit_max_plus_one,
+		token_lit_max_plus_one,
 		token_lit_max  = token_lit_max_plus_one - 1,
 		token_sym_min  = token_char_max + 1,
 		token_name_min = []() { LIGHTNING_ENUM_TOKENS(TK_RET, TK_NOOP, TK_NOOP, TK_NOOP); }(),
@@ -116,8 +117,8 @@ namespace lightning::lexer {
 		// Value.
 		//
 		union {
-			std::string_view str_val;  // token_string, token_name, note: token_string is not escaped!
-			core::number     num_val;  // token_number
+			std::string_view str_val;  // token_lstr, token_name, note: token_lstr is not escaped!
+			core::number     num_val;  // token_lnum
 		};
 
 		// Equality comparable with token id.
@@ -139,7 +140,7 @@ namespace lightning::lexer {
 				return std::string(cx_token_to_strv(id));
 			}
 			// String literal.
-			else if (id == token_string) {
+			else if (id == token_lstr) {
 				return util::fmt("\"%.*s\"", (int) str_val.size(), str_val.data());
 			}
 			// Identifier.
@@ -162,7 +163,7 @@ namespace lightning::lexer {
 				printf(LI_PRP "%.*s" LI_DEF, (int) token_str.size(), token_str.data());
 			}
 			// String literal.
-			else if (id == token_string) {
+			else if (id == token_lstr) {
 				printf(LI_BLU "\"%.*s\"" LI_DEF, (int) str_val.size(), str_val.data());
 			}
 			// Identifier.

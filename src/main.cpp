@@ -92,6 +92,7 @@ namespace lightning::core {
 		CGT,   // A=B>C
 		CLE,   // A=B<=C
 		CGE,   // A=B>=C
+		CTY,   // A=TYPE(B)==C
 
 		// Upvalue operators.
 		//

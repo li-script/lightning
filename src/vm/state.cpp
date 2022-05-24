@@ -29,7 +29,7 @@ namespace lightning::core {
 		vm*   L     = gc->create<vm>(context_space);
 		L->alloc_fn = alloc;
 		util::link_after(&L->gc_page_head, gc);
-		L->str_intern = create_string_set(L);
+		init_string_intern(L);
 		L->globals    = table::create(L, 32);
 		L->stack      = (any*) malloc(sizeof(any) * 32);
 		L->stack_len  = 32;

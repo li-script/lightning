@@ -15,7 +15,7 @@ namespace lightning::core {
 	// Forward for string set.
 	//
 	struct string_set;
-	string_set* create_string_set(vm* L);
+	void init_string_intern(vm* L);
 
 	// VM state.
 	//
@@ -28,6 +28,7 @@ namespace lightning::core {
 		gc_page     gc_page_head = {};              // GC linked-list head.
 		fn_panic    panic_fn     = &default_panic;  // Panic function.
 		string_set* str_intern   = nullptr;         // String interning state
+		string*     empty_string = nullptr;         // Constant "".
 		table*      globals      = nullptr;         // Globals.
 		uint64_t    prng_seed    = 0;               // PRNG seed.
 		any*        stack        = nullptr;         // Stack base.
@@ -38,23 +39,36 @@ namespace lightning::core {
 		//
 		void close();
 
-		// Doubles the stack range.
+		// Grows the stack range.
 		//
-		LI_COLD void grow_stack() {
-			stack = (any*) realloc(stack, (stack_len + 1) * 2 * sizeof(any));
-			memset(&stack[stack_len], 0xFF, stack_len * sizeof(any));
-			stack_len *= 2;
+		LI_COLD void grow_stack(uint32_t n = 0) {
+			n     = std::max(n, stack_len);
+			stack = (any*) realloc(stack, (stack_len + n) * sizeof(any));
+			memset(&stack[stack_len], 0xFF, n * sizeof(any));
+			stack_len += n;
 		}
 
 		// Pushes to or pops from the stack.
 		//
 		void push_stack(any x) {
 			if (stack_top == stack_len) [[unlikely]] {
-				grow_stack();
+				grow_stack(0);
 			}
 			stack[stack_top++] = x;
 		}
-		any pop_stack() {
+		uint32_t alloc_stack(uint32_t n) {
+			if ((stack_top + n) >= stack_len) [[unlikely]] {
+				grow_stack(n);
+			}
+			uint32_t slot = stack_top;
+			stack_top += n;
+			return slot;
+		}
+		void pop_stack_n(uint32_t n) {
+			stack_top = std::max(stack_top, n) - n;
+		}
+		any  peek_stack() { return stack[stack_top - 1]; }
+		any  pop_stack() {
 			if (stack_top == 0) {
 				return any{};
 			} else {

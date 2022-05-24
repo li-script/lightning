@@ -30,6 +30,38 @@ namespace lightning::core {
 		string_set* str_intern   = nullptr;         // String interning state
 		table*      globals      = nullptr;         // Globals.
 		uint64_t    prng_seed    = 0;               // PRNG seed.
+		any*        stack        = nullptr;         // Stack base.
+		uint32_t    stack_top    = 0;               // Top of the stack.
+		uint32_t    stack_len    = 0;               // Maximum length of the stack.
+
+		// Closes the VM state.
+		//
+		void close();
+
+		// Doubles the stack range.
+		//
+		LI_COLD void grow_stack() {
+			stack = (any*) realloc(stack, (stack_len + 1) * 2 * sizeof(any));
+			memset(&stack[stack_len], 0, stack_len * sizeof(any));
+			stack_len *= 2;
+		}
+
+		// Pushes to or pops from the stack.
+		//
+		void push_stack(any x) {
+			if (stack_top == stack_len) [[unlikely]] {
+				grow_stack();
+			}
+			stack[stack_top++] = x;
+		}
+		any pop_stack() {
+			if (stack_top == 0) {
+				return any{};
+			} else {
+				return stack[--stack_top];
+			}
+		}
+
 
 		// Gets next random.
 		//

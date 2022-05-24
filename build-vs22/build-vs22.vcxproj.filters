@@ -10,10 +10,19 @@
     <Filter Include="Language">
       <UniqueIdentifier>{d16c2432-5337-473f-9292-a141db7bdb88}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Utility">
+      <UniqueIdentifier>{53a1c0d0-2724-4774-91ef-1c52df49017e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\lang\lexer.hpp">
       <Filter>Language</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\util\format.hpp">
+      <Filter>Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\util\common.hpp">
+      <Filter>Utility</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

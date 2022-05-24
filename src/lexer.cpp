@@ -1,6 +1,8 @@
 #include <array>
 #include <lang/lexer.hpp>
 #include <stdarg.h>
+#include <util/common.hpp>
+#include <util/format.hpp>
 
 namespace lightning::lexer {
 	// Character traits.
@@ -145,7 +147,7 @@ namespace lightning::lexer {
 		for (size_t i = 0;; i++) {
 			// If we reached EOF|EOL and there is no end of string, error.
 			if (i == state.input.size() || state.input[i] == '\n') {
-				error("Unfinished string: line %d\n", state.line);
+				return state.error("Unfinished string: line %d\n", state.line);
 			} 
 			// If escaping next character, set the flag.
 			else if (state.input[i] == '\\') {
@@ -167,7 +169,7 @@ namespace lightning::lexer {
 	// Number reader.
 	//
 	template<int Base>
-	inline static std::optional<int> parse_digit(std::string_view& value) {
+	LI_INLINE static std::optional<int> parse_digit(std::string_view& value) {
 		// Pop first character.
 		char c = value.front();
 
@@ -208,7 +210,7 @@ namespace lightning::lexer {
 		return std::nullopt;
 	}
 	template<typename T, int Base, bool Fraction>
-	inline static T parse_digits(std::string_view& value) {
+	LI_INLINE static T parse_digits(std::string_view& value) {
 		T result = 0;
 		if constexpr (Fraction) {
 			constexpr T Step = 1 / T(Base);
@@ -233,7 +235,7 @@ namespace lightning::lexer {
 	}
 
 	template<typename T, int Base>
-	inline static void parse_digits_handle_suffix(T& result, std::string_view& value) {
+	LI_INLINE static token_value parse_digits_handle_suffix(state& state, T result, std::string_view& value) {
 		if (!value.empty()) {
 			if constexpr (Base == 10) {
 				if (value.front() == 'e') {
@@ -243,8 +245,15 @@ namespace lightning::lexer {
 				}
 			}
 		}
+
 		if(!value.empty()) {
-			error("Unexpected digit while parsing number: '%c'\n", value.front());
+			return state.error("Unexpected digit while parsing number: '%c'\n", value.front());
+		}
+
+		if constexpr (std::is_floating_point_v<T>) {
+			return {.id = token_number, .num_val = result};
+		} else {
+			return {.id = token_integer, .int_val = result};
 		}
 	}
 
@@ -266,16 +275,14 @@ namespace lightning::lexer {
 			//
 			double result = parse_digits<double, Base, false>(integral_part);
 			if (!integral_part.empty())
-				error("Unexpected digit while parsing number: '%c'\n", integral_part.front());
+				return state.error("Unexpected digit while parsing number: '%c'\n", integral_part.front());
 			result +=       parse_digits<double, Base, true>(fractional_part);
-			parse_digits_handle_suffix<double, Base>(result, fractional_part);
-			return {.id = token_number, .num_val = result};
+			return parse_digits_handle_suffix<double, Base>(state, result, fractional_part);
 		} else {
 			// Parse the integral side and handle suffix.
 			//
 			int64_t result = parse_digits<int64_t, Base, false>(integral_part);
-			parse_digits_handle_suffix<int64_t, Base>(result, integral_part);
-			return {.id = token_integer, .int_val = result};
+			return parse_digits_handle_suffix<int64_t, Base>(state, result, integral_part);
 		}
 	}
 
@@ -386,9 +393,7 @@ namespace lightning::lexer {
 		return tok_current;
 	}
 	token_value& state::lookahead() {
-		if (tok_lookahead) {
-			error("Double lookahead!");
-		}
+		LI_ASSERT_MSG("Double lookahead", !tok_lookahead);
 		tok_lookahead = scan(*this);
 		return *tok_lookahead;
 	}

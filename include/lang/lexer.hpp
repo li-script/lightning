@@ -2,6 +2,8 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <stdio.h>
+#include <util/format.hpp>
 
 namespace lightning::lexer {
 	// Token enumerator:
@@ -27,16 +29,14 @@ namespace lightning::lexer {
 		__(cmul, *=) __(cdiv, /=) __(cmod, %=) __(cband, &=)						 \
 		__(cbor, |=) __(cbxor, ^=) __(cbshr, >>=) __(cbshl, <<=)					 \
 		/* Language operators */															 \
-		___(dot, '.') ___(colon, ':') ___(comma, ',') __(dots, ...)				 \
-		__(index_if, ?.) ___(pbegin, '(') ___(pend, ')') 							 \
-		___(sbegin, '[') ___(send, ']') ___(bbegin, '{') ___(bend, '}')		 \
+		__(dots, ...) __(index_if, ?.)                                   		 \
 		/* Literal tokens */																	 \
 		____(eof, <eof>) ____(number, <number>) ____(integer, <integer>)      \
-		____(name, <name>) ____(string, <string>) 				                \
+		____(name, <name>) ____(string, <string>) ____(error, <error>) 		 \
 		/* Keywords */																			 \
-		_(let) _(const) _(if) _(else) _(switch) _(while) _(for)					 \
-		_(loop) _(case) _(default) _(break) _(continue) _(try)					 \
-		_(catch) _(return) _(fn) _(true) _(false)							          \
+		_(true) _(false)  _(let) _(const) _(if) _(else) _(switch) _(while)    \
+		_(for) _(loop) _(case) _(default) _(break) _(continue) _(try)			 \
+		_(catch) _(return) _(fn) _(in)	                   
 
 	// Token identifiers.
 	//
@@ -131,29 +131,42 @@ namespace lightning::lexer {
 			}
 			// String literal.
 			else if (id == token_string) {
-				std::string result{"\""};
-				result += str_val;
-				result += '\"';
-				return result;
+				return util::fmt("\"%.*s\"", str_val.size(), str_val.data());
 			}
 			// Identifier.
 			else if (id == token_name) {
-				std::string result{"<name: '"};
-				result += str_val;
-				result += "\'>";
-				return result;
+				return util::fmt("<name: %.*s>", str_val.size(), str_val.data());
 			} 
 			// Numeric literal.
 			else if (id == token_number) {
-				std::string result{"<num: '"};
-				result += std::to_string(num_val);
-				result += "\'>";
-				return result;
+				return util::fmt("<num: %lf>", num_val);
 			} else {
-				std::string result{"<int: '"};
-				result += std::to_string(int_val);
-				result += "\'>";
-				return result;
+				return util::fmt("<int: %lld>", int_val);
+			}
+		}
+		void print() const {
+			// Char token.
+			if (id <= token_char_max) {
+				printf(LI_BRG "%c" LI_DEF, id);
+			}
+			// Named/Symbolic token.
+			else if (id < token_lit_min) {
+				auto token_str = cx_token_to_strv(id);
+				printf(LI_PRP "%.*s" LI_DEF, token_str.size(), token_str.data());
+			}
+			// String literal.
+			else if (id == token_string) {
+				printf(LI_BLU "%.*s" LI_DEF, str_val.size(), str_val.data());
+			}
+			// Identifier.
+			else if (id == token_name) {
+				printf(LI_RED "%.*s" LI_DEF, str_val.size(), str_val.data());
+			}
+			// Numeric literal.
+			else if (id == token_number) {
+				printf(LI_CYN "%lf" LI_DEF, num_val);
+			} else {
+				printf(LI_BLU "%lld" LI_DEF, int_val);
 			}
 		}
 	};
@@ -175,6 +188,10 @@ namespace lightning::lexer {
 		token_value tok_current                  = {};
 		std::optional<token_value> tok_lookahead = {};
 
+		// Last lexer error.
+		//
+		std::string last_error = {};
+
 		// Initialized with a string buffer.
 		//
 		state(std::string data);
@@ -183,6 +200,14 @@ namespace lightning::lexer {
 		//
 		state(const state&)            = delete;
 		state& operator=(const state&) = delete;
+
+		// Error helper.
+		//
+		template<typename... Tx>
+		token_value error(const char* fmt, Tx... args) {
+			last_error = util::fmt(fmt, args...);
+			return token_value{.id = token_error};
+		}
 
 		// Gets the next/lookahead token.
 		//

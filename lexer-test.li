@@ -3,6 +3,17 @@ const y = true
 
 let aaaa = (~(1 & 3 | 4 ^ 6)) << 1
 
+
+fn double(x) {
+	|y| x(y)*2
+}
+double fn test(y) {
+	y*2
+}
+
+print(test(4))
+
+
 if y {
  
 } else if x {

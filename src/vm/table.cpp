@@ -1,4 +1,5 @@
 #include <vm/table.hpp>
+#include <bit>
 
 namespace lightning::core {
 	table* table::create(vm* L, size_t reserved_entry_count) {
@@ -17,7 +18,6 @@ namespace lightning::core {
 		if (new_count > old_count) {
 			auto* old_list = begin();
 			node_list      = L->alloc<table_nodes>(sizeof(typename table_entry) * (new_count + overflow_factor));
-			node_mask      = new_count - 1;
 			if (old_list) {
 				// TODO: Free old?
 				for (size_t i = 0; i != old_count; i++) {

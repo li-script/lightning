@@ -17,10 +17,15 @@ namespace lightning::core {
 	using fn_alloc = void* (*) (vm* L, void* pointer, size_t page_count, bool executable);
 	extern void* default_allocator(vm* L, void* pointer, size_t page_count, bool executable);
 
+	// Forward for string set.
+	//
+	struct string_set;
+	string_set* create_string_set(vm* L);
+
 	// VM state.
 	//
 	struct vm : gc_leaf<vm> {
-		static vm* create(fn_alloc a = &default_allocator, size_t context_space = 0);
+		static vm* create(fn_alloc alloc = &default_allocator, size_t context_space = 0);
 
 		// Allocator and GC page head.
 		//
@@ -33,7 +38,7 @@ namespace lightning::core {
 
 		// String interning state.
 		//
-		table* str_intern = nullptr;
+		string_set* str_intern = nullptr;
 
 		// TODO:
 		//  prng state

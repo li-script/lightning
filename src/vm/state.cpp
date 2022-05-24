@@ -1,4 +1,5 @@
 #include <vm/state.hpp>
+#include <vm/table.hpp>
 
 namespace lightning::core {
 	vm* vm::create(fn_alloc alloc, size_t context_space) {
@@ -16,6 +17,7 @@ namespace lightning::core {
 		L->alloc_fn = alloc;
 		util::link_after(&L->gc_page_head, gc);
 		L->str_intern = create_string_set(L);
+		L->globals    = table::create(L, 32);
 		return L;
 	}
 };

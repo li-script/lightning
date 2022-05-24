@@ -11,13 +11,13 @@ namespace lightning::core {
 		any key;
 		any value;
 	};
-	struct table_nodes : gc_leaf<table_nodes> {
+	struct table_nodes : gc_node<table_nodes> {
 		table_entry entries[];
 	};
 
 	// Implemented inline as its templated.
 	//
-	struct table : gc_node<table> {
+	struct table : gc_leaf<table> {
 		static table* create(vm* L, size_t reserved_entry_count = 0);
 
 		table_nodes* node_list = nullptr;

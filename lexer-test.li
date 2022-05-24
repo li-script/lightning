@@ -15,9 +15,9 @@ if y {
 	}
 }
 
-let longstr : string = """
-a
-"""
+#let longstr : string = """
+#a
+#"""
 
 while x != 0 || x != 0 {
 	x--

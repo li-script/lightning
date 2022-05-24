@@ -79,6 +79,10 @@ namespace lightning::core {
 			return new_set;
 		}
 		static string* push(vm* L, std::string_view key) {
+			if (key.empty()) [[unlikely]] {
+				return L->empty_string;
+			}
+
 			uint32_t hash = sparse_hash(key);
 
 			// Return if already exists.
@@ -103,8 +107,14 @@ namespace lightning::core {
 
 	// Internal string-set implementation.
 	//
-	string_set* create_string_set(vm* L) {
-		return L->alloc<string_set>(sizeof(string*) * 512);
+	void init_string_intern(vm* L) {
+		L->str_intern = L->alloc<string_set>(sizeof(string*) * 512);
+
+		string* str = L->alloc<string>(1);
+		str->data[0] = 0;
+		str->length  = 0;
+		str->hash    = 0;
+		L->empty_string = str;
 	}
 
 	// String creation.

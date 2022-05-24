@@ -250,11 +250,7 @@ namespace lightning::lexer {
 			return state.error("Unexpected digit while parsing number: '%c'\n", value.front());
 		}
 
-		if constexpr (std::is_floating_point_v<T>) {
-			return {.id = token_number, .num_val = result};
-		} else {
-			return {.id = token_integer, .int_val = result};
-		}
+		return {.id = token_number, .num_val = result};
 	}
 
 	template<int Base>
@@ -281,8 +277,8 @@ namespace lightning::lexer {
 		} else {
 			// Parse the integral side and handle suffix.
 			//
-			core::integer result = parse_digits<core::integer, Base, false>(integral_part);
-			return parse_digits_handle_suffix<core::integer, Base>(state, result, integral_part);
+			core::number result = parse_digits<core::number, Base, false>(integral_part);
+			return parse_digits_handle_suffix<core::number, Base>(state, result, integral_part);
 		}
 	}
 

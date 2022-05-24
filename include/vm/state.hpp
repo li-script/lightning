@@ -42,7 +42,7 @@ namespace lightning::core {
 		//
 		LI_COLD void grow_stack() {
 			stack = (any*) realloc(stack, (stack_len + 1) * 2 * sizeof(any));
-			memset(&stack[stack_len], 0, stack_len * sizeof(any));
+			memset(&stack[stack_len], 0xFF, stack_len * sizeof(any));
 			stack_len *= 2;
 		}
 

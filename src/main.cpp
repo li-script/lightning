@@ -21,7 +21,7 @@
 namespace lightning::debug {
 	using namespace core;
 	static void print_object(any a) {
-		switch (a.type) {
+		switch (a.type()) {
 			case type_none:
 				printf("None");
 				break;
@@ -32,40 +32,31 @@ namespace lightning::debug {
 				printf("true");
 				break;
 			case type_number:
-				printf("%lf", a.n);
-				break;
-			case type_integer:
-				printf("%lld", a.i);
-				break;
-			case type_vec2:
-				printf("<%f, %f>", a.v2.x, a.v2.y);
-				break;
-			case type_vec3:
-				printf("<%f, %f, %f>", a.v2.x, a.v2.y, a.v3.z);
+				printf("%lf", a.as_num());
 				break;
 			case type_array:
-				printf("array @ %p", a.a);
+				printf("array @ %p", a.as_gc());
 				break;
 			case type_table:
-				printf("table @ %p", a.t);
+				printf("table @ %p", a.as_gc());
 				break;
 			case type_string:
-				printf("\"%s\"", a.s->data);
+				printf("\"%s\"", a.as_str()->data);
 				break;
 			case type_userdata:
-				printf("userdata @ %p", a.u);
+				printf("userdata @ %p", a.as_gc());
 				break;
 			case type_function:
-				printf("function @ %p", a.u);
+				printf("function @ %p", a.as_gc());
 				break;
 			case type_thread:
-				printf("thread @ %p", a.z);
+				printf("thread @ %p", a.as_gc());
 				break;
 		}
 	}
 	static void dump_table(table* t) {
 		for (auto& [k, v] : *t) {
-			if (k.type != core::type_none) {
+			if (k != core::none) {
 				print_object(k);
 				printf(" -> ");
 				print_object(v);
@@ -81,7 +72,6 @@ namespace lightning::core {
 	enum class bytecode : uint8_t {
 		// Unary operators.
 		//
-		BNOT,  // A=~B
 		LNOT,  // A=!B
 		AMIN,  // A=-B
 		MOVE,  // A=B
@@ -93,11 +83,6 @@ namespace lightning::core {
 		AMUL,  // A=B*C
 		ADIV,  // A=B/C
 		AMOD,  // A=B%C
-		BAND,  // A=B&C
-		BOR,   // A=B|C
-		BXOR,  // A=B^C
-		BSHL,  // A=B<<C
-		BSHR,  // A=B<<C
 		LAND,  // A=B&&C
 		LOR,   // A=B||C
 		SCAT,  // A=B..C
@@ -130,7 +115,7 @@ namespace lightning::core {
 		// Control flow.
 		//
 		CALL,  // CALL A(B x args), JMP C if throw
-		RETN,  // RETURN A
+		RETN,  // RETURN A, (IsException:B)
 		JMP,   // JMP A
 		JCC,   // JMP A if B
 	};
@@ -180,8 +165,8 @@ namespace lightning::core {
 		template<typename F>
 		void enum_for_gc(F&& fn) {
 			for (auto& v : upvalues) {
-				if (v.type & type_gc)
-					fn(v.gc);
+				if (v.is_gc())
+					fn(v.as_gc());
 			}
 		}
 	};
@@ -214,45 +199,49 @@ using namespace lightning;
 int main() {
 	platform::setup_ansi_escapes();
 
+	auto* L = core::vm::create();
 
-	//printf("VM allocated @ %p\n", L);
-	//
-	//printf("%p\n", core::string::create(L, "hello"));
-	//printf("%p\n", core::string::create(L, "hello"));
-	//printf("%p\n", core::string::create(L, "hellox"));
-	//
-	//// String interning consider literals:
-	////
-	//
-	//std::unordered_map<int64_t, double> t1 = {};
-	//core::table*                        t2 = core::table::create(L);
-	//for (size_t i = 0; i != 521; i++) {
-	//	int64_t key   = rand() % 15;
-	//	double  value = rand() / 5214.0;
-	//
-	//	t1[key] = value;
-	//	t2->set(L, core::any(key), core::any(value));
-	//}
-	//
-	//printf("--------- t1 ----------\n");
-	//printf(" Capacity: %llu\n", t1.max_bucket_count());
-	//for (auto& [k, v] : t1)
-	//	printf("%lld -> %lf\n", k, v);
-	//
-	//printf("--------- t2 ----------\n");
-	//printf(" Capacity: %llu\n", t2->size());
-	//t2->set(L, core::string::create(L, "hey"), core::any{5.0f});
-	//core::dump_table(t2);
-	//
-	//printf("----------------------\n");
-	//
-	//for (auto it = L->gc_page_head.next; it != &L->gc_page_head; it = it->next) {
-	//	printf("gc page %p\n", it);
-	//}
+	//std::ifstream           file("S:\\Projects\\Lightning\\parser-test.li");
+	//std::string file_buf{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+	// lightning::parser::parse(L, file_buf);
+
+
+
+	printf("VM allocated @ %p\n", L);
+	
+	printf("%p\n", core::string::create(L, "hello"));
+	printf("%p\n", core::string::create(L, "hello"));
+	printf("%p\n", core::string::create(L, "hellox"));
+	
+	std::unordered_map<double, double> t1 = {};
+	core::table*                        t2 = core::table::create(L);
+	for (size_t i = 0; i != 521; i++) {
+		double key   = rand() % 15;
+		double  value = rand() / 5214.0;
+	
+		t1[key] = value;
+		t2->set(L, core::any(key), core::any(value));
+	}
+	
+	printf("--------- t1 ----------\n");
+	printf(" Capacity: %llu\n", t1.max_bucket_count());
+	for (auto& [k, v] : t1)
+		printf("%lf -> %lf\n", k, v);
+	
+	printf("--------- t2 ----------\n");
+	printf(" Capacity: %llu\n", t2->size());
+	t2->set(L, core::string::create(L, "hey"), core::any{5.0f});
+	debug::dump_table(t2);
+	
+	printf("----------------------\n");
+	
+	for (auto it = L->gc_page_head.next; it != &L->gc_page_head; it = it->next) {
+		printf("gc page %p\n", it);
+	}
 
 	std::ifstream file("S:\\Projects\\Lightning\\lexer-test.li");
-	lightning::lexer::state lexer{std::string{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()}};
-	
+	std::string             file_buf{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+	lightning::lexer::state lexer{file_buf};
 	size_t last_line = 0;
 	while (true) {
 	if (last_line != lexer.line) {

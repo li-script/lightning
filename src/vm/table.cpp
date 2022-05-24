@@ -16,12 +16,15 @@ namespace lightning::core {
 		size_t new_count = std::bit_ceil(n | (small_table_length - 1));
 		size_t old_count = size();
 		if (new_count > old_count) {
-			auto* old_list = begin();
-			node_list      = L->alloc<table_nodes>(sizeof(typename table_entry) * (new_count + overflow_factor));
+			auto*  old_list = begin();
+			size_t alloc_length   = sizeof(typename table_entry) * (new_count + overflow_factor);
+			node_list           = L->alloc<table_nodes>(alloc_length);
+			memset(node_list->entries, 0xFF, alloc_length);
+
 			if (old_list) {
 				// TODO: Free old?
 				for (size_t i = 0; i != old_count; i++) {
-					if (old_list[i].key.type != type_none) {
+					if (old_list[i].key != none) {
 						set(L, old_list[i].key, old_list[i].value, true);
 					}
 				}
@@ -43,7 +46,7 @@ namespace lightning::core {
 				}
 			}
 			for (auto& entry : range) {
-				if (entry.key.type == type_none) {
+				if (entry.key == none) {
 					entry = {key, value};
 					return;
 				}

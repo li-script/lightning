@@ -59,7 +59,7 @@ namespace lightning::debug {
 				printf("function @ %p", a.u);
 				break;
 			case type_thread:
-				printf("thread @ %p", a.v);
+				printf("thread @ %p", a.z);
 				break;
 		}
 	}

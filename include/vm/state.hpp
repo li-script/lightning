@@ -8,14 +8,14 @@ namespace lightning::core {
 
 	// Panic function, should not return.
 	//
-	using fn_panic = void (*)(vm*, const char* msg);
-	static void default_panic [[noreturn]] (vm*, const char* msg) { util::abort("[Lightning Panic] %s\n", msg); }
+	using fn_panic = void (*)(vm* L, const char* msg);
+	static void default_panic [[noreturn]] (vm* L, const char* msg) { util::abort("[Lightning Panic] %s\n", msg); }
 
 	// Page allocator:
 	// - f(nullptr, N, ?) =     allocation
 	// - f(ptr,     N, false) = free
-	using fn_alloc = void* (*) (vm*, void* pointer, size_t page_count, bool executable);
-	extern void* default_allocator(vm*, void* pointer, size_t page_count, bool executable);
+	using fn_alloc = void* (*) (vm* L, void* pointer, size_t page_count, bool executable);
+	extern void* default_allocator(vm* L, void* pointer, size_t page_count, bool executable);
 
 	// VM state.
 	//
@@ -30,6 +30,14 @@ namespace lightning::core {
 		// Panic function.
 		//
 		fn_panic panic_fn = &default_panic;
+
+		// String interning state.
+		//
+		table* str_intern = nullptr;
+
+		// TODO:
+		//  prng state
+		//  jit state
 
 		// Gets user context.
 		//
@@ -56,8 +64,15 @@ namespace lightning::core {
 			alloc_fn(this, gc, gc->num_pages, false);
 		}
 
-		// string interning state
-		// panic
-		// prng state
+		// Allocation helper.
+		//
+		template<typename T, typename... Tx>
+		T* alloc(size_t extra_length = 0, Tx&&... args) {
+			auto* page = gc_page_head.prev;
+			if (!page->check<T>(extra_length)) {
+				page = add_page(sizeof(T) + extra_length, false);
+			}
+			return page->create<T, Tx...>(extra_length, std::forward<Tx>(args)...);
+		}
 	};
 }

@@ -6,6 +6,9 @@
       <Filter>Language</Filter>
     </ClCompile>
     <ClCompile Include="..\src\platform.cpp" />
+    <ClCompile Include="..\src\vm\table.cpp">
+      <Filter>VM</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Language">
@@ -41,6 +44,9 @@
       <Filter>Utility</Filter>
     </ClInclude>
     <ClInclude Include="..\include\vm\gc.hpp">
+      <Filter>VM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\vm\table.hpp">
       <Filter>VM</Filter>
     </ClInclude>
   </ItemGroup>

@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <cstring>
 #include <util/common.hpp>
+#include <intrin.h>
 
 #pragma pack(push, 1)
 namespace lightning::core {
@@ -36,7 +37,7 @@ namespace lightning::core {
 	// Type enumerator.
 	//
 	enum value_type : uint8_t /*:4*/ {
-		type_none     = 0,
+		type_none     = 0, // <-- must be 0, memset(0) = array of nulls
 		type_false    = 1,
 		type_true     = 2,
 		type_number   = 3,
@@ -66,26 +67,34 @@ namespace lightning::core {
 			userdata* u;
 			function* f;
 			thread*   v;
+			uint8_t   _fill[15] = {};
 		};
-		uint32_t type;
+		uint8_t type;
 
 		// Literal construction.
 		//
-		inline constexpr any() : i(0), type(type_none) {}
-		inline constexpr any(bool v) : i(0), type(v + type_false) {}
-		inline constexpr any(number v) : n(v), type(type_number) {}
-		inline constexpr any(integer v) : i(v), type(type_integer) {}
-		inline constexpr any(vec2 v) : v2(v), type(type_vec2) {}
-		inline constexpr any(vec3 v) : v3(v), type(type_vec3) {}
+		inline any() 
+		{ 
+#if _MSC_VER
+			_mm_storeu_si128((__m128i*) this, _mm_setzero_si128());
+#else
+			memset(this, 0, 16);
+#endif
+		}
+		inline any(bool v) : any() { type = v + type_false; }
+		inline any(number v) : any() { type = type_number, n = v; }
+		inline any(integer v) : any() { type = type_integer, i = v; }
+		inline any(vec2 v) : any() { type = type_vec2, v2 = v; }
+		inline any(vec3 v) : any() { type = type_vec3, v3 = v; }
 
 		// GC types.
 		//
-		inline constexpr any(array* v) : a(v), type(type_array) {}
-		inline constexpr any(table* v) : t(v), type(type_table) {}
-		inline constexpr any(string* v) : s(v), type(type_string) {}
-		inline constexpr any(userdata* v) : u(v), type(type_userdata) {}
-		inline constexpr any(function* v) : f(v), type(type_function) {}
-		inline constexpr any(thread* v) : v(v), type(type_thread) {}
+		inline any(array* v) : any() { type = type_array, a = v; }
+		inline any(table* v) : any() { type = type_table, t = v; }
+		inline any(string* v) : any() { type = type_string, s = v; }
+		inline any(userdata* v) : any() { type = type_userdata, u = v; }
+		inline any(function* v) : any() { type = type_function, f = v; }
+		inline any(thread* w) : any() { type = type_thread, v = w; }
 
 		// Bytewise equal comparsion.
 		//
@@ -119,6 +128,15 @@ namespace lightning::core {
 		}
 		inline bool operator==(const any& other) const { return equals(other); }
 		inline bool operator!=(const any& other) const { return !equals(other); }
+
+		// Hasher.
+		//
+		inline uint32_t hash() const {
+			uint64_t h = ~0;
+			h          = _mm_crc32_u64(h, ((uint64_t*) this)[0]);
+			h          = _mm_crc32_u64(h, ((uint64_t*) this)[1]);
+			return uint32_t(h + 1) * 134775813;
+		}
 	};
 	static_assert(sizeof(any) == 16, "Invalid any size.");
 };

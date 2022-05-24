@@ -303,26 +303,26 @@ namespace lightning::lexer {
 		}
 	}
 
-	// Lexer scan.
+	// Scans for the next token.
 	//
-	static token_value scan(state& state) {
-		while (!state.input.empty()) {
-			char c = state.input.front();
+	token_value state::scan() {
+		while (!input.empty()) {
+			char c = input.front();
 
 			// If whitespace, consume and continue.
 			if (is_space(c)) {
-				str_consume_all<char_space>(state.input);
+				str_consume_all<char_space>(input);
 				continue;
 			}
 			// If identifier, keyword or numeric literal.
 			else if (is_ident(c)) {
 				// Numeric literal.
 				if (is_num(c)) {
-					return scan_num(state);
+					return scan_num(*this);
 				}
 				
 				// Try matching against a keyword.
-				auto word = str_consume_all<char_ident>(state.input);
+				auto word = str_consume_all<char_ident>(input);
 				for (uint8_t i = token_name_min; i <= token_name_max; i++) {
 					if (word == cx_token_to_strv(i)) {
 						return {.id = token(i)};
@@ -338,8 +338,8 @@ namespace lightning::lexer {
 				// Handle all symbols:
 				for (uint8_t i = token_sym_min; i <= token_sym_max; i++) {
 					std::string_view sym = cx_token_to_strv(i);
-					if (state.input.starts_with(sym)) {
-						state.input.remove_prefix(sym.size());
+					if (input.starts_with(sym)) {
+						input.remove_prefix(sym.size());
 						return {.id = token(i)};
 					}
 				}
@@ -348,53 +348,32 @@ namespace lightning::lexer {
 			switch (c) {
 				// Newline:
 				case '\n':
-					state.line++;
+					line++;
 					[[fallthrough]];
 				// Whitespace:
 				case '\t':
 				case '\v':
 				case '\f':
 				case '\r': 
-					state.input.remove_prefix(1);
+					input.remove_prefix(1);
 					continue;
 
 				// Comment:
 				case '#':
-					state.input.remove_prefix(1);
-					nextline(state);
+					input.remove_prefix(1);
+					nextline(*this);
 					continue;
 
 				// String literal:
 				case '"':
-					return scan_str(state);
+					return scan_str(*this);
 
 				// Finally, return as a single char token.
 				default:
-					state.input.remove_prefix(1);
+					input.remove_prefix(1);
 					return {.id = token(c)};
 			}
 		}
 		return {.id = token_eof};
-	}
-
-	// Initialized with a string buffer.
-	//
-	state::state(std::string data) : input_buffer(std::move(data)), input(input_buffer) {}
-
-	// Gets the next/lookahead token.
-	//
-	token_value& state::next() {
-		if (tok_lookahead) {
-			tok_current = *tok_lookahead;
-			tok_lookahead.reset();
-		} else {
-			tok_current = scan(*this);
-		}
-		return tok_current;
-	}
-	token_value& state::lookahead() {
-		LI_ASSERT_MSG("Double lookahead", !tok_lookahead);
-		tok_lookahead = scan(*this);
-		return *tok_lookahead;
 	}
 }

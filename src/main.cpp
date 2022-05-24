@@ -13,6 +13,10 @@ namespace lightning::parser {
 
 
 
+	static void parse() {
+
+	}
+
 };
 
 
@@ -36,19 +40,17 @@ int main() {
 	#endif
 
 	std::ifstream file("S:\\Projects\\Lightning\\lexer-test.li");
-	std::string strx = {std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
-
-	lightning::lexer::state lexer{std::move(strx)};
+	lightning::lexer::state lexer{std::string{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()}};
 	
 	size_t last_line = 0;
 	while (true) {
-		auto& token = lexer.next();
-		if (token.id == lexer::token_eof)
-			break;
 		if (last_line != lexer.line) {
 			printf("\n%03llu: ", lexer.line);
 			last_line = lexer.line;
 		}
+		auto token = lexer.next();
+		if (token == lexer::token_eof)
+			break;
 		putchar(' ');
 		token.print();
 	}

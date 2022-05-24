@@ -1,6 +1,6 @@
+#include <stdarg.h>
 #include <array>
 #include <lang/lexer.hpp>
-#include <stdarg.h>
 #include <util/common.hpp>
 #include <util/format.hpp>
 
@@ -58,7 +58,7 @@ namespace lightning::lexer {
 		result['\t'] |= char_space;
 		result['\v'] |= char_space;
 		result['\f'] |= char_space;
-		result['\r'] |= char_space; // hack!
+		result['\r'] |= char_space;  // hack!
 		// Add further num traits.
 		for (size_t i = 'A'; i <= 'F'; i++)
 			result[i] |= char_xnum;
@@ -114,11 +114,11 @@ namespace lightning::lexer {
 
 	// Handles escapes within a string.
 	//
-	std::string escape( std::string_view str ) {
+	std::string escape(std::string_view str) {
 		// TODO:
 		// unicode escape \u1234
 		// escape \v \f \\ ...
-		// 
+		//
 		return std::string(str);
 	}
 
@@ -140,7 +140,7 @@ namespace lightning::lexer {
 		// Consume the quote.
 		//
 		state.input.remove_prefix(1);
-		
+
 		// TODO: Long string
 
 		bool escape = false;
@@ -148,19 +148,19 @@ namespace lightning::lexer {
 			// If we reached EOF|EOL and there is no end of string, error.
 			if (i == state.input.size() || state.input[i] == '\n') {
 				return state.error("Unfinished string: line %d\n", state.line);
-			} 
+			}
 			// If escaping next character, set the flag.
 			else if (state.input[i] == '\\') {
 				escape = true;
 				continue;
-			} 
+			}
 			// If not escaped end of string, return.
 			else if (!escape && state.input[i] == '"') {
 				token_value result = {.id = token_string, .str_val = state.input.substr(0, i)};
 				state.input.remove_prefix(i + 1);
 				return result;
 			}
-			
+
 			// Clear escape.
 			escape = false;
 		}
@@ -214,7 +214,7 @@ namespace lightning::lexer {
 		T result = 0;
 		if constexpr (Fraction) {
 			constexpr T Step = 1 / T(Base);
-			T mul = 1;
+			T           mul  = 1;
 			while (!value.empty()) {
 				auto digit = parse_digit<Base>(value);
 				if (!digit)
@@ -246,7 +246,7 @@ namespace lightning::lexer {
 			}
 		}
 
-		if(!value.empty()) {
+		if (!value.empty()) {
 			return state.error("Unexpected digit while parsing number: '%c'\n", value.front());
 		}
 
@@ -270,19 +270,19 @@ namespace lightning::lexer {
 			//
 			state.input.remove_prefix(1);
 			std::string_view fractional_part = str_consume_all<char_alpha | char_num>(state.input);
-			
+
 			// Parse both sides and handle suffix.
 			//
-			double result = parse_digits<double, Base, false>(integral_part);
+			core::number result = parse_digits<core::number, Base, false>(integral_part);
 			if (!integral_part.empty())
 				return state.error("Unexpected digit while parsing number: '%c'\n", integral_part.front());
-			result +=       parse_digits<double, Base, true>(fractional_part);
-			return parse_digits_handle_suffix<double, Base>(state, result, fractional_part);
+			result += parse_digits<core::number, Base, true>(fractional_part);
+			return parse_digits_handle_suffix<core::number, Base>(state, result, fractional_part);
 		} else {
 			// Parse the integral side and handle suffix.
 			//
-			int64_t result = parse_digits<int64_t, Base, false>(integral_part);
-			return parse_digits_handle_suffix<int64_t, Base>(state, result, integral_part);
+			core::integer result = parse_digits<core::integer, Base, false>(integral_part);
+			return parse_digits_handle_suffix<core::integer, Base>(state, result, integral_part);
 		}
 	}
 
@@ -320,7 +320,7 @@ namespace lightning::lexer {
 				if (is_num(c)) {
 					return scan_num(*this);
 				}
-				
+
 				// Try matching against a keyword.
 				auto word = str_consume_all<char_ident>(input);
 				for (uint8_t i = token_name_min; i <= token_name_max; i++) {
@@ -328,7 +328,7 @@ namespace lightning::lexer {
 						return {.id = token(i)};
 					}
 				}
-				
+
 				// Otherwise return as identifier.
 				return {.id = token_name, .str_val = word};
 			}
@@ -354,7 +354,7 @@ namespace lightning::lexer {
 				case '\t':
 				case '\v':
 				case '\f':
-				case '\r': 
+				case '\r':
 					input.remove_prefix(1);
 					continue;
 

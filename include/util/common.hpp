@@ -27,6 +27,7 @@ namespace lightning {
 	#define LI_COLD      __attribute__((cold, noinline, disable_tail_calls))
 	#define LI_INLINE    __attribute__((always_inline))
 	#define LI_NOINLINE  __attribute__((noinline))
+	#define LI_ALIGN(x)  __attribute__((aligned(x)))
 #elif _MSC_VER
 	#define LI_PURE     
 	#define LI_CONST    
@@ -34,6 +35,7 @@ namespace lightning {
 	#define LI_INLINE   [[msvc::forceinline]]
 	#define LI_NOINLINE __declspec(noinline)
 	#define LI_COLD     LI_NOINLINE
+	#define LI_ALIGN(x) __declspec(align(x))
 #endif
 	LI_INLINE inline static void breakpoint() {
 #if __has_builtin(__builtin_debugtrap)

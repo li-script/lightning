@@ -23,6 +23,6 @@ AlignEscapedNewlines: true
 AlignOperands: true
 AlignTrailingComments: true
 AlignConsecutiveAssignments: true
-AlignConsecutiveDeclarations: false
+AlignConsecutiveDeclarations: true
 ConstructorInitializerAllOnOneLineOrOnePerLine: true
 IndentPPDirectives: BeforeHash

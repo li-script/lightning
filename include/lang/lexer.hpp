@@ -1,8 +1,9 @@
 #pragma once
+#include <stdio.h>
+#include <lang/types.hpp>
 #include <optional>
 #include <string>
 #include <string_view>
-#include <stdio.h>
 #include <util/format.hpp>
 
 namespace lightning::lexer {
@@ -13,7 +14,7 @@ namespace lightning::lexer {
 	//  ____ => literal        | <string>
 	//
 #define LIGHTNING_ENUM_TOKENS(_, __, ___, ____)                             \
-		/* Binary operators */																 \
+   	/* Binary operators */                                                \
 		___(band, '&') ___(bor, '|') ___(bxor, '^') ___(bnot, '~') 				 \
 		__(bshr, >>) __(bshl, <<)															 \
 		/* Logical operators */																 \
@@ -36,20 +37,18 @@ namespace lightning::lexer {
 		/* Keywords */																			 \
 		_(true) _(false)  _(let) _(const) _(if) _(else) _(switch) _(while)    \
 		_(for) _(loop) _(case) _(default) _(break) _(continue) _(try)			 \
-		_(catch) _(return) _(fn) _(in)	                   
+		_(catch) _(return) _(fn) _(in)
 
 	// Token identifiers.
 	//
-	enum token : uint8_t
-	{
-		#define TK_NOOP(...)
-		#define TK_CHAR(name, chr) token_##name = chr,
-		#define TK_NAME(name, sym) token_##name,
-		#define TK_RET(name, sym) return token_##name;
+	enum token : uint8_t {
+#define TK_NOOP(...)
+#define TK_CHAR(name, chr) token_##name = chr,
+#define TK_NAME(name, sym) token_##name,
+#define TK_RET(name, sym)  return token_##name;
 
 		// Character tokens, end at 0x7F.
-		LIGHTNING_ENUM_TOKENS(TK_NOOP, TK_NOOP, TK_CHAR, TK_NOOP)
-		token_char_max = 0x7F,
+		LIGHTNING_ENUM_TOKENS(TK_NOOP, TK_NOOP, TK_CHAR, TK_NOOP) token_char_max = 0x7F,
 
 		// Symbolic tokens.
 		LIGHTNING_ENUM_TOKENS(TK_NOOP, TK_NAME, TK_NOOP, TK_NOOP)
@@ -57,19 +56,19 @@ namespace lightning::lexer {
 		LIGHTNING_ENUM_TOKENS(TK_NAME, TK_NOOP, TK_NOOP, TK_NOOP)
 		// Literal tokens.
 		LIGHTNING_ENUM_TOKENS(TK_NOOP, TK_NOOP, TK_NOOP, TK_NAME)
-		
-		token_lit_max_plus_one,
-		token_lit_max =  token_lit_max_plus_one - 1,
-		token_sym_min =  token_char_max + 1,
+
+			 token_lit_max_plus_one,
+		token_lit_max  = token_lit_max_plus_one - 1,
+		token_sym_min  = token_char_max + 1,
 		token_name_min = []() { LIGHTNING_ENUM_TOKENS(TK_RET, TK_NOOP, TK_NOOP, TK_NOOP); }(),
-		token_lit_min =  []() { LIGHTNING_ENUM_TOKENS(TK_NOOP, TK_NOOP, TK_NOOP, TK_RET); }(),
-		token_sym_max =  token_name_min,
+		token_lit_min = []() { LIGHTNING_ENUM_TOKENS(TK_NOOP, TK_NOOP, TK_NOOP, TK_RET); }(),
+		token_sym_max  = token_name_min,
 		token_name_max = token_lit_min,
 
-		#undef TK_RET
-		#undef TK_CHAR
-		#undef TK_NAME
-		#undef TK_NOOP
+#undef TK_RET
+#undef TK_CHAR
+#undef TK_NAME
+#undef TK_NOOP
 	};
 
 	// Token traits.
@@ -83,20 +82,20 @@ namespace lightning::lexer {
 	// Complex token to string conversion.
 	//
 	static constexpr std::string_view cx_token_to_str_map[] = {
-		#define TK_NOOP(...)
-		#define TK_SYM(name)       #name,
-		#define TK_NAME(name, sym) #sym,
+#define TK_NOOP(...)
+#define TK_SYM(name)       #name,
+#define TK_NAME(name, sym) #sym,
 
-		// Symbolic tokens.
-		LIGHTNING_ENUM_TOKENS(TK_NOOP, TK_NAME, TK_NOOP, TK_NOOP)
-		// Named tokens.
-		LIGHTNING_ENUM_TOKENS(TK_SYM, TK_NOOP, TK_NOOP, TK_NOOP)
-		// Literal tokens.
-		LIGHTNING_ENUM_TOKENS(TK_NOOP, TK_NOOP, TK_NOOP, TK_NAME)
+		 // Symbolic tokens.
+		 LIGHTNING_ENUM_TOKENS(TK_NOOP, TK_NAME, TK_NOOP, TK_NOOP)
+		 // Named tokens.
+		 LIGHTNING_ENUM_TOKENS(TK_SYM, TK_NOOP, TK_NOOP, TK_NOOP)
+		 // Literal tokens.
+		 LIGHTNING_ENUM_TOKENS(TK_NOOP, TK_NOOP, TK_NOOP, TK_NAME)
 
-		#undef TK_SYM
-		#undef TK_NAME
-		#undef TK_NOOP
+#undef TK_SYM
+#undef TK_NAME
+#undef TK_NOOP
 	};
 	static constexpr std::string_view cx_token_to_strv(uint8_t tk) {
 		if (is_token_complex(tk)) {
@@ -119,9 +118,9 @@ namespace lightning::lexer {
 		// Value.
 		//
 		union {
-			std::string_view str_val; // token_string, token_name, note: token_string is not escaped!
-			double           num_val; // token_number
-			int64_t          int_val; // token_integer
+			std::string_view str_val;  // token_string, token_name, note: token_string is not escaped!
+			core::number     num_val;  // token_number
+			core::integer    int_val;  // token_integer
 		};
 
 		// Equality comparable with token id.
@@ -149,7 +148,7 @@ namespace lightning::lexer {
 			// Identifier.
 			else if (id == token_name) {
 				return util::fmt("<name: %.*s>", str_val.size(), str_val.data());
-			} 
+			}
 			// Numeric literal.
 			else if (id == token_number) {
 				return util::fmt("<num: %lf>", num_val);
@@ -189,7 +188,7 @@ namespace lightning::lexer {
 	struct state {
 		// Input data and current location.
 		//
-		std::string input_buffer;
+		std::string      input_buffer;
 		std::string_view input = {};
 
 		// Current line index.
@@ -198,7 +197,7 @@ namespace lightning::lexer {
 
 		// Current and lookahead token.
 		//
-		token_value tok                          = {};
+		token_value                tok           = {};
 		std::optional<token_value> tok_lookahead = {};
 
 		// Last lexer error.

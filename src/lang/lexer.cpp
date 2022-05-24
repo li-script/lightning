@@ -156,7 +156,7 @@ namespace lightning::lexer {
 			}
 			// If not escaped end of string, return.
 			else if (!escape && state.input[i] == '"') {
-				token_value result = {.id = token_string, .str_val = state.input.substr(0, i)};
+				token_value result = {.id = token_lstr, .str_val = state.input.substr(0, i)};
 				state.input.remove_prefix(i + 1);
 				return result;
 			}
@@ -250,7 +250,7 @@ namespace lightning::lexer {
 			return state.error("Unexpected digit while parsing number: '%c'\n", value.front());
 		}
 
-		return {.id = token_number, .num_val = result};
+		return {.id = token_lnum, .num_val = result};
 	}
 
 	template<int Base>

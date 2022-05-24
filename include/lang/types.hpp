@@ -52,7 +52,7 @@ namespace lightning::core {
 
 	// Boxed object type, fixed 16-bytes.
 	//
-	struct LI_ALIGN(16) any {
+	struct any {
 		union {
 			number     n;
 			integer    i;
@@ -65,6 +65,7 @@ namespace lightning::core {
 			function*  f;
 			thread*    z;
 			gc_header* gc;
+			uint8_t    _pad[15];
 		};
 		uint8_t type;
 

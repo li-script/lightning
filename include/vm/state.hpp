@@ -12,7 +12,6 @@ namespace lightning::core {
 	using fn_panic = void (*)(vm* L, const char* msg);
 	static void default_panic [[noreturn]] (vm* L, const char* msg) { util::abort("[Lightning Panic] %s\n", msg); }
 
-
 	// Forward for string set.
 	//
 	struct string_set;

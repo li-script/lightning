@@ -187,9 +187,8 @@ namespace lightning::lexer {
 	// Lexer state.
 	//
 	struct state {
-		// Input data and current location.
+		// Current parser location.
 		//
-		std::string      input_buffer;
 		std::string_view input = {};
 
 		// Current line index.
@@ -205,14 +204,15 @@ namespace lightning::lexer {
 		//
 		std::string last_error = {};
 
-		// Initialized with a string buffer.
+		// Initialized with a string view.
 		//
-		state(std::string data) : input_buffer(std::move(data)), input(input_buffer), tok(scan()) {}
+		state(std::string_view input) : input(input), tok(scan()) {}
+		state(std::string&&) = delete;
 
-		// No copy.
+		// Default copy.
 		//
-		state(const state&)            = delete;
-		state& operator=(const state&) = delete;
+		state(const state&)            = default;
+		state& operator=(const state&) = default;
 
 		// Error helper.
 		//

@@ -2,44 +2,24 @@
 #include <lang/lexer.hpp>
 
 #include <util/llist.hpp>
+#include <vm/state.hpp>
+#include <vm/string.hpp>
+#include <vm/table.hpp>
+#include <vector>
 
 /*
 	statement == expression
-*/
 
-namespace lightning::core {
-
-
-	//struct function : gc_node<function> {
-	//
-	//};
-
-
-};
-
-/*
 	struct array;
 	struct userdata;
 	struct function;
 	struct thread;
+	struct environment;
+
 */
 
-
-namespace lightning::parser {
-
-	enum class expression {
-
-	};
-
-	static void parse() {}
-
-};
-
-#include <vm/state.hpp>
-#include <vm/string.hpp>
-#include <vm/table.hpp>
-
-namespace lightning::core {
+namespace lightning::debug {
+	using namespace core;
 	static void print_object(any a) {
 		switch (a.type) {
 			case type_none:
@@ -86,12 +66,142 @@ namespace lightning::core {
 	static void dump_table(table* t) {
 		for (auto& [k, v] : *t) {
 			if (k.type != core::type_none) {
-				core::print_object(k);
+				print_object(k);
 				printf(" -> ");
-				core::print_object(v);
+				print_object(v);
 				printf(" [hash=%x]\n", k.hash());
 			}
 		}
+	}
+};
+
+namespace lightning::core {
+	// Opcodes and instructions.
+	//
+	enum class bytecode : uint8_t {
+		// Unary operators.
+		//
+		BNOT,  // A=~B
+		LNOT,  // A=!B
+		AMIN,  // A=-B
+		MOVE,  // A=B
+
+		// Binary operators.
+		//
+		AADD,  // A=B+C
+		ASUB,  // A=B-C
+		AMUL,  // A=B*C
+		ADIV,  // A=B/C
+		AMOD,  // A=B%C
+		BAND,  // A=B&C
+		BOR,   // A=B|C
+		BXOR,  // A=B^C
+		BSHL,  // A=B<<C
+		BSHR,  // A=B<<C
+		LAND,  // A=B&&C
+		LOR,   // A=B||C
+		SCAT,  // A=B..C
+		CEQ,   // A=B==C
+		CNE,   // A=B!=C
+		CLT,   // A=B<C
+		CGT,   // A=B>C
+		CLE,   // A=B<=C
+		CGE,   // A=B>=C
+
+		// Upvalue operators.
+		//
+		CGET,  // A=CONST[B]
+		UGET,  // A=UPVAL[B]
+		USET,  // UPVAL[A]=B
+
+		// Table operators.
+		//
+		TNEW,  // A=TABLE{Reserved=B}
+		TDUP,  // A=Duplicate(CONST[B])
+		TGET,  // A=B[C]
+		TSET,  // B[C]=A
+		GGET,  // A=G[B]
+		GSET,  // G[A]=B
+
+		// Closure operators.
+		//
+		FDUP,  // A=Duplicate(CONST[B]), A.UPVAL[0]=C, A.UPVAL[1]=C+1...
+
+		// Control flow.
+		//
+		CALL,  // CALL A(B x args), JMP C if throw
+		RETN,  // RETURN A
+		JMP,   // JMP A
+		JCC,   // JMP A if B
+	};
+	struct bcinsn {
+		bytecode bc;
+		uint16_t a;
+		uint16_t b;
+		uint16_t c;
+	};
+
+
+	static constexpr size_t max_argument_count = 16;
+	struct function : gc_node<function> {
+		// Function details.
+		//
+		std::vector<any> upvalues;           // Storage of upvalues and constants.
+		uint32_t         const_counter = 0;  // Number of constants in the upvalue array.
+		uint32_t         num_arguments = 0;  // Vararg if zero, else n-1 args.
+		uint32_t         num_locals    = 0;  // Number of local variables we need to reserve on stack.
+
+		// Line defined, snippet name, debug info, bytecode, bla bla bla bla
+
+		// Variable observers.
+		//
+		uint32_t num_constants() const { return const_counter; }
+		uint32_t num_upvalues() const { return upvalues.size() - const_counter; }
+		bool     is_closure() const { return num_upvalues() != 0; }
+
+		// Adds a new constant / upvalue, returns the index.
+		//
+		int32_t add_const(any v) {
+			for (uint32_t i = 0; i != const_counter; i++) {
+				if (upvalues[i] == v) {
+					return -(int32_t) (const_counter - i);
+				}
+			}
+			upvalues.insert(upvalues.begin(), v);
+			return -(int32_t) ++const_counter;
+		}
+		int32_t add_upvalue(any v) {
+			upvalues.push_back(v);
+			return int32_t( num_upvalues() ) - 1;
+		}
+
+		// GC enumerator.
+		//
+		template<typename F>
+		void enum_for_gc(F&& fn) {
+			for (auto& v : upvalues) {
+				if (v.type & type_gc)
+					fn(v.gc);
+			}
+		}
+	};
+};
+namespace lightning::parser {
+
+	enum class expression {
+
+	};
+
+
+
+	static core::function* parse(core::vm* L, std::string_view source) {
+
+		// Setup the lexer.
+		//
+		lightning::lexer::state lexer{source};
+
+
+		return nullptr;
 	}
 };
 

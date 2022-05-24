@@ -3,6 +3,7 @@
 #include <util/llist.hpp>
 #include <util/platform.hpp>
 #include <vm/gc.hpp>
+#include <algorithm>
 
 namespace lightning::core {
 	struct vm;

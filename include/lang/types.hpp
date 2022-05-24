@@ -4,6 +4,7 @@
 #include <cstring>
 #include <util/common.hpp>
 #include <bit>
+#include <algorithm>
 
 #pragma pack(push, 1)
 namespace lightning::core {
@@ -25,7 +26,7 @@ namespace lightning::core {
 	//
 	enum value_type : uint8_t /*:4*/ {
 		type_none     = 0, // <-- must be 0, memset(0xFF) = array of nulls
-		type_false    = 1,
+		type_false    = 1, // <-- canonical type boolean
 		type_true     = 2,
 		type_array    = 3,
 		type_table    = 4,
@@ -35,6 +36,8 @@ namespace lightning::core {
 		type_thread   = 8,
 		type_number   = 9,
 	};
+	static constexpr const char* type_names[] = {"none", "bool", "bool", "array", "table", "string", "userdata", "function", "thread", "number"};
+
 	LI_INLINE static constexpr bool     is_gc_type(uint8_t type) { return type_array <= type && type <= type_thread; }
 	LI_INLINE static constexpr uint64_t mask_value(uint64_t value) { return value & ((1ull << 47) - 1); }
 	LI_INLINE static constexpr uint64_t mix_value(uint8_t type, uint64_t value) { return ((~uint64_t(type)) << 47) | mask_value(value); }
@@ -79,7 +82,7 @@ namespace lightning::core {
 		// Type check.
 		//
 		inline value_type type() { return (value_type) std::min(get_type(value), (uint8_t) type_number); }
-		inline bool       is(uint8_t t) { return get_type(value) == type(); }
+		inline bool       is(uint8_t t) { return t == type(); }
 		inline bool       is_gc() { return is_gc_type(get_type(value)); }
 
 		// Getters.

@@ -5,7 +5,7 @@
 namespace lightning::core {
 	// GC types:
 	//
-	static constexpr size_t minimum_gc_allocation = 64 * 1024;
+	static constexpr size_t minimum_gc_allocation = 2 * 1024 * 1024;
 	struct gc_page {
 		gc_page* prev        = nullptr;
 		gc_page* next        = nullptr;
@@ -23,6 +23,11 @@ namespace lightning::core {
 
 		// Allocation helper.
 		//
+		template<typename T>
+		bool check(size_t extra_length = 0) const {
+			uint32_t length = uint32_t((extra_length + sizeof(T) + 7) >> 3);
+			return free_qwords >= length;
+		}
 		template<typename T, typename... Tx>
 		T* create(size_t extra_length = 0, Tx&&... args) {
 			uint32_t length = uint32_t((extra_length + sizeof(T) + 7) >> 3);
@@ -32,6 +37,7 @@ namespace lightning::core {
 				free_qwords -= length;
 
 				T* result = new (base) T(std::forward<Tx>(args)...);
+				memset(result + 1, 0, extra_length);
 				result->size_in_qwords = length;
 				return result;
 			}

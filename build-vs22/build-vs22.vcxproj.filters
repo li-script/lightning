@@ -24,6 +24,9 @@
     <ClInclude Include="..\include\util\common.hpp">
       <Filter>Utility</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\lang\types.hpp">
+      <Filter>Language</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\.clang-format" />

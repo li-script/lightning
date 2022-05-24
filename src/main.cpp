@@ -2,10 +2,10 @@
 #include <lang/lexer.hpp>
 
 #include <util/llist.hpp>
+#include <vector>
 #include <vm/state.hpp>
 #include <vm/string.hpp>
 #include <vm/table.hpp>
-#include <vector>
 
 /*
 	statement == expression
@@ -126,7 +126,6 @@ namespace lightning::core {
 		uint16_t c;
 	};
 
-
 	static constexpr size_t max_argument_count = 16;
 	struct function : gc_node<function> {
 		// Function details.
@@ -157,7 +156,7 @@ namespace lightning::core {
 		}
 		int32_t add_upvalue(any v) {
 			upvalues.push_back(v);
-			return int32_t( num_upvalues() ) - 1;
+			return int32_t(num_upvalues()) - 1;
 		}
 
 		// GC enumerator.
@@ -177,14 +176,10 @@ namespace lightning::parser {
 
 	};
 
-
-
 	static core::function* parse(core::vm* L, std::string_view source) {
-
 		// Setup the lexer.
 		//
 		lightning::lexer::state lexer{source};
-
 
 		return nullptr;
 	}
@@ -201,57 +196,55 @@ int main() {
 
 	auto* L = core::vm::create();
 
-	//std::ifstream           file("S:\\Projects\\Lightning\\parser-test.li");
-	//std::string file_buf{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
-	// lightning::parser::parse(L, file_buf);
-
-
+	// std::ifstream           file("S:\\Projects\\Lightning\\parser-test.li");
+	// std::string file_buf{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+	//  lightning::parser::parse(L, file_buf);
 
 	printf("VM allocated @ %p\n", L);
-	
+
 	printf("%p\n", core::string::create(L, "hello"));
 	printf("%p\n", core::string::create(L, "hello"));
 	printf("%p\n", core::string::create(L, "hellox"));
-	
+
 	std::unordered_map<double, double> t1 = {};
-	core::table*                        t2 = core::table::create(L);
+	core::table*                       t2 = core::table::create(L);
 	for (size_t i = 0; i != 521; i++) {
 		double key   = rand() % 15;
-		double  value = rand() / 5214.0;
-	
+		double value = rand() / 5214.0;
+
 		t1[key] = value;
 		t2->set(L, core::any(key), core::any(value));
 	}
-	
+
 	printf("--------- t1 ----------\n");
 	printf(" Capacity: %llu\n", t1.max_bucket_count());
 	for (auto& [k, v] : t1)
 		printf("%lf -> %lf\n", k, v);
-	
+
 	printf("--------- t2 ----------\n");
 	printf(" Capacity: %llu\n", t2->size());
 	t2->set(L, core::string::create(L, "hey"), core::any{5.0f});
 	debug::dump_table(t2);
-	
+
 	printf("----------------------\n");
-	
+
 	for (auto it = L->gc_page_head.next; it != &L->gc_page_head; it = it->next) {
 		printf("gc page %p\n", it);
 	}
 
-	std::ifstream file("S:\\Projects\\Lightning\\lexer-test.li");
+	std::ifstream           file("S:\\Projects\\Lightning\\lexer-test.li");
 	std::string             file_buf{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
 	lightning::lexer::state lexer{file_buf};
-	size_t last_line = 0;
+	size_t                  last_line = 0;
 	while (true) {
-	if (last_line != lexer.line) {
-		printf("\n%03llu: ", lexer.line);
-		last_line = lexer.line;
-	}
-	auto token = lexer.next();
-	if (token == lexer::token_eof)
-		break;
-	putchar(' ');
-	token.print();
+		if (last_line != lexer.line) {
+			printf("\n%03llu: ", lexer.line);
+			last_line = lexer.line;
+		}
+		auto token = lexer.next();
+		if (token == lexer::token_eof)
+			break;
+		putchar(' ');
+		token.print();
 	}
 }

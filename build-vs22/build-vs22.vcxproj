@@ -22,6 +22,7 @@
     <ClCompile Include="..\src\lang\lexer.cpp" />
     <ClCompile Include="..\src\main.cpp" />
     <ClCompile Include="..\src\platform.cpp" />
+    <ClCompile Include="..\src\vm\function.cpp" />
     <ClCompile Include="..\src\vm\state.cpp" />
     <ClCompile Include="..\src\vm\string.cpp" />
     <ClCompile Include="..\src\vm\table.cpp" />
@@ -33,6 +34,8 @@
     <ClInclude Include="..\include\util\format.hpp" />
     <ClInclude Include="..\include\util\llist.hpp" />
     <ClInclude Include="..\include\util\platform.hpp" />
+    <ClInclude Include="..\include\vm\bc.hpp" />
+    <ClInclude Include="..\include\vm\function.hpp" />
     <ClInclude Include="..\include\vm\gc.hpp" />
     <ClInclude Include="..\include\vm\state.hpp" />
     <ClInclude Include="..\include\vm\string.hpp" />

@@ -19,7 +19,7 @@ namespace lightning::lexer {
 		___(lt, '<') ___(gt, '>') __(le, <=) __(ge, >=)						          \
 		/* Arithmetic operators */															    \
 		___(add, '+') ___(sub, '-') ___(mul, '*') ___(div, '/') 					    \
-		___(mod, '%')																			    \
+		___(mod, '%') ___(pow, '^')															 \
 		/* Ternary operator */																    \
 		___(tif, '?') ___(telse, ':')														    \
 		/* Compound operators */															    \

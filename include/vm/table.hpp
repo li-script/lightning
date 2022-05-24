@@ -34,6 +34,10 @@ namespace lightning::core {
 			return {it, it + overflow_factor};
 		}
 
+		// Duplicates the table.
+		//
+		table* duplicate(vm* L);
+
 		// GC enumerator.
 		//
 		template<typename F>

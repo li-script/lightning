@@ -18,8 +18,8 @@ namespace lightning::lexer {
 		___(band, '&') ___(bor, '|') ___(bxor, '^') ___(bnot, '~') 				 \
 		__(bshr, >>) __(bshl, <<)															 \
 		/* Logical operators */																 \
-		__(and, &&) __(or, ||) ___(not, '!') __(eq, ==) __(ne, !=)				 \
-		___(le, '<') ___(gt, '>') __(le_eq, <=) __(gt_eq, >=)						 \
+		__(land, &&) __(lor, ||) ___(lnot, '!') __(eq, ==) __(ne, !=)			 \
+		___(lt, '<') ___(gt, '>') __(le, <=) __(ge, >=)						       \
 		/* Arithmetic operators */															 \
 		___(add, '+') ___(sub, '-') ___(mul, '*') ___(div, '/') 					 \
 		___(mod, '%')																			 \
@@ -29,9 +29,9 @@ namespace lightning::lexer {
 		__(cinc, ++) __(cdec, --) __(cadd, +=) __(csub, -=)						 \
 		__(cmul, *=) __(cdiv, /=) __(cmod, %=) __(cband, &=)						 \
 		__(cbor, |=) __(cbxor, ^=) __(cbshr, >>=) __(cbshl, <<=)					 \
-		__(cconcat, ..=)                                      					 \
+		__(ccat, ..=)                                      					    \
 		/* Language operators */															 \
-		__(dots, ...) __(index_if, ?.) __(concat, ..)                         \
+		__(dots, ...) __(cat, ..)                                             \
 		/* Literal tokens */																	 \
 		____(eof, <eof>) ____(number, <number>) ____(integer, <integer>)      \
 		____(name, <name>) ____(string, <string>) ____(error, <error>) 		 \

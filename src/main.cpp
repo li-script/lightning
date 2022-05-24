@@ -19,18 +19,11 @@ namespace lightning::parser {
 
 #include <vm/state.hpp>
 #include <vm/table.hpp>
+#include <vm/string.hpp>
 
 
 namespace lightning::core {
-
-	struct string : gc_leaf<string> {
-		static string* create(vm* L, std::string_view from);
-
-		uint32_t   length;
-		char       data[];  // Null terminated.
-	};
-
-	static void print_object( any a ) {
+		static void print_object( any a ) {
 		switch (a.type) {
 			case type_none:
 				printf("None");
@@ -85,41 +78,6 @@ namespace lightning::core {
 		}
 	}
 
-	string* string::create(vm* L, std::string_view from) { 
-		size_t hash = std::hash<std::string_view>{}(from); 
-		auto entry = L->str_intern->get(L, any(integer(hash)));
-		if (entry.type == type_none) {
-			string* str = L->alloc<string>(from.size() + 1);
-			memcpy(str->data, from.data(), from.size());
-			str->data[from.size()] = 0;
-			str->length            = (uint32_t) from.size();
-			entry                  = any(str);
-			L->str_intern->set(L, any(integer(hash)), entry);
-		} else {
-			LI_ASSERT_MSG("string hasher is too weak", 
-								entry.s->length == from.length() && !memcmp(entry.s->data, from.data(), from.length()));
-		}
-		return entry.s;
-	}
-
-	vm* vm::create(fn_alloc a, size_t context_space) {
-		// Allocate the first page.
-		//
-		size_t length = (std::max(minimum_gc_allocation, sizeof(vm) + context_space) + 0xFFF) >> 12;
-		auto*  ptr    = a(nullptr, nullptr, length, false);
-		if (!ptr)
-			return nullptr;
-
-		// Initialize the GC page, create the VM.
-		//
-		auto* gc    = new (ptr) gc_page(length);
-		vm*   L         = gc->create<vm>(context_space);
-		L->alloc_fn = a;
-		util::link_after(&L->gc_page_head, gc);
-		L->str_intern = table::create(L, 512);
-		return L;
-	}
-
 
 
 	//string* create(vm* L, std::string_view from) {
@@ -140,6 +98,10 @@ int main() {
 
 	auto* L = core::vm::create();
 	printf("VM allocated @ %p\n", L);
+
+	printf("%p\n", core::string::create(L, "hello"));
+	printf("%p\n", core::string::create(L, "hello"));
+	printf("%p\n", core::string::create(L, "hellox"));
 
 
 

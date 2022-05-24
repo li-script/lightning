@@ -6,7 +6,13 @@
       <Filter>Language</Filter>
     </ClCompile>
     <ClCompile Include="..\src\platform.cpp" />
+    <ClCompile Include="..\src\vm\string.cpp">
+      <Filter>VM</Filter>
+    </ClCompile>
     <ClCompile Include="..\src\vm\table.cpp">
+      <Filter>VM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\vm\state.cpp">
       <Filter>VM</Filter>
     </ClCompile>
   </ItemGroup>

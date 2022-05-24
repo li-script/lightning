@@ -48,6 +48,11 @@ namespace lightning::core {
 		uint32_t size_in_qwords : 30 = 0;
 		uint32_t lock : 1            = 0;
 		uint32_t traversable : 1     = 0;
+		uint32_t reserved;
+
+		// Object size helper.
+		//
+		size_t object_bytes() const { return size_t(size_in_qwords - 1) * 8; }
 
 		// Next helper.
 		//
@@ -57,6 +62,8 @@ namespace lightning::core {
 		//
 		constexpr gc_header(bool traversable) : traversable(traversable) {}
 	};
+	static_assert(sizeof(gc_header) == 8, "Invalid GC header size.");
+
 	template<typename T, bool Traversable = false>
 	struct gc_tag : gc_header {
 		// Default constructed, no copy.

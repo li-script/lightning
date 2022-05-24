@@ -22,6 +22,8 @@
     <ClCompile Include="..\src\lang\lexer.cpp" />
     <ClCompile Include="..\src\main.cpp" />
     <ClCompile Include="..\src\platform.cpp" />
+    <ClCompile Include="..\src\vm\state.cpp" />
+    <ClCompile Include="..\src\vm\string.cpp" />
     <ClCompile Include="..\src\vm\table.cpp" />
   </ItemGroup>
   <ItemGroup>

@@ -1,0 +1,47 @@
+let x = 4.421e2 # test
+const y = true
+
+let aaaa = (~(1 & 3 | 4 ^ 6)) << 1
+
+if y {
+ 
+} else if x {
+	x = switch x {
+		case 4:
+			5
+			break
+		default:
+			6
+	}
+}
+
+let longstr : string = """
+a
+"""
+
+while x != 0 || x != 0 {
+	x--
+	continue
+}
+
+for a in "kek" {
+  x += a;
+}
+
+loop {
+	break
+}
+
+let z = [1,2,(3*4)]
+
+print(z.length)
+
+try {
+} catch a {
+}
+
+fn lol() {
+}
+
+
+return 5

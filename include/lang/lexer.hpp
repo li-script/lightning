@@ -44,8 +44,8 @@ namespace lightning::lexer {
 	enum token : uint8_t {
 #define TK_NOOP(...)
 #define TK_CHAR(name, chr) token_##name = chr,
-#define TK_NAME(name, sym) token_##name,
-#define TK_RET(name, sym)  return token_##name;
+#define TK_NAME(name, ...) token_##name,
+#define TK_RET(name, ...)  return token_##name;
 
 		// Character tokens, end at 0x7F.
 		LIGHTNING_ENUM_TOKENS(TK_NOOP, TK_NOOP, TK_CHAR, TK_NOOP) token_char_max = 0x7F,
@@ -83,7 +83,7 @@ namespace lightning::lexer {
 	//
 	static constexpr std::string_view cx_token_to_str_map[] = {
 #define TK_NOOP(...)
-#define TK_SYM(name)       #name,
+#define TK_SYM(name, ...)  #name,
 #define TK_NAME(name, sym) #sym,
 
 		 // Symbolic tokens.
@@ -143,11 +143,11 @@ namespace lightning::lexer {
 			}
 			// String literal.
 			else if (id == token_string) {
-				return util::fmt("\"%.*s\"", str_val.size(), str_val.data());
+				return util::fmt("\"%.*s\"", (int) str_val.size(), str_val.data());
 			}
 			// Identifier.
 			else if (id == token_name) {
-				return util::fmt("<name: %.*s>", str_val.size(), str_val.data());
+				return util::fmt("<name: %.*s>", (int) str_val.size(), str_val.data());
 			}
 			// Numeric literal.
 			else if (id == token_number) {
@@ -164,15 +164,15 @@ namespace lightning::lexer {
 			// Named/Symbolic token.
 			else if (id < token_lit_min) {
 				auto token_str = cx_token_to_strv(id);
-				printf(LI_PRP "%.*s" LI_DEF, token_str.size(), token_str.data());
+				printf(LI_PRP "%.*s" LI_DEF, (int) token_str.size(), token_str.data());
 			}
 			// String literal.
 			else if (id == token_string) {
-				printf(LI_BLU "\"%.*s\"" LI_DEF, str_val.size(), str_val.data());
+				printf(LI_BLU "\"%.*s\"" LI_DEF, (int) str_val.size(), str_val.data());
 			}
 			// Identifier.
 			else if (id == token_name) {
-				printf(LI_RED "%.*s" LI_DEF, str_val.size(), str_val.data());
+				printf(LI_RED "%.*s" LI_DEF, (int) str_val.size(), str_val.data());
 			}
 			// Numeric literal.
 			else if (id == token_number) {

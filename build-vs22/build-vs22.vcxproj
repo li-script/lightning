@@ -19,14 +19,19 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\src\lexer.cpp" />
+    <ClCompile Include="..\src\lang\lexer.cpp" />
     <ClCompile Include="..\src\main.cpp" />
+    <ClCompile Include="..\src\platform.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\lang\lexer.hpp" />
     <ClInclude Include="..\include\lang\types.hpp" />
     <ClInclude Include="..\include\util\common.hpp" />
     <ClInclude Include="..\include\util\format.hpp" />
+    <ClInclude Include="..\include\util\llist.hpp" />
+    <ClInclude Include="..\include\vm\gc.hpp" />
+    <ClInclude Include="..\include\vm\state.hpp" />
+    <ClInclude Include="..\include\vm\string.hpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\.clang-format" />

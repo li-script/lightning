@@ -30,22 +30,26 @@ namespace lightning::core {
 	struct table;
 	struct string;
 	struct userdata;
+	struct function;
+	struct thread;
 
 	// Type enumerator.
 	//
 	enum value_type : uint8_t /*:4*/ {
-		value_none     = 0,
-		value_true     = 1,
-		value_false    = 2,
-		value_number   = 3,
-		value_integer  = 4,
-		value_vec2     = 5,
-		value_vec3     = 6,
-		value_gc       = 8,  // GC flag
-		value_array    = value_gc | 0,
-		value_table    = value_gc | 1,
-		value_string   = value_gc | 2,
-		value_userdata = value_gc | 3,
+		type_none     = 0,
+		type_false    = 1,
+		type_true     = 2,
+		type_number   = 3,
+		type_integer  = 4,
+		type_vec2     = 5,
+		type_vec3     = 6,
+		type_gc       = 8,  // GC flag
+		type_array    = type_gc | 0,
+		type_table    = type_gc | 1,
+		type_string   = type_gc | 2,
+		type_userdata = type_gc | 3,
+		type_function = type_gc | 4,
+		type_thread   = type_gc | 5,
 	};
 
 	// Boxed object type, fixed 16-bytes.
@@ -60,24 +64,28 @@ namespace lightning::core {
 			table*    t;
 			string*   s;
 			userdata* u;
+			function* f;
+			thread*   v;
 		};
 		uint32_t type;
 
 		// Literal construction.
 		//
-		inline constexpr any() : i(0), type(value_none) {}
-		inline constexpr any(bool v) : i(0), type(v ? value_true : value_false) {}
-		inline constexpr any(number v) : n(v), type(value_number) {}
-		inline constexpr any(integer v) : i(v), type(value_integer) {}
-		inline constexpr any(vec2 v) : v2(v), type(value_vec2) {}
-		inline constexpr any(vec3 v) : v3(v), type(value_vec3) {}
+		inline constexpr any() : i(0), type(type_none) {}
+		inline constexpr any(bool v) : i(0), type(v + type_false) {}
+		inline constexpr any(number v) : n(v), type(type_number) {}
+		inline constexpr any(integer v) : i(v), type(type_integer) {}
+		inline constexpr any(vec2 v) : v2(v), type(type_vec2) {}
+		inline constexpr any(vec3 v) : v3(v), type(type_vec3) {}
 
 		// GC types.
 		//
-		inline constexpr any(array* v) : a(v), type(value_array) {}
-		inline constexpr any(table* v) : t(v), type(value_table) {}
-		inline constexpr any(string* v) : s(v), type(value_string) {}
-		inline constexpr any(userdata* v) : u(v), type(value_userdata) {}
+		inline constexpr any(array* v) : a(v), type(type_array) {}
+		inline constexpr any(table* v) : t(v), type(type_table) {}
+		inline constexpr any(string* v) : s(v), type(type_string) {}
+		inline constexpr any(userdata* v) : u(v), type(type_userdata) {}
+		inline constexpr any(function* v) : f(v), type(type_function) {}
+		inline constexpr any(thread* v) : v(v), type(type_thread) {}
 
 		// Bytewise equal comparsion.
 		//

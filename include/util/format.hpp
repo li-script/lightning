@@ -56,4 +56,8 @@ namespace lightning::util {
 		if (!(__VA_ARGS__)) [[unlikely]]                                            \
 			lightning::util::abort(msg "[" __FILE__ ":" LI_STRINGIFY(__LINE__) "]"); \
 	while (0)
+
+	// Invoked to ensure ANSI escapes work.
+	//
+	void platform_setup_ansi_escapes();
 };

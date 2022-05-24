@@ -241,7 +241,7 @@ namespace lightning::lexer {
 				if (value.front() == 'e') {
 					value.remove_prefix(1);
 					T exponent = parse_digits<T, Base, false>(value);
-					result *= pow(10, exponent);
+					result *= (T) pow(10, (double) exponent);
 				}
 			}
 		}

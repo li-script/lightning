@@ -9,7 +9,6 @@
 namespace lightning::core {
 	// Integral types.
 	//
-	using boolean = bool;
 	using number  = double;
 	using integer = int64_t;
 
@@ -20,9 +19,6 @@ namespace lightning::core {
 	};
 	struct vec3 {
 		float x, y, z;
-	};
-	struct vec4 {
-		float x, y, z, w;
 	};
 
 	// GC types (forward).

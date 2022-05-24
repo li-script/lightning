@@ -2,9 +2,10 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="..\src\main.cpp" />
-    <ClCompile Include="..\src\lexer.cpp">
+    <ClCompile Include="..\src\lang\lexer.cpp">
       <Filter>Language</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\platform.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Language">
@@ -12,6 +13,9 @@
     </Filter>
     <Filter Include="Utility">
       <UniqueIdentifier>{53a1c0d0-2724-4774-91ef-1c52df49017e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="VM">
+      <UniqueIdentifier>{58c48a93-3b5d-46d3-8a82-b38fab373b08}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -26,6 +30,18 @@
     </ClInclude>
     <ClInclude Include="..\include\lang\types.hpp">
       <Filter>Language</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\vm\string.hpp">
+      <Filter>VM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\vm\state.hpp">
+      <Filter>VM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\util\llist.hpp">
+      <Filter>Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\vm\gc.hpp">
+      <Filter>VM</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

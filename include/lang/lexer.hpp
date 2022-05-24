@@ -72,6 +72,14 @@ namespace lightning::lexer {
 		#undef TK_NOOP
 	};
 
+	// Token traits.
+	//
+	LI_INLINE static constexpr bool is_token_literal(uint8_t t) { return token_lit_min <= t && token_lit_max; }
+	LI_INLINE static constexpr bool is_token_symbolic(uint8_t t) { return token_sym_min <= t && token_sym_max; }
+	LI_INLINE static constexpr bool is_token_keyword(uint8_t t) { return token_name_min <= t && token_name_max; }
+	LI_INLINE static constexpr bool is_token_character(uint8_t t) { return t <= token_char_max; }
+	LI_INLINE static constexpr bool is_token_complex(uint8_t t) { return token_sym_min <= t && t <= token_lit_max; }
+
 	// Complex token to string conversion.
 	//
 	static constexpr std::string_view cx_token_to_str_map[] = {
@@ -91,7 +99,7 @@ namespace lightning::lexer {
 		#undef TK_NOOP
 	};
 	static constexpr std::string_view cx_token_to_strv(uint8_t tk) {
-		if (token_sym_min <= tk && tk <= token_lit_max) {
+		if (is_token_complex(tk)) {
 			return cx_token_to_str_map[uint8_t(tk) - token_sym_min];
 		}
 		return {};
@@ -115,6 +123,11 @@ namespace lightning::lexer {
 			double           num_val; // token_number
 			int64_t          int_val; // token_integer
 		};
+
+		// Equality comparable with token id.
+		//
+		inline constexpr bool operator==(uint8_t t) const { return id == t; }
+		inline constexpr bool operator!=(uint8_t t) const { return id != t; }
 
 		// String conversion.
 		//
@@ -156,7 +169,7 @@ namespace lightning::lexer {
 			}
 			// String literal.
 			else if (id == token_string) {
-				printf(LI_BLU "%.*s" LI_DEF, str_val.size(), str_val.data());
+				printf(LI_BLU "\"%.*s\"" LI_DEF, str_val.size(), str_val.data());
 			}
 			// Identifier.
 			else if (id == token_name) {
@@ -185,7 +198,7 @@ namespace lightning::lexer {
 
 		// Current and lookahead token.
 		//
-		token_value tok_current                  = {};
+		token_value tok                          = {};
 		std::optional<token_value> tok_lookahead = {};
 
 		// Last lexer error.
@@ -194,7 +207,7 @@ namespace lightning::lexer {
 
 		// Initialized with a string buffer.
 		//
-		state(std::string data);
+		state(std::string data) : input_buffer(std::move(data)), input(input_buffer), tok(scan()) {}
 
 		// No copy.
 		//
@@ -205,13 +218,55 @@ namespace lightning::lexer {
 		//
 		template<typename... Tx>
 		token_value error(const char* fmt, Tx... args) {
-			last_error = util::fmt(fmt, args...);
+			if (last_error.empty())
+				last_error = util::fmt(fmt, args...);
 			return token_value{.id = token_error};
 		}
 
-		// Gets the next/lookahead token.
+		// Scans for the next token.
 		//
-		token_value& next();
-		token_value& lookahead();
+		token_value scan();
+
+		// Checks and consumes a token.
+		//
+		void check(token tk) {
+			if (tok.id != tk) {
+				auto sv = cx_token_to_strv(tk);
+				if (sv.empty())
+					sv = {(const char*) &tk, 1};
+				this->error("expected token '%.*s'", sv.size(), sv.data());
+			} else {
+				next();
+			}
+		}
+
+		// Checks and consumes an optional token.
+		//
+		std::optional<token_value> opt(token tk) {
+			if (tok.id == tk) {
+				return next();
+			}
+			return std::nullopt;
+		}
+
+		// Gets the lookahead token.
+		//
+		token_value& lookahead() {
+			LI_ASSERT_MSG("Double lookahead", !tok_lookahead);
+			tok_lookahead = scan();
+			return *tok_lookahead;
+		}
+
+		// Skips to the next token and returns the current one.
+		//
+		token_value next() {
+			token_value result = std::move(tok);
+			if (tok_lookahead) {
+				tok = *std::exchange(tok_lookahead, std::nullopt);
+			} else {
+				tok = scan();
+			}
+			return result;
+		}
 	};
 };

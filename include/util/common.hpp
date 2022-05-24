@@ -18,6 +18,18 @@
 #define LI_STRCAT(x, y)   LI_STRCAT_I(x, y)
 
 namespace lightning {
+	// Determine build mode.
+	//
+#ifndef LI_DEBUG
+	#if NDEBUG
+		#define LI_DEBUG 0
+	#elif _DEBUG               
+		#define LI_DEBUG 1
+	#else
+		#define LI_DEBUG 0
+	#endif
+#endif
+
 	// Compiler specifics.
 	//
 #if defined(__GNUC__) || defined(__clang__)

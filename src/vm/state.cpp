@@ -33,7 +33,7 @@ namespace lightning::core {
 		L->globals    = table::create(L, 32);
 		L->stack      = (any*) malloc(sizeof(any) * 32);
 		L->stack_len  = 32;
-		memset(L->stack, 0, sizeof(any) * 32);
+		memset(L->stack, 0xFF, sizeof(any) * 32);
 		return L;
 	}
 };

@@ -3,23 +3,13 @@
 #include <stdint.h>
 #include <cstring>
 #include <util/common.hpp>
-#include <intrin.h>
+#include <bit>
 
 #pragma pack(push, 1)
 namespace lightning::core {
 	// Integral types.
 	//
 	using number  = double;
-	using integer = int64_t;
-
-	// Vector types.
-	//
-	struct vec2 {
-		float x, y;
-	};
-	struct vec3 {
-		float x, y, z;
-	};
 
 	// GC types (forward).
 	//
@@ -34,88 +24,80 @@ namespace lightning::core {
 	// Type enumerator.
 	//
 	enum value_type : uint8_t /*:4*/ {
-		type_none     = 0, // <-- must be 0, memset(0) = array of nulls
+		type_none     = 0, // <-- must be 0, memset(0xFF) = array of nulls
 		type_false    = 1,
 		type_true     = 2,
-		type_number   = 3,
-		type_integer  = 4,
-		type_vec2     = 5,
-		type_vec3     = 6,
-		type_gc       = 8,  // GC flag
-		type_array    = type_gc | 0,
-		type_table    = type_gc | 1,
-		type_string   = type_gc | 2,
-		type_userdata = type_gc | 3,
-		type_function = type_gc | 4,
-		type_thread   = type_gc | 5,
+		type_array    = 3,
+		type_table    = 4,
+		type_string   = 5,
+		type_userdata = 6,
+		type_function = 7,
+		type_thread   = 8,
+		type_number   = 9,
 	};
+	LI_INLINE static constexpr bool     is_gc_type(uint8_t type) { return type_array <= type && type <= type_thread; }
+	LI_INLINE static constexpr uint64_t mask_value(uint64_t value) { return value & ((1ull << 47) - 1); }
+	LI_INLINE static constexpr uint64_t mix_value(uint8_t type, uint64_t value) { return ((~uint64_t(type)) << 47) | mask_value(value); }
+	LI_INLINE static constexpr uint64_t make_tag(uint8_t type) { return ((~uint64_t(type)) << 47) | mask_value(~0ull); }
+	LI_INLINE static constexpr uint8_t  get_type(uint64_t value) { return uint8_t((~value) >> 47); }
+	LI_INLINE static gc_header*         get_gc_value(uint64_t value) {
+		value = mask_value(value);
+#if _KERNEL_MODE
+		value |= ~0ull << 47;
+#endif
+		return (gc_header*) value;
+	}
+	static constexpr uint64_t kvalue_none  = make_tag(type_none);
+	static constexpr uint64_t kvalue_false = make_tag(type_true);
+	static constexpr uint64_t kvalue_true  = make_tag(type_false);
+	static constexpr uint64_t kvalue_nan   = 0xfff8000000000000;
 
 	// Boxed object type, fixed 16-bytes.
 	//
 	struct any {
-		union {
-			number     n;
-			integer    i;
-			vec2       v2;
-			vec3       v3;
-			array*     a;
-			table*     t;
-			string*    s;
-			userdata*  u;
-			function*  f;
-			thread*    z;
-			gc_header* gc;
-			uint8_t    _pad[15];
-		};
-		uint8_t type;
+		uint64_t value;
 
 		// Literal construction.
 		//
-		inline any() 
-		{ 
-#if _MSC_VER
-			_mm_storeu_si128((__m128i*) this, _mm_setzero_si128());
-#else
-			memset(this, 0, 16);
-#endif
+		inline constexpr any() : value(kvalue_none) {}
+		inline constexpr any(bool v) : value(make_tag(type_false + v)) {}
+		inline constexpr any(number v) : value(std::bit_cast<uint64_t>(v))
+		{
+			if (v != v) [[unlikely]]
+				value = kvalue_nan;
 		}
-		inline any(bool v) : any() { type = v + type_false; }
-		inline any(number v) : any() { type = type_number, n = v; }
-		inline any(integer v) : any() { type = type_integer, i = v; }
-		inline any(vec2 v) : any() { type = type_vec2, v2 = v; }
-		inline any(vec3 v) : any() { type = type_vec3, v3 = v; }
 
 		// GC types.
 		//
-		inline any(array* v) : any() { type = type_array, a = v; }
-		inline any(table* v) : any() { type = type_table, t = v; }
-		inline any(string* v) : any() { type = type_string, s = v; }
-		inline any(userdata* v) : any() { type = type_userdata, u = v; }
-		inline any(function* v) : any() { type = type_function, f = v; }
-		inline any(thread* v) : any() { type = type_thread, z = v; }
+		inline any(array* v) : value(mix_value(type_array, (uint64_t) v)) {}
+		inline any(table* v) : value(mix_value(type_table, (uint64_t) v)) {}
+		inline any(string* v) : value(mix_value(type_string, (uint64_t) v)) {}
+		inline any(userdata* v) : value(mix_value(type_userdata, (uint64_t) v)) {}
+		inline any(function* v) : value(mix_value(type_function, (uint64_t) v)) {}
+		inline any(thread* v) : value(mix_value(type_thread, (uint64_t) v)) {}
+
+		// Type check.
+		//
+		inline value_type type() { return (value_type) std::min(get_type(value), (uint8_t) type_number); }
+		inline bool       is(uint8_t t) { return get_type(value) == type(); }
+		inline bool       is_gc() { return is_gc_type(get_type(value)); }
+
+		// Getters.
+		//
+		inline bool as_bool() const { return get_type(value) > type_false; } // Free coersion.
+		inline number as_num() const { return std::bit_cast<number>(value); }
+		inline gc_header* as_gc() const { return get_gc_value(value); }
+		inline array*     as_arr() const { return (array*) as_gc(); }
+		inline table*     as_tbl() const { return (table*) as_gc(); }
+		inline string*    as_str() const { return (string*) as_gc(); }
+		inline userdata*  as_udt() const { return (userdata*) as_gc(); }
+		inline function*  as_fun() const { return (function*) as_gc(); }
+		inline thread*    as_thr() const { return (thread*) as_gc(); }
 
 		// Bytewise equal comparsion.
 		//
-		inline bool equals(const any& other) const {
-#if _MSC_VER
-			__m128i v = _mm_xor_si128(_mm_loadu_si128((__m128i*) this), _mm_loadu_si128((__m128i*) &other));
-			return _mm_testz_si128(v, v);
-#else
-			return !memcmp(this, &other, 16);
-#endif
-		}
-
-		// Bytewise copy.
-		//
-		inline void copy_from(const any& other) {
-#if _MSC_VER
-			_mm_storeu_si128((__m128i*) this, _mm_loadu_si128((__m128i*) &other));
-#elif __has_builtin(__builtin_memcpy_inline)
-			__builtin_memcpy_inline(this, &other, 16);
-#else
-			*this = other;
-#endif
-		}
+		inline bool equals(const any& other) const { return value == other.value; }
+		inline void copy_from(const any& other) { value = other.value; }
 
 		// Define copy and comparison operators.
 		//
@@ -131,11 +113,16 @@ namespace lightning::core {
 		//
 		inline uint32_t hash() const {
 			uint64_t h = ~0;
-			h          = _mm_crc32_u64(h, ((uint64_t*) this)[0]);
-			h          = _mm_crc32_u64(h, ((uint64_t*) this)[1]);
+			h          = _mm_crc32_u64(h, value);
 			return uint32_t(h + 1) * 134775813;
 		}
 	};
-	static_assert(sizeof(any) == 16, "Invalid any size.");
+	static_assert(sizeof(any) == 8, "Invalid any size.");
+
+	// Constants.
+	//
+	static constexpr any none{};
+	static constexpr any const_false{false};
+	static constexpr any const_true{true};
 };
 #pragma pack(pop)

@@ -39,10 +39,10 @@ namespace lightning::core {
 		template<typename F>
 		void enum_for_gc(F&& fn) {
 			for (auto& [k, v] : *this) {
-				if (k.type & type_gc)
-					fn(k.gc);
-				if (v.type & type_gc)
-					fn(v.gc);
+				if (k.is_gc())
+					fn(k.as_gc());
+				if (v.is_gc())
+					fn(v.as_gc());
 			}
 		}
 

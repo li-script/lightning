@@ -37,7 +37,6 @@ namespace lightning::core {
 				free_qwords -= length;
 
 				T* result = new (base) T(std::forward<Tx>(args)...);
-				memset(result + 1, 0, extra_length);
 				result->size_in_qwords = length;
 				return result;
 			}

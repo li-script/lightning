@@ -14,9 +14,6 @@ namespace lightning::lexer {
 	//  ____ => literal        | <string>
 	//
 #define LIGHTNING_ENUM_TOKENS(_, __, ___, ____)                             \
-   	/* Binary operators */                                                \
-		___(band, '&') ___(bor, '|') ___(bxor, '^') ___(bnot, '~') 				 \
-		__(bshr, >>) __(bshl, <<)															 \
 		/* Logical operators */																 \
 		__(land, &&) __(lor, ||) ___(lnot, '!') __(eq, ==) __(ne, !=)			 \
 		___(lt, '<') ___(gt, '>') __(le, <=) __(ge, >=)						       \
@@ -33,8 +30,8 @@ namespace lightning::lexer {
 		/* Language operators */															 \
 		__(dots, ...) __(cat, ..)                                             \
 		/* Literal tokens */																	 \
-		____(eof, <eof>) ____(number, <number>) ____(integer, <integer>)      \
-		____(name, <name>) ____(string, <string>) ____(error, <error>) 		 \
+		____(eof, <eof>) ____(number, <number>) ____(name, <name>)            \
+		____(string, <string>) ____(error, <error>) 		                      \
 		/* Keywords */																			 \
 		_(true) _(false)  _(let) _(const) _(if) _(else) _(switch) _(while)    \
 		_(for) _(loop) _(case) _(default) _(break) _(continue) _(try)			 \
@@ -121,7 +118,6 @@ namespace lightning::lexer {
 		union {
 			std::string_view str_val;  // token_string, token_name, note: token_string is not escaped!
 			core::number     num_val;  // token_number
-			core::integer    int_val;  // token_integer
 		};
 
 		// Equality comparable with token id.
@@ -151,10 +147,8 @@ namespace lightning::lexer {
 				return util::fmt("<name: %.*s>", (int) str_val.size(), str_val.data());
 			}
 			// Numeric literal.
-			else if (id == token_number) {
+			else {
 				return util::fmt("<num: %lf>", num_val);
-			} else {
-				return util::fmt("<int: %lld>", int_val);
 			}
 		}
 		void print() const {
@@ -176,10 +170,8 @@ namespace lightning::lexer {
 				printf(LI_RED "%.*s" LI_DEF, (int) str_val.size(), str_val.data());
 			}
 			// Numeric literal.
-			else if (id == token_number) {
+			else {
 				printf(LI_CYN "%lf" LI_DEF, num_val);
-			} else {
-				printf(LI_BLU "%lld" LI_DEF, int_val);
 			}
 		}
 	};

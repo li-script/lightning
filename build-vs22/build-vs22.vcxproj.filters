@@ -55,6 +55,9 @@
     <ClInclude Include="..\include\vm\table.hpp">
       <Filter>VM</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\util\platform.hpp">
+      <Filter>Utility</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\.clang-format" />

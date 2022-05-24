@@ -23,7 +23,7 @@ namespace lightning::core {
 		return crc + len;
 	}
 
-	struct string_set : gc_leaf<string_set> {
+	struct string_set : gc_node<string_set> {
 		static constexpr size_t overflow_factor = 8;
 
 		string* entries[];

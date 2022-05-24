@@ -32,6 +32,7 @@
     <ClInclude Include="..\include\util\common.hpp" />
     <ClInclude Include="..\include\util\format.hpp" />
     <ClInclude Include="..\include\util\llist.hpp" />
+    <ClInclude Include="..\include\util\platform.hpp" />
     <ClInclude Include="..\include\vm\gc.hpp" />
     <ClInclude Include="..\include\vm\state.hpp" />
     <ClInclude Include="..\include\vm\string.hpp" />

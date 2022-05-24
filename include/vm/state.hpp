@@ -1,6 +1,7 @@
 #pragma once
 #include <util/format.hpp>
 #include <util/llist.hpp>
+#include <util/platform.hpp>
 #include <vm/gc.hpp>
 
 namespace lightning::core {
@@ -11,11 +12,6 @@ namespace lightning::core {
 	using fn_panic = void (*)(vm* L, const char* msg);
 	static void default_panic [[noreturn]] (vm* L, const char* msg) { util::abort("[Lightning Panic] %s\n", msg); }
 
-	// Page allocator:
-	// - f(nullptr, N, ?) =     allocation
-	// - f(ptr,     N, false) = free
-	using fn_alloc = void* (*) (vm* L, void* pointer, size_t page_count, bool executable);
-	extern void* default_allocator(vm* L, void* pointer, size_t page_count, bool executable);
 
 	// Forward for string set.
 	//
@@ -25,24 +21,23 @@ namespace lightning::core {
 	// VM state.
 	//
 	struct vm : gc_leaf<vm> {
-		static vm* create(fn_alloc alloc = &default_allocator, size_t context_space = 0);
+		static vm* create(fn_alloc alloc = &platform::page_alloc, size_t context_space = 0);
 
-		// Allocator and GC page head.
+		// VM state.
 		//
-		fn_alloc alloc_fn     = nullptr;
-		gc_page  gc_page_head = {};
+		fn_alloc    alloc_fn     = nullptr;         // Page allocator.
+		gc_page     gc_page_head = {};              // GC linked-list head.
+		fn_panic    panic_fn     = &default_panic;  // Panic function.
+		string_set* str_intern   = nullptr;         // String interning state
+		table*      globals      = nullptr;         // Globals.
+		uint64_t    prng_seed    = 0;               // PRNG seed.
 
-		// Panic function.
+		// Gets next random.
 		//
-		fn_panic panic_fn = &default_panic;
-
-		// String interning state.
-		//
-		string_set* str_intern = nullptr;
-
-		// TODO:
-		//  prng state
-		//  jit state
+		uint64_t random() { 
+			prng_seed = (6364136223846793005 * prng_seed + 1442695040888963407);
+			return prng_seed;
+		}
 
 		// Gets user context.
 		//

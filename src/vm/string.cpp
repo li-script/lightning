@@ -9,7 +9,7 @@ namespace lightning::core {
 		const char* str = v.data();
 		uint32_t    len = ( uint32_t ) v.size();
 
-		uint32_t crc = 0xc561e88e - len;
+		uint32_t crc = len;
 		if (len >= 4) {
 			crc = _mm_crc32_u32(crc, *(const uint32_t*) (str));
 			crc = _mm_crc32_u32(crc, *(const uint32_t*) (str + len - 4));
@@ -20,7 +20,7 @@ namespace lightning::core {
 			crc = _mm_crc32_u8(crc, *(const uint8_t*) (str + len - 1));
 			crc = _mm_crc32_u8(crc, *(const uint8_t*) (str + (len >> 1)));
 		}
-		return crc + len;
+		return crc;
 	}
 
 	struct string_set : gc_node<string_set> {
@@ -121,5 +121,57 @@ namespace lightning::core {
 	//
 	string* string::create(vm* L, std::string_view from) {
 		return string_set::push(L, from);
+	}
+	string* string::format( vm* L, const char* fmt, ... ) {
+		va_list a1;
+		va_start(a1, fmt);
+		
+		// First try formatting on stack:
+		//
+		va_list a2;
+		va_copy(a2, a1);
+		char buffer[64];
+		int  n = vsnprintf(buffer, std::size(buffer), fmt, a2);
+		va_end(a2);
+
+		// If empty, handle.
+		//
+		if (n <= 0) {
+			return L->empty_string;
+		}
+
+		// If it did fit, forward to string::create with a view:
+		//
+		if (n <= std::size(buffer)) {
+			va_end(a1);
+			return string::create(L, {buffer, (size_t)n});
+		}
+
+		// Otherwise, allocate a string and format into it.
+		//
+		string* str = L->alloc<string>(n + 1);
+		str->length = n;
+		vsnprintf(str->data, n, fmt, a1);
+		str->hash = sparse_hash(str->view());
+		va_end(a1);
+		
+		// Return if already exists.
+		//
+		for (auto& entry : L->str_intern->find(str->hash)) {
+			if (entry && entry->view() == str->view()) {
+				// TODO: Free string?
+				return entry;
+			}
+		}
+
+		// Push and return.
+		//
+		L->str_intern = L->str_intern->push(L, str);
+		return str;
+	}
+
+	string* string::concat( vm* L, string* a, string* b) {
+		// TODO: lol
+		return string::format(L, "%s%s", a->data, b->data);
 	}
 };

@@ -30,8 +30,11 @@ namespace lightning::bc {
 	_(CLE,  reg, reg, reg) /* A=B<=C */                                                 \
 	_(CGE,  reg, reg, reg) /* A=B>=C */                                                 \
                                                                                        \
-	/* Upvalue operators. */                                                            \
+	/* Constant operators. */                                                           \
+	_(KTAG, reg, imm, ___) /* A=TagAny(B) */                                            \
 	_(KGET, reg, kvl, ___) /* A=KVAL[B] */                                              \
+                                                                                       \
+	/* Upvalue operators. */                                                            \
 	_(UGET, reg, uvl, ___) /* A=UVAL[B] */                                              \
 	_(USET, uvl, reg, ___) /* UVAL[A]=B */                                              \
                                                                                        \
@@ -52,7 +55,8 @@ namespace lightning::bc {
 	_(THRW, reg, ___, ___) /* THROW A */                                                \
 	_(JMP,  rel, ___, ___) /* JMP A */                                                  \
 	_(JCC,  rel, reg, ___) /* JMP A if B */                                             \
-	_(BP,   ___, ___, ___) /* Breakpoint */
+	/* Misc. */                                                                         \
+	_(BP,   ___, ___, ___)   /* Breakpoint */
 
 	// Opcodes.
 	//
@@ -61,7 +65,10 @@ namespace lightning::bc {
 		LIGHTNING_ENUM_BC(BC_WRITE)
 #undef BC_WRITE
 	};
-
+	using imm = int32_t;
+	using reg = int32_t;
+	using rel = int32_t;
+	
 	// Write all descriptors.
 	//
 	enum class op_t : uint8_t { none, reg, uvl, kvl, imm, rel, ___ = none };
@@ -77,12 +84,8 @@ namespace lightning::bc {
 	};
 	static const desc& opcode_details(opcode o) { return opcode_descs[uint8_t(o)]; }
 
-
 	// Define the instruction type.
 	//
-	using imm = int32_t;
-	using reg = int32_t;
-	using rel = int32_t;
 	struct insn {
 		opcode o;
 		reg    a = 0;

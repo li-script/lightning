@@ -306,6 +306,10 @@ namespace lightning::core {
 				case bc::JMP:
 					ip += a - 1;
 					continue;
+				case bc::KTAG: {
+					ref_reg(a) = any(std::in_place, make_tag(b));
+					continue;
+				}
 				case bc::KGET: {
 					ref_reg(a) = ref_kval(b);
 					continue;
@@ -370,31 +374,87 @@ namespace lightning::core {
 namespace lightning::parser {
 
 	struct func_scope;
-	struct func_state : lexer::state {
-		func_scope*                scope;         // Current scope.
-		std::vector<core::string*> uvalues = {};  // Upvalues mapped by name.
-		std::vector<core::any>     kvalues = {};  // Constant pool.
-
-		// Inserts a new constant into the pool.
-		//
-		bc::reg add_const(core::any c) {
-			for (size_t i = 0; i != kvalues.size(); i++) {
-				if (kvalues[i] == c)
-					return (bc::reg) i;
-			}
-			kvalues.emplace_back(c);
-			return (bc::reg) kvalues.size();
-		}
+	struct func_state {
+//		func_scope*                enclosing  = nullptr;  // Enclosing function's scope.
+//		std::vector<core::string*> uvalues    = {};       // Upvalues mapped by name.
+		core::vm*                  L;                     // VM state.
+		lexer::state               lex;                   // Lexer state.
+		func_scope*                scope      = nullptr;  // Current scope.
+		std::vector<core::any>     kvalues    = {};       // Constant pool.
+		bc::reg                    max_reg_id = 1;        // Maximum register ID used.
 	};
 	struct local_state {
 		core::string* id       = nullptr;  // Local name.
 		bool          is_const = false;    // Set if declared as const.
+		bc::reg       reg      = 0;        // Register mapping to it.
 	};
 	struct func_scope {
-		func_scope*              prev     = nullptr;  // Outer scope.
-		bc::reg                  reg_map  = 0;        // Register mapping to the value of the scope.
-		bc::reg                  reg_next = 0;        // Next free register.
-		std::vector<local_state> locals   = {};       // Locals declared in this scope.
+		func_state&              fn;             // Function that scope belongs to.
+		func_scope*              prev;           // Outer scope.
+		bc::reg                  reg_map  = 0;   // Register mapping to the value of the scope.
+		bc::reg                  reg_next = 0;   // Next free register.
+		std::vector<local_state> locals   = {};  // Locals declared in this scope.
+
+		// Gets the lexer.
+		//
+		lexer::state& lex() { return fn.lex; }
+
+		// Looks up a variable.
+		//
+		const local_state* lookup_local(core::string* name) {
+			for (auto it = this; it; it = it->prev) {
+				for (auto& local : it->locals) {
+					if (local.id == name) {
+						return &local;
+					}
+				}
+			}
+			return nullptr;
+		}
+		// std::optional<bc::reg> lookup_uval(core::string* name) {
+		//	for (size_t i = 0; i != fn.uvalues.size(); i++) {
+		//		if (fn.uvalues[i] == name)
+		//			return (bc::reg) i;
+		//	}
+		// }
+
+		// Inserts a new local variable.
+		//
+		bc::reg add_local(core::string* name, bool is_const){
+			auto r = alloc_reg();
+			locals.push_back({name, is_const, r});
+			return r;
+		}
+
+		// Inserts a new constant into the pool.
+		//
+		bc::reg add_const(core::any c) {
+			for (size_t i = 0; i != fn.kvalues.size(); i++) {
+				if (fn.kvalues[i] == c)
+					return (bc::reg) i;
+			}
+			fn.kvalues.emplace_back(c);
+			return (bc::reg) fn.kvalues.size();
+		}
+
+		// Allocates a register.
+		//
+		bc::reg alloc_reg() {
+			bc::reg r = reg_next++;
+			fn.max_reg_id = std::max(fn.max_reg_id, r);
+			return r;
+		}
+
+		// Construction and destruction in RAII pattern, no copy.
+		//
+		func_scope(func_state& fn) : fn(fn), prev(fn.scope) {
+			fn.scope = this;
+			reg_map  = prev ? prev->alloc_reg() : 0;
+			reg_next = reg_map + 1;
+		}
+		func_scope(const func_scope&) = delete;
+		func_scope& operator=(const func_scope&) = delete;
+		~func_scope() { fn.scope = prev; }
 	};
 
 	enum class expression {
@@ -409,8 +469,15 @@ namespace lightning::parser {
 		// => fallback to expression with discarded result.
 	}
 
+	static void parse_body( func_scope scope ) {
+
+	}
+
 	static core::function* parse(core::vm* L, std::string_view source) {
 
+
+		func_state fn{.L = L, .lex = source};
+		parse_body(fn);
 
 		bc::insn{bc::JMP,  bc::reg(bc::rel(-4))}.print(10);
 		bc::insn{bc::AADD, 1, 2, 3}.print(11);

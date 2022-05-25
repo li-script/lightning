@@ -69,6 +69,7 @@ namespace lightning::core {
 			if (v != v) [[unlikely]]
 				value = kvalue_nan;
 		}
+		inline constexpr any(std::in_place_t, uint64_t value) : value(value) {}
 
 		// GC types.
 		//

@@ -59,6 +59,7 @@ namespace lightning::bc {
 	_(JMP,  rel, ___, ___) /* JMP A */                                                  \
 	_(JS,   rel, reg, ___) /* JMP A if B */                                             \
 	_(JNS,  rel, reg, ___) /* JMP A if !B */                                            \
+	_(ITER, rel, reg, reg) /* B[1,2] = C[B].kv, JMP A if end */                         \
 	/* Misc. */                                                                         \
 	_(NOP,  ___, ___, ___) /* No-op */ \
 	_(BP,   ___, ___, ___) /* Breakpoint */

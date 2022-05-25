@@ -55,6 +55,9 @@ namespace lightning::debug {
 			case type_opaque:
 				printf("opaque %p", a.as_opq().bits);
 				break;
+			case type_iopaque:
+				printf("iopaque %p", a.as_opq().bits);
+				break;
 			case type_thread:
 				printf("thread @ %p", a.as_gc());
 				break;

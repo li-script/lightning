@@ -131,6 +131,52 @@ namespace lightning::core {
 				case bc::JMP:
 					ip += a;
 					continue;
+				case bc::ITER: {
+					auto  tbl  = ref_reg(c);
+					auto& iter = ref_reg(b + 0);
+					auto& k    = ref_reg(b + 1);
+					auto& v    = ref_reg(b + 2);
+
+					// Validate type.
+					//
+					if (!tbl.is(type_table)) [[unlikely]] {
+						if (tbl.is(type_none)) {
+							ip += a;
+							continue;
+						}
+						return ret(string::create(this, "iterating non-table"), true);
+					}
+
+					// Find valid entry within the range.
+					//
+					table* t  = tbl.as_tbl();
+					auto*  e  = t->begin();
+					bool   ok = false;
+					for (uint64_t it = iter.as_opq().bits; it < (t->size() + overflow_factor); it++) {
+						if (e[it].key != none) {
+							// Write the pair.
+							//
+							k = e[it].key;
+							v = e[it].value;
+
+							// Update the iterator.
+							//
+							iter = iopaque{.bits = it + 1};
+
+							// Break.
+							//
+							ok = true;
+							break;
+						}
+					}
+
+					// If we did not find any, break.
+					//
+					if (!ok) {
+						ip += a;
+					}
+					continue;
+				}
 				case bc::KIMM: {
 					ref_reg(a) = any(std::in_place, insn.xmm());
 					continue;

@@ -1,6 +1,5 @@
 # TODO:
 # - switch
-# - table|array for
 # - numeric for
 # - upvalues, varargs
 # - table unpack via ...
@@ -24,26 +23,44 @@
 #
 
 
-let n = 10
-const x = while n > 0 {
-	print(n)
-	if n==5 {
-		break 6
+const tbl = { a: 2, b:4, c: 6 }
+
+const test = |tbl| {
+	for k,v in tbl {
+		print(k,v)
 	}
-	n -= 1
 }
-print("x = ", x)
+@printbc(test)
+test(tbl)
 
 
-let n = 10
-let r = loop {
-	if n <= 0 {
-		break "lolz"
-	}
-	n -= 1	
-	print("Step: ", n)
-}
-print("r = ", r)
+#const test = | | {
+#	{
+#		let n = 10
+#		const x = while n > 0 {
+#			print(n)
+#			if n==5 {
+#				break 6
+#			}
+#			n -= 1
+#		}
+#		print("x = ", x)
+#	}
+#	{
+#		let n = 10
+#		const r = loop {
+#			if n <= 0 {
+#				break "lolz"
+#			}
+#			n -= 1	
+#			print("Step: ", n)
+#		}
+#		print("r = ", r)
+#	}
+#}
+#
+#test()
+##@printbc(test)
 
 
 

@@ -27,6 +27,9 @@
     <ClCompile Include="..\src\lang\paser.cpp">
       <Filter>Language</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\vm\array.cpp">
+      <Filter>VM</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Language">
@@ -81,6 +84,9 @@
     </ClInclude>
     <ClInclude Include="..\include\lang\operator.hpp">
       <Filter>Language</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\vm\array.hpp">
+      <Filter>VM</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

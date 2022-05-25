@@ -619,6 +619,38 @@ namespace lightning::core {
 		return name;  // global
 	}
 
+	// Parses an array literal.
+	//
+	static expression expr_array( func_scope& scope ) {
+		// TODO: ADUP const part, dont care rn.
+
+		// Create a new array.
+		//
+		expression result = scope.alloc_reg();
+		scope.emit(bc::ANEW, result.reg);
+
+		// Until list is exhausted push expressions.
+		//
+		while (true) {
+			reg_sweeper _r{scope};
+
+			expression value = expr_parse(scope);
+			if (value.kind == expr::err) {
+				return {};
+			}
+			scope.emit(bc::AADD, result.reg, result.reg, value.to_anyreg(scope));
+
+			if (scope.lex().opt(']'))
+				break;
+			else {
+				if (scope.lex().check(',') == lex::token_error) {
+					return {};
+				}
+			}
+		}
+		return result;
+	}
+
 	// Parses a table literal.
 	//
 	static expression expr_table(func_scope& scope) {
@@ -629,7 +661,7 @@ namespace lightning::core {
 		expression result = scope.alloc_reg();
 		scope.emit(bc::TNEW, result.reg);
 
-		// Until list is exhausted set variables.
+		// Until list is exhausted set fields.
 		//
 		while (true) {
 			reg_sweeper _r{scope};
@@ -644,6 +676,9 @@ namespace lightning::core {
 				value = expr_parse(scope);
 			} else {
 				value = expr_var(scope, field.str_val);
+			}
+			if (value.kind == expr::err) {
+				return {};
 			}
 			value = value.to_anyreg(scope);
 
@@ -691,6 +726,9 @@ namespace lightning::core {
 			scope.lex().next();
 			base = expr_parse(scope);
 			scope.lex().check(')');
+		} else if (tk.id == '[') {
+			scope.lex().next();
+			base = expr_array(scope);
 		} else if (tk.id == '{') {
 			if (is_table_init(scope)) {
 				scope.lex().next();

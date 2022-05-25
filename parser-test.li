@@ -1,23 +1,21 @@
 # TODO:
-# x = env{}
-# arrays/metatables
+# - metatables
 # - switch/match
 # - varargs
-# - table unpack via ...
 # - export/import
+# - table unpack via ...
 # - destructuring
 #   const [a,b,c] = x() == a=x()[0], ...
 #   const {a,b,c} = x() == a=x().a,  ...
 # - tail call
-# - core::to_string
+# - core::to_string as unary method
 # - coroutines|thread
 # - try/catch
 # - ternary
 # - string escape, long strings
-# - better lexer errors, debug info
+# - debug info in function
 # - GC, JIT
-# - force inlined, immutable, private, macros
-# - format string
+# - format string `{a}`
 # macro __add(a, b) {
 # 	a + b
 # }
@@ -25,20 +23,37 @@
 #
 
 
-const a = env {
-	b = 4
-	const tmp = 4
-	c = b * b
-}
-print("a.c = ", a.c)
-
-
-for i in 0.. {
-	print(i)
-	if i == 5 {
-		break
+let z = ["a", "b", "c"]
+const dump = || {
+	print()
+	for k,v in z {
+		print(k, v)
 	}
 }
+
+dump()
+z += "k"
+dump()
+z[0] = "l"
+dump()
+print(z[2])
+
+
+
+#const a = env {
+#	b = 4
+#	const tmp = 4
+#	c = b * b
+#}
+#print("a.c = ", a.c)
+#
+#
+#for i in 0.. {
+#	print(i)
+#	if i == 5 {
+#		break
+#	}
+#}
 
 #const make_counter = || {
 #	let i = 1;

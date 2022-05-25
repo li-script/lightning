@@ -24,6 +24,7 @@
     <ClCompile Include="..\src\lang\paser.cpp" />
     <ClCompile Include="..\src\main.cpp" />
     <ClCompile Include="..\src\platform.cpp" />
+    <ClCompile Include="..\src\vm\array.cpp" />
     <ClCompile Include="..\src\vm\function.cpp" />
     <ClCompile Include="..\src\vm\interp.cpp" />
     <ClCompile Include="..\src\vm\state.cpp" />
@@ -39,6 +40,7 @@
     <ClInclude Include="..\include\util\format.hpp" />
     <ClInclude Include="..\include\util\llist.hpp" />
     <ClInclude Include="..\include\util\platform.hpp" />
+    <ClInclude Include="..\include\vm\array.hpp" />
     <ClInclude Include="..\include\vm\bc.hpp" />
     <ClInclude Include="..\include\vm\function.hpp" />
     <ClInclude Include="..\include\vm\gc.hpp" />

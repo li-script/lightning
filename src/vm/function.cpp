@@ -27,9 +27,10 @@ namespace lightning::core {
 	// Duplicates the function.
 	//
 	function* function::duplicate(vm* L) {
-		size_t len = this->object_bytes(); 
-		function* f = L->alloc<function>(len - sizeof(function));
-		memcpy(&f->num_uval, &num_uval, len);
+		size_t    obj_len = this->object_bytes();
+		size_t    ext_len = this->extra_bytes();
+		function* f       = L->alloc<function>(ext_len);
+		memcpy(&f->num_uval, &num_uval, obj_len);
 		return f;
 	}
 	

@@ -258,7 +258,8 @@ namespace lightning::core {
 		};
 
 		for (uint32_t ip = 0;;) {
-			auto [op, a, b, c] = f->opcode_array[ip++];
+			const auto& insn   = f->opcode_array[ip++];
+			auto [op, a, b, c] = insn;
 
 			switch (op) {
 				case bc::TYPE:
@@ -310,8 +311,8 @@ namespace lightning::core {
 				case bc::JMP:
 					ip += a - 1;
 					continue;
-				case bc::KTAG: {
-					ref_reg(a) = any(std::in_place, make_tag(b));
+				case bc::KIMM: {
+					ref_reg(a) = any(std::in_place, insn.xmm());
 					continue;
 				}
 				case bc::KGET: {
@@ -402,12 +403,18 @@ namespace lightning::parser {
 		bc::reg                  reg_next = 0;   // Next free register.
 		std::vector<local_state> locals   = {};  // Locals declared in this scope.
 
-		// Emits an instruction.
+		// Emits an instruction and returns the position in stream.
 		//
-		void emit(bc::opcode o, bc::reg a = 0, bc::reg b = 0, bc::reg c = 0) {
+		bc::pos emit(bc::opcode o, bc::reg a = 0, bc::reg b = 0, bc::reg c = 0) {
 			auto& i = fn.pc.emplace_back(bc::insn{o, a, b, c});
-			// debug
-			i.print(uint32_t(fn.pc.size() - 1));
+			i.print(uint32_t(fn.pc.size() - 1));  // debug
+			return bc::pos(fn.pc.size() - 1);
+		}
+		bc::pos emitx(bc::opcode o, bc::reg a, uint64_t xmm) {
+			auto& i = fn.pc.emplace_back(bc::insn{o, a});
+			i.xmm() = xmm;
+			i.print(uint32_t(fn.pc.size() - 1)); // debug
+			return bc::pos(fn.pc.size() - 1);
 		}
 
 		// Gets the lexer.
@@ -465,9 +472,14 @@ namespace lightning::parser {
 				case core::type_none:
 				case core::type_false:
 				case core::type_true:
-					return emit(bc::KTAG, r, v.type());
-				default:
-					return emit(bc::KGET, r, add_const(v));
+				case core::type_number: {
+					emitx(bc::KIMM, r, v.value);
+					break;
+				}
+				default: {
+					emit(bc::KGET, r, add_const(v));
+					break;
+				}
 			}
 		}
 
@@ -493,11 +505,23 @@ namespace lightning::parser {
 
 
 	enum class expr : uint8_t {
-		none,
-		error,
+		error,  // <deferred error, written into lexer state>
+		lvalue, // local
+		kvalue, // constant
+		gvalue, // global
+		tvalue, // index into local with another local
 	};
 	struct expression {
-		expr kind = expr::none;
+		expr kind = expr::error;
+		union {
+			struct {
+				bc::reg tbl;
+				bc::reg idx;
+			} t;
+			bc::reg       l;
+			core::any     k;
+			core::string* g;
+		};
 	};
 
 	// TODO: Export keyword
@@ -621,11 +645,10 @@ int main() {
 	auto* L = core::vm::create();
 	printf("VM allocated @ %p\n", L);
 
-	/*
-	std::vector<core::any> constants = {core::any(core::number(2))};
+	std::vector<core::any> constants = {};
 	std::vector<bc::insn>  ins;
 
-	ins.emplace_back(bc::insn{bc::KGET, 0, 0});        // local 0 = const[0]
+	ins.emplace_back(bc::insn{bc::KIMM, 0}).xmm() = core::any(core::number(2)).value;
 	ins.emplace_back(bc::insn{bc::AADD, -1, -1, -2});  // arg 1 = arg 1 + arg 2
 	ins.emplace_back(bc::insn{bc::AMUL, -1, -1, 0});   // arg 1 = arg 1 + local 0
 	ins.emplace_back(bc::insn{bc::RETN, -1});          // ret arg 1
@@ -650,10 +673,10 @@ int main() {
 		printf("Execution finished with result: ");
 		debug::print_object(L->pop_stack());
 		puts("");
-	}*/
+	}
 
 	{
-		std::ifstream file("S:\\Projects\\Lightning\\parser-test.li");
+		std::ifstream file("..\\parser-test.li");
 		std::string   file_buf{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
 		debug::dump_tokens(file_buf);
 	
@@ -692,7 +715,7 @@ int main() {
 		printf("gc page %p\n", it);
 	}
 
-	std::ifstream           file("S:\\Projects\\Lightning\\lexer-test.li");
+	std::ifstream           file("..\\lexer-test.li");
 	std::string             file_buf{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
 	debug::dump_tokens(file_buf);
 #endif

@@ -479,6 +479,10 @@ namespace lightning::core {
 	//
 	static expression parse_closure(func_scope& scope);
 
+	// Parses a call, returns the result expression.
+	//
+	static expression parse_call(func_scope& scope, const expression& func);
+
 	// Parses a "statement" expression, which considers both statements and expressions valid.
 	// Returns the expression representing the value of the statement.
 	//
@@ -563,8 +567,15 @@ namespace lightning::core {
 		//
 		while (true) {
 			switch (scope.lex().tok.id) {
-				// TODO: Call a.b() a->b().
-				//
+				// Call.
+				case lex::token_lstr:
+				case '{':
+				case '(': {
+					base = parse_call(scope, base);
+					break;
+				}
+
+				// Index.
 				case '[': {
 					scope.lex().next();
 					expression field = expr_parse(scope);
@@ -812,7 +823,8 @@ namespace lightning::core {
 		return last;
 	}
 
-
+	// Parses script body.
+	//
 	static bool parse_body(func_scope scope) {
 		while (scope.lex().tok != lex::token_eof) {
 			// Parse a statement.
@@ -826,6 +838,59 @@ namespace lightning::core {
 			scope.lex().opt(';');
 		}
 		return true;
+	}
+
+	// Parses a call, returns the instruction's position for catchpad correction.
+	//
+	static expression parse_call(func_scope& scope, const expression& func) {
+		// Callsite expression list.
+		//
+		expression callsite[32] = { func };
+		uint32_t   size         = 1;
+
+		// Collect arguments.
+		//
+		if (scope.lex().opt('{')) {
+			callsite[size++] = expr_table(scope);
+		} else if (auto lit = scope.lex().opt(lex::token_lstr)) {
+			callsite[size++] = expression(any(lit->str_val));
+		} else {
+			if (scope.lex().check('(') == lex::token_error)
+				return {};
+			if (!scope.lex().opt(')')) {
+				while (true) {
+
+					if (size == std::size(callsite)) {
+						scope.lex().error("too many arguments");
+						return {};
+					}
+
+					if (auto ex = expr_parse(scope); ex.kind == expr::err)
+						return {};
+					else
+						callsite[size++] = ex;
+
+
+					if (scope.lex().opt(')'))
+						break;
+					else if (scope.lex().check(',') == lex::token_error)
+						return {};
+				}
+			}
+		}
+
+		// Allocate the callsite, dispatch to it.
+		//
+		auto c = scope.alloc_reg(size);
+		for (size_t i = 0; i != size; i++) {
+			callsite[i].to_reg(scope, c + i);
+		}
+
+		// Emit the call, free all arguments, return the result.
+		//
+		scope.emit(bc::CALL, c, size-1);
+		scope.free_reg(c+1, size-1);
+		return expression(c);
 	}
 
 	// Parses closure declaration, returns the function value.

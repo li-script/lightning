@@ -109,11 +109,21 @@ namespace lightning::core {
 			alloc_fn(this, gc, gc->num_pages, false);
 		}
 
-		// Calls the function on top the stack with the arguments right below it.
+		// Calls the function at the first slot in callsite with the arguments following it
 		// - Returns true on success and false if the VM throws an exception.
-		// - Pops the function and args in either case and will push either the exception or the result.
+		// - In either case and will replace the function with a value representing
+		//    either the exception or the result.
 		//
-		bool call(uint32_t n_args);
+		bool call(uint32_t callsite, uint32_t n_args);
+
+		// Simple version of call() for user-invocation that pops all arguments and the function from ToS.
+		//
+		bool scall(uint32_t n_args) {
+			uint32_t cs = stack_top - (n_args + 1);
+			bool ok = call(cs, n_args);
+			pop_stack_n(n_args);
+			return ok;
+		}
 
 		// Allocation helper.
 		//

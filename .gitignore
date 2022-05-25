@@ -3,3 +3,7 @@ build-vs22/.vs
 build-vs22/*.user
 
 build-vs22/enc_temp_folder/
+
+build-cmake/
+
+build.bat

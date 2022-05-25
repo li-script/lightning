@@ -58,7 +58,8 @@ namespace lightning::bc {
 	_(JMP,  rel, ___, ___) /* JMP A */                                                  \
 	_(JCC,  rel, reg, ___) /* JMP A if B */                                             \
 	/* Misc. */                                                                         \
-	_(BP,   ___, ___, ___)   /* Breakpoint */
+	_(NOP,  ___, ___, ___) /* No-op */ \
+	_(BP,   ___, ___, ___) /* Breakpoint */
 
 	// Opcodes.
 	//

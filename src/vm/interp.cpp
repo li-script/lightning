@@ -188,7 +188,11 @@ namespace lightning::core {
 					util::abort("bytecode '%s' is NYI.", bc::opcode_descs[uint8_t(op)].name);
 				case bc::BP:
 					breakpoint();
+					continue;
+				case bc::NOP:
+					continue;
 				default:
+					util::abort("unrecognized bytecode '%02x'", (uint32_t) op);
 					break;
 			}
 		}

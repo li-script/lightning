@@ -1,12 +1,35 @@
+#include <lang/lexer.hpp>
+#include <lang/operator.hpp>
+#include <lang/parser.hpp>
 #include <vector>
 #include <vm/function.hpp>
 #include <vm/string.hpp>
 #include <vm/table.hpp>
-#include <lang/lexer.hpp>
-#include <lang/operator.hpp>
-#include <lang/parser.hpp>
 
 namespace lightning::core {
+
+	// Operator traits for parsing.
+	//
+	static const operator_traits* lookup_operator(lex::state& l, bool binary) {
+		std::span<const operator_traits> range;
+		if (binary)
+			range = {binary_operators};
+		else
+			range = {unary_operators};
+
+		for (auto& desc : range) {
+			if (l.tok.id == desc.token) {
+				if (desc.opcode == bc::NOP) {
+					l.next();  // Consume, no-op.
+					return nullptr;
+				} else {
+					return &desc;
+				}
+			}
+		}
+		return nullptr;
+	}
+
 	struct func_scope;
 	struct func_state {
 		//		func_scope*                enclosing  = nullptr;  // Enclosing function's scope.
@@ -133,63 +156,6 @@ namespace lightning::core {
 		func_scope& operator=(const func_scope&) = delete;
 		~func_scope() { fn.scope = prev; }
 	};
-
-	// Token to operator conversion.
-	//
-	struct operator_details {
-		bc::opcode opcode;
-		uint8_t    prio_left;
-		uint8_t    prio_right;
-	};
-	static std::optional<operator_details> to_unop(lex::state& l) {
-		switch (l.tok.id) {
-			case lex::token_lnot:
-				return operator_details{bc::LNOT, 3, 2};
-			case lex::token_sub:
-				return operator_details{bc::ANEG, 3, 2};
-			case lex::token_add:
-				l.next();  // Consume, no-op.
-				return std::nullopt;
-			default:
-				return std::nullopt;
-		}
-	}
-	static std::optional<operator_details> to_binop(lex::state& l) {
-		switch (l.tok.id) {
-			case lex::token_add:
-				return operator_details{bc::AADD, 6, 6};
-			case lex::token_sub:
-				return operator_details{bc::ASUB, 6, 6};
-			case lex::token_mul:
-				return operator_details{bc::AMUL, 5, 5};
-			case lex::token_div:
-				return operator_details{bc::ADIV, 5, 5};
-			case lex::token_mod:
-				return operator_details{bc::AMOD, 5, 5};
-			case lex::token_pow:
-				return operator_details{bc::APOW, 5, 5};
-			case lex::token_land:
-				return operator_details{bc::LAND, 14, 14};
-			case lex::token_lor:
-				return operator_details{bc::LOR, 15, 15};
-			case lex::token_cat:
-				return operator_details{bc::SCAT, 5, 5};
-			case lex::token_eq:
-				return operator_details{bc::CEQ, 10, 10};
-			case lex::token_ne:
-				return operator_details{bc::CNE, 10, 10};
-			case lex::token_lt:
-				return operator_details{bc::CLT, 9, 9};
-			case lex::token_gt:
-				return operator_details{bc::CGT, 9, 9};
-			case lex::token_le:
-				return operator_details{bc::CLE, 9, 9};
-			case lex::token_ge:
-				return operator_details{bc::CGE, 9, 9};
-			default:
-				return std::nullopt;
-		}
-	}
 
 	// Expression type.
 	//
@@ -346,7 +312,7 @@ namespace lightning::core {
 		}
 	}
 
-	static std::optional<operator_details> expr_binop(func_scope& scope, expression& out, uint8_t prio);
+	static const operator_traits* expr_binop(func_scope& scope, expression& out, uint8_t prio);
 
 	/*
 		error,  // <deferred error, written into lexer state>
@@ -389,7 +355,7 @@ namespace lightning::core {
 	}
 
 	static expression expr_unop(func_scope& scope) {
-		if (auto op = to_unop(scope.lex())) {
+		if (auto op = lookup_operator(scope.lex(), false)) {
 			scope.lex().next();
 
 			expression exp = {};
@@ -400,11 +366,11 @@ namespace lightning::core {
 		}
 	}
 
-	static std::optional<operator_details> expr_binop(func_scope& scope, expression& out, uint8_t prio) {
+	static const operator_traits* expr_binop(func_scope& scope, expression& out, uint8_t prio) {
 		auto& lhs = out;
 
 		lhs     = expr_unop(scope);
-		auto op = to_binop(scope.lex());
+		auto op = lookup_operator(scope.lex(), true);
 		while (op && op->prio_left <= prio) {
 			scope.lex().next();
 

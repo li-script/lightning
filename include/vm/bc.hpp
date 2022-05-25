@@ -52,7 +52,7 @@ namespace lightning::bc {
 	/* Control flow. */                                                                 \
 	_(CALL, reg, imm, rel) /* CALL A(B x args @(a+1, a+2...)), JMP C if throw */        \
 	_(RETN, reg, ___, ___) /* RETURN A */                                               \
-	_(THRW, reg, ___, ___) /* THROW A */                                                \
+	_(THRW, reg, ___, ___) /* THROW A (if A != None) */                                 \
 	_(JMP,  rel, ___, ___) /* JMP A */                                                  \
 	_(JCC,  rel, reg, ___) /* JMP A if B */                                             \
 	/* Misc. */                                                                         \

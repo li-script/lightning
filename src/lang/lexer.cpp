@@ -4,7 +4,7 @@
 #include <util/common.hpp>
 #include <util/format.hpp>
 
-namespace lightning::lexer {
+namespace lightning::lex {
 	// Character traits.
 	//
 	enum char_trait : uint8_t {

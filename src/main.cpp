@@ -66,7 +66,7 @@ namespace lightning::debug {
 	}
 
 	static void dump_tokens( std::string_view s ) {
-		lexer::state lexer{s};
+		lex::state lexer{s};
 		size_t       last_line = 0;
 		while (true) {
 			if (last_line != lexer.line) {
@@ -74,7 +74,7 @@ namespace lightning::debug {
 				last_line = lexer.line;
 			}
 			auto token = lexer.next();
-			if (token == lexer::token_eof)
+			if (token == lex::token_eof)
 				break;
 			putchar(' ');
 			token.print();
@@ -295,9 +295,13 @@ namespace lightning::core {
 					ref_reg(a) = ref_reg(b);
 					continue;
 				}
-				case bc::THRW:
+				case bc::THRW: {
+					if (auto& e = ref_reg(a); e != none)
+						return ret(e, true);
+					continue;
+				}
 				case bc::RETN: {
-					return ret(ref_reg(a), op == bc::THRW);
+					return ret(ref_reg(a), false);
 				}
 				case bc::JCC:
 					if (!ref_reg(b).as_bool())
@@ -375,13 +379,16 @@ namespace lightning::parser {
 
 	struct func_scope;
 	struct func_state {
-//		func_scope*                enclosing  = nullptr;  // Enclosing function's scope.
-//		std::vector<core::string*> uvalues    = {};       // Upvalues mapped by name.
+		//		func_scope*                enclosing  = nullptr;  // Enclosing function's scope.
+		//		std::vector<core::string*> uvalues    = {};       // Upvalues mapped by name.
 		core::vm*                  L;                     // VM state.
-		lexer::state               lex;                   // Lexer state.
+		lex::state                 lex;                   // Lexer state.
 		func_scope*                scope      = nullptr;  // Current scope.
 		std::vector<core::any>     kvalues    = {};       // Constant pool.
 		bc::reg                    max_reg_id = 1;        // Maximum register ID used.
+		std::vector<core::string*> args       = {};       // Arguments.
+		bool                       is_vararg  = false;    //
+		std::vector<bc::insn>      pc         = {};
 	};
 	struct local_state {
 		core::string* id       = nullptr;  // Local name.
@@ -395,21 +402,35 @@ namespace lightning::parser {
 		bc::reg                  reg_next = 0;   // Next free register.
 		std::vector<local_state> locals   = {};  // Locals declared in this scope.
 
+		// Emits an instruction.
+		//
+		void emit(bc::opcode o, bc::reg a = 0, bc::reg b = 0, bc::reg c = 0) {
+			auto& i = fn.pc.emplace_back(bc::insn{o, a, b, c});
+			// debug
+			i.print(uint32_t(fn.pc.size() - 1));
+		}
+
 		// Gets the lexer.
 		//
-		lexer::state& lex() { return fn.lex; }
+		lex::state& lex() { return fn.lex; }
 
 		// Looks up a variable.
 		//
-		const local_state* lookup_local(core::string* name) {
+		std::optional<bc::reg> lookup_local(core::string* name) {
 			for (auto it = this; it; it = it->prev) {
-				for (auto& local : it->locals) {
-					if (local.id == name) {
-						return &local;
+				for (auto lit = it->locals.rbegin(); lit != it->locals.rend(); ++lit) {
+					if (lit->id == name) {
+						return lit->reg;
 					}
 				}
 			}
-			return nullptr;
+			for (size_t n = 0; n != fn.args.size(); n++) {
+				if (fn.args[n] == name) {
+					return -bc::reg(n + 1);
+				}
+			}
+
+			return std::nullopt;
 		}
 		// std::optional<bc::reg> lookup_uval(core::string* name) {
 		//	for (size_t i = 0; i != fn.uvalues.size(); i++) {
@@ -437,6 +458,19 @@ namespace lightning::parser {
 			return (bc::reg) fn.kvalues.size();
 		}
 
+		// Loads the constant given in the register in the most efficient way.
+		//
+		void set_reg( bc::reg r, core::any v ) {
+			switch (v.type()) {
+				case core::type_none:
+				case core::type_false:
+				case core::type_true:
+					return emit(bc::KTAG, r, v.type());
+				default:
+					return emit(bc::KGET, r, add_const(v));
+			}
+		}
+
 		// Allocates a register.
 		//
 		bc::reg alloc_reg() {
@@ -457,30 +491,107 @@ namespace lightning::parser {
 		~func_scope() { fn.scope = prev; }
 	};
 
-	enum class expression {
 
+	enum class expr : uint8_t {
+		none,
+		error,
+	};
+	struct expression {
+		expr kind = expr::none;
 	};
 
-	static void parse_statement( core::vm* L, core::function* f ) {
+	// TODO: Export keyword
+
+	static expression parse_expression(func_scope& scope) {
+
+
+		return {};
+	}
+
+
+	static bool parse_local(func_scope& scope, bool is_const) {
+		// Get the variable name and intern the string.
+		//
+		auto var = scope.lex().check(lex::token_name);
+		if (var == lex::token_error)
+			return false;
+
+		// Push a new local.
+		//
+		auto reg = scope.add_local(core::string::create(scope.fn.L, var.str_val), is_const);
+
+		// If immediately assigned:
+		//
+		if (scope.lex().opt('=')) {
+			expression ex = parse_expression(scope);
+			if (ex.kind == expr::error) {
+				return false;
+			}
+
+			// ex -> discharge to register [reg]
+		}
+		// Otherwise:
+		//
+		else {
+			// Error if const.
+			//
+			if (is_const) {
+				scope.lex().error("const '%.*s' declared with no initial value.", var.str_val.size(), var.str_val.data());
+				return false;
+			}
+
+			// Load nil.
+			//
+			scope.set_reg(reg, core::none);
+		}
+		return true;
+	}
+
+	static bool parse_statement(func_scope& scope) {
+		switch (scope.lex().tok.id) {
+			case lex::token_fn: {
+				util::abort("fn token NYI.");
+			}
+			case lex::token_let:
+			case lex::token_const: {
+				return parse_local(scope, scope.lex().next().id == lex::token_const);
+			}
+			default: {
+				printf("Unexpected lexer token for statement:");
+				scope.lex().tok.print();
+				breakpoint();
+			}
+		}
+
 		// real statements:
 		//  fn
+		//  x =
+		//  x +=
 		//  let x =
 		//  const x =
 		// => fallback to expression with discarded result.
+
 	}
 
-	static void parse_body( func_scope scope ) {
-
+	static bool parse_body( func_scope scope ) {
+		while (scope.lex().tok != lex::token_eof) {
+			// Parse a statement.
+			if (!parse_statement(scope)) {
+				return false;
+			}
+			// Optionally consume ';', move on to the next one.
+			scope.lex().opt(';');
+		}
+		return true;
 	}
 
 	static core::function* parse(core::vm* L, std::string_view source) {
 
 
 		func_state fn{.L = L, .lex = source};
-		parse_body(fn);
-
-		bc::insn{bc::JMP,  bc::reg(bc::rel(-4))}.print(10);
-		bc::insn{bc::AADD, 1, 2, 3}.print(11);
+		if (!parse_body(fn)) {
+			util::abort("Lexer error: %s", fn.lex.last_error.c_str());
+		}
 
 		// Setup the function state.
 		//
@@ -488,7 +599,7 @@ namespace lightning::parser {
 
 		// Setup the lexer.
 		//
-		//lightning::lexer::state lexer{source};
+		//lightning::lex::state lexer{source};
 
 		// Create the function.
 		//
@@ -510,6 +621,7 @@ int main() {
 	auto* L = core::vm::create();
 	printf("VM allocated @ %p\n", L);
 
+	/*
 	std::vector<core::any> constants = {core::any(core::number(2))};
 	std::vector<bc::insn>  ins;
 
@@ -522,7 +634,7 @@ int main() {
 		ins[i].print(i);
 	}
 
-	core::function* f = core::function::create(L, ins, constants, 0 /*no upvalues*/);
+	core::function* f = core::function::create(L, ins, constants, 0);
 	f->num_locals     = 1;
 
 	L->push_stack(core::number(1));
@@ -538,16 +650,16 @@ int main() {
 		printf("Execution finished with result: ");
 		debug::print_object(L->pop_stack());
 		puts("");
-	}
+	}*/
 
-	//{
-	//	std::ifstream file("S:\\Projects\\Lightning\\parser-test.li");
-	//	std::string   file_buf{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
-	//	debug::dump_tokens(file_buf);
-	//
-	//	puts("---------------------------------------\n");
-	//	lightning::parser::parse(L, file_buf);
-	//}
+	{
+		std::ifstream file("S:\\Projects\\Lightning\\parser-test.li");
+		std::string   file_buf{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+		debug::dump_tokens(file_buf);
+	
+		puts("---------------------------------------\n");
+		lightning::parser::parse(L, file_buf);
+	}
 
 #if 0
 	printf("%p\n", core::string::create(L, "hello"));

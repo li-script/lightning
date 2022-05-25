@@ -7,7 +7,7 @@
 # - destructuring
 #   const [a,b,c] = x() == a=x()[0], ...
 #   const {a,b,c} = x() == a=x().a,  ...
-#   
+# - tail call
 # - core::to_string
 # - arrays/userdata/metatables/coroutines|thread
 # - try/catch
@@ -16,6 +16,7 @@
 # - better lexer errors, debug info
 # - GC, JIT
 # - force inlined, immutable, private, macros
+# - format string
 # macro __add(a, b) {
 # 	a + b
 # }
@@ -23,15 +24,68 @@
 #
 
 
-const tbl = { a: 2, b:4, c: 6 }
 
-const test = |tbl| {
-	for k,v in tbl {
-		print(k,v)
-	}
-}
-@printbc(test)
-test(tbl)
+#const BottomUpTree = |self, depth| {
+#	if depth >= 0 {
+#		depth -= 1
+#		{ left: self(self, depth), right: self(self, depth) }
+#	}
+#}
+#const ItemCheck = |self, tree| {
+#	const l = tree.left
+#	if l {
+#		1 + self(self, l) + self(self, tree.right)
+#	} else {
+#		1
+#	}
+#}
+#
+#
+#const N = 15
+#let mindepth = 4
+#let maxdepth = mindepth + 2
+#if maxdepth < N {
+#    maxdepth = N
+#}
+#
+#{ 
+#    const stretchdepth = maxdepth + 1
+#    const stretchtree = BottomUpTree(BottomUpTree, stretchdepth)
+#}
+#
+#
+#const longlivedtree = BottomUpTree(BottomUpTree, maxdepth)
+#
+#let depth = mindepth
+#while depth <= maxdepth {	
+#    const iterations = 2 ^ (maxdepth + mindepth - depth)
+#	let check = 0
+#	let i = 1
+#	while i <= iterations {
+#        check += ItemCheck(ItemCheck, BottomUpTree(BottomUpTree, depth))
+#		i += 1
+#	}
+#	depth += 2
+#}
+#
+#
+#print("fin:", maxdepth, ItemCheck(ItemCheck, longlivedtree))
+
+
+
+
+
+
+
+#const tbl = { a: 2, b:4, c: 6 }
+#
+#const test = |tbl| {
+#	for k,v in tbl {
+#		print(k,v)
+#	}
+#}
+#@printbc(test)
+#test(tbl)
 
 
 #const test = | | {

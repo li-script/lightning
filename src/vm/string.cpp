@@ -33,7 +33,7 @@ namespace lightning::core {
 		size_t             size() { return (this->object_bytes() / sizeof(string*)) - overflow_factor; }
 		size_t             mask() { return size() - 1; }
 		string**           begin() { return &entries[0]; }
-		string**           end() { return &entries[size()]; }
+		string**           end() { return &entries[size() + overflow_factor]; }
 		std::span<string*> find(size_t hash) {
 			auto it = begin() + (hash & mask());
 			return {it, it + overflow_factor};

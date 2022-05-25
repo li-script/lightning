@@ -36,6 +36,10 @@ const test = | | {
 	print(a, b)
 }
 
+const x = {x, a:4}
+x.a *= 3
+print(x.a)
+
 test()
 #@printbc(test)
 

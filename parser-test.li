@@ -1,14 +1,12 @@
 # TODO:
 # - metatables
+# - self/this
 # - switch/match
 # - varargs
 # - export/import
-# - table unpack via ...
-# - destructuring
-#   const [a,b,c] = x() == a=x()[0], ...
-#   const {a,b,c} = x() == a=x().a,  ...
+# - table unpack ...
 # - tail call
-# - core::to_string as unary method
+# - core::to_string
 # - coroutines|thread
 # - try/catch
 # - ternary
@@ -23,29 +21,22 @@
 #
 
 
-let z = ["a", "b", "c"]
-const dump = || {
-	print()
-	for k,v in z {
-		print(k, v)
-	}
+let z = ["a", "b", "c", "d"]
+let q = {a: 5, b: 5}
+
+let [a,b,,c] = z
+print("arr dstrc:", a,b,c)
+
+let {a:aa,b:bb} =  q
+print("tbl dstrc:", aa,bb)
+
+const {test2:x} = env {
+	test = 4
+	const tmp = 4
+	test2 = test * test
 }
+print("env dstrc:", x)
 
-dump()
-z += "k"
-dump()
-z[0] = "l"
-dump()
-print(z[2])
-
-
-
-#const a = env {
-#	b = 4
-#	const tmp = 4
-#	c = b * b
-#}
-#print("a.c = ", a.c)
 #
 #
 #for i in 0.. {

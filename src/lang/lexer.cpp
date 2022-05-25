@@ -114,7 +114,7 @@ namespace lightning::lex {
 
 	// Handles escapes within a string.
 	//
-	std::string escape(std::string_view str) {
+	static std::string escape_string(std::string_view str) {
 		// TODO:
 		// unicode escape \u1234
 		// escape \v \f \\ ...
@@ -156,7 +156,8 @@ namespace lightning::lex {
 			}
 			// If not escaped end of string, return.
 			else if (!escape && state.input[i] == '"') {
-				token_value result = {.id = token_lstr, .str_val = state.input.substr(0, i)};
+				std::string str    = escape_string(state.input.substr(0, i));
+				token_value result = {.id = token_lstr, .str_val = core::string::create(state.L, str)};
 				state.input.remove_prefix(i + 1);
 				return result;
 			}
@@ -326,7 +327,7 @@ namespace lightning::lex {
 				}
 
 				// Otherwise return as identifier.
-				return {.id = token_name, .str_val = word};
+				return {.id = token_name, .str_val = core::string::create(L, word)};
 			}
 			// If punctuation, try matching with a symbol.
 			//

@@ -21,6 +21,7 @@ namespace lightning::core {
 		uint32_t length;
 		char     data[];  // Null terminated, immutable after construction.
 
+		const char*      c_str() const { return data; }
 		std::string_view view() const { return {data, length}; }
 	};
 };

@@ -5,6 +5,11 @@
 #include <string>
 #include <string_view>
 #include <util/format.hpp>
+#include <vm/string.hpp>
+
+namespace lightning::core {
+	struct vm;
+};
 
 namespace lightning::lex {
 	// Token enumerator:
@@ -103,10 +108,6 @@ namespace lightning::lex {
 		return {};
 	}
 
-	// Handles escapes within a string.
-	//
-	std::string escape(std::string_view str);
-
 	// Token value.
 	//
 	struct token_value {
@@ -117,7 +118,7 @@ namespace lightning::lex {
 		// Value.
 		//
 		union {
-			std::string_view str_val;  // token_lstr, token_name, note: token_lstr is not escaped!
+			core::string*    str_val;  // token_lstr, token_name
 			core::number     num_val;  // token_lnum
 		};
 
@@ -141,11 +142,11 @@ namespace lightning::lex {
 			}
 			// String literal.
 			else if (id == token_lstr) {
-				return util::fmt("\"%.*s\"", (int) str_val.size(), str_val.data());
+				return util::fmt("\"%s\"", str_val->c_str());
 			}
 			// Identifier.
 			else if (id == token_name) {
-				return util::fmt("<name: %.*s>", (int) str_val.size(), str_val.data());
+				return util::fmt("<name: %s>", str_val->c_str());
 			}
 			// Numeric literal.
 			else {
@@ -164,11 +165,11 @@ namespace lightning::lex {
 			}
 			// String literal.
 			else if (id == token_lstr) {
-				printf(LI_BLU "\"%.*s\"" LI_DEF, (int) str_val.size(), str_val.data());
+				printf(LI_BLU "\"%s\"" LI_DEF, str_val->c_str());
 			}
 			// Identifier.
 			else if (id == token_name) {
-				printf(LI_RED "%.*s" LI_DEF, (int) str_val.size(), str_val.data());
+				printf(LI_RED "%s" LI_DEF, str_val->c_str());
 			}
 			// Numeric literal.
 			else {
@@ -180,6 +181,10 @@ namespace lightning::lex {
 	// Lexer state.
 	//
 	struct state {
+		// Owning VM.
+		//
+		core::vm* L;
+
 		// Current parser location.
 		//
 		std::string_view input = {};
@@ -197,9 +202,9 @@ namespace lightning::lex {
 		//
 		std::string last_error = {};
 
-		// Initialized with a string view.
+		// Initialized with a string view and a pointer to the VM for string interning.
 		//
-		state(std::string_view input) : input(input), tok(scan()) {}
+		state(core::vm* L, std::string_view input) : L(L), input(input), tok(scan()) {}
 		state(std::string&&) = delete;
 
 		// Default copy.

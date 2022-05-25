@@ -12,6 +12,12 @@ namespace lightning::core {
 	//
 	using number  = double;
 
+	// Opaque types.
+	//
+	struct opaque {
+		uint64_t bits : 47;
+	};
+
 	// GC types (forward).
 	//
 	struct gc_header;
@@ -20,23 +26,26 @@ namespace lightning::core {
 	struct string;
 	struct userdata;
 	struct function;
+	struct nfunction;
 	struct thread;
 
 	// Type enumerator.
 	//
 	enum value_type : uint8_t /*:4*/ {
-		type_none     = 0, // <-- must be 0, memset(0xFF) = array of nulls
-		type_false    = 1, // <-- canonical type boolean
-		type_true     = 2,
-		type_array    = 3,
-		type_table    = 4,
-		type_string   = 5,
-		type_userdata = 6,
-		type_function = 7,
-		type_thread   = 8,
-		type_number   = 9,
+		type_none      = 0,  // <-- must be 0, memset(0xFF) = array of nulls
+		type_false     = 1,  // <-- canonical type boolean
+		type_true      = 2,
+		type_array     = 3,
+		type_table     = 4,
+		type_string    = 5,
+		type_userdata  = 6,
+		type_function  = 7,
+		type_nfunction = 8,
+		type_thread    = 9,
+		type_opaque    = 10, // No type/definition, unique integer part.
+		type_number    = 11,
 	};
-	static constexpr const char* type_names[] = {"none", "bool", "bool", "array", "table", "string", "userdata", "function", "thread", "number"};
+	static constexpr const char* type_names[] = {"none", "bool", "bool", "array", "table", "string", "userdata", "function", "nfunction", "thread", "opaque", "number"};
 
 	LI_INLINE static constexpr bool     is_gc_type(uint8_t type) { return type_array <= type && type <= type_thread; }
 	LI_INLINE static constexpr uint64_t mask_value(uint64_t value) { return value & ((1ull << 47) - 1); }
@@ -78,7 +87,9 @@ namespace lightning::core {
 		inline any(string* v) : value(mix_value(type_string, (uint64_t) v)) {}
 		inline any(userdata* v) : value(mix_value(type_userdata, (uint64_t) v)) {}
 		inline any(function* v) : value(mix_value(type_function, (uint64_t) v)) {}
+		inline any(nfunction* v) : value(mix_value(type_nfunction, (uint64_t) v)) {}
 		inline any(thread* v) : value(mix_value(type_thread, (uint64_t) v)) {}
+		inline any(opaque v) : value(mix_value(type_opaque, (uint64_t) v.bits)) {}
 
 		// Type check.
 		//
@@ -95,7 +106,9 @@ namespace lightning::core {
 		inline table*     as_tbl() const { return (table*) as_gc(); }
 		inline string*    as_str() const { return (string*) as_gc(); }
 		inline userdata*  as_udt() const { return (userdata*) as_gc(); }
-		inline function*  as_fun() const { return (function*) as_gc(); }
+		inline function*  as_vfn() const { return (function*) as_gc(); }
+		inline nfunction* as_nfn() const { return (nfunction*) as_gc(); }
+		inline opaque     as_opq() const { return {.bits = mask_value(value)}; }
 		inline thread*    as_thr() const { return (thread*) as_gc(); }
 
 		// Bytewise equal comparsion.

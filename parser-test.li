@@ -11,16 +11,18 @@
 # - better lexer errors, debug info
 # - GC, JIT
 
-
-
-z = 4
+ z = 0
 
 const meme = |n| {
-	z += n.val;
+	z += n;
 	5
 }
 
-return meme{val:4}
+print("hello")
+
+print "hi"
+
+return sqrt(meme(4))
 
 
 #let z;

@@ -24,6 +24,9 @@
     <ClCompile Include="..\src\vm\interp.cpp">
       <Filter>VM</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\lang\paser.cpp">
+      <Filter>Language</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Language">

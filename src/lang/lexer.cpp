@@ -238,11 +238,11 @@ namespace lightning::lex {
 	template<typename T, int Base>
 	LI_INLINE static token_value parse_digits_handle_suffix(state& state, T result, std::string_view& value) {
 		if (!value.empty()) {
-			if constexpr (Base == 10) {
+			if constexpr (Base < 15) {
 				if (value.front() == 'e') {
 					value.remove_prefix(1);
-					T exponent = parse_digits<T, Base, false>(value);
-					result *= (T) pow(10, (double) exponent);
+					T exponent = parse_digits<T, 10, false>(value);
+					result *= (T) pow(Base, (double) exponent);
 				}
 			}
 		}

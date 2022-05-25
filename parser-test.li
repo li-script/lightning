@@ -1,7 +1,48 @@
-
-
 let z;
 const x = 2*4; # const folded
 
 a =  x * x
 b = "test" .. "test2" # const folded
+
+
+let x = 4.421e2 # test
+const y = true
+let ayy = 0b1e10
+
+
+aaaa = (-(1 + 3 % (4 / 6))) * 1
+
+
+#if y {
+# 
+#} else if x {
+#	x = switch x {
+#		case 4:
+#			5
+#			break
+#		default:
+#			6
+#	}
+#}
+#
+#while x != 0 || x != 0 {
+#	x -= 1
+#	continue
+#}
+#
+#for a in "kek" {
+#  x += a;
+#}
+#
+#loop {
+#	break
+#}
+
+const zz = { 
+	3;
+	4
+}
+return {
+	const a = zz;
+	a+1
+}

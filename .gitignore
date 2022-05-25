@@ -1,3 +1,5 @@
 build-vs22/x64/
 build-vs22/.vs
 build-vs22/*.user
+
+build-vs22/enc_temp_folder/

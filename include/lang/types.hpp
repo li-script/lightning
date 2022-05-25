@@ -17,6 +17,9 @@ namespace lightning::core {
 	struct opaque {
 		uint64_t bits : 47;
 	};
+	struct iopaque {
+		uint64_t bits : 47;
+	};
 
 	// GC types (forward).
 	//
@@ -43,9 +46,10 @@ namespace lightning::core {
 		type_nfunction = 8,
 		type_thread    = 9,
 		type_opaque    = 10, // No type/definition, unique integer part.
-		type_number    = 11,
+		type_iopaque   = 11, // - Internal version used by bytecode, user shouldn't be able to touch it, value is blindly trusted.
+		type_number    = 12,
 	};
-	static constexpr const char* type_names[] = {"none", "bool", "bool", "array", "table", "string", "userdata", "function", "nfunction", "thread", "opaque", "number"};
+	static constexpr const char* type_names[] = {"none", "bool", "bool", "array", "table", "string", "userdata", "function", "nfunction", "thread", "opaque", "iopaque", "number"};
 
 	LI_INLINE static constexpr bool     is_gc_type(uint8_t type) { return type_array <= type && type <= type_thread; }
 	LI_INLINE static constexpr uint64_t mask_value(uint64_t value) { return value & ((1ull << 47) - 1); }
@@ -90,6 +94,7 @@ namespace lightning::core {
 		inline any(nfunction* v) : value(mix_value(type_nfunction, (uint64_t) v)) {}
 		inline any(thread* v) : value(mix_value(type_thread, (uint64_t) v)) {}
 		inline any(opaque v) : value(mix_value(type_opaque, (uint64_t) v.bits)) {}
+		inline any(iopaque v) : value(mix_value(type_iopaque, (uint64_t) v.bits)) {}
 
 		// Type check.
 		//
@@ -108,8 +113,8 @@ namespace lightning::core {
 		inline userdata*  as_udt() const { return (userdata*) as_gc(); }
 		inline function*  as_vfn() const { return (function*) as_gc(); }
 		inline nfunction* as_nfn() const { return (nfunction*) as_gc(); }
-		inline opaque     as_opq() const { return {.bits = mask_value(value)}; }
 		inline thread*    as_thr() const { return (thread*) as_gc(); }
+		inline opaque     as_opq() const { return {.bits = mask_value(value)}; }
 
 		// Bytewise equal comparsion.
 		//

@@ -304,7 +304,8 @@ namespace lightning::core {
 
 			switch (kind) {
 				case expr::reg:
-					scope.emit(bc::MOV, r, reg);
+					if (r != reg)
+						scope.emit(bc::MOV, r, reg);
 					return;
 				case expr::imm:
 					scope.set_reg(r, imm);
@@ -572,6 +573,10 @@ namespace lightning::core {
 			reg_sweeper _r{scope};
 
 			auto field = scope.lex().check(lex::token_name);
+			if (field == lex::token_error) {
+				return {};
+			}
+
 			expression value;
 			if (scope.lex().opt(':')) {
 				value = expr_parse(scope);
@@ -586,8 +591,11 @@ namespace lightning::core {
 
 			if (scope.lex().opt('}'))
 				break;
-			else
-				scope.lex().check(',');
+			else {
+				if (scope.lex().check(',') == lex::token_error) {
+					return {};
+				}
+			}
 		}
 		return result;
 	}
@@ -627,6 +635,9 @@ namespace lightning::core {
 		} else if (tk.id == lex::token_while) {
 			scope.lex().next();
 			base = parse_while(scope);
+		} else if (tk.id == lex::token_for) {
+			scope.lex().next();
+			base = parse_for(scope);
 		} else {
 			scope.lex().error("unexpected token %s", tk.to_string().c_str());
 			return {};
@@ -1223,6 +1234,103 @@ namespace lightning::core {
 		// Return the result.
 		//
 		return result;
+	}
+
+	static expression parse_for(func_scope& scope) {
+		// Parse the iterator names.
+		//
+		core::string* k = nullptr;
+		if (auto kn = scope.lex().check(lex::token_name); kn == lex::token_error) {
+			return {};
+		} else {
+			k = kn.str_val;
+		}
+		core::string* v = nullptr;
+		if (scope.lex().opt(',')) {
+			if (auto vn = scope.lex().check(lex::token_name); vn == lex::token_error) {
+				return {};
+			} else {
+				v = vn.str_val;
+			}
+		}
+
+		// Expect if.
+		//
+		if (scope.lex().check(lex::token_in) == lex::token_error) {
+			return {};
+		}
+
+		// Parse the iterated table.
+		//
+		expression i = expr_parse(scope);
+		if (i.kind == expr::err) {
+			return {};
+		}
+
+		// Make sure its followed by a block.
+		//
+		if (scope.lex().check('{') == lex::token_error) {
+			return {};
+		}
+
+		// Move table to next register, will be assigned the result on completion of the inner scope.
+		//
+		bc::reg tbl_reg = i.to_nextreg(scope);
+
+		// Start a new scope.
+		//
+		{
+			// Allocate new continue and break labels.
+			//
+			func_scope iscope{scope.fn};
+			iscope.lbl_break =    scope.make_label();
+			iscope.lbl_continue = scope.make_label();
+
+			// Allocate 4 consequtive registers:
+			// [<istate>, k, v, <result>]
+			//
+			auto iter_base = iscope.alloc_reg(4);
+
+			// Initialize istate and the result.
+			//
+			expression(any(iopaque{.bits = 0})).to_reg(iscope, iter_base);
+			expression(any()).to_reg(iscope, iter_base + 3);
+
+			// Assign the locals.
+			//
+			iscope.locals.push_back({k, false, iter_base + 1});
+			if (v) {
+				iscope.locals.push_back({v, false, iter_base + 2});
+			}
+
+			// Point the continue label at the beginning.
+			//
+			iscope.set_label_here(iscope.lbl_continue);
+
+			// Iterate, jump to break if end.
+			//
+			iscope.emit(bc::ITER, iscope.lbl_break, iter_base, tbl_reg);
+
+			// Parse the block:
+			//
+			if (expr_block(iscope).kind != expr::err) {
+				// Jump to continue.
+				//
+				iscope.emit(bc::JMP, iscope.lbl_continue);
+
+				// Emit break label.
+				//
+				iscope.set_label_here(iscope.lbl_break);
+			}
+
+			// Move the break result to outer scopes last register.
+			//
+			expression(iter_base + 3).to_reg(iscope, tbl_reg);
+		}
+
+		// Return the result.
+		//
+		return tbl_reg;
 	}
 
 	// Parses the code and returns it as a function instance with no arguments on success.

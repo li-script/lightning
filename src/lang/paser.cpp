@@ -832,12 +832,118 @@ namespace lightning::core {
 	// Parses variable declaration.
 	//
 	static bool parse_decl(func_scope& scope, bool is_const) {
-		// Get the variable name and intern the string.
+		// If de-structruing assignment:
+		//
+		bool is_arr = scope.lex().opt('[').has_value();
+		bool is_tbl = scope.lex().opt('{').has_value();
+		if (is_arr || is_tbl) {
+
+			// Collect variable list.
+			//
+			std::pair<string*, any> mappings[32];
+			size_t                  size = 0;
+			if (is_tbl) {
+				while (true) {
+					if (size == std::size(mappings)) {
+						scope.lex().error("too many variables");
+						return false;
+					}
+
+					// Valid field?
+					//
+					string* key;
+					string* field;
+					if (auto ktk = scope.lex().check(lex::token_name); ktk == lex::token_error) {
+						return false;
+					} else {
+						field = key = ktk.str_val;
+					}
+
+					// Remapped?
+					//
+					if (scope.lex().opt(':')) {
+						if (auto ktk = scope.lex().check(lex::token_name); ktk == lex::token_error) {
+							return false;
+						} else {
+							key = ktk.str_val;
+						}
+					}
+
+					// Write the entry.
+					//
+					mappings[size++] = {key, any(field)};
+
+					// End?
+					//
+					if (scope.lex().opt('}'))
+						break;
+					else if (scope.lex().check(',') == lex::token_error)
+						return false;
+				}
+			} else if (is_arr) {
+				number next_index = 0;
+				while (true) {
+					if (size == std::size(mappings)) {
+						scope.lex().error("too many variables");
+						return false;
+					}
+
+					// Skipped.
+					//
+					if (scope.lex().opt(',')) {
+						next_index += 1;
+						continue;
+					}
+
+					// Valid mapping.
+					//
+					if (auto name = scope.lex().check(lex::token_name); name != lex::token_error) {
+						mappings[size++] = {name.str_val, any(next_index)};
+						next_index += 1;
+					}
+					// Error.
+					else {
+						return false;
+					}
+
+					// End?
+					//
+					if (scope.lex().opt(']'))
+						break;
+					else if (scope.lex().check(',') == lex::token_error)
+						return false;
+				}
+			}
+
+			// Require assignment.
+			//
+			if (scope.lex().check('=') == lex::token_error)
+				return false;
+
+			// Parse the expression.
+			//
+			expression ex = expr_parse(scope);
+			if (ex.kind == expr::err) {
+				return false;
+			}
+			ex = ex.to_anyreg(scope);
+
+			// Assign all locals.
+			//
+			for (size_t i = 0; i != size; i++) {
+				auto reg = scope.add_local(mappings[i].first, is_const);
+				auto field = expression(mappings[i].second).to_nextreg(scope);
+				scope.emit(bc::TGET, reg, field, ex.reg);
+				scope.free_reg(field);
+			}
+			return true;
+		}
+
+		// Get the variable name.
 		//
 		auto var = scope.lex().check(lex::token_name);
 		if (var == lex::token_error)
 			return false;
-
 
 		// If immediately assigned:
 		//

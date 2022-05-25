@@ -89,20 +89,19 @@ namespace lightning::core {
 
 		// Looks up a variable.
 		//
-		std::optional<bc::reg> lookup_local(string* name) {
+		std::optional<std::pair<bc::reg, bool>> lookup_local(string* name) {
 			for (auto it = this; it; it = it->prev) {
 				for (auto lit = it->locals.rbegin(); lit != it->locals.rend(); ++lit) {
 					if (lit->id == name) {
-						return lit->reg;
+						return std::pair<bc::reg, bool>{lit->reg, lit->is_const};
 					}
 				}
 			}
 			for (size_t n = 0; n != fn.args.size(); n++) {
 				if (fn.args[n] == name) {
-					return -bc::reg(n + 1);
+					return std::pair<bc::reg, bool>{-bc::reg(n + 1), true};
 				}
 			}
-
 			return std::nullopt;
 		}
 		// std::optional<bc::reg> lookup_uval(string* name) {
@@ -192,7 +191,9 @@ namespace lightning::core {
 		idx,  // index into local with another local
 	};
 	struct expression {
-		expr kind = expr::err;
+		expr    kind : 7   = expr::err;
+		uint8_t freeze : 1 = false;
+
 		union {
 			struct {
 				bc::reg table;
@@ -210,6 +211,7 @@ namespace lightning::core {
 		// Constructed by value.
 		//
 		expression(bc::reg l) : kind(expr::reg), reg(l) {}
+		expression(std::pair<bc::reg, bool> l) : kind(expr::reg), reg(l.first), freeze(l.second) {}
 		expression(any k) : kind(expr::imm), imm(k) {}
 		expression(string* g) : kind(expr::glb), glb(g) {}
 		expression(bc::reg tbl, bc::reg field) : kind(expr::idx), idx{tbl, field} {}
@@ -515,6 +517,8 @@ namespace lightning::core {
 			scope.lex().error("unexpected token %s", tk.to_string().c_str());
 			return {};
 		}
+		if (base.kind == expr::err)
+			return base;
 
 		// Parse suffixes.
 		//
@@ -525,6 +529,8 @@ namespace lightning::core {
 				case '[': {
 					scope.lex().next();
 					expression field = expr_parse(scope);
+					if (field.kind == expr::err)
+						return field;
 					scope.lex().check(']');
 					base = {base.to_anyreg(scope), field.to_anyreg(scope)};
 					break;
@@ -623,12 +629,26 @@ namespace lightning::core {
 	static expression parse_assign_or_expr(func_scope& scope) {
 		auto expr = expr_parse(scope);
 		if (expr.is_lvalue()) {
+
+			// Throw if const.
+			//
+			if (expr.kind == expr::reg && expr.freeze) {
+				scope.lex().error("assigning to constant variable");
+				return {};
+			}
+
 			if (scope.lex().opt('=')) {
-				expr.assign(scope, expr_parse(scope));
+				expression value = expr_parse(scope);
+				if (value.kind == expr::err)
+					return value;
+				expr.assign(scope, value);
 			} else {
 				for (auto& binop : binary_operators) {
 					if (binop.compound_token && scope.lex().opt(*binop.compound_token)) {
-						expr.assign(scope, emit_binop(scope, expr, binop.opcode, expr_parse(scope)));
+						expression value = expr_parse(scope);
+						if (value.kind == expr::err)
+							return value;
+						expr.assign(scope, emit_binop(scope, expr, binop.opcode, value));
 						break;
 					}
 				}

@@ -73,14 +73,18 @@ namespace lightning::core {
 		//
 		bc::pos emit(bc::opcode o, bc::reg a = 0, bc::reg b = 0, bc::reg c = 0) {
 			auto& i = fn.pc.emplace_back(bc::insn{o, a, b, c});
-			i.print(uint32_t(fn.pc.size() - 1));  // debug
 			return bc::pos(fn.pc.size() - 1);
 		}
 		bc::pos emitx(bc::opcode o, bc::reg a, uint64_t xmm) {
 			auto& i = fn.pc.emplace_back(bc::insn{o, a});
 			i.xmm() = xmm;
-			i.print(uint32_t(fn.pc.size() - 1));  // debug
 			return bc::pos(fn.pc.size() - 1);
+		}
+
+		// Helper for fixing jump targets.
+		//
+		void jump_here(bc::pos br) {
+			fn.pc[br].a = (fn.pc.size()) - (br+1);
 		}
 
 		// Gets the lexer.
@@ -177,12 +181,12 @@ namespace lightning::core {
 	static function* write_func(func_state& fn, std::optional<bc::reg> implicit_ret = std::nullopt) {
 		// If routine does not end with a return, add the implicit return.
 		//
-		if (fn.pc.empty() || fn.pc.back().o != bc::RETN) {
+		if (fn.pc.empty() || fn.pc.back().o != bc::RET) {
 			if (!implicit_ret) {
 				fn.pc.push_back({bc::KIMM, 0, -1, -1});
 				implicit_ret = 0;
 			}
-			fn.pc.push_back({bc::RETN, *implicit_ret});
+			fn.pc.push_back({bc::RET, *implicit_ret});
 		}
 
 		// Create the function value.
@@ -483,6 +487,10 @@ namespace lightning::core {
 	//
 	static expression parse_call(func_scope& scope, const expression& func);
 
+	// Parses an if construct, returns the result.
+	//
+	static expression parse_if(func_scope& scope);
+
 	// Parses a "statement" expression, which considers both statements and expressions valid.
 	// Returns the expression representing the value of the statement.
 	//
@@ -491,7 +499,7 @@ namespace lightning::core {
 	// Parses a block expression made up of N statements, final one is the expression value
 	// unless closed with a semi-colon.
 	//
-	static expression expr_block(func_scope& scope);
+	static expression expr_block(func_scope& scope, bc::reg into = -1);
 
 	// Creates a variable expression.
 	//
@@ -539,6 +547,14 @@ namespace lightning::core {
 		return result;
 	}
 
+	// Solving ambigious syntax with block vs table.
+	//
+	static bool is_table_init(func_scope& scope) {
+		size_t pos  = scope.lex().input.find_first_of("{}");
+		size_t xpos = scope.lex().input.find_first_of(",:");
+		return xpos < pos;
+	}
+
 	// Parses a primary expression.
 	//
 	static expression expr_primary(func_scope& scope) {
@@ -550,12 +566,15 @@ namespace lightning::core {
 			base = expr_parse(scope);
 			scope.lex().check(')');
 		} else if (tk.id == '{') {
-			scope.lex().next();
-			if (scope.lex().tok == lex::token_name && scope.lex().lookahead().id == ':') {
+			if (is_table_init(scope)) {
+				scope.lex().next();
 				base = expr_table(scope);
 			} else {
+				scope.lex().next();
 				base = expr_block(scope);
 			}
+		} else if (tk.id == lex::token_if) {
+			base = parse_if(scope);
 		} else {
 			scope.lex().error("unexpected token %s", tk.to_string().c_str());
 			return {};
@@ -568,8 +587,11 @@ namespace lightning::core {
 		while (true) {
 			switch (scope.lex().tok.id) {
 				// Call.
+				case '{': {
+					if (is_table_init(scope))
+						return base;
+				}
 				case lex::token_lstr:
-				case '{':
 				case '(': {
 					base = parse_call(scope, base);
 					break;
@@ -764,12 +786,12 @@ namespace lightning::core {
 				// void return:
 				//
 				if (auto& tk = scope.lex().tok; tk.id == ';' || tk.id == lex::token_eof || tk.id == '}') {
-					scope.emit(bc::RETN, expression(any()).to_anyreg(scope));	
+					scope.emit(bc::RET, expression(any()).to_anyreg(scope));	
 				}
 				// value return:
 				//
 				else {
-					scope.emit(bc::RETN, expr_parse(scope).to_anyreg(scope));	
+					scope.emit(bc::RET, expr_parse(scope).to_anyreg(scope));	
 				}
 				return expression(none);
 			}
@@ -790,7 +812,7 @@ namespace lightning::core {
 	// Parses a block expression made up of N statements, final one is the expression value
 	// unless closed with a semi-colon.
 	//
-	static expression expr_block(func_scope& pscope) {
+	static expression expr_block(func_scope& pscope, bc::reg into) {
 		expression last{none};
 		{
 			func_scope scope{pscope.fn};
@@ -809,17 +831,22 @@ namespace lightning::core {
 				}
 			}
 
-			// If value is not immediate, escape the value from sub-scope.
+			// If there is a target register, store.
 			//
-			if (last.kind != expr::imm) {
+			if (into != -1) {
+				last.to_reg(scope, into);
+			} 
+			// Otherwise if value is not immediate, escape the value from sub-scope.
+			//
+			else if (last.kind != expr::imm) {
 				last.to_reg(scope, pscope.reg_next);
 				last = pscope.reg_next;
 			}
 		}
 
-		// Compensate for the stolen register and return the result.
+		// Compensate for the stolen register if relevant and return the result.
 		//
-		if (last.kind != expr::imm)
+		if (into == -1 && last.kind != expr::imm)
 			pscope.alloc_reg();
 		return last;
 	}
@@ -897,7 +924,7 @@ namespace lightning::core {
 	// Parses closure declaration, returns the function value.
 	//
 	static expression parse_closure(func_scope& scope) {
-		// Skip the '|'
+		// Consume the '|'.
 		//
 		scope.lex().next();
 
@@ -940,6 +967,69 @@ namespace lightning::core {
 			// bla
 		}*/
 		return expression(any(result));
+	}
+
+	// Parses an if construct, returns the result.
+	//
+	static expression parse_if(func_scope& scope) {
+		// Consume the if token.
+		//
+		scope.lex().next();
+
+		// Fetch the conditional expression, dispatch to ToS.
+		//
+		auto cc = expr_parse(scope);
+		cc      = cc.to_nextreg(scope);
+
+		// Define block reader.
+		//
+		auto block_or_exp = [ & ] () -> bool {
+			if (scope.lex().opt('{')) {
+				return expr_block(scope, cc.reg).kind != expr::err;
+			} else {
+				auto exp = expr_parse(scope);
+				if (exp.kind == expr::err)
+					return false;
+				exp.to_reg(scope, cc.reg);
+				return true;
+			}
+		};
+
+		// Emit the placeholder JCC.
+		//
+		auto jcc_pos = scope.emit(bc::JNS, 0, cc.reg);
+
+		// Schedule the if block.
+		//
+		if (!block_or_exp()) {
+			return {};
+		}
+
+		// Emit the escape jump, fix the JCC.
+		//
+		auto jmp_pos = scope.emit(bc::JMP);
+		scope.jump_here(jcc_pos);
+
+		// If there is an else:
+		//
+		if (scope.lex().opt(lex::token_else)) {
+			if (!block_or_exp()) {
+				return {};
+			}
+		}
+		// Otherwise simply null the target.
+		//
+		else {
+			scope.set_reg(cc.reg, any());
+		}
+
+		// Fix the escape.
+		//
+		scope.jump_here(jmp_pos);
+
+		// Yield the register.
+		//
+		return cc;
 	}
 
 	// Parses the code and returns it as a function instance with no arguments on success.

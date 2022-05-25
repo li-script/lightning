@@ -107,101 +107,81 @@ using namespace lightning;
 //       Weak ref type?
 
 
-auto wrap_nfn( core::vm* L, core::nfunc_t f ) {
+void export_global( core::vm* L, const char* name, core::nfunc_t f ) {
 	auto nf = core::nfunction::create(L);
 	nf->callback = f;
-	return nf;
+	L->globals->set(L, core::string::create(L, name), nf);
 }
 
+#include <thread>
 int main() {
 	platform::setup_ansi_escapes();
 
-	auto* L = core::vm::create();
-	printf("VM allocated @ %p\n", L);
-
-	L->globals->set(L, core::string::create(L, "sqrt"), wrap_nfn(L, [](core::vm* L, const core::any* args, uint32_t n) {
-		if (!args->is(core::type_number))
-			return false;
-		L->push_stack(core::any(sqrt(args->as_num())));
-		return true;
-	}));
-
-	L->globals->set(L, core::string::create(L, "print"), wrap_nfn(L, [](core::vm* L, const core::any* args, uint32_t n) {
-		for (size_t i = 0; i != n; i++) {
-			debug::print_object(args[i]);
-			printf("\t");
-		}
-		printf("\n");
-		return true;
-	}));
-
-	L->globals->set(L, core::string::create(L, "@printbc"), wrap_nfn(L, [](core::vm* L, const core::any* args, uint32_t n) {
-		if (n != 1 || !args->is(core::type_function)) {
-			L->push_stack(core::string::create(L, "@printbc expects a single vfunction"));
-			return false;
-		}
-
-		auto f = args->as_vfn();
-		puts(
-			 "Dumping bytecode of the function:\n"
-			 "-----------------------------------------------------");
-		for (size_t i = 0; i != f->length; i++) {
-			f->opcode_array[i].print(i);
-		}
-		puts("-----------------------------------------------------");
-
-		return true;
-	}));
-
-
-	#if 0
-	std::vector<core::any> constants = {};
-	std::vector<bc::insn>  ins;
-
-	ins.emplace_back(bc::insn{bc::KIMM, 0}).xmm() = core::any(core::number(2)).value;
-	ins.emplace_back(bc::insn{bc::AADD, -1, -1, -2});  // arg 1 = arg 1 + arg 2
-	ins.emplace_back(bc::insn{bc::AMUL, -1, -1, 0});   // arg 1 = arg 1 + local 0
-	ins.emplace_back(bc::insn{bc::RETN, -1});          // ret arg 1
-
-	for (size_t i = 0; i != ins.size(); i++) {
-		ins[i].print(i);
-	}
-
-	core::function* f = core::function::create(L, ins, constants, 0);
-	f->num_locals     = 1;
-	
-	L->push_stack(f);
-	L->push_stack(core::number(1));
-	//	L->push_stack(core::string::format(L, "lol: %d", 4));
-	L->push_stack(core::number(2));
-
-	if (bool is_ex = core::vm_enter(L, 2)) {
-		printf("Execution finished with exception: ");
-		debug::print_object(L->pop_stack());
-		puts("");
-	} else {
-		printf("Execution finished with result: ");
-		debug::print_object(L->pop_stack());
-		puts("");
-	}
-	#endif
-
-	{
+	std::string last_exec;  
+	while (true) {
+		// Read the file.
+		//
 		std::ifstream file("..\\parser-test.li");
 		std::string   file_buf{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
-		debug::dump_tokens(L, file_buf);
 
+		// If nothing changed, sleep for 100ms.
+		//
+		if (last_exec == file_buf) {
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));
+			continue;
+		}
+		last_exec = file_buf;
+		// debug::dump_tokens(L, file_buf);
+
+		// Create the VM, write the globals.
+		//
+		auto* L = core::vm::create();
+		printf("VM allocated @ %p\n", L);
+		export_global(L, "sqrt", [](core::vm* L, const core::any* args, uint32_t n) {
+			if (!args->is(core::type_number))
+				return false;
+			L->push_stack(core::any(sqrt(args->as_num())));
+			return true;
+		});
+		export_global(L, "print", [](core::vm* L, const core::any* args, uint32_t n) {
+			for (size_t i = 0; i != n; i++) {
+				debug::print_object(args[i]);
+				printf("\t");
+			}
+			printf("\n");
+			return true;
+		});
+		export_global(L, "@printbc", [](core::vm* L, const core::any* args, uint32_t n) {
+			if (n != 1 || !args->is(core::type_function)) {
+				L->push_stack(core::string::create(L, "@printbc expects a single vfunction"));
+				return false;
+			}
+
+			auto f = args->as_vfn();
+			puts(
+				 "Dumping bytecode of the function:\n"
+				 "-----------------------------------------------------");
+			for (size_t i = 0; i != f->length; i++) {
+				f->opcode_array[i].print(i);
+			}
+			puts("-----------------------------------------------------");
+
+			return true;
+		});
+
+		// Execute the code, print the result.
+		//
 		puts("---------------------------------------\n");
 		auto fn = lightning::core::load_script(L, file_buf);
 		if (fn.is(core::type_function)) {
 			L->push_stack(fn);
 
 			if (!L->scall(0)) {
-				printf("Execution finished with exception: ");
+				printf(" -> Exception: ");
 				debug::print_object(L->pop_stack());
 				puts("");
 			} else {
-				printf("Execution finished with result: ");
+				printf(" -> Result: ");
 				auto r = L->pop_stack();
 				debug::print_object(r);
 				puts("");
@@ -209,14 +189,17 @@ int main() {
 				if (r.is(core::type_table))
 					debug::dump_table(r.as_tbl());
 			}
-			puts("---------GLOBALS------------");
-
-			debug::dump_table(L->globals);
+			// puts("---------GLOBALS------------");
+			//debug::dump_table(L->globals);
 		} else {
-			printf("Parsing failed with error: %s\n", fn.as_str()->data);
+			printf(" -> Parser error: %s\n", fn.as_str()->data);
 		}
 
+		L->close();
 	}
+
+
+
 
 #if 0
 	printf("%p\n", core::string::create(L, "hello"));

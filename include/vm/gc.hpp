@@ -44,8 +44,7 @@ namespace lightning::core {
 		}
 	};
 	struct gc_header {
-		uint32_t size_in_qwords : 30 = 0;
-		uint32_t lock : 1            = 0;
+		uint32_t size_in_qwords : 31 = 0;
 		uint32_t traversable : 1     = 0;
 		uint32_t reserved;
 

@@ -1,30 +1,61 @@
 # TODO:
-# - c functions, upvalues, varargs
-# - if/else/switch
+# - switch
 # - for/loop/while
-# - arrays
-# - userdata
-# - thread -> coro
+# - upvalues, varargs
+# - table unpack via ...
+# - destructuring
+#   const [a,b,c] = x() == a=x()[0], ...
+#   const {a,b,c} = x() == a=x().a,  ...
+#   
+# - core::to_string
+# - arrays/userdata/metatables/coroutines|thread
 # - try/catch
 # - ternary
 # - string escape, long strings
 # - better lexer errors, debug info
 # - GC, JIT
+# - force inlined, immutable, private, macros
+# macro __add(a, b) {
+# 	a + b
+# }
+# - error on meaningless expressions (e.g. "1 2 3" as a line)
+#
 
- z = 0
 
-const meme = |n| {
-	z += n;
-	5
+const test = | | {
+	const a = 0
+	const b = (
+		if a<=1 {
+			5
+		} else if a==3 {
+			6
+		} else {
+			7
+		}) * 3
+
+	print(a, b)
 }
-@printbc(meme)
+
+test()
+#@printbc(test)
 
 
-print("hello")
-
-print "hi"
-
-return sqrt(meme(4))
+#z = 1
+#
+#print(k == {})
+#
+#const meme = |n| {
+#	z += n;
+#	5
+#}
+#@printbc(meme)
+#
+#
+#print("hello")
+#
+#print "hi"
+#
+#return sqrt(meme(4))
 
 
 #let z;

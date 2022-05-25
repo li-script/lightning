@@ -52,7 +52,7 @@ namespace lightning::bc {
                                                                                        \
 	/* Control flow. */                                                                 \
 	_(CALL, reg, imm, ___) /* A = Callsite, B = Argcount */                             \
-	_(INVK, rel, reg, imm)   /* A = Catchpad, B = Callsite, C = Argcount */             \
+	_(INVK, rel, reg, imm) /* A = Catchpad, B = Callsite, C = Argcount */               \
 	_(RET,  reg, ___, ___) /* RETURN A */                                               \
 	_(THRW, reg, ___, ___) /* THROW A (if A != None) */                                 \
 	_(JMP,  rel, ___, ___) /* JMP A */                                                  \

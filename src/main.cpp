@@ -168,7 +168,12 @@ int main() {
 				f->opcode_array[i].print(i);
 			}
 			puts("-----------------------------------------------------");
-
+			for (size_t i = 0; i != f->num_uval; i++) {
+				printf(LI_CYN "u%llu:   " LI_DEF, i);
+				debug::print_object(f->uvals()[i]);
+				printf("\n");
+			}
+			puts("-----------------------------------------------------");
 			return true;
 		});
 

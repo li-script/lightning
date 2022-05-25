@@ -45,16 +45,16 @@ namespace lightning::core {
 	//
 	struct func_scope;
 	struct func_state {
-		//	func_scope*          enclosing  = nullptr;// Enclosing function's scope.
-		//	std::vector<string*> uvalues    = {};     // Upvalues mapped by name.
-		vm*                   L;                     // VM state.
-		lex::state&           lex;                   // Lexer state.
-		func_scope*           scope      = nullptr;  // Current scope.
-		std::vector<any>      kvalues    = {};       // Constant pool.
-		bc::reg               max_reg_id = 1;        // Maximum register ID used.
-		std::vector<string*>  args       = {};       // Arguments.
-		bool                  is_vararg  = false;    //
-		std::vector<bc::insn> pc         = {};       // Bytecode generated.
+		vm*                      L;                     // VM state.
+		lex::state&              lex;                   // Lexer state.
+		func_scope*              enclosing  = nullptr;  // Enclosing function's scope.
+		std::vector<local_state> uvalues    = {};       // Upvalues mapped by name.
+		func_scope*              scope      = nullptr;  // Current scope.
+		std::vector<any>         kvalues    = {};       // Constant pool.
+		bc::reg                  max_reg_id = 1;        // Maximum register ID used.
+		std::vector<string*>     args       = {};       // Arguments.
+		bool                     is_vararg  = false;    //
+		std::vector<bc::insn>    pc         = {};       // Bytecode generated.
 
 		// Labels.
 		//
@@ -119,12 +119,14 @@ namespace lightning::core {
 			}
 			return std::nullopt;
 		}
-		// std::optional<bc::reg> lookup_uval(string* name) {
-		//	for (size_t i = 0; i != fn.uvalues.size(); i++) {
-		//		if (fn.uvalues[i] == name)
-		//			return (bc::reg) i;
-		//	}
-		// }
+		std::optional<std::pair<bc::reg, bool>> lookup_uval(string* name) {
+			for (size_t i = 0; i != fn.uvalues.size(); i++) {
+				if (fn.uvalues[i].id == name) {
+					return std::pair<bc::reg, bool>{(bc::reg) i, fn.uvalues[i].is_const};
+				}
+			}
+			return std::nullopt;
+		}
 
 		// Inserts a new local variable.
 		//
@@ -231,7 +233,7 @@ namespace lightning::core {
 
 		// Create the function value.
 		//
-		function* f   = function::create(fn.L, fn.pc, fn.kvalues, 0);
+		function* f   = function::create(fn.L, fn.pc, fn.kvalues, fn.uvalues.size());
 		f->num_locals = fn.max_reg_id + 1;
 		f->src_chunk  = string::create(fn.L, fn.lex.source_name);
 		return f;
@@ -252,9 +254,11 @@ namespace lightning::core {
 		err,  // <deferred error, written into lexer state>
 		imm,  // constant
 		reg,  // local
+		uvl,  // upvalue
 		glb,  // global
 		idx,  // index into local with another local
 	};
+	struct upvalue_t {};
 	struct expression {
 		expr    kind : 7   = expr::err;
 		uint8_t freeze : 1 = false;
@@ -277,10 +281,14 @@ namespace lightning::core {
 		//
 		expression(bc::reg l) : kind(expr::reg), reg(l) {}
 		expression(std::pair<bc::reg, bool> l) : kind(expr::reg), reg(l.first), freeze(l.second) {}
+		expression(upvalue_t, bc::reg u) : kind(expr::uvl), reg(u) {}
+		expression(upvalue_t, std::pair<bc::reg, bool> u) : kind(expr::uvl), reg(u.first), freeze(u.second) {}
+
 		expression(any k) : kind(expr::imm), imm(k) {}
 		expression(string* g) : kind(expr::glb), glb(g) {}
 		expression(bc::reg tbl, bc::reg field) : kind(expr::idx), idx{tbl, field} {}
 
+		
 		// Default bytewise copy.
 		//
 		expression(const expression& o) { memcpy(this, &o, sizeof(expression)); }
@@ -309,6 +317,9 @@ namespace lightning::core {
 					return;
 				case expr::imm:
 					scope.set_reg(r, imm);
+					return;
+				case expr::uvl:
+					scope.emit(bc::UGET, reg, r);
 					return;
 				case expr::glb:
 					scope.set_reg(r, any(glb));
@@ -345,12 +356,21 @@ namespace lightning::core {
 				case expr::reg:
 					value.to_reg(scope, reg);
 					break;
+				case expr::uvl: {
+					auto val = value.to_anyreg(scope);
+					scope.emit(bc::USET, reg, val);
+					if (value.kind != expr::reg)
+						scope.free_reg(val);
+					return;
+				}
 				case expr::glb: {
 					auto val = value.to_anyreg(scope);
 					auto idx = scope.alloc_reg();
 					scope.set_reg(idx, any(glb));
 					scope.emit(bc::GSET, idx, val);
 					scope.free_reg(idx);
+					if (value.kind != expr::reg)
+						scope.free_reg(val);
 					break;
 				}
 				case expr::idx: {
@@ -398,6 +418,9 @@ namespace lightning::core {
 					break;
 				case expr::reg:
 					print_reg(reg);
+					break;
+				case expr::uvl:
+					printf(LI_GRN "u%u" LI_DEF, (uint32_t) reg);
 					break;
 				case expr::glb:
 					printf(LI_PRP "_G[%s]" LI_DEF, glb->c_str());
@@ -550,11 +573,32 @@ namespace lightning::core {
 	// Creates a variable expression.
 	//
 	static expression expr_var(func_scope& scope, string* name) {
+
+		// Try using existing local variable.
+		//
 		if (auto local = scope.lookup_local(name)) {
 			return *local; // local / arg
-		} else {
-			return name;   // global
 		}
+
+		// Try using existing upvalue.
+		//
+		if (auto uv = scope.lookup_uval(name)) {
+			return *uv;    // uvalue
+		}
+
+		// Try borrowing a value by creating an upvalue.
+		//
+		if (scope.fn.enclosing) {
+			expression ex = expr_var(*scope.fn.enclosing, name);
+			if (ex.kind != expr::glb) {
+				bool is_const = ex.freeze != 0;
+				bc::reg next_reg = (bc::reg) scope.fn.uvalues.size();
+				scope.fn.uvalues.push_back({name, is_const, next_reg});
+				return expression{upvalue_t{}, {next_reg, is_const}};
+			}
+		}
+
+		return name;  // global
 	}
 
 	// Parses a table literal.
@@ -1066,6 +1110,7 @@ namespace lightning::core {
 		// Create the new function.
 		//
 		func_state new_fn{scope.fn.L, scope.lex()};
+		new_fn.enclosing = &scope;
 		{
 			// Collect arguments.
 			//
@@ -1096,12 +1141,24 @@ namespace lightning::core {
 		//
 		function* result = write_func(new_fn, bc::reg(0));
 
-		// TODO:
+		// If closure is stateless, simply return as a constant.
 		//
-		/*if (new_fn->uvals) {
-			// bla
-		}*/
-		return expression(any(result));
+		if (result->num_uval == 0) {
+			return expression(any(result));
+		}
+
+		// Allocate space for the uvalue multi-set.
+		//
+		auto uv = scope.alloc_reg(new_fn.uvalues.size());
+		for (size_t n = 0; n != new_fn.uvalues.size(); n++) {
+			expr_var(scope, new_fn.uvalues[n].id).to_reg(scope, uv + (bc::reg)n);
+		}
+		scope.emit(bc::FDUP, uv, scope.add_const(result), uv);
+
+		// Free the unnecessary space and return the function by register.
+		//
+		scope.free_reg(uv + 1, new_fn.uvalues.size() - 1);
+		return expression(uv);
 	}
 
 	// Parses block-like constructs, returns the result.

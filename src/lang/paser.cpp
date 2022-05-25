@@ -7,7 +7,9 @@
 #include <vm/table.hpp>
 
 // TODO: Upvalues.
-//
+// TODO: Export keyword
+// TODO  label, goto
+// TODO  numeric for boost instruction 
 
 namespace lightning::core {
 
@@ -147,12 +149,17 @@ namespace lightning::core {
 			}
 		}
 
-		// Allocates a register.
+		// Allocates/frees registers.
 		//
-		bc::reg alloc_reg() {
-			bc::reg r     = reg_next++;
+		bc::reg alloc_reg(uint32_t n = 1) {
+			bc::reg r = reg_next;
+			reg_next += n;
 			fn.max_reg_id = std::max(fn.max_reg_id, r);
 			return r;
+		}
+		void free_reg(bc::reg r, uint32_t n = 1) {
+			LI_ASSERT((r + n) == reg_next);
+			reg_next -= n;
 		}
 
 		// Construction and destruction in RAII pattern, no copy.
@@ -210,11 +217,83 @@ namespace lightning::core {
 		//
 		bool is_lvalue() const { return kind >= expr::reg; }
 
+		// Returns true if the expression is a dispatched value.
+		//
+		bool is_value() const { return kind == expr::imm || kind == expr::reg; }
+
+		// Stores the expression value to the specified register.
+		//
+		void to_reg(func_scope& scope, bc::reg r) const {
+			LI_ASSERT(kind != expr::err);
+
+			switch (kind) {
+				case expr::reg:
+					scope.emit(bc::MOV, r, reg);
+					return;
+				case expr::imm:
+					scope.set_reg(r, imm);
+					return;
+				case expr::glb:
+					scope.set_reg(r, any(glb));
+					scope.emit(bc::GGET, r, r);
+					return;
+				case expr::idx:
+					scope.emit(bc::TGET, r, idx.field, idx.table);
+					break;
+			}
+		}
+
+		// Stores the expression value to the next register.
+		//
+		bc::reg to_nextreg(func_scope& scope) const {
+			auto r = scope.alloc_reg();
+			to_reg(scope, r);
+			return r;
+		}
+
+		// References the value using any register.
+		//
+		bc::reg to_anyreg(func_scope& scope) const {
+			if (kind == expr::reg)
+				return reg;
+			return to_nextreg(scope);
+		}
+
+		// Assigns a value to the lvalue expression.
+		//
+		void assign(func_scope& scope, const expression& value) const {
+			LI_ASSERT(is_lvalue());
+
+			switch (kind) {
+				case expr::reg:
+					value.to_reg(scope, reg);
+					break;
+				case expr::glb: {
+					auto val = value.to_anyreg(scope);
+					auto idx = scope.alloc_reg();
+					scope.set_reg(idx, any(glb));
+					scope.emit(bc::GSET, idx, val);
+					scope.free_reg(idx);
+					break;
+				}
+				case expr::idx: {
+					if (value.kind == expr::reg) {
+						scope.emit(bc::TSET, idx.field, value.reg, idx.table);
+					} else {
+						auto tv = scope.alloc_reg();
+						value.to_reg(scope, tv);
+						scope.emit(bc::TSET, idx.field, tv, idx.table);
+						scope.free_reg(tv);
+					}
+					break;
+				}
+			}
+		}
+
 		// Prints the expression.
 		//
 		void print() const {
-
-			auto print_reg = []( bc::reg reg ) {
+			auto print_reg = [](bc::reg reg) {
 				if (reg >= 0) {
 					printf(LI_RED "r%u" LI_DEF, (uint32_t) reg);
 				} else {
@@ -258,63 +337,110 @@ namespace lightning::core {
 		}
 	};
 
-	static void expr_toreg(func_scope& scope, const expression& exp, bc::reg reg) {
-		LI_ASSERT(exp.kind != expr::err);
-
-		switch (exp.kind) {
-			case expr::reg:
-				scope.emit(bc::MOV, reg, exp.reg);
-				return;
-			case expr::imm:
-				scope.set_reg(reg, exp.imm);
-				return;
-			case expr::glb:
-				scope.set_reg(reg, any(exp.glb));
-				scope.emit(bc::GGET, reg, reg);
-				return;
-			case expr::idx:
-				scope.emit(bc::TGET, reg, exp.idx.field, exp.idx.table);
-				break;
+	// Applies an operator to the expressions handling constant folding, returns the resulting expression.
+	//
+	static expression emit_unop(func_scope& scope, bc::opcode op, const expression& rhs) {
+		// Basic constant folding.
+		//
+		if (rhs.kind == expr::imm) {
+			auto [v, ok] = apply_unary(scope.fn.L, rhs.imm, op);
+			if (ok) {
+				return expression(v);
+			}
 		}
-	}
-	static bc::reg expr_tonextreg(func_scope& scope, const expression& exp) {
+
+		// Apply the operator, load the result into a register and return.
+		//
 		auto r = scope.alloc_reg();
-		expr_toreg(scope, exp, r);
+		if (rhs.kind == expr::reg) {
+			scope.emit(op, r, rhs.reg);
+		} else {
+			rhs.to_reg(scope, r);
+			scope.emit(op, r, r);
+		}
+		return expression(r);
+	}
+	static expression emit_binop(func_scope& scope, const expression& lhs, bc::opcode op, const expression& rhs) {
+		// Basic constant folding.
+		//
+		if (lhs.kind == expr::imm && rhs.kind == expr::imm) {
+			auto [v, ok] = apply_binary(scope.fn.L, lhs.imm, rhs.imm, op);
+			if (ok) {
+				return expression(v);
+			}
+		}
+
+		// Apply the operator, load the result into a register and return.
+		//
+		auto r = scope.alloc_reg();
+		if (lhs.kind == expr::reg && rhs.kind == expr::reg) {
+			scope.emit(op, r, lhs.reg, rhs.reg);
+		} else if (lhs.kind == expr::reg) {
+			rhs.to_reg(scope, r);
+			scope.emit(op, r, lhs.reg, r);
+		} else {
+			lhs.to_reg(scope, r);
+			scope.emit(op, r, r, rhs.to_anyreg(scope));
+		}
+		return expression(r);
+	}
+
+	// Handles nested binary and unary operators with priorities, finally calls the expr_simple.
+	//
+	static expression             expr_simple(func_scope& scope);
+	static const operator_traits* expr_op(func_scope& scope, expression& out, uint8_t prio) {
+		auto& lhs = out;
+
+		// If token matches a unary operator:
+		//
+		if (auto op = lookup_operator(scope.lex(), false)) {
+			// Parse the next expression, emit unary operator.
+			//
+			scope.lex().next();
+			expression exp = {};
+			expr_op(scope, exp, op->prio_right);
+			lhs = emit_unop(scope, op->opcode, exp);
+		}
+		// Otherwise, parse a simple expression.
+		//
+		else {
+			lhs = expr_simple(scope);
+		}
+
+		// Loop until we exhaust the nested binary operators.
+		//
+		auto op = lookup_operator(scope.lex(), true);
+		while (op && op->prio_left <= prio) {
+			scope.lex().next();
+
+			expression rhs    = {};
+			auto       nextop = expr_op(scope, rhs, op->prio_right);
+			lhs               = emit_binop(scope, lhs, op->opcode, rhs);
+			op                = nextop;
+		}
+		return op;
+	}
+
+	// Parses the next expression.
+	//
+	static expression expr_parse(func_scope& scope) {
+		expression r = {};
+		expr_op(scope, r, UINT8_MAX);
 		return r;
 	}
-	static bc::reg expr_load(func_scope& scope, const expression& exp) {
-		if (exp.kind == expr::reg) {
-			return exp.reg;
-		} else {
-			return expr_tonextreg(scope, exp);
-		}
-	}
-	static void expr_store(func_scope& scope, const expression& exp, const expression& value) {
-		LI_ASSERT(exp.kind != expr::err);
 
-		switch (exp.kind) {
-			case expr::reg:
-				scope.emit(bc::MOV, exp.reg, expr_load(scope, value));
-				return;
-			case expr::glb: {
-				auto val = expr_load(scope, value);
-				auto idx = scope.alloc_reg();
-				scope.set_reg(idx, any(exp.glb));
-				scope.emit(bc::GSET, idx, val);
-				scope.reg_next--;  // immediate free.
-				return;
-			}
-			case expr::idx:
-				scope.emit(bc::TSET, exp.idx.field, expr_load(scope, value), exp.idx.table);
-				break;
-			default:
-				util::abort("invalid lvalue type");
-		}
-	}
+	// Parses a "statement" expression, which considers both statements and expressions valid.
+	// Returns the expression representing the value of the statement.
+	//
+	static expression expr_stmt(func_scope& scope);
 
-	// TODO: Export keyword
-	static expression parse_expression(func_scope& scope);
+	// Parses a block expression made up of N statements, final one is the expression value
+	// unless closed with a semi-colon.
+	//
+	static expression expr_block(func_scope& scope);
 
+	// Parses a primary expression.
+	//
 	static expression expr_primary(func_scope& scope) {
 		expression base = {};
 		if (auto& tk = scope.lex().tok; tk.id == lex::token_name) {
@@ -324,6 +450,13 @@ namespace lightning::core {
 			} else {
 				base = var;
 			}
+		} else if (tk.id == '(') {
+			scope.lex().next();
+			base = expr_parse(scope);
+			scope.lex().check(')');
+		} else if (tk.id == '{') {
+			scope.lex().next();
+			base = expr_block(scope);
 		} else {
 			printf("Unexpected lexer token for expr_primary:");
 			scope.lex().tok.print();
@@ -335,19 +468,19 @@ namespace lightning::core {
 		//
 		while (true) {
 			switch (scope.lex().tok.id) {
-				// TODO: Call is okay too, if indexed afterwards.
+				// TODO: Call a.b() a->b().
 				//
 				case '[': {
 					scope.lex().next();
-					expression field = parse_expression(scope);
+					expression field = expr_parse(scope);
 					scope.lex().check(']');
-					base = {expr_load(scope, base), expr_load(scope, field)};
+					base = {base.to_anyreg(scope), field.to_anyreg(scope)};
 					break;
 				}
 				case '.': {
 					scope.lex().next();
 					expression field{scope.lex().check(lex::token_name).str_val};
-					base = {expr_load(scope, base), expr_load(scope, field)};
+					base = {base.to_anyreg(scope), field.to_anyreg(scope)};
 					break;
 				}
 				default: {
@@ -357,6 +490,9 @@ namespace lightning::core {
 		}
 		return base;
 	}
+
+	// Parses a simple expression with no operators.
+	//
 	static expression expr_simple(func_scope& scope) {
 		switch (scope.lex().tok.id) {
 			// Literals.
@@ -368,9 +504,11 @@ namespace lightning::core {
 				return expression(any{scope.lex().next().str_val});
 			}
 			case lex::token_true: {
+				scope.lex().next();
 				return expression(const_true);
 			}
 			case lex::token_false: {
+				scope.lex().next();
 				return expression(const_false);
 			}
 			default: {
@@ -379,73 +517,14 @@ namespace lightning::core {
 		}
 	}
 
-	static const operator_traits* expr_binop(func_scope& scope, expression& out, uint8_t prio);
 
-	static expression emit_unop(func_scope& scope, bc::opcode op, const expression& rhs) {
-		// Basic constant folding.
-		if (rhs.kind == expr::imm) {
-			auto [v, ok] = apply_unary(scope.fn.L, rhs.imm, op);
-			if (ok) {
-				return expression(v);
-			}
-		}
 
-		// Load into a register, emit in-place unary, return the reg.
-		//
-		auto r = expr_tonextreg(scope, rhs);
-		scope.emit(op, r, r);
-		return expression(r);
-	}
-	static expression emit_binop(func_scope& scope, const expression& lhs, bc::opcode op, const expression& rhs) {
-		// Basic constant folding.
-		if (lhs.kind == expr::imm && rhs.kind == expr::imm) {
-			auto [v, ok] = apply_binary(scope.fn.L, lhs.imm, rhs.imm, op);
-			if (ok) {
-				return expression(v);
-			}
-		}
 
-		// Load both into registers, write over LHS and return the reg.
-		//
-		auto rl = expr_tonextreg(scope, lhs);
-		auto rr = expr_load(scope, rhs);
-		scope.emit(op, rl, rl, rr);
-		return expression(rl);
-	}
 
-	static expression expr_unop(func_scope& scope) {
-		if (auto op = lookup_operator(scope.lex(), false)) {
-			scope.lex().next();
 
-			expression exp = {};
-			expr_binop(scope, exp, op->prio_right);
-			return emit_unop(scope, op->opcode, exp);
-		} else {
-			return expr_simple(scope);
-		}
-	}
 
-	static const operator_traits* expr_binop(func_scope& scope, expression& out, uint8_t prio) {
-		auto& lhs = out;
 
-		lhs     = expr_unop(scope);
-		auto op = lookup_operator(scope.lex(), true);
-		while (op && op->prio_left <= prio) {
-			scope.lex().next();
 
-			expression rhs    = {};
-			auto       nextop = expr_binop(scope, rhs, op->prio_right);
-			lhs               = emit_binop(scope, lhs, op->opcode, rhs);
-			op                = nextop;
-		}
-		return op;
-	}
-
-	static expression parse_expression(func_scope& scope) {
-		expression r = {};
-		expr_binop(scope, r, UINT8_MAX);
-		return r;
-	}
 
 	static bool parse_local(func_scope& scope, bool is_const) {
 		// Get the variable name and intern the string.
@@ -463,14 +542,14 @@ namespace lightning::core {
 		if (scope.lex().opt('=')) {
 			// Parse the expression.
 			//
-			expression ex = parse_expression(scope);
+			expression ex = expr_parse(scope);
 			if (ex.kind == expr::err) {
 				return false;
 			}
 
 			// Write the local.
 			//
-			expr_toreg(scope, ex, reg);
+			ex.to_reg(scope, reg);
 		}
 		// Otherwise:
 		//
@@ -489,59 +568,125 @@ namespace lightning::core {
 		return true;
 	}
 
-	static bool parse_assign_or_expr(func_scope& scope) {
-		auto lv = expr_primary(scope);
-		if (lv.kind == expr::err) {
-			printf("failed parsing expr lvalue for assignment.\n");
-			breakpoint();
+	static expression parse_assign_or_expr(func_scope& scope) {
+		auto expr = expr_parse(scope);
+		if (expr.is_lvalue() && scope.lex().opt('=')) {
+			// TODO: Compounds.
+			expr.assign(scope, expr_parse(scope));
 		}
-
-		if (!scope.lex().opt('=')) {
-			printf("Unexpected lexer token for parse_assign_or_expr:");
-			scope.lex().tok.print();
-			breakpoint();
-		}
-
-		expr_store(scope, lv, parse_expression(scope));
-		return true;
+		return expr;
 	}
 
-	static bool parse_statement(func_scope& scope) {
+	// Parses a "statement" expression, which considers both statements and expressions valid.
+	// Returns the expression representing the value of the statement.
+	//
+	static expression expr_stmt(func_scope& scope) {
 		switch (scope.lex().tok.id) {
+
+			// Empty statement => None.
+			//
 			case ';': {
-				return true;
+				return expression(none);
 			}
-			// TODO label, goto
-			// TODO break, continue,
-			case lex::token_fn: {
-				util::abort("fn token NYI.");
-			}
+
+			// Variable declaration => None.
+			//
 			case lex::token_let:
 			case lex::token_const: {
-				return parse_local(scope, scope.lex().next().id == lex::token_const);
+				// Forward errors.
+				//
+				if (!parse_local(scope, scope.lex().next().id == lex::token_const)) {
+					return expression();
+				}
+				return expression(none);
 			}
+
+			// Possible assignment, forward to specializer handler.
+			//
 			case lex::token_name: {
 				return parse_assign_or_expr(scope);
 			}
 
-			default: {
-				printf("Unexpected lexer token for statement:");
-				scope.lex().tok.print();
-				breakpoint();
+			// Return statement => None.
+			//
+			case lex::token_return: {
+				scope.lex().next();
+
+				// void return:
+				//
+				if (auto& tk = scope.lex().tok; tk.id == ';' || tk.id == lex::token_eof || tk.id == '}') {
+					scope.emit(bc::RETN, expression(any()).to_anyreg(scope));	
+				}
+				// value return:
+				//
+				else {
+					scope.emit(bc::RETN, expr_parse(scope).to_anyreg(scope));	
+				}
+				return expression(none);
+			}
+
+			// <<TODO>>
+			case lex::token_continue:
+			case lex::token_break:
+			case lex::token_fn:
+				util::abort("fn token NYI.");
+
+			// Anything else gets forward to expression parser.
+			//
+			default:
+				return expr_parse(scope);
+		}
+	}
+
+
+	// Parses a block expression made up of N statements, final one is the expression value
+	// unless closed with a semi-colon.
+	//
+	static expression expr_block(func_scope& pscope) {
+		expression last{none};
+		{
+			func_scope scope{pscope.fn};
+			while (!scope.lex().opt('}')) {
+				// Parse a statement, forward error.
+				//
+				last = expr_stmt(scope);
+				if (last.kind == expr::err) {
+					return last;
+				}
+
+				// If closed with semi-colon, clear value.
+				//
+				if (scope.lex().opt(';')) {
+					last = {none};
+				}
+			}
+
+			// If value is not immediate, escape the value from sub-scope.
+			//
+			if (last.kind != expr::imm) {
+				last.to_reg(scope, pscope.reg_next);
+				last = pscope.reg_next;
 			}
 		}
 
-		// real statements:
-		// => fallback to expression with discarded result.
+		// Compensate for the stolen register and return the result.
+		//
+		if (last.kind != expr::imm)
+			pscope.alloc_reg();
+		return last;
 	}
+
 
 	static bool parse_body(func_scope scope) {
 		while (scope.lex().tok != lex::token_eof) {
 			// Parse a statement.
-			if (!parse_statement(scope)) {
+			//
+			if (auto e = expr_stmt(scope); e.kind == expr::err) {
 				return false;
 			}
+
 			// Optionally consume ';', move on to the next one.
+			//
 			scope.lex().opt(';');
 		}
 		return true;

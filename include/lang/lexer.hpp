@@ -215,8 +215,10 @@ namespace lightning::lex {
 		//
 		template<typename... Tx>
 		token_value error(const char* fmt, Tx... args) {
-			if (last_error.empty())
-				last_error = util::fmt(fmt, args...);
+			if (last_error.empty()) {
+				last_error = util::fmt("[%.*s:%llu] ", source_name.size(), source_name.data(), line);
+				last_error += util::fmt(fmt, args...);
+			}
 			return token_value{.id = token_error};
 		}
 

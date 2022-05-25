@@ -114,7 +114,7 @@ namespace lightning::core {
 			}
 			for (size_t n = 0; n != fn.args.size(); n++) {
 				if (fn.args[n] == name) {
-					return std::pair<bc::reg, bool>{-bc::reg(n + 1), true};
+					return std::pair<bc::reg, bool>{-bc::reg(n + 1), false};
 				}
 			}
 			return std::nullopt;
@@ -603,7 +603,7 @@ namespace lightning::core {
 	// Solving ambigious syntax with block vs table.
 	//
 	static bool is_table_init(func_scope& scope) {
-		size_t pos  = scope.lex().input.find_first_of("{}");
+		size_t pos  = scope.lex().input.find_first_of("{};");
 		size_t xpos = scope.lex().input.find_first_of(",:");
 		return xpos < pos;
 	}
@@ -999,7 +999,11 @@ namespace lightning::core {
 		// Collect arguments.
 		//
 		if (scope.lex().opt('{')) {
-			callsite[size++] = expr_table(scope);
+			if (auto ex = expr_table(scope); ex.kind == expr::err) {
+				return {};
+			} else {
+				callsite[size++] = ex;
+			}
 		} else if (auto lit = scope.lex().opt(lex::token_lstr)) {
 			callsite[size++] = expression(any(lit->str_val));
 		} else {

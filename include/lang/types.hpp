@@ -55,7 +55,7 @@ namespace lightning::core {
 	LI_INLINE static constexpr uint64_t mask_value(uint64_t value) { return value & ((1ull << 47) - 1); }
 	LI_INLINE static constexpr uint64_t mix_value(uint8_t type, uint64_t value) { return ((~uint64_t(type)) << 47) | mask_value(value); }
 	LI_INLINE static constexpr uint64_t make_tag(uint8_t type) { return ((~uint64_t(type)) << 47) | mask_value(~0ull); }
-	LI_INLINE static constexpr uint8_t  get_type(uint64_t value) { return uint8_t((~value) >> 47); }
+	LI_INLINE static constexpr uint64_t get_type(uint64_t value) { return ((~value) >> 47); }
 	LI_INLINE static gc_header*         get_gc_value(uint64_t value) {
 		value = mask_value(value);
 #if _KERNEL_MODE
@@ -98,7 +98,7 @@ namespace lightning::core {
 
 		// Type check.
 		//
-		inline value_type type() const { return (value_type) std::min(get_type(value), (uint8_t) type_number); }
+		inline value_type type() const { return (value_type) std::min(get_type(value), (uint64_t) type_number); }
 		inline bool       is(uint8_t t) const { return t == type(); }
 		inline bool       is_gc() const { return is_gc_type(get_type(value)); }
 

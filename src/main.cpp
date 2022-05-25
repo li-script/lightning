@@ -134,12 +134,12 @@ int main() {
 			continue;
 		}
 		last_exec = file_buf;
-		// debug::dump_tokens(L, file_buf);
 
 		// Create the VM, write the globals.
 		//
 		auto* L = core::vm::create();
-		printf("VM allocated @ %p\n", L);
+		//debug::dump_tokens(L, file_buf);
+		//printf("VM allocated @ %p\n", L);
 		export_global(L, "sqrt", [](core::vm* L, const core::any* args, uint32_t n) {
 			if (!args->is(core::type_number))
 				return false;

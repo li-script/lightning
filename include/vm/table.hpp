@@ -26,7 +26,7 @@ namespace lightning::core {
 		// TODO: Metatable.
 
 		table_entry*           begin() { return node_list ? &node_list->entries[0] : &small_table[0]; }
-		table_entry*           end() { return begin() + size(); }
+		table_entry*           end() { return begin() + size() + overflow_factor; }
 		size_t                 size() { return node_list ? (node_list->object_bytes() / sizeof(table_entry)) - overflow_factor : small_table_length; }
 		size_t                 mask() { return size() - 1; }
 		std::span<table_entry> find(size_t hash) {

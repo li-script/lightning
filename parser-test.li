@@ -1,5 +1,6 @@
 
 
+let z;
 let x = 2*4;
 
 a = x*x

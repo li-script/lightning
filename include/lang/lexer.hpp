@@ -6,7 +6,7 @@
 #include <string_view>
 #include <util/format.hpp>
 
-namespace lightning::lexer {
+namespace lightning::lex {
 	// Token enumerator:
 	//  _    => keyword        | "let"
 	//  __   => symbol mapped  | "--"
@@ -23,7 +23,7 @@ namespace lightning::lexer {
 		/* Ternary operator */																    \
 		___(tif, '?') ___(telse, ':')														    \
 		/* Compound operators */															    \
-		__(cinc, ++) __(cdec, --) __(cadd, +=) __(csub, -=)						    \
+		__(cadd, +=) __(csub, -=)						                               \
 		__(cmul, *=) __(cdiv, /=) __(cmod, %=) __(cband, &=)						    \
 		__(cbor, |=) __(cbxor, ^=) __(cbshr, >>=) __(cbshl, <<=)					    \
 		__(ccat, ..=)                                      					       \
@@ -222,16 +222,17 @@ namespace lightning::lexer {
 
 		// Checks and consumes a token.
 		//
-		void check(token tk) {
+		token_value check(token tk) {
 			if (tok.id != tk) {
 				auto sv = cx_token_to_strv(tk);
 				if (sv.empty())
 					sv = {(const char*) &tk, 1};
-				this->error("expected token '%.*s'", sv.size(), sv.data());
+				return this->error("expected token '%.*s'", sv.size(), sv.data());
 			} else {
-				next();
+				return next();
 			}
 		}
+		token_value check(char tk) { return check(token(tk)); }
 
 		// Checks and consumes an optional token.
 		//
@@ -241,6 +242,7 @@ namespace lightning::lexer {
 			}
 			return std::nullopt;
 		}
+		std::optional<token_value> opt(char tk) { return opt(token(tk)); }
 
 		// Gets the lookahead token.
 		//

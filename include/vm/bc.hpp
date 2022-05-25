@@ -75,7 +75,6 @@ namespace lightning::bc {
 	// Write all descriptors.
 	//
 	enum class op_t : uint8_t { none, reg, uvl, kvl, imm, xmm, rel, ___ = none };
-	using  op = uint16_t;
 	struct desc {
 		const char* name;
 		op_t        a, b, c;

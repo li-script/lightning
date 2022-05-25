@@ -77,7 +77,6 @@ namespace lightning::core {
 			}
 		}
 
-
 		// Gets next random.
 		//
 		uint64_t random() { 
@@ -109,6 +108,12 @@ namespace lightning::core {
 			util::unlink(gc);
 			alloc_fn(this, gc, gc->num_pages, false);
 		}
+
+		// Calls the function on top the stack with the arguments right below it.
+		// - Returns true on success and false if the VM throws an exception.
+		// - Pops the function and args in either case and will push either the exception or the result.
+		//
+		bool call(uint32_t n_args);
 
 		// Allocation helper.
 		//

@@ -36,9 +36,14 @@ namespace lightning::core {
 	std::pair<any, bool> apply_binary(vm* L, any a, any b, bc::opcode op) {
 		switch (op) {
 			case bc::AADD:
-				TYPE_ASSERT(a, type_number);
-				TYPE_ASSERT(b, type_number);
-				return {any(a.as_num() + b.as_num()), true};
+				if (a.is(type_string)) {
+					TYPE_ASSERT(b, type_string);
+					return {any(string::concat(L, a.as_str(), b.as_str())), true};
+				} else {
+					TYPE_ASSERT(a, type_number);
+					TYPE_ASSERT(b, type_number);
+					return {any(a.as_num() + b.as_num()), true};
+				}
 			case bc::ASUB:
 				TYPE_ASSERT(a, type_number);
 				TYPE_ASSERT(b, type_number);
@@ -63,12 +68,6 @@ namespace lightning::core {
 				return {any(bool(a.as_bool() & b.as_bool())), true};
 			case bc::LOR:
 				return {any(bool(a.as_bool() | b.as_bool())), true};
-
-			case bc::SCAT: {
-				TYPE_ASSERT(a, type_string);
-				TYPE_ASSERT(b, type_string);
-				return {any(string::concat(L, a.as_str(), b.as_str())), true};
-			}
 			case bc::CEQ:
 				return {any(a == b), true};
 			case bc::CNE:

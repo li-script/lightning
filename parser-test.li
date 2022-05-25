@@ -1,6 +1,5 @@
 # TODO:
-# - switch
-# - numeric for
+# - switch/match
 # - upvalues, varargs
 # - table unpack via ...
 # - export/import
@@ -17,12 +16,12 @@
 # - GC, JIT
 # - force inlined, immutable, private, macros
 # - format string
-# - a..=b, a..b
 # macro __add(a, b) {
 # 	a + b
 # }
 # - error on meaningless expressions (e.g. "1 2 3" as a line)
 #
+
 
 
 #for k,v in "abcd" {

@@ -54,6 +54,7 @@ namespace lightning::lex {
 		// Add allowed identifiers.
 		result['@'] |= char_ident;
 		result['$'] |= char_ident;
+		result['_'] |= char_ident;
 		// Add spaces.
 		result['\t'] |= char_space;
 		result['\v'] |= char_space;
@@ -262,7 +263,7 @@ namespace lightning::lex {
 
 		// If there is a fraction:
 		//
-		if (state.input.starts_with(".")) {
+		if (state.input.starts_with(".") && !state.input.starts_with("..")) {
 			// Fetch the fraction part.
 			//
 			state.input.remove_prefix(1);

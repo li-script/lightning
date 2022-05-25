@@ -18,6 +18,12 @@
     <ClCompile Include="..\src\vm\function.cpp">
       <Filter>VM</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\lang\operator.cpp">
+      <Filter>Language</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\vm\interp.cpp">
+      <Filter>VM</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Language">
@@ -66,6 +72,12 @@
     </ClInclude>
     <ClInclude Include="..\include\vm\function.hpp">
       <Filter>VM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\lang\parser.hpp">
+      <Filter>Language</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\lang\operator.hpp">
+      <Filter>Language</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

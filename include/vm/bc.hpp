@@ -2,6 +2,7 @@
 #include <optional>
 #include <util/common.hpp>
 #include <util/format.hpp>
+#include <lang/types.hpp>
 
 namespace lightning::bc {
 	// Bytecode definitions.
@@ -31,7 +32,7 @@ namespace lightning::bc {
 	_(CGE,  reg, reg, reg) /* A=B>=C */                                                 \
                                                                                        \
 	/* Constant operators. */                                                           \
-	_(KTAG, reg, imm, ___) /* A=TagAny(B) */                                            \
+	_(KIMM, reg, xmm, ___) /* A=Bitcast(BC) */                                          \
 	_(KGET, reg, kvl, ___) /* A=KVAL[B] */                                              \
                                                                                        \
 	/* Upvalue operators. */                                                            \
@@ -68,10 +69,11 @@ namespace lightning::bc {
 	using imm = int32_t;
 	using reg = int32_t;
 	using rel = int32_t;
+	using pos = uint32_t;
 	
 	// Write all descriptors.
 	//
-	enum class op_t : uint8_t { none, reg, uvl, kvl, imm, rel, ___ = none };
+	enum class op_t : uint8_t { none, reg, uvl, kvl, imm, xmm, rel, ___ = none };
 	using  op = uint16_t;
 	struct desc {
 		const char* name;
@@ -91,6 +93,11 @@ namespace lightning::bc {
 		reg    a = 0;
 		reg    b = 0;
 		reg    c = 0;
+
+		// Extended immediate, always at B:C.
+		//
+		uint64_t&       xmm() { return *(uint64_t*) &b; }
+		const uint64_t& xmm() const { return *(const uint64_t*) &b; }
 
 		// Prints an instruction.
 		//
@@ -145,11 +152,36 @@ namespace lightning::bc {
 			printf(LI_PRP "%05x:" LI_BRG " %-6s", ip, d.name);
 			// ... Operands.
 			print_op(d.a, a);
-			print_op(d.b, b);
-			print_op(d.c, c);
+
+			if (d.b == op_t::xmm) {
+				char        op[32];
+
+				core::any v{std::in_place, xmm()};
+				switch (v.type()) {
+					case core::type_number:
+						sprintf_s(op, "%lf", v.as_num());
+						break;
+					case core::type_false:
+						strcpy_s(op, "False");
+						break;
+					case core::type_true:
+						strcpy_s(op, "True");
+						break;
+					case core::type_none:
+						strcpy_s(op, "None");
+						break;
+					default:
+						sprintf_s(op, "0x%016llx", v.value);
+						break;
+				}
+				printf(LI_BLU "%-25s " LI_DEF, op);
+			} else {
+				print_op(d.b, b);
+				print_op(d.c, c);
+			}
 			printf("|");
 
-			// Special effect for relative.
+			// Details for relative.
 			//
 			if (rel_pr) {
 				if (*rel_pr < 0) {
@@ -158,6 +190,7 @@ namespace lightning::bc {
 					printf(LI_RED " ^" LI_DEF);
 				}
 			}
+
 			printf("\n");
 		}
 	};

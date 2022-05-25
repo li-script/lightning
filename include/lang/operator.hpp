@@ -41,7 +41,6 @@ namespace lightning::core {
 		 {lex::token_pow, lex::token_cpow, bc::APOW, 5, 5},
 		 {lex::token_land, {}, bc::LAND, 14, 14},
 		 {lex::token_lor, {}, bc::LOR, 15, 15},
-		 {lex::token_cat, lex::token_ccat, bc::SCAT, 5, 5},
 		 {lex::token_eq, {}, bc::CEQ, 10, 10},
 		 {lex::token_ne, {}, bc::CNE, 10, 10},
 		 {lex::token_lt, {}, bc::CLT, 9, 9},

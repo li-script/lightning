@@ -1269,83 +1269,154 @@ namespace lightning::core {
 			}
 		}
 
-		// Expect if.
+		// Expect in.
 		//
 		if (scope.lex().check(lex::token_in) == lex::token_error) {
 			return {};
 		}
 
-		// Parse the iterated table.
+		// Parse the iterated value.
 		//
 		expression i = expr_parse(scope);
 		if (i.kind == expr::err) {
 			return {};
 		}
 
-		// Make sure its followed by a block.
+		// If numeric for:
 		//
-		if (scope.lex().check('{') == lex::token_error) {
-			return {};
-		}
+		if (auto& tk = scope.lex().tok; tk == lex::token_range || tk == lex::token_rangei) {
+			bool inclusive = tk == lex::token_rangei;
+			scope.lex().next();
 
-		// Move table to next register, will be assigned the result on completion of the inner scope.
-		//
-		bc::reg tbl_reg = i.to_nextreg(scope);
+			static constexpr number step = 1;
 
-		// Start a new scope.
-		//
-		{
-			// Allocate new continue and break labels.
+			// Parse another value.
 			//
-			func_scope iscope{scope.fn};
-			iscope.lbl_break =    scope.make_label();
-			iscope.lbl_continue = scope.make_label();
-
-			// Allocate 4 consequtive registers:
-			// [<istate>, k, v, <result>]
-			//
-			auto iter_base = iscope.alloc_reg(4);
-
-			// Initialize istate and the result.
-			//
-			expression(any(iopaque{.bits = 0})).to_reg(iscope, iter_base);
-			expression(any()).to_reg(iscope, iter_base + 3);
-
-			// Assign the locals.
-			//
-			iscope.locals.push_back({k, false, iter_base + 1});
-			if (v) {
-				iscope.locals.push_back({v, false, iter_base + 2});
+			expression i2 = expr_parse(scope);
+			if (i2.kind == expr::err) {
+				return {};
 			}
+
+			// Allocate 5 consequtive registers:
+			// [it], [max], [step], [<cc>] [<result>]
+			//
+			auto iter_base = scope.alloc_reg(4);
+			i.to_reg(scope, iter_base);
+			i2.to_reg(scope, iter_base+1);
+			scope.set_reg(iter_base + 2, step);
+			scope.set_reg(iter_base + 4, none);
+
+			// Allocate new continue and break labels and the local.
+			//
+			auto pb = std::exchange(scope.lbl_break, scope.make_label());
+			auto pc = std::exchange(scope.lbl_continue, scope.make_label());
+			scope.locals.push_back({k, true, iter_base});
+
+			// Skip the AADD on first entry.
+			//
+			scope.emit(bc::JMP, 1);
 
 			// Point the continue label at the beginning.
 			//
-			iscope.set_label_here(iscope.lbl_continue);
+			scope.set_label_here(scope.lbl_continue);
 
-			// Iterate, jump to break if end.
+			// Parse the condition, jump to break if we reached the end.
 			//
-			iscope.emit(bc::ITER, iscope.lbl_break, iter_base, tbl_reg);
+			scope.emit(bc::AADD, iter_base, iter_base, iter_base + 2);                           // it = it + step
+			scope.emit(inclusive ? bc::CGT : bc::CGE, iter_base + 4, iter_base, iter_base + 1);  // cc = !cmp(it, max)
+			scope.emit(bc::JS, scope.lbl_break, iter_base + 4);
 
-			// Parse the block:
+			// Parse the block.
 			//
-			if (expr_block(iscope).kind != expr::err) {
+			if (scope.lex().check('{') == lex::token_error) {
+				return {};
+			}
+
+			if (expr_block(scope).kind != expr::err) {
 				// Jump to continue.
 				//
-				iscope.emit(bc::JMP, iscope.lbl_continue);
+				scope.emit(bc::JMP, scope.lbl_continue);
 
 				// Emit break label.
 				//
-				iscope.set_label_here(iscope.lbl_break);
+				scope.set_label_here(scope.lbl_break);
 			}
 
-			// Move the break result to outer scopes last register.
+			// Restore the labels, remove the local.
 			//
-			expression(iter_base + 3).to_reg(iscope, tbl_reg);
+			scope.lbl_break    = pb;
+			scope.lbl_continue = pc;
+			scope.locals.pop_back();
+			return expression(iter_base + 4);
 		}
-
-		// Return the result.
+		// If enumerating for:
 		//
-		return tbl_reg;
+		else {
+			// Make sure its followed by a block.
+			//
+			if (scope.lex().check('{') == lex::token_error) {
+				return {};
+			}
+
+			// Move table to next register, will be assigned the result on completion of the inner scope.
+			//
+			bc::reg tbl_reg = i.to_nextreg(scope);
+
+			// Start a new scope.
+			//
+			{
+				// Allocate new continue and break labels.
+				//
+				func_scope iscope{scope.fn};
+				iscope.lbl_break    = scope.make_label();
+				iscope.lbl_continue = scope.make_label();
+
+				// Allocate 4 consequtive registers:
+				// [<istate>, k, v, <result>]
+				//
+				auto iter_base = iscope.alloc_reg(4);
+
+				// Initialize istate and the result.
+				//
+				expression(any(iopaque{.bits = 0})).to_reg(iscope, iter_base);
+				expression(any()).to_reg(iscope, iter_base + 3);
+
+				// Assign the locals.
+				//
+				iscope.locals.push_back({k, false, iter_base + 1});
+				if (v) {
+					iscope.locals.push_back({v, false, iter_base + 2});
+				}
+
+				// Point the continue label at the beginning.
+				//
+				iscope.set_label_here(iscope.lbl_continue);
+
+				// Iterate, jump to break if end.
+				//
+				iscope.emit(bc::ITER, iscope.lbl_break, iter_base, tbl_reg);
+
+				// Parse the block:
+				//
+				if (expr_block(iscope).kind != expr::err) {
+					// Jump to continue.
+					//
+					iscope.emit(bc::JMP, iscope.lbl_continue);
+
+					// Emit break label.
+					//
+					iscope.set_label_here(iscope.lbl_break);
+				}
+
+				// Move the break result to outer scopes last register.
+				//
+				expression(iter_base + 3).to_reg(iscope, tbl_reg);
+			}
+
+			// Return the result.
+			//
+			return tbl_reg;
+		}
 	}
 
 	// Parses the code and returns it as a function instance with no arguments on success.

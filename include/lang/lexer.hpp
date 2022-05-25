@@ -29,9 +29,9 @@ namespace lightning::lex {
 		___(tif, '?') ___(telse, ':')														    \
 		/* Compound operators */															    \
 		__(cadd, +=) __(csub, -=) __(cmul, *=) __(cdiv, /=) __(cmod, %=)         \
-		__(cpow, ^=) __(ccat, ..=)                                      			 \
+		__(cpow, ^=)                                                   			 \
 		/* Language operators */															    \
-		__(dots, ...) __(cat, ..)                                                \
+		__(dots, ...) __(rangei, ..=) __(range, ..)                              \
 		/* Literal tokens */																	    \
 		____(eof, <eof>) ____(lnum, <number>) ____(name, <name>)                 \
 		____(lstr, <string>) ____(error, <error>) 		                         \
@@ -233,7 +233,7 @@ namespace lightning::lex {
 				auto sv = cx_token_to_strv(tk);
 				if (sv.empty())
 					sv = {(const char*) &tk, 1};
-				return this->error("expected token '%.*s'", sv.size(), sv.data());
+				return this->error("expected token '%.*s', got '%s'", sv.size(), sv.data(), tok.to_string().c_str());
 			} else {
 				return next();
 			}

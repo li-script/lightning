@@ -23,7 +23,6 @@ namespace lightning::bc {
 	_(APOW, reg, reg, reg) /* A=B^C */                                                  \
 	_(LAND, reg, reg, reg) /* A=B&&C */                                                 \
 	_(LOR,  reg, reg, reg) /* A=B||C */                                                 \
-	_(SCAT, reg, reg, reg) /* A=B..C */                                                 \
 	_(CEQ,  reg, reg, reg) /* A=B==C */                                                 \
 	_(CNE,  reg, reg, reg) /* A=B!=C */                                                 \
 	_(CLT,  reg, reg, reg) /* A=B<C */                                                  \

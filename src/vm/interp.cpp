@@ -89,7 +89,6 @@ namespace lightning::core {
 				case bc::APOW:
 				case bc::LAND:
 				case bc::LOR:
-				case bc::SCAT:
 				case bc::CEQ:
 				case bc::CNE:
 				case bc::CLT:
@@ -134,8 +133,8 @@ namespace lightning::core {
 				case bc::ITER: {
 					auto  target = ref_reg(c);
 					auto& iter   = ref_reg(b + 0);
-					auto& k    = ref_reg(b + 1);
-					auto& v    = ref_reg(b + 2);
+					auto& k      = ref_reg(b + 1);
+					auto& v      = ref_reg(b + 2);
 
 					// Get iterator state.
 					//

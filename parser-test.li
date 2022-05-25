@@ -1,28 +1,26 @@
-
-
-
 # TODO:
-# - func calls, c functions, upvalues
+# - c functions, upvalues, varargs
 # - if/else/switch
 # - for/loop/while
 # - arrays
 # - userdata
 # - thread -> coro
-# - varargs
 # - try/catch
 # - ternary
 # - string escape, long strings
 # - better lexer errors, debug info
+# - GC, JIT
 
-let z = 4
 
-const meme = | | {
-	z += 1
+
+z = 4
+
+const meme = |n| {
+	z += n.val;
+	5
 }
 
-meme()
-
-return z
+return meme{val:4}
 
 
 #let z;

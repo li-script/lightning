@@ -52,7 +52,8 @@ namespace lightning::bc {
 	_(FDUP, reg, kvl, reg) /* A=Duplicate(KVAL[B]), A.UVAL[0]=C, A.UVAL[1]=C+1... */    \
                                                                                        \
 	/* Control flow. */                                                                 \
-	_(CALL, reg, imm, rel) /* CALL A(B x args @(a+1, a+2...)), JMP C if throw */        \
+	_(CALL, reg, imm, ___) /* A = Callsite, B = Argcount */                             \
+	_(INVK, reg, imm, rel) /* A = Callsite, B = Argcount, C = Catchpad */               \
 	_(RETN, reg, ___, ___) /* RETURN A */                                               \
 	_(THRW, reg, ___, ___) /* THROW A (if A != None) */                                 \
 	_(JMP,  rel, ___, ___) /* JMP A */                                                  \
@@ -72,6 +73,7 @@ namespace lightning::bc {
 	using reg = int32_t;
 	using rel = int32_t;
 	using pos = uint32_t;
+	static constexpr pos no_pos = UINT32_MAX;
 	
 	// Write all descriptors.
 	//
@@ -126,10 +128,10 @@ namespace lightning::bc {
 					case op_t::rel:
 						if (value >= 0) {
 							col = LI_GRN; 
-							sprintf_s(op, "@%x", ip + value);
+							sprintf_s(op, "@%x", ip + 1 + value);
 						} else {
 							col = LI_YLW; 
-							sprintf_s(op, "@%x", ip - value);
+							sprintf_s(op, "@%x", ip + 1 - value);
 						}
 						rel_pr = (rel) value;
 						break;

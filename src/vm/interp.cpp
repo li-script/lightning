@@ -6,35 +6,41 @@
 #include <vm/table.hpp>
 
 namespace lightning::core {
-
-	// Calls the function on top the stack with the arguments right below it.
+	// Calls the function at the first slot in callsite with the arguments following it
 	// - Returns true on success and false if the VM throws an exception.
-	// - Pops the function and args in either case and will push either the exception or the result.
+	// - In either case and will replace the function with a value representing
+	//    either the exception or the result.
 	//
-	bool vm::call(uint32_t n_args) {
+	bool vm::call(uint32_t callsite, uint32_t n_args) {
 		/*
-		arg0
-		arg1
-		...
-		argn
-		<fn>
-		-- frame begin
-		<locals>
+			<fn>
+			arg0
+			arg1
+			...
+			argn
+			<locals of caller ...>
+			<locals of this function> -> <retval>
 		*/
+
+		// Declare frame bounds and return helper.
+		//
+		const uint32_t stack_frame = stack_top;
+		const uint32_t args_begin  = callsite + 1;
+		auto ret = [&](any value, bool is_exception) LI_INLINE {
+			stack_top = stack_frame;
+         stack[callsite] = value;
+			return !is_exception;
+		};
 
 		// Reference the function.
 		//
-		auto fv = peek_stack();
-		if (!fv.is(type_function)) [[unlikely]] {
-			pop_stack_n(n_args + 1);
-			push_stack(string::create(this, "invoking non-function"));
-			return false;
-		}
+		auto fv = stack[callsite];
+		if (!fv.is(type_function)) [[unlikely]]  // TODO: Meta
+			return ret(string::create(this, "invoking non-function"), true);
 		auto* f = fv.as_fun();
 
-		// Allocate locals, reference arguments.
+		// Allocate locals.
 		//
-		uint32_t args_begin   = stack_top - (n_args + 1);
 		uint32_t locals_begin = alloc_stack(f->num_locals);
 
 		// Return and ref helpers.
@@ -58,11 +64,6 @@ namespace lightning::core {
 			return f->kvals()[r];
 		};
 
-		auto ret = [&](any value, bool is_exception) LI_INLINE {
-			stack_top = args_begin;
-			push_stack(value);
-			return is_exception;
-		};
 
 		for (uint32_t ip = 0;;) {
 			const auto& insn   = f->opcode_array[ip++];
@@ -120,7 +121,7 @@ namespace lightning::core {
 						continue;
 					[[fallthrough]];
 				case bc::JMP:
-					ip += a - 1;
+					ip += a;
 					continue;
 				case bc::KIMM: {
 					ref_reg(a) = any(std::in_place, insn.xmm());
@@ -194,10 +195,16 @@ namespace lightning::core {
 					ref_reg(a) = r;
 					continue;
 				}
-				// TODO:
-				// _(CALthis, reg, imm, rel) /* CALL A(B x args @(a+1, a+2...)), JMP C if throw */
 				case bc::CALL:
-					util::abort("bytecode '%s' is NYI.", bc::opcode_descs[uint8_t(op)].name);
+					LI_ASSERT(a >= 0 && (a+b+1) <= f->num_locals);
+					if (!call(locals_begin + a, b))
+						return ret(stack[a], true);
+					continue;
+				case bc::INVK:
+					LI_ASSERT(a >= 0 && (a+b+1) <= f->num_locals);
+					if (!call(locals_begin + a, b))
+						ip += c;
+					continue;
 				case bc::BP:
 					breakpoint();
 					continue;

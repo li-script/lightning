@@ -119,11 +119,11 @@ int main() {
 
 	core::function* f = core::function::create(L, ins, constants, 0);
 	f->num_locals     = 1;
-
+	
+	L->push_stack(f);
 	L->push_stack(core::number(1));
 	//	L->push_stack(core::string::format(L, "lol: %d", 4));
 	L->push_stack(core::number(2));
-	L->push_stack(f);
 
 	if (bool is_ex = core::vm_enter(L, 2)) {
 		printf("Execution finished with exception: ");
@@ -146,7 +146,7 @@ int main() {
 		if (fn.is(core::type_function)) {
 			L->push_stack(fn);
 
-			if (bool is_ex = L->call(0)) {
+			if (!L->scall(0)) {
 				printf("Execution finished with exception: ");
 				debug::print_object(L->pop_stack());
 				puts("");

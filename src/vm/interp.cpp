@@ -115,13 +115,19 @@ namespace lightning::core {
 						return ret(e, true);
 					continue;
 				}
-				case bc::RETN: {
+				case bc::RET: {
 					return ret(ref_reg(a), false);
 				}
-				case bc::JCC:
+				case bc::JNS:
+					if (ref_reg(b).as_bool())
+						continue;
+					ip += a;
+					continue;
+				case bc::JS:
 					if (!ref_reg(b).as_bool())
 						continue;
-					[[fallthrough]];
+					ip += a;
+					continue;
 				case bc::JMP:
 					ip += a;
 					continue;
@@ -203,9 +209,9 @@ namespace lightning::core {
 						return ret(stack[locals_begin + a], true);
 					continue;
 				case bc::INVK:
-					LI_ASSERT(a >= 0 && (a+b+1) <= f->num_locals);
-					if (!call(locals_begin + a, b))
-						ip += c;
+					LI_ASSERT(b >= 0 && (b+c+1) <= f->num_locals);
+					if (!call(locals_begin + b, c))
+						ip += a;
 					continue;
 				case bc::BP:
 					breakpoint();

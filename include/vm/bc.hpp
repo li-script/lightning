@@ -53,11 +53,12 @@ namespace lightning::bc {
                                                                                        \
 	/* Control flow. */                                                                 \
 	_(CALL, reg, imm, ___) /* A = Callsite, B = Argcount */                             \
-	_(INVK, reg, imm, rel) /* A = Callsite, B = Argcount, C = Catchpad */               \
-	_(RETN, reg, ___, ___) /* RETURN A */                                               \
+	_(INVK, rel, reg, imm)   /* A = Catchpad, B = Callsite, C = Argcount */             \
+	_(RET,  reg, ___, ___) /* RETURN A */                                               \
 	_(THRW, reg, ___, ___) /* THROW A (if A != None) */                                 \
 	_(JMP,  rel, ___, ___) /* JMP A */                                                  \
-	_(JCC,  rel, reg, ___) /* JMP A if B */                                             \
+	_(JS,   rel, reg, ___) /* JMP A if B */                                             \
+	_(JNS,  rel, reg, ___) /* JMP A if !B */                                            \
 	/* Misc. */                                                                         \
 	_(NOP,  ___, ___, ___) /* No-op */ \
 	_(BP,   ___, ___, ___) /* Breakpoint */

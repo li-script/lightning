@@ -710,6 +710,8 @@ namespace lightning::core {
 		} else if (tk.id == lex::token_for) {
 			scope.lex().next();
 			base = parse_for(scope);
+		} else if (tk.id == lex::token_lor) {
+			base = parse_closure(scope);
 		} else {
 			scope.lex().error("unexpected token %s", tk.to_string().c_str());
 			return {};
@@ -1119,9 +1121,9 @@ namespace lightning::core {
 	// Parses closure declaration, returns the function value.
 	//
 	static expression parse_closure(func_scope& scope) {
-		// Consume the '|'.
+		// Consume the '|' or '||'.
 		//
-		scope.lex().next();
+		auto id = scope.lex().next().id;
 
 		// Create the new function.
 		//
@@ -1131,7 +1133,7 @@ namespace lightning::core {
 			// Collect arguments.
 			//
 			func_scope ns{new_fn};
-			if (!ns.lex().opt('|')) {
+			if (id != lex::token_lor && !ns.lex().opt('|')) {
 				while (true) {
 					auto arg_name = ns.lex().check(lex::token_name);
 					if (arg_name == lex::token_error)
@@ -1365,9 +1367,12 @@ namespace lightning::core {
 
 			// Parse another value.
 			//
-			expression i2 = expr_parse(scope);
-			if (i2.kind == expr::err) {
-				return {};
+			expression i2{none};
+			if (scope.lex().tok != '{') {
+				i2 = expr_parse(scope);
+				if (i2.kind == expr::err) {
+					return {};
+				}
 			}
 
 			// Allocate 5 consequtive registers:
@@ -1396,8 +1401,10 @@ namespace lightning::core {
 			// Parse the condition, jump to break if we reached the end.
 			//
 			scope.emit(bc::AADD, iter_base, iter_base, iter_base + 2);                           // it = it + step
-			scope.emit(inclusive ? bc::CGT : bc::CGE, iter_base + 4, iter_base, iter_base + 1);  // cc = !cmp(it, max)
-			scope.emit(bc::JS, scope.lbl_break, iter_base + 4);
+			if (i2.kind != expr::imm || i2.imm != none) {
+				scope.emit(inclusive ? bc::CGT : bc::CGE, iter_base + 4, iter_base, iter_base + 1);  // cc = !cmp(it, max)
+				scope.emit(bc::JS, scope.lbl_break, iter_base + 4);
+			}
 
 			// Parse the block.
 			//

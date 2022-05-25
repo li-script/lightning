@@ -1,6 +1,9 @@
 # TODO:
+# 0.. as count to inf
+# x = env{}
+# arrays/metatables
 # - switch/match
-# - upvalues, varargs
+# - varargs
 # - table unpack via ...
 # - export/import
 # - destructuring
@@ -8,7 +11,7 @@
 #   const {a,b,c} = x() == a=x().a,  ...
 # - tail call
 # - core::to_string
-# - arrays/userdata/metatables/coroutines|thread
+# - coroutines|thread
 # - try/catch
 # - ternary
 # - string escape, long strings
@@ -22,17 +25,31 @@
 # - error on meaningless expressions (e.g. "1 2 3" as a line)
 #
 
-const make_counter = | | {
-	let i = 1;
-	| | { i += 1 }
+
+for i in 0.. {
+	print(i)
+	if i == 5 {
+		break
+	}
 }
-@printbc(make_counter)
 
+const a = || 0
 
-const x = | | $F
-@printbc(x)
-
-print("x:", x())
+#const make_counter = || {
+#	let i = 1;
+#	| | { i += 1 }
+#}
+#@printbc(make_counter)
+#
+#
+#const x = | | $F
+#@printbc(x)
+#
+#for k in $G {
+#	print(k)
+#}
+#
+#print("x:", x())
 
 
 
@@ -41,16 +58,16 @@ print("x:", x())
 #}
 
 
-#const BottomUpTree = |self, depth| {
+#const BottomUpTree = |depth| {
 #	if depth >= 0 {
 #		depth -= 1
-#		{ left: self(self, depth), right: self(self, depth) }
+#		{ left: $F(depth), right: $F(depth) }
 #	}
 #}
-#const ItemCheck = |self, tree| {
+#const ItemCheck = |tree| {
 #	const l = tree.left
 #	if l {
-#		1 + self(self, l) + self(self, tree.right)
+#		1 + $F(l) + $F(tree.right)
 #	} else {
 #		1
 #	}
@@ -66,11 +83,11 @@ print("x:", x())
 #
 #{ 
 #    const stretchdepth = maxdepth + 1
-#    const stretchtree = BottomUpTree(BottomUpTree, stretchdepth)
+#    const stretchtree = BottomUpTree(stretchdepth)
 #}
 #
-#
-#const longlivedtree = BottomUpTree(BottomUpTree, maxdepth)
+# 
+#const longlivedtree = BottomUpTree(maxdepth)
 #
 #let depth = mindepth
 #while depth <= maxdepth {	
@@ -78,14 +95,14 @@ print("x:", x())
 #	let check = 0
 #	let i = 1
 #	while i <= iterations {
-#        check += ItemCheck(ItemCheck, BottomUpTree(BottomUpTree, depth))
+#        check += ItemCheck(BottomUpTree(depth))
 #		i += 1
 #	}
 #	depth += 2
 #}
 #
 #
-#print("fin:", maxdepth, ItemCheck(ItemCheck, longlivedtree))
+#print("fin:", maxdepth, ItemCheck(longlivedtree))
 
 
 

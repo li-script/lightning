@@ -253,8 +253,8 @@ namespace lightning::lex {
 		// Gets the lookahead token.
 		//
 		token_value& lookahead() {
-			LI_ASSERT_MSG("Double lookahead", !tok_lookahead);
-			tok_lookahead = scan();
+			if (!tok_lookahead)
+				tok_lookahead = scan();
 			return *tok_lookahead;
 		}
 

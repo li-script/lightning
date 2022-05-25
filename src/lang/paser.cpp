@@ -588,7 +588,7 @@ namespace lightning::core {
 			switch (scope.lex().tok.id) {
 				// Call.
 				case '{': {
-					if (is_table_init(scope))
+					if (!is_table_init(scope))
 						return base;
 				}
 				case lex::token_lstr:

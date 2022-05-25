@@ -231,7 +231,15 @@ namespace lightning::core {
 					continue;
 				}
 				case bc::USET: {
-					ref_uval(a) = ref_reg(b);
+					if (a == bc::uval_env) {
+						auto tbl       = ref_reg(b);
+						if (tbl.type() != type_table) {
+							return ret(string::create(this, "can't use non-table as environment"), true);
+						}
+						f->environment = tbl.as_tbl();
+					} else {
+						ref_uval(a) = ref_reg(b);
+					}
 					continue;
 				}
 				case bc::TGET: {

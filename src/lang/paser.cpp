@@ -567,6 +567,7 @@ namespace lightning::core {
 	static expression parse_for(func_scope& scope);
 	static expression parse_loop(func_scope& scope);
 	static expression parse_while(func_scope& scope);
+	static expression parse_env(func_scope& scope);
 
 	// Parses a "statement" expression, which considers both statements and expressions valid.
 	// Returns the expression representing the value of the statement.
@@ -710,6 +711,9 @@ namespace lightning::core {
 		} else if (tk.id == lex::token_for) {
 			scope.lex().next();
 			base = parse_for(scope);
+		} else if (tk.id == lex::token_env) {
+			scope.lex().next();
+			base = parse_env(scope);
 		} else if (tk.id == lex::token_lor) {
 			base = parse_closure(scope);
 		} else {
@@ -1325,7 +1329,6 @@ namespace lightning::core {
 		//
 		return result;
 	}
-
 	static expression parse_for(func_scope& scope) {
 		// Parse the iterator names.
 		//
@@ -1497,6 +1500,36 @@ namespace lightning::core {
 			//
 			return tbl_reg;
 		}
+	}
+
+	static expression parse_env(func_scope& scope) {
+		// Allocate two registers.
+		//
+		auto space = scope.alloc_reg(2);
+
+		// Swap environment.
+		//
+		scope.emit(bc::TNEW, space, 0);
+		scope.emit(bc::UGET, space + 1, bc::uval_env);
+		scope.emit(bc::USET, bc::uval_env, space);
+
+		// TODO: Should still index the current env, fix when you have metatables.
+		//
+
+		// Parse a block and discard the result.
+		//
+		if (scope.lex().check('{') == lex::token_error) {
+			return {};
+		}
+		if (expr_block(scope).kind == expr::err) {
+			return {};
+		}
+
+		// Restore environment, free the save slot and return the table as the result.
+		//
+		scope.emit(bc::USET, bc::uval_env, space + 1);
+		scope.reg_next = space + 1; // Discard block result without making free_reg angry.
+		return {space};
 	}
 
 	// Parses the code and returns it as a function instance with no arguments on success.

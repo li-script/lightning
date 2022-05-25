@@ -39,7 +39,7 @@ namespace lightning::lex {
 		_(true) _(false)  _(let) _(const) _(if) _(else) _(switch) _(while)       \
 		_(for) _(loop) _(case) _(default) _(break) _(continue) _(try)			    \
 		_(catch) _(throw) _(return) _(in) _(is) _(bool) _(number) _(table)       \
-		_(array) _(userdata) _(function) _(thread)
+		_(array) _(userdata) _(function) _(thread) _(env)
 
 	// Token identifiers.
 	//

@@ -132,42 +132,76 @@ namespace lightning::core {
 					ip += a;
 					continue;
 				case bc::ITER: {
-					auto  tbl  = ref_reg(c);
-					auto& iter = ref_reg(b + 0);
+					auto  target = ref_reg(c);
+					auto& iter   = ref_reg(b + 0);
 					auto& k    = ref_reg(b + 1);
 					auto& v    = ref_reg(b + 2);
 
-					// Validate type.
+					// Get iterator state.
 					//
-					if (!tbl.is(type_table)) [[unlikely]] {
-						if (tbl.is(type_none)) {
+					bool     ok = false;
+					uint64_t it = iter.as_opq().bits;
+
+					switch (target.type()) {
+						// Alias to empty table.
+						//
+						case type_none:
 							ip += a;
 							continue;
-						}
-						return ret(string::create(this, "iterating non-table"), true);
-					}
 
-					// Find valid entry within the range.
-					//
-					table* t  = tbl.as_tbl();
-					auto*  e  = t->begin();
-					bool   ok = false;
-					for (uint64_t it = iter.as_opq().bits; it < (t->size() + overflow_factor); it++) {
-						if (e[it].key != none) {
-							// Write the pair.
-							//
-							k = e[it].key;
-							v = e[it].value;
+						// String:
+						//
+						case type_string: {
+							string* t = target.as_str();
+							auto*  e = t->data;
+							for (; it < t->length; it++) {
+								// Write the pair.
+								//
+								k = any(number(it));
+								v = any(number(e[it]));
 
-							// Update the iterator.
-							//
-							iter = iopaque{.bits = it + 1};
+								// Update the iterator.
+								//
+								iter = iopaque{.bits = it + 1};
 
-							// Break.
-							//
-							ok = true;
+								// Break.
+								//
+								ok = true;
+								break;
+							}
 							break;
 						}
+
+						// Table:
+						//
+						case type_table: {
+							table* t = target.as_tbl();
+							auto*  e = t->begin();
+							for (; it < (t->size() + overflow_factor); it++) {
+								if (e[it].key != none) {
+									// Write the pair.
+									//
+									k = e[it].key;
+									v = e[it].value;
+
+									// Update the iterator.
+									//
+									iter = iopaque{.bits = it + 1};
+
+									// Break.
+									//
+									ok = true;
+									break;
+								}
+							}
+							break;
+						}
+
+						// Raise an error.
+						//
+						default:
+							return ret(string::format(this, "cannot iterate %s", type_names[(uint8_t) target.type()]), true);
+							break;
 					}
 
 					// If we did not find any, break.

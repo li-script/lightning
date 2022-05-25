@@ -82,9 +82,9 @@ namespace lightning::core {
 
 		// Type check.
 		//
-		inline value_type type() { return (value_type) std::min(get_type(value), (uint8_t) type_number); }
-		inline bool       is(uint8_t t) { return t == type(); }
-		inline bool       is_gc() { return is_gc_type(get_type(value)); }
+		inline value_type type() const { return (value_type) std::min(get_type(value), (uint8_t) type_number); }
+		inline bool       is(uint8_t t) const { return t == type(); }
+		inline bool       is_gc() const { return is_gc_type(get_type(value)); }
 
 		// Getters.
 		//

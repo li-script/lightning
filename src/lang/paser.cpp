@@ -6,6 +6,9 @@
 #include <vm/string.hpp>
 #include <vm/table.hpp>
 
+// TODO: Upvalues.
+//
+
 namespace lightning::core {
 
 	// Operator traits for parsing.
@@ -30,10 +33,20 @@ namespace lightning::core {
 		return nullptr;
 	}
 
+	// Local value descriptor.
+	//
+	struct local_state {
+		string* id       = nullptr;  // Local name.
+		bool    is_const = false;    // Set if declared as const.
+		bc::reg reg      = 0;        // Register mapping to it.
+	};
+
+	// Function parser state.
+	//
 	struct func_scope;
 	struct func_state {
-		//		func_scope*                enclosing  = nullptr;  // Enclosing function's scope.
-		//		std::vector<string*> uvalues    = {};       // Upvalues mapped by name.
+		//	func_scope*          enclosing  = nullptr;// Enclosing function's scope.
+		//	std::vector<string*> uvalues    = {};     // Upvalues mapped by name.
 		vm*                   L;                     // VM state.
 		lex::state            lex;                   // Lexer state.
 		func_scope*           scope      = nullptr;  // Current scope.
@@ -45,15 +58,12 @@ namespace lightning::core {
 
 		func_state(core::vm* L, std::string_view source) : L(L), lex(L, source) {}
 	};
-	struct local_state {
-		string* id       = nullptr;  // Local name.
-		bool    is_const = false;    // Set if declared as const.
-		bc::reg reg      = 0;        // Register mapping to it.
-	};
+
+	// Local scope state.
+	//
 	struct func_scope {
 		func_state&              fn;             // Function that scope belongs to.
 		func_scope*              prev;           // Outer scope.
-		bc::reg                  reg_map  = 0;   // Register mapping to the value of the scope.
 		bc::reg                  reg_next = 0;   // Next free register.
 		std::vector<local_state> locals   = {};  // Locals declared in this scope.
 
@@ -149,8 +159,7 @@ namespace lightning::core {
 		//
 		func_scope(func_state& fn) : fn(fn), prev(fn.scope) {
 			fn.scope = this;
-			reg_map  = prev ? prev->alloc_reg() : 0;
-			reg_next = reg_map + 1;
+			reg_next = prev ? prev->reg_next : 0;
 		}
 		func_scope(const func_scope&)            = delete;
 		func_scope& operator=(const func_scope&) = delete;
@@ -160,53 +169,111 @@ namespace lightning::core {
 	// Expression type.
 	//
 	enum class expr : uint8_t {
-		error,   // <deferred error, written into lexer state>
-		lvalue,  // local
-		kvalue,  // constant
-		gvalue,  // global
-		tvalue,  // index into local with another local
+		err,  // <deferred error, written into lexer state>
+		imm,  // constant
+		reg,  // local
+		glb,  // global
+		idx,  // index into local with another local
 	};
 	struct expression {
-		expr kind = expr::error;
+		expr kind = expr::err;
 		union {
 			struct {
-				bc::reg tbl;
-				bc::reg idx;
-			} t;
-			bc::reg l;
-			any     k;
-			string* g;
+				bc::reg table;
+				bc::reg field;
+			} idx;
+			bc::reg reg;
+			any     imm;
+			string* glb;
 		};
 
+		// Default constructor maps to error.
+		//
 		expression() {}
-		expression(bc::reg l) : kind(expr::lvalue), l(l) {}
-		expression(any k) : kind(expr::kvalue), k(k) {}
-		expression(string* g) : kind(expr::gvalue), g(g) {}
-		expression(bc::reg tbl, bc::reg idx) : kind(expr::tvalue), t{tbl, idx} {}
 
+		// Constructed by value.
+		//
+		expression(bc::reg l) : kind(expr::reg), reg(l) {}
+		expression(any k) : kind(expr::imm), imm(k) {}
+		expression(string* g) : kind(expr::glb), glb(g) {}
+		expression(bc::reg tbl, bc::reg field) : kind(expr::idx), idx{tbl, field} {}
+
+		// Default bytewise copy.
+		//
 		expression(const expression& o) { memcpy(this, &o, sizeof(expression)); }
 		expression& operator=(const expression& o) {
 			memcpy(this, &o, sizeof(expression));
 			return *this;
 		}
+
+		// Returns true if the expression if of type lvalue and can be assigned to.
+		//
+		bool is_lvalue() const { return kind >= expr::reg; }
+
+		// Prints the expression.
+		//
+		void print() const {
+
+			auto print_reg = []( bc::reg reg ) {
+				if (reg >= 0) {
+					printf(LI_RED "r%u" LI_DEF, (uint32_t) reg);
+				} else {
+					printf(LI_YLW "a%u" LI_DEF, (uint32_t) - (reg + 1));
+				}
+			};
+
+			switch (kind) {
+				case expr::err:
+					printf(LI_RED "<err>" LI_DEF);
+					break;
+				case expr::imm:
+					if (imm.is(type_string))
+						printf(LI_BLU "\"%s\"" LI_DEF, imm.as_str()->c_str());
+					else if (imm.is(type_true))
+						printf(LI_BLU "true" LI_DEF);
+					else if (imm.is(type_false))
+						printf(LI_BLU "false" LI_DEF);
+					else if (imm.is(type_none))
+						printf(LI_BLU "None" LI_DEF);
+					else if (imm.is(type_number))
+						printf(LI_BLU "%lf" LI_DEF, imm.as_num());
+					else
+						printf(LI_BLU "<gc const %p>" LI_DEF, imm.as_gc());
+					break;
+				case expr::reg:
+					print_reg(reg);
+					break;
+				case expr::glb:
+					printf(LI_PRP "_G[%s]" LI_DEF, glb->c_str());
+					break;
+				case expr::idx:
+					print_reg(idx.table);
+					printf(LI_CYN "[" LI_DEF);
+					print_reg(idx.field);
+					printf(LI_CYN "]" LI_DEF);
+					break;
+				default:
+					break;
+			}
+		}
 	};
 
 	static void expr_toreg(func_scope& scope, const expression& exp, bc::reg reg) {
-		LI_ASSERT(exp.kind != expr::error);
+		LI_ASSERT(exp.kind != expr::err);
 
 		switch (exp.kind) {
-			case expr::lvalue:
-				scope.emit(bc::MOV, reg, exp.l);
+			case expr::reg:
+				scope.emit(bc::MOV, reg, exp.reg);
 				return;
-			case expr::kvalue:
-				scope.set_reg(reg, exp.k);
+			case expr::imm:
+				scope.set_reg(reg, exp.imm);
 				return;
-			case expr::gvalue:
-				scope.set_reg(reg, any(exp.g));
+			case expr::glb:
+				scope.set_reg(reg, any(exp.glb));
 				scope.emit(bc::GGET, reg, reg);
 				return;
-			case expr::tvalue:
-				scope.emit(bc::TGET, reg, exp.t.idx, exp.t.tbl);
+			case expr::idx:
+				scope.emit(bc::TGET, reg, exp.idx.field, exp.idx.table);
 				break;
 		}
 	}
@@ -216,29 +283,29 @@ namespace lightning::core {
 		return r;
 	}
 	static bc::reg expr_load(func_scope& scope, const expression& exp) {
-		if (exp.kind == expr::lvalue) {
-			return exp.l;
+		if (exp.kind == expr::reg) {
+			return exp.reg;
 		} else {
 			return expr_tonextreg(scope, exp);
 		}
 	}
 	static void expr_store(func_scope& scope, const expression& exp, const expression& value) {
-		LI_ASSERT(exp.kind != expr::error);
+		LI_ASSERT(exp.kind != expr::err);
 
 		switch (exp.kind) {
-			case expr::lvalue:
-				scope.emit(bc::MOV, exp.l, expr_load(scope, value));
+			case expr::reg:
+				scope.emit(bc::MOV, exp.reg, expr_load(scope, value));
 				return;
-			case expr::gvalue: {
+			case expr::glb: {
 				auto val = expr_load(scope, value);
 				auto idx = scope.alloc_reg();
-				scope.set_reg(idx, any(exp.g));
+				scope.set_reg(idx, any(exp.glb));
 				scope.emit(bc::GSET, idx, val);
 				scope.reg_next--;  // immediate free.
 				return;
 			}
-			case expr::tvalue:
-				scope.emit(bc::TSET, exp.t.idx, expr_load(scope, value), exp.t.tbl);
+			case expr::idx:
+				scope.emit(bc::TSET, exp.idx.field, expr_load(scope, value), exp.idx.table);
 				break;
 			default:
 				util::abort("invalid lvalue type");
@@ -314,18 +381,10 @@ namespace lightning::core {
 
 	static const operator_traits* expr_binop(func_scope& scope, expression& out, uint8_t prio);
 
-	/*
-		error,  // <deferred error, written into lexer state>
-		lvalue, // local
-		kvalue, // constant
-		gvalue, // global
-		tvalue, // index into local with another local
-	*/
-
 	static expression emit_unop(func_scope& scope, bc::opcode op, const expression& rhs) {
 		// Basic constant folding.
-		if (rhs.kind == expr::kvalue) {
-			auto [v, ok] = apply_unary(scope.fn.L, rhs.k, op);
+		if (rhs.kind == expr::imm) {
+			auto [v, ok] = apply_unary(scope.fn.L, rhs.imm, op);
 			if (ok) {
 				return expression(v);
 			}
@@ -339,8 +398,8 @@ namespace lightning::core {
 	}
 	static expression emit_binop(func_scope& scope, const expression& lhs, bc::opcode op, const expression& rhs) {
 		// Basic constant folding.
-		if (lhs.kind == expr::kvalue && rhs.kind == expr::kvalue) {
-			auto [v, ok] = apply_binary(scope.fn.L, lhs.k, rhs.k, op);
+		if (lhs.kind == expr::imm && rhs.kind == expr::imm) {
+			auto [v, ok] = apply_binary(scope.fn.L, lhs.imm, rhs.imm, op);
 			if (ok) {
 				return expression(v);
 			}
@@ -405,7 +464,7 @@ namespace lightning::core {
 			// Parse the expression.
 			//
 			expression ex = parse_expression(scope);
-			if (ex.kind == expr::error) {
+			if (ex.kind == expr::err) {
 				return false;
 			}
 
@@ -432,7 +491,7 @@ namespace lightning::core {
 
 	static bool parse_assign_or_expr(func_scope& scope) {
 		auto lv = expr_primary(scope);
-		if (lv.kind == expr::error) {
+		if (lv.kind == expr::err) {
 			printf("failed parsing expr lvalue for assignment.\n");
 			breakpoint();
 		}

@@ -1,6 +1,7 @@
 
 
 let z;
-let x = 2*4;
+const x = 2*4; # const folded
 
-a = x*x
+a =  x * x
+b = "test" .. "test2" # const folded

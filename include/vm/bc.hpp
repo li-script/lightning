@@ -11,7 +11,7 @@ namespace lightning::bc {
 	/* Unary operators */                                                               \
 	_(LNOT, reg, reg, ___) /* A=!B */                                                   \
 	_(ANEG, reg, reg, ___) /* A=-B */                                                   \
-	_(MOVE, reg, reg, ___) /* A=B */                                                    \
+	_(MOV,  reg, reg, ___) /* A=B */                                                    \
 	_(TYPE, reg, reg, ___) /* A=TYPE(B) */                                              \
                                                                                        \
 	/* Binary operators.  */                                                            \
@@ -30,6 +30,7 @@ namespace lightning::bc {
 	_(CGT,  reg, reg, reg) /* A=B>C */                                                  \
 	_(CLE,  reg, reg, reg) /* A=B<=C */                                                 \
 	_(CGE,  reg, reg, reg) /* A=B>=C */                                                 \
+	_(CMOV, reg, reg, reg) /* A=B?C:None */                                             \
                                                                                        \
 	/* Constant operators. */                                                           \
 	_(KIMM, reg, xmm, ___) /* A=Bitcast(BC) */                                          \

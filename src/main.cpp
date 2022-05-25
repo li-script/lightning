@@ -65,9 +65,9 @@ namespace lightning::debug {
 		}
 	}
 
-	static void dump_tokens( std::string_view s ) {
+	static void dump_tokens(std::string_view s) {
 		lex::state lexer{s};
-		size_t       last_line = 0;
+		size_t     last_line = 0;
 		while (true) {
 			if (last_line != lexer.line) {
 				printf("\n%03llu: ", lexer.line);
@@ -83,11 +83,8 @@ namespace lightning::debug {
 	}
 };
 
-
-
-
-#include <optional>
 #include <algorithm>
+#include <optional>
 #include <tuple>
 
 #include <vm/bc.hpp>
@@ -201,10 +198,7 @@ namespace lightning::core {
 		}
 	}
 
-
-
-	static bool vm_enter( vm* L, uint32_t n_args ) {
-
+	static bool vm_enter(vm* L, uint32_t n_args) {
 		/*
 		arg0
 		arg1
@@ -235,7 +229,7 @@ namespace lightning::core {
 		auto ref_reg = [&](bc::reg r) LI_INLINE -> any& {
 			if (r >= 0) {
 				LI_ASSERT(f->num_locals > r);
-				return L->stack[ locals_begin + r ];
+				return L->stack[locals_begin + r];
 			} else {
 				r = -(r + 1);
 				// TODO: Arg# does not have to match :(
@@ -292,7 +286,11 @@ namespace lightning::core {
 					ref_reg(a) = r;
 					continue;
 				}
-				case bc::MOVE: {
+				case bc::CMOV: {
+					ref_reg(a) = ref_reg(b).as_bool() ? ref_reg(c) : none;
+					continue;
+				}
+				case bc::MOV: {
 					ref_reg(a) = ref_reg(b);
 					continue;
 				}
@@ -330,15 +328,23 @@ namespace lightning::core {
 				case bc::TGET: {
 					auto tbl = ref_reg(c);
 					if (!tbl.is(type_table)) [[unlikely]] {
+						if (tbl.is(type_none)) {
+							ref_reg(a) = none;
+							continue;
+						}
 						return ret(arg_error(L, tbl, "table"), true);
 					}
 					ref_reg(a) = tbl.as_tbl()->get(L, ref_reg(b));
 					continue;
 				}
 				case bc::TSET: {
-					auto tbl = ref_reg(c);
+					auto& tbl = ref_reg(c);
 					if (!tbl.is(type_table)) [[unlikely]] {
-						return ret(arg_error(L, tbl, "table"), true);
+						if (tbl.is(type_none)) {
+							tbl = any{table::create(L)};
+						} else {
+							return ret(arg_error(L, tbl, "table"), true);
+						}
 					}
 					tbl.as_tbl()->set(L, ref_reg(a), ref_reg(b));
 					continue;
@@ -374,7 +380,6 @@ namespace lightning::core {
 		}
 	}
 };
-
 
 namespace lightning::parser {
 
@@ -413,7 +418,7 @@ namespace lightning::parser {
 		bc::pos emitx(bc::opcode o, bc::reg a, uint64_t xmm) {
 			auto& i = fn.pc.emplace_back(bc::insn{o, a});
 			i.xmm() = xmm;
-			i.print(uint32_t(fn.pc.size() - 1)); // debug
+			i.print(uint32_t(fn.pc.size() - 1));  // debug
 			return bc::pos(fn.pc.size() - 1);
 		}
 
@@ -448,7 +453,7 @@ namespace lightning::parser {
 
 		// Inserts a new local variable.
 		//
-		bc::reg add_local(core::string* name, bool is_const){
+		bc::reg add_local(core::string* name, bool is_const) {
 			auto r = alloc_reg();
 			locals.push_back({name, is_const, r});
 			return r;
@@ -462,12 +467,12 @@ namespace lightning::parser {
 					return (bc::reg) i;
 			}
 			fn.kvalues.emplace_back(c);
-			return (bc::reg) fn.kvalues.size();
+			return (bc::reg) fn.kvalues.size()-1;
 		}
 
 		// Loads the constant given in the register in the most efficient way.
 		//
-		void set_reg( bc::reg r, core::any v ) {
+		void set_reg(bc::reg r, core::any v) {
 			switch (v.type()) {
 				case core::type_none:
 				case core::type_false:
@@ -486,7 +491,7 @@ namespace lightning::parser {
 		// Allocates a register.
 		//
 		bc::reg alloc_reg() {
-			bc::reg r = reg_next++;
+			bc::reg r     = reg_next++;
 			fn.max_reg_id = std::max(fn.max_reg_id, r);
 			return r;
 		}
@@ -498,18 +503,76 @@ namespace lightning::parser {
 			reg_map  = prev ? prev->alloc_reg() : 0;
 			reg_next = reg_map + 1;
 		}
-		func_scope(const func_scope&) = delete;
+		func_scope(const func_scope&)            = delete;
 		func_scope& operator=(const func_scope&) = delete;
 		~func_scope() { fn.scope = prev; }
 	};
 
+	// Token to operator conversion.
+	//
+	struct operator_details {
+		bc::opcode opcode;
+		uint8_t    prio_left;
+		uint8_t    prio_right;
+	};
+	static std::optional<operator_details> to_unop(lex::state& l) {
+		switch (l.tok.id) {
+			case lex::token_lnot:
+				return operator_details{bc::LNOT, 3, 2};
+			case lex::token_sub:
+				return operator_details{bc::ANEG, 3, 2};
+			case lex::token_add:
+				l.next();  // Consume, no-op.
+				return std::nullopt;
+			default:
+				return std::nullopt;
+		}
+	}
+	static std::optional<operator_details> to_binop(lex::state& l) {
+		switch (l.tok.id) {
+			case lex::token_add:
+				return operator_details{bc::AADD, 6, 6};
+			case lex::token_sub:
+				return operator_details{bc::ASUB, 6, 6};
+			case lex::token_mul:
+				return operator_details{bc::AMUL, 5, 5};
+			case lex::token_div:
+				return operator_details{bc::ADIV, 5, 5};
+			case lex::token_mod:
+				return operator_details{bc::AMOD, 5, 5};
+			case lex::token_pow:
+				return operator_details{bc::APOW, 5, 5};
+			case lex::token_land:
+				return operator_details{bc::LAND, 14, 14};
+			case lex::token_lor:
+				return operator_details{bc::LOR, 15, 15};
+			case lex::token_cat:
+				return operator_details{bc::SCAT, 5, 5};
+			case lex::token_eq:
+				return operator_details{bc::CEQ, 10, 10};
+			case lex::token_ne:
+				return operator_details{bc::CNE, 10, 10};
+			case lex::token_lt:
+				return operator_details{bc::CLT, 9, 9};
+			case lex::token_gt:
+				return operator_details{bc::CGT, 9, 9};
+			case lex::token_le:
+				return operator_details{bc::CLE, 9, 9};
+			case lex::token_ge:
+				return operator_details{bc::CGE, 9, 9};
+			default:
+				return std::nullopt;
+		}
+	}
 
+	// Expression type.
+	//
 	enum class expr : uint8_t {
-		error,  // <deferred error, written into lexer state>
-		lvalue, // local
-		kvalue, // constant
-		gvalue, // global
-		tvalue, // index into local with another local
+		error,   // <deferred error, written into lexer state>
+		lvalue,  // local
+		kvalue,  // constant
+		gvalue,  // global
+		tvalue,  // index into local with another local
 	};
 	struct expression {
 		expr kind = expr::error;
@@ -522,16 +585,222 @@ namespace lightning::parser {
 			core::any     k;
 			core::string* g;
 		};
+
+		expression() {}
+		expression(bc::reg l) : kind(expr::lvalue), l(l) {}
+		expression(core::any k) : kind(expr::kvalue), k(k) {}
+		expression(core::string* g) : kind(expr::gvalue), g(g) {}
+		expression(bc::reg tbl, bc::reg idx) : kind(expr::tvalue), t{tbl, idx} {}
+
+		expression(const expression& o) { memcpy(this, &o, sizeof(expression)); }
+		expression& operator=(const expression& o) {
+			memcpy(this, &o, sizeof(expression));
+			return *this;
+		}
 	};
 
-	// TODO: Export keyword
+	static void expr_toreg(func_scope& scope, const expression& exp, bc::reg reg) {
+		LI_ASSERT(exp.kind != expr::error);
 
-	static expression parse_expression(func_scope& scope) {
+		switch (exp.kind) {
+			case expr::lvalue:
+				scope.emit(bc::MOV, reg, exp.l);
+				return;
+			case expr::kvalue:
+				scope.set_reg(reg, exp.k);
+				return;
+			case expr::gvalue:
+				scope.set_reg(reg, core::any(exp.g));
+				scope.emit(bc::GGET, reg, reg);
+				return;
+			case expr::tvalue:
+				scope.emit(bc::TGET, reg, exp.t.idx, exp.t.tbl);
+				break;
+		}
+	}
+	static bc::reg expr_tonextreg(func_scope& scope, const expression& exp) {
+		auto r = scope.alloc_reg();
+		expr_toreg(scope, exp, r);
+		return r;
+	}
+	static bc::reg expr_load(func_scope& scope, const expression& exp) {
+		if (exp.kind == expr::lvalue) {
+			return exp.l;
+		} else {
+			return expr_tonextreg(scope, exp);
+		}
+	}
+	static void expr_store(func_scope& scope, const expression& exp, const expression& value) {
+		LI_ASSERT(exp.kind != expr::error);
 
-
-		return {};
+		switch (exp.kind) {
+			case expr::lvalue:
+				scope.emit(bc::MOV, exp.l, expr_load(scope, value));
+				return;
+			case expr::gvalue: {
+				auto val = expr_load(scope, value);
+				auto idx = scope.alloc_reg();
+				scope.set_reg(idx, core::any(exp.g));
+				scope.emit(bc::GSET, idx, val);
+				scope.reg_next--; // immediate free.
+				return;
+			}
+			case expr::tvalue:
+				scope.emit(bc::TSET, exp.t.idx, expr_load(scope, value), exp.t.tbl);
+				break;
+			default:
+				util::abort("invalid lvalue type");
+		}
 	}
 
+
+	// TODO: Export keyword
+	static expression parse_expression(func_scope& scope);
+
+	static expression expr_primary(func_scope& scope) {
+
+		expression base = {};
+		if (auto& tk = scope.lex().tok; tk.id == lex::token_name) {
+			auto var = core::string::create(scope.fn.L, scope.lex().next().str_val);
+			if (auto local = scope.lookup_local(var)) {
+				base = *local;
+			} else {
+				base = var;
+			}
+		} else {
+			printf("Unexpected lexer token for expr_primary:");
+			scope.lex().tok.print();
+			breakpoint();
+			return {};
+		}
+
+		// Parse suffixes.
+		//
+		while (true) {
+			switch (scope.lex().tok.id) {
+				// TODO: Call is okay too, if indexed afterwards.
+				//
+				case '[': {
+					scope.lex().next();
+					expression field = parse_expression(scope);
+					scope.lex().check(']');
+					base = {expr_load(scope, base), expr_load(scope, field)};
+					break;
+				}
+				case '.': {
+					scope.lex().next();
+					expression field{core::any(core::string::create(scope.fn.L, scope.lex().check(lex::token_name).str_val))};
+					base = {expr_load(scope, base), expr_load(scope, field)};
+					break;
+				}
+				default: {
+					return base;
+				}
+			}
+		}
+		return base;
+	}
+	static expression expr_simple(func_scope& scope) {
+		switch (scope.lex().tok.id) {
+			// Literals.
+			//
+			case lex::token_lnum: {
+				auto tk = scope.lex().next();
+				return expression(core::any{tk.num_val});
+			}
+			case lex::token_lstr: {
+				auto tk  = scope.lex().next();
+				auto str = core::string::create(scope.fn.L, lex::escape(tk.str_val));
+				return expression(core::any{str});
+			}
+			case lex::token_true: {
+				return expression(core::const_true);
+			}
+			case lex::token_false: {
+				return expression(core::const_false);
+			}
+			default: {
+				return expr_primary(scope);
+			}
+		}
+	}
+
+	static std::optional<operator_details> expr_binop(func_scope& scope, expression& out, uint8_t prio);
+
+	/*
+		error,  // <deferred error, written into lexer state>
+		lvalue, // local
+		kvalue, // constant
+		gvalue, // global
+		tvalue, // index into local with another local
+	*/
+
+
+	static expression emit_unop(func_scope& scope, bc::opcode op, const expression& rhs) {
+		// Basic constant folding.
+		if (rhs.kind == expr::kvalue) {
+			auto [v, ok] = core::apply_uop(scope.fn.L, rhs.k, op);
+			if (ok) {
+				return expression(v);
+			}
+		}
+
+		// Load into a register, emit in-place unary, return the reg.
+		//
+		auto r = expr_tonextreg(scope, rhs);
+		scope.emit(op, r, r);
+		return expression(r);
+	}
+	static expression emit_binop(func_scope& scope, const expression& lhs, bc::opcode op, const expression& rhs) {
+		// Basic constant folding.
+		if (lhs.kind == expr::kvalue && rhs.kind == expr::kvalue) {
+			auto [v, ok] = core::apply_bop(scope.fn.L, lhs.k, rhs.k, op);
+			if (ok) {
+				return expression(v);
+			}
+		}
+
+		// Load both into registers, write over LHS and return the reg.
+		//
+		auto rl = expr_tonextreg(scope, lhs);
+		auto rr = expr_load(scope, rhs);
+		scope.emit(op, rl, rl, rr);
+		return expression(rl);
+	}
+
+	static expression expr_unop(func_scope& scope) {
+		if (auto op = to_unop(scope.lex())) {
+			scope.lex().next();
+
+			expression exp = {};
+			expr_binop(scope, exp, op->prio_right);
+			return emit_unop(scope, op->opcode, exp);
+		} else {
+			return expr_simple(scope);
+		}
+	}
+
+	static std::optional<operator_details> expr_binop(func_scope& scope, expression& out, uint8_t prio) {
+		auto& lhs = out;
+
+		lhs     = expr_unop(scope);
+		auto op = to_binop(scope.lex());
+		while (op && op->prio_left <= prio) {
+			scope.lex().next();
+
+			expression rhs    = {};
+			auto       nextop = expr_binop(scope, rhs, op->prio_right);
+			lhs               = emit_binop(scope, lhs, op->opcode, rhs);
+			op                = nextop;
+		}
+		return op;
+	}
+
+	static expression parse_expression(func_scope& scope) {
+		expression r = {};
+		expr_binop(scope, r, UINT8_MAX);
+		return r;
+	}
 
 	static bool parse_local(func_scope& scope, bool is_const) {
 		// Get the variable name and intern the string.
@@ -547,12 +816,16 @@ namespace lightning::parser {
 		// If immediately assigned:
 		//
 		if (scope.lex().opt('=')) {
+			// Parse the expression.
+			//
 			expression ex = parse_expression(scope);
 			if (ex.kind == expr::error) {
 				return false;
 			}
 
-			// ex -> discharge to register [reg]
+			// Write the local.
+			//
+			expr_toreg(scope, ex, reg);
 		}
 		// Otherwise:
 		//
@@ -571,8 +844,31 @@ namespace lightning::parser {
 		return true;
 	}
 
+	static bool parse_assign_or_expr(func_scope& scope) {
+
+		auto lv = expr_primary(scope);
+		if (lv.kind == expr::error) {
+			printf("failed parsing expr lvalue for assignment.\n");
+			breakpoint();
+		}
+
+		if (!scope.lex().opt('=')) {
+			printf("Unexpected lexer token for parse_assign_or_expr:");
+			scope.lex().tok.print();
+			breakpoint();
+		}
+
+		expr_store(scope, lv, parse_expression(scope));
+		return true;
+	}
+
 	static bool parse_statement(func_scope& scope) {
 		switch (scope.lex().tok.id) {
+			case ';': {
+				return true;
+			}
+			// TODO label, goto
+			// TODO break, continue,
 			case lex::token_fn: {
 				util::abort("fn token NYI.");
 			}
@@ -580,6 +876,10 @@ namespace lightning::parser {
 			case lex::token_const: {
 				return parse_local(scope, scope.lex().next().id == lex::token_const);
 			}
+			case lex::token_name: {
+				return parse_assign_or_expr(scope);
+			}
+
 			default: {
 				printf("Unexpected lexer token for statement:");
 				scope.lex().tok.print();
@@ -588,16 +888,10 @@ namespace lightning::parser {
 		}
 
 		// real statements:
-		//  fn
-		//  x =
-		//  x +=
-		//  let x =
-		//  const x =
 		// => fallback to expression with discarded result.
-
 	}
 
-	static bool parse_body( func_scope scope ) {
+	static bool parse_body(func_scope scope) {
 		while (scope.lex().tok != lex::token_eof) {
 			// Parse a statement.
 			if (!parse_statement(scope)) {
@@ -610,26 +904,19 @@ namespace lightning::parser {
 	}
 
 	static core::function* parse(core::vm* L, std::string_view source) {
-
-
 		func_state fn{.L = L, .lex = source};
 		if (!parse_body(fn)) {
 			util::abort("Lexer error: %s", fn.lex.last_error.c_str());
 		}
 
-		// Setup the function state.
-		//
-		//func_state
+		if (fn.pc.empty() || fn.pc.back().o != bc::RETN) {
+			fn.pc.push_back({bc::KIMM, 0, -1, -1});
+			fn.pc.push_back({bc::RETN, 0});
+		}
 
-		// Setup the lexer.
-		//
-		//lightning::lex::state lexer{source};
-
-		// Create the function.
-		//
-
-
-		return nullptr;
+		core::function* f = core::function::create(L, fn.pc, fn.kvalues, 0);
+		f->num_locals     = fn.max_reg_id + 1;
+		return f;
 	}
 };
 
@@ -645,6 +932,7 @@ int main() {
 	auto* L = core::vm::create();
 	printf("VM allocated @ %p\n", L);
 
+	#if 0
 	std::vector<core::any> constants = {};
 	std::vector<bc::insn>  ins;
 
@@ -661,7 +949,7 @@ int main() {
 	f->num_locals     = 1;
 
 	L->push_stack(core::number(1));
-//	L->push_stack(core::string::format(L, "lol: %d", 4));
+	//	L->push_stack(core::string::format(L, "lol: %d", 4));
 	L->push_stack(core::number(2));
 	L->push_stack(f);
 
@@ -674,14 +962,31 @@ int main() {
 		debug::print_object(L->pop_stack());
 		puts("");
 	}
+	#endif
 
 	{
 		std::ifstream file("..\\parser-test.li");
 		std::string   file_buf{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
 		debug::dump_tokens(file_buf);
-	
+
 		puts("---------------------------------------\n");
-		lightning::parser::parse(L, file_buf);
+		auto fn = lightning::parser::parse(L, file_buf);
+		if (fn) {
+			L->push_stack(fn);
+
+			if (bool is_ex = core::vm_enter(L, 0)) {
+				printf("Execution finished with exception: ");
+				debug::print_object(L->pop_stack());
+				puts("");
+			} else {
+				printf("Execution finished with result: ");
+				debug::print_object(L->pop_stack());
+				puts("");
+			}
+
+			debug::dump_table(L->globals);
+		}
+
 	}
 
 #if 0

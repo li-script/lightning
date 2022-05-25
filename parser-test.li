@@ -3,6 +3,7 @@
 # - self/this
 # - switch/match
 # - varargs
+# - type test via "is"
 # - export/import
 # - table unpack ...
 # - tail call

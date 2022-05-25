@@ -39,13 +39,17 @@ namespace lightning::bc {
 	_(UGET, reg, uvl, ___) /* A=UVAL[B] */                                              \
 	_(USET, uvl, reg, ___) /* UVAL[A]=B */                                              \
                                                                                        \
-	/* Table operators. */                                                              \
+	/* Global operators. */                                                             \
+	_(GGET, reg, reg, ___) /* A=G[B] */                                                 \
+	_(GSET, reg, reg, ___) /* G[A]=B */                                                 \
+                                                                                       \
+	/* Table/Array operators. */                                                        \
+	_(ANEW, reg, imm, ___) /* A=ARRAY{Reserved=B} */                                    \
 	_(TNEW, reg, imm, ___) /* A=TABLE{Reserved=B} */                                    \
+	_(ADUP, reg, kvl, ___) /* A=Duplicate(KVAL[B]) */                                   \
 	_(TDUP, reg, kvl, ___) /* A=Duplicate(KVAL[B]) */                                   \
 	_(TGET, reg, reg, reg) /* A=C[B] */                                                 \
 	_(TSET, reg, reg, reg) /* C[A]=B */                                                 \
-	_(GGET, reg, reg, ___) /* A=G[B] */                                                 \
-	_(GSET, reg, reg, ___) /* G[A]=B */                                                 \
                                                                                        \
 	/* Closure operators. */                                                            \
 	_(FDUP, reg, kvl, reg) /* A=Duplicate(KVAL[B]), A.UVAL[0]=C, A.UVAL[1]=C+1... */    \

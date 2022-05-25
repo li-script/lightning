@@ -2,6 +2,7 @@
 #include <lang/operator.hpp>
 #include <vm/bc.hpp>
 #include <vm/function.hpp>
+#include <vm/array.hpp>
 #include <vm/string.hpp>
 #include <vm/table.hpp>
 
@@ -148,6 +149,29 @@ namespace lightning::core {
 							ip += a;
 							continue;
 
+						// Array:
+						//
+						case type_array: {
+							array* t = target.as_arr();
+							auto*  e = t->begin();
+							for (; it < t->length; it++) {
+								// Write the pair.
+								//
+								k = any(number(it));
+								v = any(e[it]);
+
+								// Update the iterator.
+								//
+								iter = iopaque{.bits = it + 1};
+
+								// Break.
+								//
+								ok = true;
+								break;
+							}
+							break;
+						}
+
 						// String:
 						//
 						case type_string: {
@@ -244,26 +268,44 @@ namespace lightning::core {
 				}
 				case bc::TGET: {
 					auto tbl = ref_reg(c);
-					if (!tbl.is(type_table)) [[unlikely]] {
-						if (tbl.is(type_none)) {
-							ref_reg(a) = none;
-							continue;
+					auto key = ref_reg(b);
+
+					if (tbl.is(type_table)) {
+						ref_reg(a) = tbl.as_tbl()->get(this, ref_reg(b));
+					} else if (tbl.is(type_array)) {
+						if (!key.is(type_number)) [[unlikely]] {
+							return ret(string::create(this, "indexing array with non-integer key"), true);
 						}
+						ref_reg(a) = tbl.as_arr()->get(this, size_t(key.as_num()));
+					} else if (tbl.is(type_none)) {
+						ref_reg(a) = none;
+					} else {
 						return ret(string::create(this, "indexing non-table"), true);
-					}
-					ref_reg(a) = tbl.as_tbl()->get(this, ref_reg(b));
+					} 
 					continue;
 				}
 				case bc::TSET: {
 					auto& tbl = ref_reg(c);
-					if (!tbl.is(type_table)) [[unlikely]] {
+					auto  key = ref_reg(a);
+					auto  val = ref_reg(b);
+
+					if (tbl.is(type_array)) {
+						if (!key.is(type_number)) [[unlikely]] {
+							return ret(string::create(this, "indexing array with non-integer key"), true);
+						}
+						if (!tbl.as_arr()->set(this, size_t(key.as_num()), val)) {
+							return ret(string::create(this, "out-of-boundaries array access"), true);
+						}
+						continue;
+					} 
+					else if (!tbl.is(type_table)) [[unlikely]] {
 						if (tbl.is(type_none)) {
 							tbl = any{table::create(this)};
 						} else {
 							return ret(string::create(this, "indexing non-table"), true);
 						}
 					}
-					tbl.as_tbl()->set(this, ref_reg(a), ref_reg(b));
+					tbl.as_tbl()->set(this, key, val);
 					continue;
 				}
 				case bc::GGET: {
@@ -272,6 +314,16 @@ namespace lightning::core {
 				}
 				case bc::GSET: {
 					f->environment->set(this, ref_reg(a), ref_reg(b));
+					continue;
+				}
+				case bc::ANEW: {
+					ref_reg(a) = any{array::create(this, b)};
+					continue;
+				}
+				case bc::ADUP: {
+					auto arr = ref_kval(b);
+					LI_ASSERT(arr.is(type_array));
+					ref_reg(a) = arr.as_arr()->duplicate(this);
 					continue;
 				}
 				case bc::TNEW: {

@@ -1,13 +1,14 @@
 #include <lang/operator.hpp>
-#include <vm/string.hpp>
+#include <vm/array.hpp>
 #include <vm/state.hpp>
+#include <vm/string.hpp>
 
 namespace lightning::core {
 
 	LI_COLD static any arg_error(vm* L, any a, const char* expected) { return string::format(L, "expected '%s', got '%s'", expected, type_names[a.type()]); }
-	#define TYPE_ASSERT(v, t)				     \
-		if (!v.is(t)) [[unlikely]]				  \
-			return {arg_error(L, v, type_names[t]), false};	 
+#define TYPE_ASSERT(v, t)     \
+	if (!v.is(t)) [[unlikely]] \
+		return {arg_error(L, v, type_names[t]), false};
 
 	// TODO: Coerce + Meta
 
@@ -36,7 +37,10 @@ namespace lightning::core {
 	std::pair<any, bool> apply_binary(vm* L, any a, any b, bc::opcode op) {
 		switch (op) {
 			case bc::AADD:
-				if (a.is(type_string)) {
+				if (a.is(type_array)) {
+					a.as_arr()->push(L, b);
+					return {any(a), true};
+				} else if (a.is(type_string)) {
 					TYPE_ASSERT(b, type_string);
 					return {any(string::concat(L, a.as_str(), b.as_str())), true};
 				} else {

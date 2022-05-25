@@ -14,9 +14,6 @@ namespace lightning::core {
 	struct table_nodes : gc_leaf<table_nodes> {
 		table_entry entries[];
 	};
-
-	// Implemented inline as its templated.
-	//
 	struct table : gc_node<table> {
 		static table* create(vm* L, size_t reserved_entry_count = 0);
 
@@ -27,8 +24,8 @@ namespace lightning::core {
 
 		table_entry*           begin() { return node_list ? &node_list->entries[0] : &small_table[0]; }
 		table_entry*           end() { return begin() + size() + overflow_factor; }
-		size_t                 size() { return node_list ? (node_list->object_bytes() / sizeof(table_entry)) - overflow_factor : small_table_length; }
-		size_t                 mask() { return size() - 1; }
+		size_t                 size() const { return node_list ? (node_list->object_bytes() / sizeof(table_entry)) - overflow_factor : small_table_length; }
+		size_t                 mask() const { return size() - 1; }
 		std::span<table_entry> find(size_t hash) {
 			auto it = begin() + (hash & mask());
 			return {it, it + overflow_factor};

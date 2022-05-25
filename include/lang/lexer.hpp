@@ -38,7 +38,7 @@ namespace lightning::lex {
 		/* Keywords */																			    \
 		_(true) _(false)  _(let) _(const) _(if) _(else) _(switch) _(while)       \
 		_(for) _(loop) _(case) _(default) _(break) _(continue) _(try)			    \
-		_(catch) _(throw) _(return) _(fn) _(in) _(is) _(bool) _(number) _(table) \
+		_(catch) _(throw) _(return) _(in) _(is) _(bool) _(number) _(table)       \
 		_(array) _(userdata) _(function) _(thread)
 
 	// Token identifiers.
@@ -187,9 +187,10 @@ namespace lightning::lex {
 		//
 		std::string_view input = {};
 
-		// Current line index.
+		// Current line index and source name.
 		//
-		size_t line = 1;
+		std::string_view source_name = {};
+		size_t           line        = 1;
 
 		// Current and lookahead token.
 		//
@@ -202,7 +203,7 @@ namespace lightning::lex {
 
 		// Initialized with a string view and a pointer to the VM for string interning.
 		//
-		state(core::vm* L, std::string_view input) : L(L), input(input), tok(scan()) {}
+		state(core::vm* L, std::string_view input, std::string_view name = {}) : L(L), input(input), source_name(name), tok(scan()) {}
 		state(std::string&&) = delete;
 
 		// Default copy.

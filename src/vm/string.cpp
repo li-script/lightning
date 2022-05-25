@@ -23,6 +23,7 @@ namespace lightning::core {
 		return crc;
 	}
 
+	// TODO: Weak node?
 	struct string_set : gc_node<string_set> {
 		static constexpr size_t overflow_factor = 8;
 

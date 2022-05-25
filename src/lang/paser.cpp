@@ -50,7 +50,7 @@ namespace lightning::core {
 		//	func_scope*          enclosing  = nullptr;// Enclosing function's scope.
 		//	std::vector<string*> uvalues    = {};     // Upvalues mapped by name.
 		vm*                   L;                     // VM state.
-		lex::state            lex;                   // Lexer state.
+		lex::state&           lex;                   // Lexer state.
 		func_scope*           scope      = nullptr;  // Current scope.
 		std::vector<any>      kvalues    = {};       // Constant pool.
 		bc::reg               max_reg_id = 1;        // Maximum register ID used.
@@ -58,7 +58,7 @@ namespace lightning::core {
 		bool                  is_vararg  = false;    //
 		std::vector<bc::insn> pc         = {};
 
-		func_state(core::vm* L, std::string_view source) : L(L), lex(L, source) {}
+		func_state(core::vm* L, lex::state& lex) : L(L), lex(lex) {}
 	};
 
 	// Local scope state.
@@ -171,6 +171,27 @@ namespace lightning::core {
 		func_scope& operator=(const func_scope&) = delete;
 		~func_scope() { fn.scope = prev; }
 	};
+
+	// Writes a function state as a function.
+	//
+	static function* write_func(func_state& fn, std::optional<bc::reg> implicit_ret = std::nullopt) {
+		// If routine does not end with a return, add the implicit return.
+		//
+		if (fn.pc.empty() || fn.pc.back().o != bc::RETN) {
+			if (!implicit_ret) {
+				fn.pc.push_back({bc::KIMM, 0, -1, -1});
+				*implicit_ret = 0;
+			}
+			fn.pc.push_back({bc::RETN, *implicit_ret});
+		}
+
+		// Create the function value.
+		//
+		function* f   = function::create(fn.L, fn.pc, fn.kvalues, 0);
+		f->num_locals = fn.max_reg_id + 1;
+		f->src_chunk  = string::create(fn.L, fn.lex.source_name);
+		return f;
+	}
 
 	// Reg-sweep helper, restores register counter on destruction.
 	//
@@ -410,12 +431,21 @@ namespace lightning::core {
 			scope.lex().next();
 			expression exp = {};
 			expr_op(scope, exp, op->prio_right);
+			if (exp.kind == expr::err) {
+				out = {};
+				return nullptr;
+			}
+
 			lhs = emit_unop(scope, op->opcode, exp);
 		}
 		// Otherwise, parse a simple expression.
 		//
 		else {
 			lhs = expr_simple(scope);
+			if (lhs.kind == expr::err) {
+				out = {};
+				return nullptr;
+			}
 		}
 
 		// Loop until we exhaust the nested binary operators.
@@ -426,6 +456,11 @@ namespace lightning::core {
 
 			expression rhs    = {};
 			auto       nextop = expr_op(scope, rhs, op->prio_right);
+			if (rhs.kind == expr::err) {
+				out = {};
+				return nullptr;
+			}
+
 			lhs               = emit_binop(scope, lhs, op->opcode, rhs);
 			op                = nextop;
 		}
@@ -439,6 +474,10 @@ namespace lightning::core {
 		expr_op(scope, r, UINT8_MAX);
 		return r;
 	}
+
+	// Parses closure declaration, returns the function value.
+	//
+	static expression parse_closure(func_scope& scope);
 
 	// Parses a "statement" expression, which considers both statements and expressions valid.
 	// Returns the expression representing the value of the statement.
@@ -569,6 +608,9 @@ namespace lightning::core {
 				scope.lex().next();
 				return expression(const_false);
 			}
+			case '|': {
+				return parse_closure(scope);
+			}
 			default: {
 				return expr_primary(scope);
 			}
@@ -624,16 +666,17 @@ namespace lightning::core {
 	static expression parse_assign_or_expr(func_scope& scope) {
 		auto expr = expr_parse(scope);
 		if (expr.is_lvalue()) {
-			// Throw if const.
-			//
-			if (expr.kind == expr::reg && expr.freeze) {
-				scope.lex().error("assigning to constant variable");
-				return {};
-			}
 
 			// If simple assignment.
 			//
 			if (scope.lex().opt('=')) {
+				// Throw if const.
+				//
+				if (expr.kind == expr::reg && expr.freeze) {
+					scope.lex().error("assigning to constant variable");
+					return {};
+				}
+
 				// Parse RHS, propagate errors.
 				//
 				expression value = expr_parse(scope);
@@ -648,6 +691,13 @@ namespace lightning::core {
 				//
 				for (auto& binop : binary_operators) {
 					if (binop.compound_token && scope.lex().opt(*binop.compound_token)) {
+						// Throw if const.
+						//
+						if (expr.kind == expr::reg && expr.freeze) {
+							scope.lex().error("assigning to constant variable");
+							return {};
+						}
+
 						// Parse RHS, propagate errors.
 						//
 						expression value = expr_parse(scope);
@@ -664,9 +714,6 @@ namespace lightning::core {
 		}
 		return expr;
 	}
-
-	//
-	//
 
 	// Parses a "statement" expression, which considers both statements and expressions valid.
 	// Returns the expression representing the value of the statement.
@@ -719,7 +766,6 @@ namespace lightning::core {
 			// <<TODO>>
 			case lex::token_continue:
 			case lex::token_break:
-			case lex::token_fn:
 				util::abort("fn token NYI.");
 
 			// Anything else gets forward to expression parser.
@@ -782,23 +828,64 @@ namespace lightning::core {
 		return true;
 	}
 
+	// Parses closure declaration, returns the function value.
+	//
+	static expression parse_closure(func_scope& scope) {
+		// Skip the '|'
+		//
+		scope.lex().next();
+
+		// Create the new function.
+		//
+		func_state new_fn{scope.fn.L, scope.lex()};
+		{
+			// Collect arguments.
+			//
+			func_scope ns{new_fn};
+			if (!ns.lex().opt('|')) {
+				while (true) {
+					auto arg_name = ns.lex().check(lex::token_name);
+					if (arg_name == lex::token_error)
+						return {};
+					new_fn.args.emplace_back(arg_name.str_val);
+
+					if (ns.lex().opt('|'))
+						break;
+					else if (ns.lex().check(',') == lex::token_error)
+						return {};
+				}
+			}
+
+			// Parse the result expression.
+			//
+			expression e = expr_parse(ns);
+			if (e.kind == expr::err)
+				return e;
+			e.to_reg(ns, 0);
+		}
+
+		// Write the function with implicit return, insert it into constants.
+		//
+		function* result = write_func(new_fn, bc::reg(0));
+
+		// TODO:
+		//
+		/*if (new_fn->uvals) {
+			// bla
+		}*/
+		return expression(any(result));
+	}
+
 	// Parses the code and returns it as a function instance with no arguments on success.
 	// If code parsing fails, result is instead a string explaining the error.
 	//
 	any load_script(core::vm* L, std::string_view source, std::string_view source_name) {
-		func_state fn{L, source};
+		lex::state lx{L, source, source_name};
+		func_state fn{L, lx};
 		if (!parse_body(fn)) {
 			return string::create(L, fn.lex.last_error.c_str());
+		} else {
+			return write_func(fn);
 		}
-
-		if (fn.pc.empty() || fn.pc.back().o != bc::RETN) {
-			fn.pc.push_back({bc::KIMM, 0, -1, -1});
-			fn.pc.push_back({bc::RETN, 0});
-		}
-
-		function* f   = function::create(L, fn.pc, fn.kvalues, 0);
-		f->num_locals = fn.max_reg_id + 1;
-		f->src_chunk  = string::create(L, source_name);
-		return f;
 	}
 };

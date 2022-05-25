@@ -17,6 +17,8 @@ const meme = |n| {
 	z += n;
 	5
 }
+@printbc(meme)
+
 
 print("hello")
 

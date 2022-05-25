@@ -135,6 +135,24 @@ int main() {
 		return true;
 	}));
 
+	L->globals->set(L, core::string::create(L, "@printbc"), wrap_nfn(L, [](core::vm* L, const core::any* args, uint32_t n) {
+		if (n != 1 || !args->is(core::type_function)) {
+			L->push_stack(core::string::create(L, "@printbc expects a single vfunction"));
+			return false;
+		}
+
+		auto f = args->as_vfn();
+		puts(
+			 "Dumping bytecode of the function:\n"
+			 "-----------------------------------------------------");
+		for (size_t i = 0; i != f->length; i++) {
+			f->opcode_array[i].print(i);
+		}
+		puts("-----------------------------------------------------");
+
+		return true;
+	}));
+
 
 	#if 0
 	std::vector<core::any> constants = {};

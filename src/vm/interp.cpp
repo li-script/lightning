@@ -198,7 +198,7 @@ namespace lightning::core {
 				case bc::CALL:
 					LI_ASSERT(a >= 0 && (a+b+1) <= f->num_locals);
 					if (!call(locals_begin + a, b))
-						return ret(stack[a], true);
+						return ret(stack[locals_begin + a], true);
 					continue;
 				case bc::INVK:
 					LI_ASSERT(a >= 0 && (a+b+1) <= f->num_locals);

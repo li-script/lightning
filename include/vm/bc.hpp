@@ -75,6 +75,12 @@ namespace lightning::bc {
 	using rel = int32_t;
 	using pos = uint32_t;
 	static constexpr pos no_pos = UINT32_MAX;
+
+	// Magic upvalues.
+	//
+	static constexpr reg uval_fun = -1;
+	static constexpr reg uval_env = -2;
+	static constexpr reg uval_glb = -3;
 	
 	// Write all descriptors.
 	//
@@ -137,8 +143,19 @@ namespace lightning::bc {
 						rel_pr = (rel) value;
 						break;
 					case op_t::uvl:
-						col = LI_CYN;
-						sprintf_s(op, "u%u", (uint32_t) value);
+						if (value == bc::uval_fun) {
+							col = LI_GRN;
+							strcpy_s(op, "$F");
+						} else if (value == bc::uval_env) {
+							col = LI_GRN;
+							strcpy_s(op, "$E");
+						} else if (value == bc::uval_glb) {
+							col = LI_GRN;
+							strcpy_s(op, "$G");
+						} else {
+							col = LI_CYN;
+							sprintf_s(op, "u%u", (uint32_t) value);
+						}
 						break;
 					case op_t::kvl:
 						col    = LI_BLU; 

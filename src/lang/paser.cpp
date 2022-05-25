@@ -319,7 +319,7 @@ namespace lightning::core {
 					scope.set_reg(r, imm);
 					return;
 				case expr::uvl:
-					scope.emit(bc::UGET, reg, r);
+					scope.emit(bc::UGET, r, reg);
 					return;
 				case expr::glb:
 					scope.set_reg(r, any(glb));
@@ -420,10 +420,18 @@ namespace lightning::core {
 					print_reg(reg);
 					break;
 				case expr::uvl:
-					printf(LI_GRN "u%u" LI_DEF, (uint32_t) reg);
+					if (reg == bc::uval_fun) {
+						printf(LI_GRN "$F" LI_DEF);
+					} else if (reg == bc::uval_env) {
+						printf(LI_GRN "$E" LI_DEF);
+					} else if (reg == bc::uval_glb) {
+						printf(LI_GRN "$G" LI_DEF);
+					} else {
+						printf(LI_GRN "u%u" LI_DEF, (uint32_t) reg);
+					}
 					break;
 				case expr::glb:
-					printf(LI_PRP "_G[%s]" LI_DEF, glb->c_str());
+					printf(LI_PRP "$G[%s]" LI_DEF, glb->c_str());
 					break;
 				case expr::idx:
 					print_reg(idx.table);
@@ -573,6 +581,15 @@ namespace lightning::core {
 	// Creates a variable expression.
 	//
 	static expression expr_var(func_scope& scope, string* name) {
+		// Handle special names.
+		//
+		if (name->view() == "$F") {
+			return expression(upvalue_t{}, std::pair<bc::reg, bool>{-1, true});
+		} else if (name->view() == "$E") {
+			return expression(upvalue_t{}, std::pair<bc::reg, bool>{-2, true});
+		} else if (name->view() == "$G") {
+			return expression(upvalue_t{}, std::pair<bc::reg, bool>{-3, true});
+		}
 
 		// Try using existing local variable.
 		//
@@ -777,9 +794,6 @@ namespace lightning::core {
 		if (var == lex::token_error)
 			return false;
 
-		// Push a new local.
-		//
-		auto reg = scope.add_local(var.str_val, is_const);
 
 		// If immediately assigned:
 		//
@@ -791,8 +805,9 @@ namespace lightning::core {
 				return false;
 			}
 
-			// Write the local.
+			// Push a new local and write it.
 			//
+			auto reg = scope.add_local(var.str_val, is_const);
 			ex.to_reg(scope, reg);
 		}
 		// Otherwise:
@@ -805,8 +820,9 @@ namespace lightning::core {
 				return false;
 			}
 
-			// Load nil.
+			// Push a new local and load none.
 			//
+			auto reg = scope.add_local(var.str_val, is_const);
 			scope.set_reg(reg, none);
 		}
 		return true;

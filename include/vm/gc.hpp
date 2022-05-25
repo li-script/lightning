@@ -49,8 +49,10 @@ namespace lightning::core {
 		uint32_t reserved;
 
 		// Object size helper.
-		//
-		size_t object_bytes() const { return size_t(size_in_qwords - 1) * 8; }
+		// - Size ignoring the header.
+		size_t object_bytes() const { return total_bytes() - 8; }
+		// - Size with the header.
+		size_t total_bytes() const { return size_t(size_in_qwords) * 8; }
 
 		// Next helper.
 		//
@@ -67,6 +69,10 @@ namespace lightning::core {
 		// Default constructed, no copy.
 		//
 		constexpr gc_tag() : gc_header(Traversable) {}
+
+		// Returns the extra-space associated.
+		//
+		size_t extra_bytes() const { return total_bytes() - sizeof(T); }
 
 		// No copy.
 		//

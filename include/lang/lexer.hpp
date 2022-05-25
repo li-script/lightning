@@ -28,10 +28,8 @@ namespace lightning::lex {
 		/* Ternary operator */																    \
 		___(tif, '?') ___(telse, ':')														    \
 		/* Compound operators */															    \
-		__(cadd, +=) __(csub, -=)						                               \
-		__(cmul, *=) __(cdiv, /=) __(cmod, %=) __(cband, &=)						    \
-		__(cbor, |=) __(cbxor, ^=) __(cbshr, >>=) __(cbshl, <<=)					    \
-		__(ccat, ..=)                                      					       \
+		__(cadd, +=) __(csub, -=) __(cmul, *=) __(cdiv, /=) __(cmod, %=)         \
+		__(cpow, ^=) __(ccat, ..=)                                      			 \
 		/* Language operators */															    \
 		__(dots, ...) __(cat, ..)                                                \
 		/* Literal tokens */																	    \
@@ -40,8 +38,8 @@ namespace lightning::lex {
 		/* Keywords */																			    \
 		_(true) _(false)  _(let) _(const) _(if) _(else) _(switch) _(while)       \
 		_(for) _(loop) _(case) _(default) _(break) _(continue) _(try)			    \
-		_(catch) _(return) _(fn) _(in) _(is) _(bool) _(number) _(table) _(array) \
-		_(userdata) _(function) _(thread)
+		_(catch) _(throw) _(return) _(fn) _(in) _(is) _(bool) _(number) _(table) \
+		_(array) _(userdata) _(function) _(thread)
 
 	// Token identifiers.
 	//
@@ -118,8 +116,8 @@ namespace lightning::lex {
 		// Value.
 		//
 		union {
-			core::string*    str_val;  // token_lstr, token_name
-			core::number     num_val;  // token_lnum
+			core::string* str_val;  // token_lstr, token_name
+			core::number  num_val;  // token_lnum
 		};
 
 		// Equality comparable with token id.

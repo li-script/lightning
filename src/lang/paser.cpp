@@ -173,6 +173,15 @@ namespace lightning::core {
 		~func_scope() { fn.scope = prev; }
 	};
 
+	// Reg-sweep helper, restores register counter on destruction.
+	//
+	struct reg_sweeper {
+		func_scope& s;
+		bc::reg     v;
+		reg_sweeper(func_scope& s) : s(s), v(s.reg_next) {}
+		~reg_sweeper() { s.reg_next = v; }
+	};
+
 	// Expression type.
 	//
 	enum class expr : uint8_t {
@@ -439,28 +448,71 @@ namespace lightning::core {
 	//
 	static expression expr_block(func_scope& scope);
 
+	// Creates a variable expression.
+	//
+	static expression expr_var(func_scope& scope, string* name) {
+		if (auto local = scope.lookup_local(name)) {
+			return *local; // local / arg
+		} else {
+			return name;   // global
+		}
+	}
+
+	// Parses a table literal.
+	//
+	static expression expr_table(func_scope& scope) {
+		// TODO: TDUP const part, dont care rn.
+
+		// Create a new table.
+		//
+		expression result = scope.alloc_reg();
+		scope.emit(bc::TNEW, result.reg);
+
+		// Until list is exhausted set variables.
+		//
+		while (true) {
+			reg_sweeper _r{scope};
+
+			auto field = scope.lex().check(lex::token_name);
+			expression value;
+			if (scope.lex().opt(':')) {
+				value = expr_parse(scope);
+			} else {
+				value = expr_var(scope, field.str_val);
+			}
+			value = value.to_anyreg(scope);
+
+			auto tmp = scope.alloc_reg();
+			scope.set_reg(tmp, any(field.str_val));
+			scope.emit(bc::TSET, tmp, value.reg, result.reg);
+
+			if (scope.lex().opt('}'))
+				break;
+			else
+				scope.lex().check(',');
+		}
+		return result;
+	}
+
 	// Parses a primary expression.
 	//
 	static expression expr_primary(func_scope& scope) {
 		expression base = {};
 		if (auto& tk = scope.lex().tok; tk.id == lex::token_name) {
-			auto var = scope.lex().next().str_val;
-			if (auto local = scope.lookup_local(var)) {
-				base = *local;
-			} else {
-				base = var;
-			}
+			base = expr_var(scope, scope.lex().next().str_val);
 		} else if (tk.id == '(') {
 			scope.lex().next();
 			base = expr_parse(scope);
 			scope.lex().check(')');
 		} else if (tk.id == '{') {
 			scope.lex().next();
-			base = expr_block(scope);
+			if (scope.lex().tok == lex::token_name && scope.lex().lookahead().id == ':') {
+				base = expr_table(scope);
+			} else {
+				base = expr_block(scope);
+			}
 		} else {
-			printf("Unexpected lexer token for expr_primary:");
-			scope.lex().tok.print();
-			breakpoint();
+			scope.lex().error("unexpected token %s", tk.to_string().c_str());
 			return {};
 		}
 
@@ -479,7 +531,7 @@ namespace lightning::core {
 				}
 				case '.': {
 					scope.lex().next();
-					expression field{scope.lex().check(lex::token_name).str_val};
+					expression field{any(scope.lex().check(lex::token_name).str_val)};
 					base = {base.to_anyreg(scope), field.to_anyreg(scope)};
 					break;
 				}
@@ -570,9 +622,17 @@ namespace lightning::core {
 
 	static expression parse_assign_or_expr(func_scope& scope) {
 		auto expr = expr_parse(scope);
-		if (expr.is_lvalue() && scope.lex().opt('=')) {
-			// TODO: Compounds.
-			expr.assign(scope, expr_parse(scope));
+		if (expr.is_lvalue()) {
+			if (scope.lex().opt('=')) {
+				expr.assign(scope, expr_parse(scope));
+			} else {
+				for (auto& binop : binary_operators) {
+					if (binop.compound_token && scope.lex().opt(*binop.compound_token)) {
+						expr.assign(scope, emit_binop(scope, expr, binop.opcode, expr_parse(scope)));
+						break;
+					}
+				}
+			}
 		}
 		return expr;
 	}
@@ -637,7 +697,6 @@ namespace lightning::core {
 				return expr_parse(scope);
 		}
 	}
-
 
 	// Parses a block expression made up of N statements, final one is the expression value
 	// unless closed with a semi-colon.

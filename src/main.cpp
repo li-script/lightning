@@ -152,9 +152,14 @@ int main() {
 				puts("");
 			} else {
 				printf("Execution finished with result: ");
-				debug::print_object(L->pop_stack());
+				auto r = L->pop_stack();
+				debug::print_object(r);
 				puts("");
+
+				if (r.is(core::type_table))
+					debug::dump_table(r.as_tbl());
 			}
+			puts("---------GLOBALS------------");
 
 			debug::dump_table(L->globals);
 		} else {

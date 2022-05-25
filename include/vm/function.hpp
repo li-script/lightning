@@ -34,6 +34,10 @@ namespace lightning::core {
 		std::span<any>      kvals() { return {num_uval + (any*) &opcode_array[length], num_kval}; }
 		std::span<any>      gcvals() { return {(any*) &opcode_array[length], num_uval + num_kval}; }
 
+		// Duplicates the function.
+		//
+		function* duplicate(vm* L);
+
 		// GC enumerator.
 		//
 		template<typename F>

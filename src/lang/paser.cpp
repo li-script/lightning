@@ -575,16 +575,9 @@ namespace lightning::core {
 		}
 	}
 
-
-
-
-
-
-
-
-
-
-	static bool parse_local(func_scope& scope, bool is_const) {
+	// Parses variable declaration.
+	//
+	static bool parse_decl(func_scope& scope, bool is_const) {
 		// Get the variable name and intern the string.
 		//
 		auto var = scope.lex().check(lex::token_name);
@@ -626,10 +619,11 @@ namespace lightning::core {
 		return true;
 	}
 
+	// Parses an optionally assign/compound expression.
+	//
 	static expression parse_assign_or_expr(func_scope& scope) {
 		auto expr = expr_parse(scope);
 		if (expr.is_lvalue()) {
-
 			// Throw if const.
 			//
 			if (expr.kind == expr::reg && expr.freeze) {
@@ -637,17 +631,31 @@ namespace lightning::core {
 				return {};
 			}
 
+			// If simple assignment.
+			//
 			if (scope.lex().opt('=')) {
+				// Parse RHS, propagate errors.
+				//
 				expression value = expr_parse(scope);
 				if (value.kind == expr::err)
 					return value;
+
+				// Assign the value.
+				//
 				expr.assign(scope, value);
 			} else {
+				// Try finding a compount token matching.
+				//
 				for (auto& binop : binary_operators) {
 					if (binop.compound_token && scope.lex().opt(*binop.compound_token)) {
+						// Parse RHS, propagate errors.
+						//
 						expression value = expr_parse(scope);
 						if (value.kind == expr::err)
 							return value;
+
+						// Emit the operator, assign the result.
+						//
 						expr.assign(scope, emit_binop(scope, expr, binop.opcode, value));
 						break;
 					}
@@ -656,6 +664,9 @@ namespace lightning::core {
 		}
 		return expr;
 	}
+
+	//
+	//
 
 	// Parses a "statement" expression, which considers both statements and expressions valid.
 	// Returns the expression representing the value of the statement.
@@ -675,7 +686,7 @@ namespace lightning::core {
 			case lex::token_const: {
 				// Forward errors.
 				//
-				if (!parse_local(scope, scope.lex().next().id == lex::token_const)) {
+				if (!parse_decl(scope, scope.lex().next().id == lex::token_const)) {
 					return expression();
 				}
 				return expression(none);

@@ -1,4 +1,22 @@
 
+
+
+# TODO:
+# - arrays
+# - userdata
+# - thread -> coro
+# - c functions
+# - varargs
+# - if/else/switch
+# - for/loop/while
+# - try/catch
+# - ternary
+# - closures, upvalues, func calls
+# - compound shit
+# - string escape, long strings
+# - does const assign even error?
+# - better lexer errors, debug info
+
 let z;
 const x = 2*4; # const folded
 
@@ -21,7 +39,7 @@ const zz = {
 	4
 }
 tbl.k = {
-	const a = zz;
+	let a = zz;
 	a+=1
 }
 return tbl

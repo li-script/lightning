@@ -1,5 +1,4 @@
 # TODO:
-# 0.. as count to inf
 # x = env{}
 # arrays/metatables
 # - switch/match
@@ -26,14 +25,20 @@
 #
 
 
+const a = env {
+	b = 4
+	const tmp = 4
+	c = b * b
+}
+print("a.c = ", a.c)
+
+
 for i in 0.. {
 	print(i)
 	if i == 5 {
 		break
 	}
 }
-
-const a = || 0
 
 #const make_counter = || {
 #	let i = 1;

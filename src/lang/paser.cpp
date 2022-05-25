@@ -153,7 +153,7 @@ namespace lightning::core {
 		bc::reg alloc_reg(uint32_t n = 1) {
 			bc::reg r = reg_next;
 			reg_next += n;
-			fn.max_reg_id = std::max(fn.max_reg_id, r);
+			fn.max_reg_id = std::max(fn.max_reg_id, bc::reg(r + n - 1));
 			return r;
 		}
 		void free_reg(bc::reg r, uint32_t n = 1) {
@@ -180,7 +180,7 @@ namespace lightning::core {
 		if (fn.pc.empty() || fn.pc.back().o != bc::RETN) {
 			if (!implicit_ret) {
 				fn.pc.push_back({bc::KIMM, 0, -1, -1});
-				*implicit_ret = 0;
+				implicit_ret = 0;
 			}
 			fn.pc.push_back({bc::RETN, *implicit_ret});
 		}
@@ -781,8 +781,9 @@ namespace lightning::core {
 
 			// Anything else gets forward to expression parser.
 			//
-			default:
+			default: {
 				return expr_parse(scope);
+			}
 		}
 	}
 

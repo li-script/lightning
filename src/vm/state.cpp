@@ -2,19 +2,6 @@
 #include <vm/table.hpp>
 
 namespace lightning::core {
-	// Closes the VM state.
-	//
-	void vm::close() {
-		auto* alloc = alloc_fn;
-		auto* head =  &gc_page_head;
-		auto  hcopy = *head;
-
-		free(stack);
-		for (auto it = gc_page_head.prev; it != &gc_page_head; it = it->prev) {
-			alloc(this, it, it->num_pages, false);
-		}
-	}
-
 	vm* vm::create(fn_alloc alloc, size_t context_space) {
 		// Allocate the first page.
 		//
@@ -35,5 +22,20 @@ namespace lightning::core {
 		L->stack_len  = 32;
 		memset(L->stack, 0xFF, sizeof(any) * 32);
 		return L;
+	}
+
+	// Closes the VM state.
+	//
+	void vm::close() {
+		auto* alloc = alloc_fn;
+		auto* head  = &gc_page_head;
+		auto  hcopy = *head;
+
+		free(stack);
+		for (auto it = gc_page_head.prev; it != head;) {
+			auto nit = it->prev;
+			alloc(this, it, it->num_pages, false);
+			it = nit;
+		}
 	}
 };

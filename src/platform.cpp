@@ -14,7 +14,7 @@ namespace lightning::platform {
 #ifdef _WIN64
 	void* page_alloc(core::vm*, void* pointer, size_t page_count, bool executable) {
 		if (pointer) {
-			VirtualFree(pointer, page_count << 12, MEM_RELEASE);
+			VirtualFree(pointer, 0, MEM_RELEASE);
 			return nullptr;
 		} else {
 			return VirtualAlloc(nullptr, page_count << 12, MEM_COMMIT | MEM_RESERVE, executable ? PAGE_EXECUTE_READWRITE : PAGE_READWRITE);

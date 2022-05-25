@@ -6,13 +6,7 @@
 #include <vm/string.hpp>
 #include <vm/table.hpp>
 
-// TODO: Upvalues.
-// TODO: Export keyword
-// TODO  label, goto
-// TODO  numeric for boost instruction 
-
 namespace lightning::core {
-
 	// Operator traits for parsing.
 	//
 	static const operator_traits* lookup_operator(lex::state& l, bool binary) {
@@ -43,6 +37,10 @@ namespace lightning::core {
 		bc::reg reg      = 0;        // Register mapping to it.
 	};
 
+	// Label magic flag.
+	//
+	static constexpr uint32_t label_flag = 0x40000000;
+
 	// Function parser state.
 	//
 	struct func_scope;
@@ -56,7 +54,12 @@ namespace lightning::core {
 		bc::reg               max_reg_id = 1;        // Maximum register ID used.
 		std::vector<string*>  args       = {};       // Arguments.
 		bool                  is_vararg  = false;    //
-		std::vector<bc::insn> pc         = {};
+		std::vector<bc::insn> pc         = {};       // Bytecode generated.
+
+		// Labels.
+		//
+		uint32_t                                 next_label = label_flag;  // Next label id.
+		std::vector<std::pair<bc::rel, bc::pos>> label_map  = {};          // Maps label id to position.
 
 		func_state(core::vm* L, lex::state& lex) : L(L), lex(lex) {}
 	};
@@ -64,10 +67,12 @@ namespace lightning::core {
 	// Local scope state.
 	//
 	struct func_scope {
-		func_state&              fn;             // Function that scope belongs to.
-		func_scope*              prev;           // Outer scope.
-		bc::reg                  reg_next = 0;   // Next free register.
-		std::vector<local_state> locals   = {};  // Locals declared in this scope.
+		func_state&              fn;                 // Function that scope belongs to.
+		func_scope*              prev;               // Outer scope.
+		bc::reg                  reg_next     = 0;   // Next free register.
+		std::vector<local_state> locals       = {};  // Locals declared in this scope.
+		bc::rel                  lbl_continue = 0;   // Labels.
+		bc::rel                  lbl_break    = 0;
 
 		// Emits an instruction and returns the position in stream.
 		//
@@ -81,11 +86,17 @@ namespace lightning::core {
 			return bc::pos(fn.pc.size() - 1);
 		}
 
+		// Reserves a label identifier.
+		//
+		bc::rel make_label() { return ++fn.next_label; }
+
+		// Sets a label.
+		//
+		void set_label_here(bc::rel l) { fn.label_map.emplace_back(l, bc::pos(fn.pc.size())); }
+
 		// Helper for fixing jump targets.
 		//
-		void jump_here(bc::pos br) {
-			fn.pc[br].a = (fn.pc.size()) - (br+1);
-		}
+		void jump_here(bc::pos br) { fn.pc[br].a = (fn.pc.size()) - (br + 1); }
 
 		// Gets the lexer.
 		//
@@ -169,7 +180,11 @@ namespace lightning::core {
 		//
 		func_scope(func_state& fn) : fn(fn), prev(fn.scope) {
 			fn.scope = this;
-			reg_next = prev ? prev->reg_next : 0;
+			if (prev) {
+				reg_next     = prev->reg_next;
+				lbl_break    = prev->lbl_break;
+				lbl_continue = prev->lbl_continue;
+			}
 		}
 		func_scope(const func_scope&)            = delete;
 		func_scope& operator=(const func_scope&) = delete;
@@ -179,6 +194,31 @@ namespace lightning::core {
 	// Writes a function state as a function.
 	//
 	static function* write_func(func_state& fn, std::optional<bc::reg> implicit_ret = std::nullopt) {
+		// Fixup all labels before writing it.
+		//
+		for (uint32_t ip = 0; ip != fn.pc.size(); ip ++) {
+			auto& insn = fn.pc[ip];
+
+			// Skip if flag is not set or it's not actually relative.
+			//
+			if (!(insn.a & label_flag))
+				continue;
+			if (bc::opcode_descs[(uint8_t) insn.o].a != bc::op_t::rel)
+				continue;
+
+			// Try to fix the label.
+			//
+			bool fixed = false;
+			for (auto& [k, v] : fn.label_map) {
+				if (insn.a == k) {
+					insn.a = v - (ip + 1);
+					fixed  = true;
+					break;
+				}
+			}
+			LI_ASSERT_MSG("unresolved label leftover", fixed);
+		}
+
 		// If routine does not end with a return, add the implicit return.
 		//
 		if (fn.pc.empty() || fn.pc.back().o != bc::RET) {
@@ -487,14 +527,19 @@ namespace lightning::core {
 	//
 	static expression parse_call(func_scope& scope, const expression& func);
 
-	// Parses an if construct, returns the result.
+	// Parses block-like constructs, returns the result.
 	//
 	static expression parse_if(func_scope& scope);
+	static expression parse_switch(func_scope& scope);
+	static expression parse_match(func_scope& scope);
+	static expression parse_for(func_scope& scope);
+	static expression parse_loop(func_scope& scope);
+	static expression parse_while(func_scope& scope);
 
 	// Parses a "statement" expression, which considers both statements and expressions valid.
 	// Returns the expression representing the value of the statement.
 	//
-	static expression expr_stmt(func_scope& scope);
+	static expression expr_stmt(func_scope& scope, bool& fin);
 
 	// Parses a block expression made up of N statements, final one is the expression value
 	// unless closed with a semi-colon.
@@ -574,7 +619,14 @@ namespace lightning::core {
 				base = expr_block(scope);
 			}
 		} else if (tk.id == lex::token_if) {
+			scope.lex().next();
 			base = parse_if(scope);
+		} else if (tk.id == lex::token_loop) {
+			scope.lex().next();
+			base = parse_loop(scope);
+		} else if (tk.id == lex::token_while) {
+			scope.lex().next();
+			base = parse_while(scope);
 		} else {
 			scope.lex().error("unexpected token %s", tk.to_string().c_str());
 			return {};
@@ -751,7 +803,7 @@ namespace lightning::core {
 	// Parses a "statement" expression, which considers both statements and expressions valid.
 	// Returns the expression representing the value of the statement.
 	//
-	static expression expr_stmt(func_scope& scope) {
+	static expression expr_stmt(func_scope& scope, bool& fin) {
 		switch (scope.lex().tok.id) {
 
 			// Empty statement => None.
@@ -782,6 +834,7 @@ namespace lightning::core {
 			//
 			case lex::token_return: {
 				scope.lex().next();
+				fin = true;
 
 				// void return:
 				//
@@ -796,10 +849,49 @@ namespace lightning::core {
 				return expression(none);
 			}
 
-			// <<TODO>>
-			case lex::token_continue:
-			case lex::token_break:
-				util::abort("fn token NYI.");
+			// Continue/Break.
+			//
+			case lex::token_continue: {
+				scope.lex().next();
+				fin = true;
+
+				if (!scope.lbl_continue) {
+					scope.lex().error("no loop to continue from");
+					return {};
+				}
+				scope.emit(bc::JMP, scope.lbl_continue);
+				return expression(none);
+			}
+			case lex::token_break: {
+				scope.lex().next();
+				fin = true;
+
+				if (!scope.lbl_break) {
+					scope.lex().error("no loop/switch to break from");
+					return {};
+				}
+
+				// void return:
+				//
+				if (auto& tk = scope.lex().tok; tk.id == ';' || tk.id == lex::token_eof || tk.id == '}') {
+					scope.emit(bc::JMP, scope.lbl_break);
+				}
+				// value return:
+				//
+				else {
+					// Find the owning scope.
+					//
+					auto s = &scope;
+					while (s->prev && s->prev->lbl_break == s->lbl_break)
+						s = s->prev;
+
+					// Discharge expression to last register at the owning block, jump out.
+					//
+					expr_parse(scope).to_reg(scope, s->reg_next-1);
+					scope.emit(bc::JMP, scope.lbl_break);
+				}
+				return expression(none);
+			}
 
 			// Anything else gets forward to expression parser.
 			//
@@ -815,11 +907,19 @@ namespace lightning::core {
 	static expression expr_block(func_scope& pscope, bc::reg into) {
 		expression last{none};
 		{
+			bool       fin = false;
 			func_scope scope{pscope.fn};
 			while (!scope.lex().opt('}')) {
+				// If finalized but block is not closed, fail.
+				//
+				if (fin) {
+					pscope.lex().error("unreachable statement");
+					return {};
+				}
+
 				// Parse a statement, forward error.
 				//
-				last = expr_stmt(scope);
+				last = expr_stmt(scope, fin);
 				if (last.kind == expr::err) {
 					return last;
 				}
@@ -854,10 +954,19 @@ namespace lightning::core {
 	// Parses script body.
 	//
 	static bool parse_body(func_scope scope) {
+		bool fin = false;
 		while (scope.lex().tok != lex::token_eof) {
+
+			// If finalized but block is not closed, fail.
+			//
+			if (fin) {
+				scope.lex().error("unreachable statement");
+				return false;
+			}
+
 			// Parse a statement.
 			//
-			if (auto e = expr_stmt(scope); e.kind == expr::err) {
+			if (auto e = expr_stmt(scope, fin); e.kind == expr::err) {
 				return false;
 			}
 
@@ -969,16 +1078,15 @@ namespace lightning::core {
 		return expression(any(result));
 	}
 
-	// Parses an if construct, returns the result.
+	// Parses block-like constructs, returns the result.
 	//
 	static expression parse_if(func_scope& scope) {
-		// Consume the if token.
-		//
-		scope.lex().next();
-
 		// Fetch the conditional expression, dispatch to ToS.
 		//
 		auto cc = expr_parse(scope);
+		if (cc.kind == expr::err) {
+			return cc;
+		}
 		cc      = cc.to_nextreg(scope);
 
 		// Define block reader.
@@ -1030,6 +1138,91 @@ namespace lightning::core {
 		// Yield the register.
 		//
 		return cc;
+	}
+	static expression parse_loop(func_scope& scope) {
+		// Allocate new continue and break labels.
+		//
+		auto pb = std::exchange(scope.lbl_break, scope.make_label());
+		auto pc = std::exchange(scope.lbl_continue, scope.make_label());
+
+		// Point the continue label at the beginning.
+		//
+		scope.set_label_here(scope.lbl_continue);
+
+		// Reserve next register for break-with-value, initialize to none.
+		//
+		auto result = expression{any()}.to_nextreg(scope);
+
+		// Parse the block.
+		//
+		if (scope.lex().check('{') == lex::token_error) {
+			return {};
+		}
+		if (expr_block(scope).kind != expr::err) {
+			// Jump to continue.
+			//
+			scope.emit(bc::JMP, scope.lbl_continue);
+
+			// Emit break label.
+			//
+			scope.set_label_here(scope.lbl_break);
+		}
+
+		// Restore the labels.
+		//
+		scope.lbl_break = pb;
+		scope.lbl_continue = pc;
+
+		// Return the result.
+		//
+		return result;
+	}
+	static expression parse_while(func_scope& scope) {
+		// Allocate new continue and break labels.
+		//
+		auto pb = std::exchange(scope.lbl_break, scope.make_label());
+		auto pc = std::exchange(scope.lbl_continue, scope.make_label());
+
+		// Point the continue label at the beginning.
+		//
+		scope.set_label_here(scope.lbl_continue);
+
+		// Parse the condition, jump to break if not met.
+		//
+		auto cc = expr_parse(scope);
+		if (cc.kind == expr::err) {
+			return cc;
+		}
+		scope.emit(bc::JNS, scope.lbl_break, cc.to_anyreg(scope));
+
+		// Reserve next register for break-with-value, initialize to none.
+		//
+		auto result = expression{any()}.to_nextreg(scope);
+
+		// Parse the block.
+		//
+		if (scope.lex().check('{') == lex::token_error) {
+			return {};
+		}
+
+		if (expr_block(scope).kind != expr::err) {
+			// Jump to continue.
+			//
+			scope.emit(bc::JMP, scope.lbl_continue);
+
+			// Emit break label.
+			//
+			scope.set_label_here(scope.lbl_break);
+		}
+
+		// Restore the labels.
+		//
+		scope.lbl_break    = pb;
+		scope.lbl_continue = pc;
+
+		// Return the result.
+		//
+		return result;
 	}
 
 	// Parses the code and returns it as a function instance with no arguments on success.

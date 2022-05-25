@@ -1,8 +1,10 @@
 # TODO:
 # - switch
-# - for/loop/while
+# - table|array for
+# - numeric for
 # - upvalues, varargs
 # - table unpack via ...
+# - export/import
 # - destructuring
 #   const [a,b,c] = x() == a=x()[0], ...
 #   const {a,b,c} = x() == a=x().a,  ...
@@ -22,25 +24,51 @@
 #
 
 
-const test = | | {
-	const a = 0
-	const b = (
-		if a<=1 {
-			5
-		} else if a==3 {
-			6
-		} else {
-			7
-		}) * 3
-
-	print(a, b)
+let n = 10
+const x = while n > 0 {
+	print(n)
+	if n==5 {
+		break 6
+	}
+	n -= 1
 }
+print("x = ", x)
 
-const x = {x, a:4}
-x.a *= 3
-print(x.a)
 
-test()
+let n = 10
+let r = loop {
+	if n <= 0 {
+		break "lolz"
+	}
+	n -= 1	
+	print("Step: ", n)
+}
+print("r = ", r)
+
+
+
+
+#const test = | | {
+#	const a = 0
+#	const b = (
+#		if a<=1 {
+#			5
+#		} else if a==3 {
+#			6
+#		} else {
+#			7
+#		}) * 3
+#
+#	print(a, b)
+#}
+#
+#
+#
+#const x = {x, a:4}
+#x.a *= 3
+#print(x.a)
+#
+#test()
 #@printbc(test)
 
 

@@ -603,9 +603,20 @@ namespace lightning::core {
 	// Solving ambigious syntax with block vs table.
 	//
 	static bool is_table_init(func_scope& scope) {
-		size_t pos  = scope.lex().input.find_first_of("{};");
-		size_t xpos = scope.lex().input.find_first_of(",:");
-		return xpos < pos;
+		auto& lex = scope.lex();
+		if (lex.lookahead() != lex::token_name) {
+			return false;
+		}
+
+		// Yes we really need double look-ahead.
+		//
+		auto pi = lex.input;
+		auto pl = lex.line;
+		auto ll = lex.scan();
+		lex.input = pi;
+		lex.line = pl;
+		//printf("TBL INIT SAMPLE: '%s'\n", ll.to_string().c_str());
+		return (ll.id == ':' || ll.id == ',');
 	}
 
 	// Parses a primary expression.

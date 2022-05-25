@@ -219,7 +219,15 @@ namespace lightning::core {
 					continue;
 				}
 				case bc::UGET: {
-					ref_reg(a) = ref_uval(b);
+					if (b == bc::uval_fun) {
+						ref_reg(a) = any(f);
+					} else if (b == bc::uval_env) {
+						ref_reg(a) = any(f->environment);
+					} else if (b == bc::uval_glb) {
+						ref_reg(a) = any(globals);
+					} else {
+						ref_reg(a) = ref_uval(b);
+					}
 					continue;
 				}
 				case bc::USET: {

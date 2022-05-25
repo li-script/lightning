@@ -21,6 +21,7 @@ AllowAllConstructorInitializersOnNextLine: true
 AlignConsecutiveMacros: true
 AlignEscapedNewlines: true
 AlignOperands: true
+AlignAfterOpenBracket: false
 AlignTrailingComments: true
 AlignConsecutiveAssignments: true
 AlignConsecutiveDeclarations: true

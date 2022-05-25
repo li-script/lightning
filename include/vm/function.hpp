@@ -5,6 +5,30 @@
 #include <vm/state.hpp>
 
 namespace lightning::core {
+	// Native callback, at most one result should be pushed on stack, if returns false, signals exception.
+	//
+	using nfunc_t = bool (*)(vm* L, const any* args, uint32_t n);
+
+	// Native function.
+	//
+	struct nfunction : gc_node<nfunction> {
+		static nfunction* create(vm* L, size_t context = 0) { return L->alloc<nfunction>(context); }
+
+		// Stack-based callback.
+		//
+		nfunc_t  callback      = nullptr;
+		uint32_t num_arguments = 0;
+
+		// TODO: Fast function alternative with types for JIT.
+		//
+
+		// Replication of vm::call.
+		//
+		bool call(vm* L, uint32_t callsite, uint32_t n_args);
+	};
+
+	// VM function.
+	//
 	struct function : gc_node<function> {
 		static function* create(vm* L, std::span<const bc::insn> opcodes, std::span<const any> kval, uint32_t uval);
 

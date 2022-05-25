@@ -49,6 +49,12 @@ namespace lightning::debug {
 			case type_function:
 				printf("function @ %p", a.as_gc());
 				break;
+			case type_nfunction:
+				printf("nfunction @ %p", a.as_gc());
+				break;
+			case type_opaque:
+				printf("opaque %p", a.as_opq().bits);
+				break;
 			case type_thread:
 				printf("thread @ %p", a.as_gc());
 				break;
@@ -92,17 +98,43 @@ namespace lightning::debug {
 #include <lang/operator.hpp>
 #include <lang/parser.hpp>
 
-// weak ref type?
 
 using namespace lightning;
 
 #include <unordered_map>
+
+// TODO: Static objects with skip gc flag?
+//       Weak ref type?
+
+
+auto wrap_nfn( core::vm* L, core::nfunc_t f ) {
+	auto nf = core::nfunction::create(L);
+	nf->callback = f;
+	return nf;
+}
 
 int main() {
 	platform::setup_ansi_escapes();
 
 	auto* L = core::vm::create();
 	printf("VM allocated @ %p\n", L);
+
+	L->globals->set(L, core::string::create(L, "sqrt"), wrap_nfn(L, [](core::vm* L, const core::any* args, uint32_t n) {
+		if (!args->is(core::type_number))
+			return false;
+		L->push_stack(core::any(sqrt(args->as_num())));
+		return true;
+	}));
+
+	L->globals->set(L, core::string::create(L, "print"), wrap_nfn(L, [](core::vm* L, const core::any* args, uint32_t n) {
+		for (size_t i = 0; i != n; i++) {
+			debug::print_object(args[i]);
+			printf("\t");
+		}
+		printf("\n");
+		return true;
+	}));
+
 
 	#if 0
 	std::vector<core::any> constants = {};

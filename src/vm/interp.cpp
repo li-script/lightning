@@ -35,9 +35,11 @@ namespace lightning::core {
 		// Reference the function.
 		//
 		auto fv = stack[callsite];
+		if (fv.is(type_nfunction))
+			return fv.as_nfn()->call(this, callsite, n_args);
 		if (!fv.is(type_function)) [[unlikely]]  // TODO: Meta
 			return ret(string::create(this, "invoking non-function"), true);
-		auto* f = fv.as_fun();
+		auto* f = fv.as_vfn();
 
 		// Allocate locals.
 		//
@@ -185,7 +187,7 @@ namespace lightning::core {
 					auto fn = ref_kval(b);
 					LI_ASSERT(fn.is(type_function));
 
-					function* r = fn.as_fun();
+					function* r = fn.as_vfn();
 					if (r->num_uval) {
 						r = r->duplicate(this);
 						for (uint32_t i = 0; i != r->num_uval; i++) {

@@ -176,14 +176,21 @@ int main() {
 		//
 		puts("---------------------------------------\n");
 		auto fn = lightning::core::load_script(L, file_buf);
+
 		if (fn.is(core::type_function)) {
 			L->push_stack(fn);
 
+			
+			auto t0 = std::chrono::high_resolution_clock::now();
 			if (!L->scall(0)) {
+				auto t1 = std::chrono::high_resolution_clock::now();
+				printf("[took %lf ms]\n", (t1 - t0) / std::chrono::duration<double, std::milli>(1.0));
 				printf(" -> Exception: ");
 				debug::print_object(L->pop_stack());
 				puts("");
 			} else {
+				auto t1 = std::chrono::high_resolution_clock::now();
+				printf("[took %lf ms]\n", (t1 - t0) / std::chrono::duration<double, std::milli>(1.0));
 				printf(" -> Result: ");
 				auto r = L->pop_stack();
 				debug::print_object(r);

@@ -496,7 +496,7 @@ namespace lightning::core {
 		// Loop until we exhaust the nested binary operators.
 		//
 		auto op = lookup_operator(scope.lex(), true);
-		while (op && op->prio_left <= prio) {
+		while (op && op->prio_left < prio) {
 			scope.lex().next();
 
 			expression rhs    = {};

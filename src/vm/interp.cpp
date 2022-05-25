@@ -180,9 +180,21 @@ namespace lightning::core {
 					ref_reg(a) = tbl.as_tbl()->duplicate(this);
 					continue;
 				}
+				case bc::FDUP: {
+					auto fn = ref_kval(b);
+					LI_ASSERT(fn.is(type_function));
+
+					function* r = fn.as_fun();
+					if (r->num_uval) {
+						r = r->duplicate(this);
+						for (uint32_t i = 0; i != r->num_uval; i++) {
+							r->uvals()[i] = ref_reg(c + i);
+						}
+					}
+					ref_reg(a) = r;
+					continue;
+				}
 				// TODO:
-				// _(FDUP, reg, cst, reg) /* A=Duplicate(CONST[B]), A.UPVAL[0]=C, A.UPVAL[1]=C+1... */
-				case bc::FDUP:
 				// _(CALthis, reg, imm, rel) /* CALL A(B x args @(a+1, a+2...)), JMP C if throw */
 				case bc::CALL:
 					util::abort("bytecode '%s' is NYI.", bc::opcode_descs[uint8_t(op)].name);

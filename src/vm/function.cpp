@@ -23,4 +23,13 @@ namespace lightning::core {
 		memset(result->uvals().data(), 0xFF, result->uvals().size_bytes());
 		return result;
 	}
+
+	// Duplicates the function.
+	//
+	function* function::duplicate(vm* L) {
+		size_t len = this->object_bytes(); 
+		function* f = L->alloc<function>(len - sizeof(function));
+		memcpy(&f->num_uval, &num_uval, len);
+		return f;
+	}
 };

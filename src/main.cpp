@@ -108,6 +108,7 @@ int main(int argv, const char** args) {
 
 	// Validate, print the result.
 	//
+	int retval = 1;
 	if (fn.is(type_function)) {
 		L->push_stack(fn);
 
@@ -125,14 +126,16 @@ int main(int argv, const char** args) {
 			putchar('\n');
 			if (r.is(type_table))
 				debug::dump_table(r.as_tbl());
+			retval = 0;
 		}
 	} else {
 		printf(" -> Parser error: %s\n", fn.as_str()->data);
 	}
 	L->close();
+	return retval;
 #else
 	auto* emscripten_vm = vm::create();
 	lib::register_std(emscripten_vm);
-#endif
 	return 0;
+#endif
 }

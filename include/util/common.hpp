@@ -17,7 +17,18 @@
 #ifndef __has_include
 	#define __has_include(...) 0
 #endif
-#if __has_include(<intrin.h>) || _MSC_VER
+
+#if defined(__amd64__) || defined(__amd64) || defined(__x86_64__) || defined(__x86_64) || defined(__AMD_64) || defined(_M_AMD64) || defined(_M_X86) || defined(__i386__)
+	#define LI_ARCH_X86  1
+#elif defined(__aarch64__) || defined(_M_ARM64)
+	#define LI_ARCH_ARM  1
+#elif defined(__EMSCRIPTEN__)
+	#define LI_ARCH_WASM 1
+#else
+	#error "Unknown target architecture."
+#endif
+
+#if LI_ARCH_X86 && (__has_include(<intrin.h>) || _MSC_VER)
 	#define LI_HAS_CRC 1
 	#include <intrin.h>
 #endif

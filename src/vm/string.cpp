@@ -1,6 +1,4 @@
-#ifndef __EMSCRIPTEN__
-	#include <intrin.h>
-#endif
+#include <util/common.hpp>
 #include <vm/table.hpp>
 #include <vm/state.hpp>
 #include <vm/string.hpp>

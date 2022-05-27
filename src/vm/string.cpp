@@ -306,7 +306,11 @@ namespace li {
 	}
 	void any::print() const {
 		format_any(*this, [&]<typename... Tx>(const char* fmt, Tx&&... args) {
-			printf(fmt, std::forward<Tx>(args)...);
+			if constexpr (sizeof...(Tx) == 0) {
+				fputs(stdout, fmt);
+			} else {
+				printf(fmt, std::forward<Tx>(args)...);
+			}
 		});
 	}
 };

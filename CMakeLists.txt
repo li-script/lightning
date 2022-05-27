@@ -47,16 +47,15 @@ if(LIGHTING_TESTS) # tests
 	set(CMAKE_FOLDER ${CMKR_CMAKE_FOLDER})
 
 endif()
-# Target li
-set(CMKR_TARGET li)
-set(li_SOURCES "")
+# Target libli
+set(CMKR_TARGET libli)
+set(libli_SOURCES "")
 
-list(APPEND li_SOURCES
+list(APPEND libli_SOURCES
 	"src/lang/lexer.cpp"
 	"src/lang/operator.cpp"
 	"src/lang/paser.cpp"
 	"src/lib/std.cpp"
-	"src/main.cpp"
 	"src/util/platform.cpp"
 	"src/vm/array.cpp"
 	"src/vm/function.cpp"
@@ -84,6 +83,38 @@ list(APPEND li_SOURCES
 	"include/vm/table.hpp"
 )
 
+list(APPEND libli_SOURCES
+	cmake.toml
+)
+
+set(CMKR_SOURCES ${libli_SOURCES})
+add_library(libli STATIC)
+
+if(libli_SOURCES)
+	target_sources(libli PRIVATE ${libli_SOURCES})
+endif()
+
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${libli_SOURCES})
+
+target_compile_features(libli PUBLIC
+	cxx_std_20
+)
+
+target_include_directories(libli PUBLIC
+	include
+)
+
+unset(CMKR_TARGET)
+unset(CMKR_SOURCES)
+
+# Target li
+set(CMKR_TARGET li)
+set(li_SOURCES "")
+
+list(APPEND li_SOURCES
+	repl.cpp
+)
+
 list(APPEND li_SOURCES
 	cmake.toml
 )
@@ -102,12 +133,8 @@ endif()
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${li_SOURCES})
 
-target_compile_features(li PRIVATE
-	cxx_std_20
-)
-
-target_include_directories(li PRIVATE
-	include
+target_link_libraries(li PRIVATE
+	libli
 )
 
 if(EMSCRIPTEN) # emscripten

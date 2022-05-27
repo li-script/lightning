@@ -35,11 +35,15 @@ jobs:
         os:
           - ubuntu-latest
           - windows-latest
+          - macOS-latest
         include:
           - os: ubuntu-latest
             build-type: Release
             extra-cmake-flags: "-DCMAKE_CXX_FLAGS=-flto -Wno-attributes -msse4.2"
           - os: windows-latest
+            build-type: Release
+            extra-cmake-flags:
+          - os: macOS-latest
             build-type: Release
             extra-cmake-flags: "-DCMAKE_CXX_FLAGS=-flto -Wno-attributes -msse4.2"
     steps:

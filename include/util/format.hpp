@@ -39,7 +39,7 @@ namespace li::util {
 
 	// Asserts and errors.
 	//
-	LI_INLINE inline static void abort [[noreturn]] (const char* fmt, ...) {
+	LI_COLD inline static void abort [[noreturn]] (const char* fmt, ...) {
 		va_list args;
 		va_start(args, fmt);
 		vprintf(fmt, args);

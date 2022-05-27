@@ -5,6 +5,7 @@
 #include <lang/parser.hpp>
 #include <lib/std.hpp>
 #include <optional>
+#include <thread>
 #include <tuple>
 #include <util/llist.hpp>
 #include <vector>
@@ -74,61 +75,61 @@ void __attribute__((used)) runscript(const char* str) {
 };
 #endif
 
-int main() {
+int main(int argv, const char** args) {
 	platform::setup_ansi_escapes();
 
+	
 #ifndef __EMSCRIPTEN__
-	std::string last_exec;
-	while (true) {
-		// Read the file.
-		//
-		std::ifstream file("..\\parser-test.li");
-		std::string   file_buf{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
 
-		// If nothing changed, sleep for 100ms.
-		//
-		if (last_exec == file_buf) {
-			std::this_thread::sleep_for(std::chrono::milliseconds(100));
-			continue;
-		}
-		last_exec = file_buf;
-
-		auto* L = vm::create();
-		lib::register_std(L);
-
-		// Execute the code, print the result.
-		//
-		puts("---------------------------------------\n");
-		auto fn = li::load_script(L, last_exec.c_str());
-
-		if (fn.is(type_function)) {
-			L->push_stack(fn);
-
-			auto t0 = std::chrono::high_resolution_clock::now();
-			if (!L->scall(0)) {
-				auto t1 = std::chrono::high_resolution_clock::now();
-				printf("[took %lf ms]\n", (t1 - t0) / std::chrono::duration<double, std::milli>(1.0));
-				printf(" -> Exception: ");
-				L->pop_stack().print();
-				putchar('\n');
-			} else {
-				auto t1 = std::chrono::high_resolution_clock::now();
-				printf("[took %lf ms]\n", (t1 - t0) / std::chrono::duration<double, std::milli>(1.0));
-				printf(" -> Result: ");
-				auto r = L->pop_stack();
-				r.print();
-				putchar('\n');
-
-				if (r.is(type_table))
-					debug::dump_table(r.as_tbl());
-			}
-			// puts("---------GLOBALS------------");
-			// debug::dump_table(L->globals);
-		} else {
-			printf(" -> Parser error: %s\n", fn.as_str()->data);
-		}
-		L->close();
+	// Take in a file name.
+	//
+	if (argv != 2) {
+		printf(LI_RED "Expected li <file-name>\n");
+		return 0;
 	}
+
+	// Read the file.
+	//
+	std::ifstream file(args[1]);
+	if (!file.good()) {
+		printf(LI_RED "Failed reading file '%s'\n", args[1]);
+		return 1;
+	}
+	std::string file_buf{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+
+	// Create the VM.
+	//
+	auto* L = vm::create();
+	lib::register_std(L);
+
+	// Execute the code, print the result.
+	//
+	auto fn = li::load_script(L, file_buf);
+
+	// Validate, print the result.
+	//
+	if (fn.is(type_function)) {
+		L->push_stack(fn);
+
+		auto t0 = std::chrono::high_resolution_clock::now();
+		if (!L->scall(0)) {
+			auto t1 = std::chrono::high_resolution_clock::now();
+			printf(LI_BLU "(%.2lf ms) " LI_RED "Exception: " LI_DEF, (t1 - t0) / std::chrono::duration<double, std::milli>(1.0));
+			L->pop_stack().print();
+			putchar('\n');
+		} else {
+			auto t1 = std::chrono::high_resolution_clock::now();
+			printf(LI_BLU "(%.2lf ms) " LI_GRN "Result: " LI_DEF, (t1 - t0) / std::chrono::duration<double, std::milli>(1.0));
+			auto r = L->pop_stack();
+			r.print();
+			putchar('\n');
+			if (r.is(type_table))
+				debug::dump_table(r.as_tbl());
+		}
+	} else {
+		printf(" -> Parser error: %s\n", fn.as_str()->data);
+	}
+	L->close();
 #else
 	auto* emscripten_vm = vm::create();
 	lib::register_std(emscripten_vm);

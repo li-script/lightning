@@ -10,15 +10,20 @@ LIGHTING_TESTS = true
 emscripten = "EMSCRIPTEN"
 tests = "LIGHTING_TESTS"
 
-[target.li]
-type = "executable"
+[target.libli]
+type = "static"
+include-directories = ["include"]
+compile-features = ["cxx_std_20"]
 sources = [
     "src/**.cpp",
     "src/**.hpp",
     "include/**.hpp",
 ]
-include-directories = ["include"]
-compile-features = ["cxx_std_20"]
+
+[target.li]
+type = "executable"
+link-libraries = ["libli"]
+sources = ["repl.cpp"]
 emscripten.link-options = [
     "-sEXPORTED_RUNTIME_METHODS=ccall,cwrap",
     "-sEXTRA_EXPORTED_RUNTIME_METHODS=ccall,cwrap",

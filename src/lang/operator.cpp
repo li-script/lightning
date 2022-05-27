@@ -2,6 +2,7 @@
 #include <vm/array.hpp>
 #include <vm/state.hpp>
 #include <vm/string.hpp>
+#include <cmath>
 
 namespace li {
 

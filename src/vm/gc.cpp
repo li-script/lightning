@@ -166,9 +166,7 @@ namespace li::gc {
 		//
 		uint32_t num_chunks  = o->num_chunks;
 		uint32_t page_offset = o->page_offset;
-#if !LI_ARCH_WASM
-		std::destroy_at(o); // TODO: What?
-#endif
+		std::destroy_at(o);
 		auto* fh        = o->get_free_header();
 		fh->valid       = true;
 		fh->next_free   = 0;

@@ -12,6 +12,8 @@ namespace li {
 	// GC enumerator.
 	//
 	void array::gc_traverse(gc::stage_context s) {
+		if (storage)
+			storage->gc_tick(s);
 		for (auto& e : *this) {
 			if (e.is_gc())
 				e.as_gc()->gc_tick(s);

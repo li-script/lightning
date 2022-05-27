@@ -28,6 +28,8 @@ namespace li {
 	// GC enumerator.
 	//
 	void table::gc_traverse(gc::stage_context s) {
+		if (node_list)
+			node_list->gc_tick(s);
 		for (auto& [k, v] : *this) {
 			if (k.is_gc())
 				k.as_gc()->gc_tick(s);
@@ -55,7 +57,7 @@ namespace li {
 					}
 				}
 				if (old_list)
-					old_list->gc_free();
+					L->gc.free(old_list);
 			}
 		}
 	}

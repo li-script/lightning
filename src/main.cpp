@@ -43,7 +43,7 @@ namespace li::debug {
 };
 
 using namespace li;
-#ifdef __EMSCRIPTEN__
+#if LI_ARCH_WASM
 static vm* emscripten_vm = nullptr;
 extern "C" {
 void __attribute__((used)) runscript(const char* str) {
@@ -78,9 +78,7 @@ void __attribute__((used)) runscript(const char* str) {
 int main(int argv, const char** args) {
 	platform::setup_ansi_escapes();
 
-	
-#ifndef __EMSCRIPTEN__
-
+#if !LI_ARCH_WASM
 	// Take in a file name.
 	//
 	if (argv != 2) {

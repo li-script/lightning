@@ -30,7 +30,10 @@ endif()
 # Options
 option(LIGHTING_TESTS "" ON)
 
-project(LibLi)
+project(LibLi
+	LANGUAGES
+		CXX
+)
 
 if(LIGHTING_TESTS) # tests
 	# tests

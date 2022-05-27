@@ -2,7 +2,7 @@
 #include <vm/state.hpp>
 #include <vm/string.hpp>
 
-namespace lightning::core {
+namespace li {
 	// Sparse string hasher.
 	//
 	static uint32_t sparse_hash(std::string_view v) {
@@ -24,7 +24,7 @@ namespace lightning::core {
 	}
 
 	// TODO: Weak node?
-	struct string_set : gc_node<string_set> {
+	struct string_set : gc::node<string_set> {
 		static constexpr size_t overflow_factor = 8;
 
 		string* entries[];
@@ -42,11 +42,10 @@ namespace lightning::core {
 
 		// GC enumerator.
 		//
-		template<typename F>
-		void enum_for_gc(F&& fn) {
+		void gc_traverse(gc::sweep_state& s) override {
 			for (auto& k : *this) {
-				if (k) {
-					fn(k);
+				if (k && !k->gc_tick(s, true)) {
+					k = nullptr;
 				}
 			}
 		}
@@ -72,6 +71,8 @@ namespace lightning::core {
 			size_t new_count = old_count << 1;
 
 			string_set* new_set = L->alloc<string_set>(sizeof(string*) * (new_count + overflow_factor));
+			std::fill_n(new_set->entries, new_count + overflow_factor, nullptr);
+
 			for (size_t i = 0; i != old_count; i++) {
 				if (string* s = entries[i]) {
 					(void) new_set->push(L, s, true);
@@ -105,11 +106,14 @@ namespace lightning::core {
 		}
 	};
 
+	
+	static constexpr size_t min_size = 512;
 
 	// Internal string-set implementation.
 	//
 	void init_string_intern(vm* L) {
-		L->str_intern = L->alloc<string_set>(sizeof(string*) * 512);
+		L->str_intern = L->alloc<string_set>(sizeof(string*) * min_size);
+		std::fill_n(L->str_intern->entries, min_size, nullptr);
 
 		string* str = L->alloc<string>(1);
 		str->data[0] = 0;
@@ -117,6 +121,7 @@ namespace lightning::core {
 		str->hash    = 0;
 		L->empty_string = str;
 	}
+	void traverse_string_set(vm* L, gc::sweep_state& s) { L->str_intern->gc_traverse(s); }
 
 	// String creation.
 	//
@@ -174,5 +179,86 @@ namespace lightning::core {
 	string* string::concat( vm* L, string* a, string* b) {
 		// TODO: lol
 		return string::format(L, "%s%s", a->data, b->data);
+	}
+
+	// String coercion.
+	//
+	template<typename F>
+	static void format_any( any a, F&& formatter ) {
+		switch (a.type()) {
+			case type_none:
+				formatter("None");
+				break;
+			case type_false:
+				formatter("false");
+				break;
+			case type_true:
+				formatter("true");
+				break;
+			case type_number:
+				formatter("%lf", a.as_num());
+				break;
+			case type_array:
+				formatter("array @ %p", a.as_gc());
+				break;
+			case type_table:
+				formatter("table @ %p", a.as_gc());
+				break;
+			case type_string:
+				formatter("\"%s\"", a.as_str()->data);
+				break;
+			case type_userdata:
+				formatter("userdata @ %p", a.as_gc());
+				break;
+			case type_function:
+				formatter("function @ %p", a.as_gc());
+				break;
+			case type_nfunction:
+				formatter("Nfunction @ %p", a.as_gc());
+				break;
+			case type_opaque:
+				formatter("opaque %llx", (uint64_t) a.as_opq().bits);
+				break;
+			case type_iopaque:
+				formatter("iopaque %llx", (uint64_t) a.as_opq().bits);
+				break;
+			case type_thread:
+				formatter("thread @ %p", a.as_gc());
+				break;
+			default:
+				util::abort("invalid type");
+				break;
+		}
+	};
+	string*     any::to_string(vm* L) const {
+		if (type() == type_string)
+			return as_str();
+		string* result;
+		format_any(*this, [&] <typename... Tx> (const char* fmt, Tx&&... args) {
+			if constexpr (sizeof...(Tx) == 0) {
+				result = string::create(L, fmt);
+			} else {
+				result = string::format(L, fmt, std::forward<Tx>(args)...);
+			}
+		});
+		return result;
+	}
+	std::string any::to_string() const {
+		if (type() == type_string)
+			return std::string{as_str()->view()};
+		std::string result;
+		format_any(*this, [&]<typename... Tx>(const char* fmt, Tx&&... args) {
+			if constexpr (sizeof...(Tx) == 0) {
+				result = fmt;
+			} else {
+				result = util::fmt(fmt, std::forward<Tx>(args)...);
+			}
+		});
+		return result;
+	}
+	void any::print() const {
+		format_any(*this, [&]<typename... Tx>(const char* fmt, Tx&&... args) {
+			printf(fmt, std::forward<Tx>(args)...);
+		});
 	}
 };

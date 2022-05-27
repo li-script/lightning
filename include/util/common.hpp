@@ -20,7 +20,7 @@
 #define LI_STRCAT_I(x, y) x##y
 #define LI_STRCAT(x, y)   LI_STRCAT_I(x, y)
 
-namespace lightning {
+namespace li {
 	// Determine build mode.
 	//
 #ifndef LI_DEBUG

@@ -4,7 +4,7 @@
 #include <util/common.hpp>
 #include <util/format.hpp>
 
-namespace lightning::lex {
+namespace li::lex {
 	// Character traits.
 	//
 	enum char_trait : uint8_t {
@@ -158,7 +158,7 @@ namespace lightning::lex {
 			// If not escaped end of string, return.
 			else if (!escape && state.input[i] == '"') {
 				std::string str    = escape_string(state.input.substr(0, i));
-				token_value result = {.id = token_lstr, .str_val = core::string::create(state.L, str)};
+				token_value result = {.id = token_lstr, .str_val = string::create(state.L, str)};
 				state.input.remove_prefix(i + 1);
 				return result;
 			}
@@ -271,16 +271,16 @@ namespace lightning::lex {
 
 			// Parse both sides and handle suffix.
 			//
-			core::number result = parse_digits<core::number, Base, false>(integral_part);
+			number result = parse_digits<number, Base, false>(integral_part);
 			if (!integral_part.empty())
 				return state.error("Unexpected digit while parsing number: '%c'\n", integral_part.front());
-			result += parse_digits<core::number, Base, true>(fractional_part);
-			return parse_digits_handle_suffix<core::number, Base>(state, result, fractional_part);
+			result += parse_digits<number, Base, true>(fractional_part);
+			return parse_digits_handle_suffix<number, Base>(state, result, fractional_part);
 		} else {
 			// Parse the integral side and handle suffix.
 			//
-			core::number result = parse_digits<core::number, Base, false>(integral_part);
-			return parse_digits_handle_suffix<core::number, Base>(state, result, integral_part);
+			number result = parse_digits<number, Base, false>(integral_part);
+			return parse_digits_handle_suffix<number, Base>(state, result, integral_part);
 		}
 	}
 
@@ -328,7 +328,7 @@ namespace lightning::lex {
 				}
 
 				// Otherwise return as identifier.
-				return {.id = token_name, .str_val = core::string::create(L, word)};
+				return {.id = token_name, .str_val = string::create(L, word)};
 			}
 			// If punctuation, try matching with a symbol.
 			//

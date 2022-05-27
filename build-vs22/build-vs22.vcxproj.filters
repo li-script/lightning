@@ -5,17 +5,7 @@
     <ClCompile Include="..\src\lang\lexer.cpp">
       <Filter>Language</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\platform.cpp" />
-    <ClCompile Include="..\src\vm\string.cpp">
-      <Filter>VM</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\vm\table.cpp">
-      <Filter>VM</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\vm\state.cpp">
-      <Filter>VM</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\vm\function.cpp">
       <Filter>VM</Filter>
     </ClCompile>
     <ClCompile Include="..\src\lang\operator.cpp">
@@ -28,7 +18,22 @@
       <Filter>Language</Filter>
     </ClCompile>
     <ClCompile Include="..\src\vm\array.cpp">
-      <Filter>VM</Filter>
+      <Filter>VM\Types</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\vm\function.cpp">
+      <Filter>VM\Types</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\vm\string.cpp">
+      <Filter>VM\Types</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\vm\table.cpp">
+      <Filter>VM\Types</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\vm\gc.cpp">
+      <Filter>VM\Types</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\platform.cpp">
+      <Filter>Utility</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -40,6 +45,9 @@
     </Filter>
     <Filter Include="VM">
       <UniqueIdentifier>{58c48a93-3b5d-46d3-8a82-b38fab373b08}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="VM\Types">
+      <UniqueIdentifier>{9d2a0823-894f-4581-9058-05f4fb2a725a}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -55,28 +63,16 @@
     <ClInclude Include="..\include\lang\types.hpp">
       <Filter>Language</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\vm\string.hpp">
-      <Filter>VM</Filter>
-    </ClInclude>
     <ClInclude Include="..\include\vm\state.hpp">
       <Filter>VM</Filter>
     </ClInclude>
     <ClInclude Include="..\include\util\llist.hpp">
       <Filter>Utility</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\vm\gc.hpp">
-      <Filter>VM</Filter>
-    </ClInclude>
-    <ClInclude Include="..\include\vm\table.hpp">
-      <Filter>VM</Filter>
-    </ClInclude>
     <ClInclude Include="..\include\util\platform.hpp">
       <Filter>Utility</Filter>
     </ClInclude>
     <ClInclude Include="..\include\vm\bc.hpp">
-      <Filter>VM</Filter>
-    </ClInclude>
-    <ClInclude Include="..\include\vm\function.hpp">
       <Filter>VM</Filter>
     </ClInclude>
     <ClInclude Include="..\include\lang\parser.hpp">
@@ -86,7 +82,19 @@
       <Filter>Language</Filter>
     </ClInclude>
     <ClInclude Include="..\include\vm\array.hpp">
-      <Filter>VM</Filter>
+      <Filter>VM\Types</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\vm\function.hpp">
+      <Filter>VM\Types</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\vm\string.hpp">
+      <Filter>VM\Types</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\vm\table.hpp">
+      <Filter>VM\Types</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\vm\gc.hpp">
+      <Filter>VM\Types</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

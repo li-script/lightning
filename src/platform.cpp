@@ -1,6 +1,6 @@
-#include <vm/state.hpp>
 #include <util/format.hpp>
 #include <util/platform.hpp>
+#include <vm/state.hpp>
 
 #ifdef _WIN64
 	#define NOMINMAX
@@ -10,14 +10,16 @@
 	#include <sys/mman.h>
 #endif
 
-namespace lightning::platform {
+namespace li::platform {
 #ifdef _WIN64
-	void* page_alloc(core::vm*, void* pointer, size_t page_count, bool executable) {
+	void* page_alloc(void*, void* pointer, size_t page_count, bool executable) {
 		if (pointer) {
 			VirtualFree(pointer, 0, MEM_RELEASE);
 			return nullptr;
-		} else {
+		} else if (page_count) {
 			return VirtualAlloc(nullptr, page_count << 12, MEM_COMMIT | MEM_RESERVE, executable ? PAGE_EXECUTE_READWRITE : PAGE_READWRITE);
+		} else {
+			return nullptr;
 		}
 	}
 
@@ -30,12 +32,14 @@ namespace lightning::platform {
 		SetConsoleMode(console_handle, mode);
 	}
 #else
-	void* page_alloc(core::vm*, void* pointer, size_t page_count, bool executable) {
+	void* page_alloc(void*, void* pointer, size_t page_count, bool executable) {
 		if (pointer) {
 			munmap(pointer, page_count << 12);
 			return nullptr;
-		} else {
+		} else if (page_count) {
 			return mmap(0, page_count << 12, executable ? (PROT_READ | PROT_WRITE | PROT_EXEC) : (PROT_READ | PROT_WRITE), MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+		} else {
+			return nullptr;
 		}
 	}
 	void setup_ansi_escapes() {}

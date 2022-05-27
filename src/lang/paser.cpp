@@ -6,7 +6,7 @@
 #include <vm/string.hpp>
 #include <vm/table.hpp>
 
-namespace lightning::core {
+namespace li {
 	// Operator traits for parsing.
 	//
 	static const operator_traits* lookup_operator(lex::state& l, bool binary) {
@@ -61,7 +61,7 @@ namespace lightning::core {
 		uint32_t                                 next_label = label_flag;  // Next label id.
 		std::vector<std::pair<bc::rel, bc::pos>> label_map  = {};          // Maps label id to position.
 
-		func_state(core::vm* L, lex::state& lex) : L(L), lex(lex) {}
+		func_state(vm* L, lex::state& lex) : L(L), lex(lex) {}
 	};
 
 	// Local scope state.
@@ -96,7 +96,7 @@ namespace lightning::core {
 
 		// Helper for fixing jump targets.
 		//
-		void jump_here(bc::pos br) { fn.pc[br].a = (fn.pc.size()) - (br + 1); }
+		void jump_here(bc::pos br) { fn.pc[br].a = uint32_t(fn.pc.size()) - (br + 1); }
 
 		// Gets the lexer.
 		//
@@ -110,11 +110,6 @@ namespace lightning::core {
 					if (lit->id == name) {
 						return std::pair<bc::reg, bool>{lit->reg, lit->is_const};
 					}
-				}
-			}
-			for (size_t n = 0; n != fn.args.size(); n++) {
-				if (fn.args[n] == name) {
-					return std::pair<bc::reg, bool>{-bc::reg(n + 1), false};
 				}
 			}
 			return std::nullopt;
@@ -255,10 +250,12 @@ namespace lightning::core {
 		imm,  // constant
 		reg,  // local
 		uvl,  // upvalue
+		pvl,  // paramter
 		glb,  // global
 		idx,  // index into local with another local
 	};
 	struct upvalue_t {};
+	struct param_t {};
 	struct expression {
 		expr    kind : 7   = expr::err;
 		uint8_t freeze : 1 = false;
@@ -283,6 +280,7 @@ namespace lightning::core {
 		expression(std::pair<bc::reg, bool> l) : kind(expr::reg), reg(l.first), freeze(l.second) {}
 		expression(upvalue_t, bc::reg u) : kind(expr::uvl), reg(u) {}
 		expression(upvalue_t, std::pair<bc::reg, bool> u) : kind(expr::uvl), reg(u.first), freeze(u.second) {}
+		expression(param_t, bc::reg u) : kind(expr::pvl), reg(u) {}
 
 		expression(any k) : kind(expr::imm), imm(k) {}
 		expression(string* g) : kind(expr::glb), glb(g) {}
@@ -320,6 +318,9 @@ namespace lightning::core {
 					return;
 				case expr::uvl:
 					scope.emit(bc::UGET, r, reg);
+					return;
+				case expr::pvl:
+					scope.emit(bc::PGET, r, reg);
 					return;
 				case expr::glb:
 					scope.set_reg(r, any(glb));
@@ -363,6 +364,13 @@ namespace lightning::core {
 						scope.free_reg(val);
 					return;
 				}
+				case expr::pvl: {
+					auto val = value.to_anyreg(scope);
+					scope.emit(bc::PSET, reg, val);
+					if (value.kind != expr::reg)
+						scope.free_reg(val);
+					return;
+				}
 				case expr::glb: {
 					auto val = value.to_anyreg(scope);
 					auto idx = scope.alloc_reg();
@@ -390,14 +398,6 @@ namespace lightning::core {
 		// Prints the expression.
 		//
 		void print() const {
-			auto print_reg = [](bc::reg reg) {
-				if (reg >= 0) {
-					printf(LI_RED "r%u" LI_DEF, (uint32_t) reg);
-				} else {
-					printf(LI_YLW "a%u" LI_DEF, (uint32_t) - (reg + 1));
-				}
-			};
-
 			switch (kind) {
 				case expr::err:
 					printf(LI_RED "<err>" LI_DEF);
@@ -417,7 +417,10 @@ namespace lightning::core {
 						printf(LI_BLU "<gc const %p>" LI_DEF, imm.as_gc());
 					break;
 				case expr::reg:
-					print_reg(reg);
+					printf(LI_RED "r%u" LI_DEF, (uint32_t) reg);
+					break;
+				case expr::pvl:
+					printf(LI_YLW "a%u" LI_DEF, (uint32_t) reg);
 					break;
 				case expr::uvl:
 					if (reg == bc::uval_fun) {
@@ -434,9 +437,9 @@ namespace lightning::core {
 					printf(LI_PRP "$G[%s]" LI_DEF, glb->c_str());
 					break;
 				case expr::idx:
-					print_reg(idx.table);
+					printf(LI_RED "r%u" LI_DEF, (uint32_t) idx.table);
 					printf(LI_CYN "[" LI_DEF);
-					print_reg(idx.field);
+					printf(LI_RED "r%u" LI_DEF, (uint32_t) idx.field);
 					printf(LI_CYN "]" LI_DEF);
 					break;
 				default:
@@ -596,6 +599,14 @@ namespace lightning::core {
 		//
 		if (auto local = scope.lookup_local(name)) {
 			return *local; // local / arg
+		}
+
+		// Try finding an argument.
+		//
+		for (bc::reg n = 0; n != scope.fn.args.size(); n++) {
+			if (scope.fn.args[n] == name) {
+				return expression(param_t{}, n);
+			}
 		}
 
 		// Try using existing upvalue.
@@ -1255,7 +1266,7 @@ namespace lightning::core {
 		// Allocate the callsite, dispatch to it.
 		//
 		auto c = scope.alloc_reg(size);
-		for (size_t i = 0; i != size; i++) {
+		for (bc::reg i = 0; i != size; i++) {
 			callsite[i].to_reg(scope, c + i);
 		}
 
@@ -1315,7 +1326,7 @@ namespace lightning::core {
 
 		// Allocate space for the uvalue multi-set.
 		//
-		auto uv = scope.alloc_reg(new_fn.uvalues.size());
+		auto uv = scope.alloc_reg((uint32_t) new_fn.uvalues.size());
 		for (size_t n = 0; n != new_fn.uvalues.size(); n++) {
 			expr_var(scope, new_fn.uvalues[n].id).to_reg(scope, uv + (bc::reg)n);
 		}
@@ -1323,7 +1334,7 @@ namespace lightning::core {
 
 		// Free the unnecessary space and return the function by register.
 		//
-		scope.free_reg(uv + 1, new_fn.uvalues.size() - 1);
+		scope.free_reg(uv + 1, (uint32_t) new_fn.uvalues.size() - 1);
 		return expression(uv);
 	}
 
@@ -1476,13 +1487,13 @@ namespace lightning::core {
 	static expression parse_for(func_scope& scope) {
 		// Parse the iterator names.
 		//
-		core::string* k = nullptr;
+		string* k = nullptr;
 		if (auto kn = scope.lex().check(lex::token_name); kn == lex::token_error) {
 			return {};
 		} else {
 			k = kn.str_val;
 		}
-		core::string* v = nullptr;
+		string* v = nullptr;
 		if (scope.lex().opt(',')) {
 			if (auto vn = scope.lex().check(lex::token_name); vn == lex::token_error) {
 				return {};
@@ -1679,7 +1690,7 @@ namespace lightning::core {
 	// Parses the code and returns it as a function instance with no arguments on success.
 	// If code parsing fails, result is instead a string explaining the error.
 	//
-	any load_script(core::vm* L, std::string_view source, std::string_view source_name) {
+	any load_script(vm* L, std::string_view source, std::string_view source_name) {
 		lex::state lx{L, source, source_name};
 		func_state fn{L, lx};
 		if (!parse_body(fn)) {

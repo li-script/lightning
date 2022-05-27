@@ -4,7 +4,7 @@
 #include <util/format.hpp>
 #include <lang/types.hpp>
 
-namespace lightning::bc {
+namespace li::bc {
 	// Bytecode definitions.
 	//
 #define LIGHTNING_ENUM_BC(_)                                                           \
@@ -38,6 +38,10 @@ namespace lightning::bc {
 	/* Upvalue operators. */                                                            \
 	_(UGET, reg, uvl, ___) /* A=UVAL[B] */                                              \
 	_(USET, uvl, reg, ___) /* UVAL[A]=B */                                              \
+                                                                                       \
+	/* Parameter operators. */                                                          \
+	_(PGET, reg, pvl, ___) /* A=ARGS[B] */                                              \
+	_(PSET, pvl, reg, ___) /* ARGS[A]=B */                                              \
                                                                                        \
 	/* Global operators. */                                                             \
 	_(GGET, reg, reg, ___) /* A=G[B] */                                                 \
@@ -88,7 +92,7 @@ namespace lightning::bc {
 	
 	// Write all descriptors.
 	//
-	enum class op_t : uint8_t { none, reg, uvl, kvl, imm, xmm, rel, ___ = none };
+	enum class op_t : uint8_t { none, reg, uvl, pvl, kvl, imm, xmm, rel, ___ = none };
 	struct desc {
 		const char* name;
 		op_t        a, b, c;
@@ -127,14 +131,13 @@ namespace lightning::bc {
 					case op_t::none:
 						op[0] = 0;
 						break;
+					case op_t::pvl:
+						col = LI_YLW;
+						sprintf_s(op, "a%u", (uint32_t) value);
+						break;
 					case op_t::reg:
-						if (value >= 0) {
-							col = LI_RED;
-							sprintf_s(op, "r%u", (uint32_t) value);
-						} else {
-							col = LI_YLW;
-							sprintf_s(op, "a%u", (uint32_t) - (value + 1));
-						}
+						col = LI_RED;
+						sprintf_s(op, "r%u", (uint32_t) value);
 						break;
 					case op_t::rel:
 						if (value >= 0) {
@@ -181,18 +184,18 @@ namespace lightning::bc {
 			if (d.b == op_t::xmm) {
 				char        op[32];
 
-				core::any v{std::in_place, xmm()};
+				any v{std::in_place, xmm()};
 				switch (v.type()) {
-					case core::type_number:
+					case type_number:
 						sprintf_s(op, "%lf", v.as_num());
 						break;
-					case core::type_false:
-						strcpy_s(op, "False");
+					case type_false:
+						strcpy_s(op, "false");
 						break;
-					case core::type_true:
-						strcpy_s(op, "True");
+					case type_true:
+						strcpy_s(op, "true");
 						break;
-					case core::type_none:
+					case type_none:
 						strcpy_s(op, "None");
 						break;
 					default:

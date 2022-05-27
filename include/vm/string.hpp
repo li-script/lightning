@@ -3,8 +3,8 @@
 #include <vm/gc.hpp>
 #include <vm/state.hpp>
 
-namespace lightning::core {
-	struct string : gc_leaf<string> {
+namespace li {
+	struct string : gc::leaf<string> {
 		// Literal creation.
 		//
 		static string* create(vm* L, std::string_view from);

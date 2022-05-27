@@ -1,7 +1,7 @@
 #include <vm/table.hpp>
 #include <bit>
 
-namespace lightning::core {
+namespace li {
 	table* table::create(vm* L, size_t reserved_entry_count) {
 		table* tbl = L->alloc<table>();
 		if (reserved_entry_count) {
@@ -25,6 +25,17 @@ namespace lightning::core {
 		return tbl;
 	}
 
+	// GC enumerator.
+	//
+	void table::gc_traverse(gc::sweep_state& s) {
+		for (auto& [k, v] : *this) {
+			if (k.is_gc())
+				k.as_gc()->gc_tick(s);
+			if (v.is_gc())
+				v.as_gc()->gc_tick(s);
+		}
+	}
+
 	// Rehashing resize.
 	//
 	void table::resize(vm* L, size_t n) {
@@ -34,7 +45,7 @@ namespace lightning::core {
 			auto*  old_list = begin();
 			size_t alloc_length   = sizeof(typename table_entry) * (new_count + overflow_factor);
 			node_list           = L->alloc<table_nodes>(alloc_length);
-			memset(node_list->entries, 0xFF, alloc_length);
+			fill_none(node_list->entries, alloc_length / sizeof(any));
 
 			if (old_list) {
 				// TODO: Free old?

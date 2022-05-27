@@ -22,6 +22,11 @@
 #
 
 
+x = "lol"
+
+print(x!="lol")
+
+
 let z = ["a", "b", "c", "d"]
 let q = {a: 5, b: 5}
 
@@ -69,14 +74,15 @@ print("env dstrc:", x)
 #	print(k,v)
 #}
 
-
-#const BottomUpTree = |depth| {
+#const BottomUpTree = |_depth| {
+#	let depth = _depth
 #	if depth >= 0 {
 #		depth -= 1
 #		{ left: $F(depth), right: $F(depth) }
 #	}
 #}
-#const ItemCheck = |tree| {
+#const ItemCheck = |_tree| {
+#	const tree = _tree
 #	const l = tree.left
 #	if l {
 #		1 + $F(l) + $F(tree.right)
@@ -90,7 +96,7 @@ print("env dstrc:", x)
 #let mindepth = 4
 #let maxdepth = mindepth + 2
 #if maxdepth < N {
-#    maxdepth = N
+#	maxdepth = N
 #}
 #
 #{ 
@@ -103,12 +109,10 @@ print("env dstrc:", x)
 #
 #let depth = mindepth
 #while depth <= maxdepth {	
-#    const iterations = 2 ^ (maxdepth + mindepth - depth)
+#    const iterations = 2 ^ (maxdepth + mindepth - depth) 
 #	let check = 0
-#	let i = 1
-#	while i <= iterations {
+#	for i in 0..iterations {
 #        check += ItemCheck(BottomUpTree(depth))
-#		i += 1
 #	}
 #	depth += 2
 #}

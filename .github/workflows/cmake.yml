@@ -7,25 +7,32 @@ jobs:
     # Skip building pull requests from the same repository
     if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
     runs-on: ${{ matrix.os }}
+    env:
+      PRESET: ${{ matrix.preset }}
     strategy:
       fail-fast: false
       # TODO: replace extra-cmake-flags with presets
       matrix:
-        os:
-          - ubuntu-latest
-          - windows-latest
-          - macOS-latest
+        preset:
+          - ubuntu
+          - emscripten
+          - windows
+          - macos
         include:
-          - os: ubuntu-latest
+          - preset: ubuntu
+            os: ubuntu-latest
             build-type: Release
             extra-cmake-flags: "-DCMAKE_CXX_FLAGS=\"-flto -Wno-attributes -msse4.2\""
-          - os: ubuntu-latest
+          - preset: emscripten
+            os: ubuntu-latest
             build-type: Release
             extra-cmake-flags: "-DCMAKE_CXX_FLAGS=\"-Wno-attributes\" -DCMAKE_TOOLCHAIN_FILE=\"$EMSDK/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake\""
-          - os: windows-latest
+          - preset: windows
+            os: windows-latest
             build-type: Release
             extra-cmake-flags:
-          - os: macOS-latest
+          - preset: macos
+            os: macOS-latest
             build-type: Release
             extra-cmake-flags: "-DCMAKE_CXX_FLAGS=\"-flto -Wno-attributes -msse4.2\""
     steps:

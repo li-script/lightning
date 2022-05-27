@@ -55,7 +55,7 @@ namespace li {
 		std::vector<string*>     args       = {};       // Arguments.
 		bool                     is_vararg  = false;    //
 		std::vector<bc::insn>    pc         = {};       // Bytecode generated.
-		bool                     no_locals  = false;    // Disables locals, for repl.
+		bool                     is_repl    = false;    // Disables locals and yields from chunk.
 
 		// Labels.
 		//
@@ -950,7 +950,7 @@ namespace li {
 
 			// If locals are disabled set globals.
 			//
-			if (scope.fn.no_locals) {
+			if (scope.fn.is_repl) {
 				for (size_t i = 0; i != size; i++) {
 					auto field = expression(mappings[i].second).to_nextreg(scope);
 					scope.emit(bc::TGET, field, field, ex.reg);
@@ -990,7 +990,7 @@ namespace li {
 
 			// If locals are disabled set global.
 			//
-			if (scope.fn.no_locals) {
+			if (scope.fn.is_repl) {
 				expression{var.str_val}.assign(scope, ex);
 				return true;
 			}
@@ -1012,7 +1012,7 @@ namespace li {
 
 			// If locals are disabled, this is no-op.
 			//
-			if (scope.fn.no_locals) {
+			if (scope.fn.is_repl) {
 				return true;
 			}
 
@@ -1249,7 +1249,8 @@ namespace li {
 	// Parses script body.
 	//
 	static bool parse_body(func_scope scope) {
-		bool fin = false;
+		expression last{none};
+		bool       fin = false;
 		while (scope.lex().tok != lex::token_eof) {
 			// If finalized but block is not closed, fail.
 			//
@@ -1260,13 +1261,19 @@ namespace li {
 
 			// Parse a statement.
 			//
-			if (auto e = expr_stmt(scope, fin); e.kind == expr::err) {
+			if (last = expr_stmt(scope, fin); last.kind == expr::err) {
 				return false;
 			}
 
 			// Optionally consume ';', move on to the next one.
 			//
 			scope.lex().opt(';');
+		}
+
+		// If repl, yield last value.
+		//
+		if (scope.fn.is_repl) {
+			scope.emit(bc::RET, last.to_anyreg(scope));
 		}
 		return true;
 	}
@@ -1746,10 +1753,10 @@ namespace li {
 	// Parses the code and returns it as a function instance with no arguments on success.
 	// If code parsing fails, result is instead a string explaining the error.
 	//
-	any load_script(vm* L, std::string_view source, std::string_view source_name, bool disable_locals) {
+	any load_script(vm* L, std::string_view source, std::string_view source_name, bool is_repl) {
 		lex::state lx{L, source, source_name};
 		func_state fn{L, lx};
-		fn.no_locals = disable_locals;
+		fn.is_repl = is_repl;
 		if (!parse_body(fn)) {
 			return string::create(L, fn.lex.last_error.c_str());
 		} else {

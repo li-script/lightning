@@ -1,3 +1,6 @@
+#ifndef __EMSCRIPTEN__
+	#include <intrin.h>
+#endif
 #include <vm/table.hpp>
 #include <vm/state.hpp>
 #include <vm/string.hpp>
@@ -10,6 +13,7 @@ namespace li {
 		const char* str = v.data();
 		uint32_t    len = ( uint32_t ) v.size();
 
+#ifndef __EMSCRIPTEN__
 		uint32_t crc = len;
 		if (len >= 4) {
 			crc = _mm_crc32_u32(crc, *(const uint32_t*) (str));
@@ -22,6 +26,31 @@ namespace li {
 			crc = _mm_crc32_u8(crc, *(const uint8_t*) (str + (len >> 1)));
 		}
 		return crc;
+#else
+		uint32_t a, b;
+		uint32_t h = len ^ 0xd3cccc57;
+		if (len >= 4) {
+			a = *(const uint32_t*) (str);
+			h ^= *(const uint32_t*) (str + len - 4);
+			b = *(const uint32_t*) (str + (len >> 1) - 2);
+			h ^= b;
+			h -= std::rotl(b, 14);
+			b += *(const uint32_t*) (str + (len >> 2) - 1);
+		} else {
+			a = *(const uint8_t*) str;
+			h ^= *(const uint8_t*) (str + len - 1);
+			b = *(const uint8_t*) (str + (len >> 1));
+			h ^= b;
+			h -= std::rotl(b, 14);
+		}
+		a ^= h;
+		a -= std::rotl(h, 11);
+		b ^= a;
+		b -= std::rotl(a, 25);
+		h ^= b;
+		h -= std::rotl(b, 16);
+		return h;
+#endif
 	}
 
 	// TODO: Weak node?

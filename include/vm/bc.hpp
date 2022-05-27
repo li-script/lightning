@@ -132,44 +132,44 @@ namespace li::bc {
 						break;
 					case op_t::pvl:
 						col = LI_YLW;
-						sprintf_s(op, "a%u", (uint32_t) value);
+						snprintf(op, std::size(op), "a%u", (uint32_t) value);
 						break;
 					case op_t::reg:
 						col = LI_RED;
-						sprintf_s(op, "r%u", (uint32_t) value);
+						snprintf(op, std::size(op), "r%u", (uint32_t) value);
 						break;
 					case op_t::rel:
 						if (value >= 0) {
 							col = LI_GRN; 
-							sprintf_s(op, "@%x", ip + 1 + value);
+							snprintf(op, std::size(op), "@%x", ip + 1 + value);
 						} else {
 							col = LI_YLW; 
-							sprintf_s(op, "@%x", ip + 1 + value);
+							snprintf(op, std::size(op), "@%x", ip + 1 + value);
 						}
 						rel_pr = (rel) value;
 						break;
 					case op_t::uvl:
 						if (value == bc::uval_fun) {
 							col = LI_GRN;
-							strcpy_s(op, "$F");
+							strcpy(op, "$F");
 						} else if (value == bc::uval_env) {
 							col = LI_GRN;
-							strcpy_s(op, "$E");
+							strcpy(op, "$E");
 						} else if (value == bc::uval_glb) {
 							col = LI_GRN;
-							strcpy_s(op, "$G");
+							strcpy(op, "$G");
 						} else {
 							col = LI_CYN;
-							sprintf_s(op, "u%u", (uint32_t) value);
+							snprintf(op, std::size(op), "u%u", (uint32_t) value);
 						}
 						break;
 					case op_t::kvl:
 						col    = LI_BLU; 
-						sprintf_s(op, "k%u", (uint32_t) value);
+						snprintf(op, std::size(op), "k%u", (uint32_t) value);
 						break;
 					case op_t::imm:
 						col = LI_BLU;
-						sprintf_s(op, "$%d", (int32_t) value);
+						snprintf(op, std::size(op), "$%d", (int32_t) value);
 						break;
 				}
 				printf("%s%-12s " LI_DEF, col, op);

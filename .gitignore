@@ -7,3 +7,9 @@ build-vs22/enc_temp_folder/
 build-cmake/
 
 build.bat
+
+build-emcmake/
+
+build-vs22/Debug/
+
+embuild.bat

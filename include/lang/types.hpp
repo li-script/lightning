@@ -1,5 +1,7 @@
 #pragma once
-#include <intrin.h>
+#ifndef __EMSCRIPTEN__
+	#include <intrin.h>
+#endif
 #include <algorithm>
 #include <bit>
 #include <string>
@@ -143,9 +145,17 @@ namespace li {
 		// Hasher.
 		//
 		inline uint32_t hash() const {
+#if defined(__EMSCRIPTEN__) || UINTPTR_MAX == 0xFFFFFFFF
+			uint64_t x = value;
+			x ^= x >> 33U;
+			x *= UINT64_C(0xff51afd7ed558ccd);
+			x ^= x >> 33U;
+			return (uint32_t)x;
+#else
 			uint64_t h = ~0;
 			h          = _mm_crc32_u64(h, value);
 			return uint32_t(h + 1) * 134775813;
+#endif
 		}
 	};
 	static_assert(sizeof(any) == 8, "Invalid any size.");

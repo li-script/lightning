@@ -3,6 +3,7 @@
 #include <lang/lexer.hpp>
 #include <util/common.hpp>
 #include <util/format.hpp>
+#include <cmath>
 
 namespace li::lex {
 	// Character traits.

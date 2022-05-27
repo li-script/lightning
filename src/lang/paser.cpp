@@ -641,10 +641,11 @@ namespace li {
 		// Create a new array.
 		//
 		expression result = scope.alloc_reg();
-		scope.emit(bc::ANEW, result.reg);
+		auto       allocp = scope.emit(bc::ANEW, result.reg);
 
 		// Until list is exhausted push expressions.
 		//
+		uint32_t nexpr = 0;
 		while (true) {
 			reg_sweeper _r{scope};
 
@@ -652,6 +653,7 @@ namespace li {
 			if (value.kind == expr::err) {
 				return {};
 			}
+			nexpr++;
 			scope.emit(bc::AADD, result.reg, result.reg, value.to_anyreg(scope));
 
 			if (scope.lex().opt(']'))
@@ -662,6 +664,7 @@ namespace li {
 				}
 			}
 		}
+		scope.fn.pc[allocp].c = nexpr;
 		return result;
 	}
 
@@ -673,10 +676,11 @@ namespace li {
 		// Create a new table.
 		//
 		expression result = scope.alloc_reg();
-		scope.emit(bc::TNEW, result.reg);
+		auto       allocp = scope.emit(bc::TNEW, result.reg);
 
 		// Until list is exhausted set fields.
 		//
+		uint32_t nexpr = 0;
 		while (true) {
 			reg_sweeper _r{scope};
 
@@ -699,6 +703,7 @@ namespace li {
 			auto tmp = scope.alloc_reg();
 			scope.set_reg(tmp, any(field.str_val));
 			scope.emit(bc::TSET, tmp, value.reg, result.reg);
+			++nexpr;
 
 			if (scope.lex().opt('}'))
 				break;
@@ -708,6 +713,7 @@ namespace li {
 				}
 			}
 		}
+		scope.fn.pc[allocp].c = nexpr;
 		return result;
 	}
 

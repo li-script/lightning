@@ -11,7 +11,7 @@ namespace li {
 
 	// Native function.
 	//
-	struct nfunction : gc::leaf<nfunction> {
+	struct nfunction : gc::leaf<nfunction, type_nfunction> {
 		static nfunction* create(vm* L, size_t context = 0) { return L->alloc<nfunction>(context); }
 
 		// Stack-based callback.
@@ -29,7 +29,7 @@ namespace li {
 
 	// VM function.
 	//
-	struct function : gc::node<function> {
+	struct function : gc::node<function, type_function> {
 		static function* create(vm* L, std::span<const bc::insn> opcodes, std::span<const any> kval, size_t uval);
 
 		// Function details.

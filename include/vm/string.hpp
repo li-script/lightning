@@ -4,7 +4,7 @@
 #include <vm/state.hpp>
 
 namespace li {
-	struct string : gc::leaf<string> {
+	struct string : gc::leaf<string, type_string> {
 		// Literal creation.
 		//
 		static string* create(vm* L, std::string_view from);

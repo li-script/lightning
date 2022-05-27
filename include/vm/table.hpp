@@ -14,7 +14,7 @@ namespace li {
 	struct table_nodes : gc::leaf<table_nodes> {
 		table_entry entries[];
 	};
-	struct table : gc::node<table> {
+	struct table : gc::node<table, type_table> {
 		static table* create(vm* L, size_t reserved_entry_count = 0);
 
 		table_nodes* node_list = nullptr;
@@ -24,7 +24,7 @@ namespace li {
 
 		table_entry*           begin() { return node_list ? &node_list->entries[0] : &small_table[0]; }
 		table_entry*           end() { return begin() + size() + overflow_factor; }
-		size_t                 size() const { return node_list ? (node_list->object_bytes() / sizeof(table_entry)) - overflow_factor : small_table_length; }
+		size_t                 size() const { return node_list ? std::bit_floor((node_list->object_bytes() / sizeof(table_entry)) - overflow_factor) : small_table_length; }
 		size_t                 mask() const { return size() - 1; }
 		std::span<table_entry> find(size_t hash) {
 			auto it = begin() + (hash & mask());

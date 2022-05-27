@@ -29,13 +29,14 @@
 #endif
 
 #if LI_ARCH_X86
-	#define LI_HAS_CRC 1
-	#if defined(__GNUC__) || defined(__clang__)
+	#if defined(__SSE4_2__) && (defined(__GNUC__) || defined(__clang__))
+		#define LI_HAS_CRC    1
 		#define _mm_crc32_u8  __builtin_ia32_crc32qi
 		#define _mm_crc32_u16 __builtin_ia32_crc32hi
 		#define _mm_crc32_u32 __builtin_ia32_crc32si
 		#define _mm_crc32_u64 __builtin_ia32_crc32di
-	#else
+	#elif _MSC_VER
+		#define LI_HAS_CRC    1
 		#include <intrin.h>
 	#endif
 #endif

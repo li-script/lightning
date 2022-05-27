@@ -191,7 +191,7 @@ namespace li {
 
 	// Writes a function state as a function.
 	//
-	static function* write_func(func_state& fn, std::optional<bc::reg> implicit_ret = std::nullopt) {
+	static function* write_func(func_state& fn, uint32_t line, std::optional<bc::reg> implicit_ret = std::nullopt) {
 		// Fixup all labels before writing it.
 		//
 		for (uint32_t ip = 0; ip != fn.pc.size(); ip++) {
@@ -232,6 +232,7 @@ namespace li {
 		function* f   = function::create(fn.L, fn.pc, fn.kvalues, fn.uvalues.size());
 		f->num_locals = fn.max_reg_id + 1;
 		f->src_chunk  = string::create(fn.L, fn.lex.source_name);
+		f->src_line   = line;
 		return f;
 	}
 
@@ -1276,6 +1277,7 @@ namespace li {
 	static expression parse_closure(func_scope& scope) {
 		// Consume the '|' or '||'.
 		//
+		uint32_t line_num = scope.lex().line;
 		auto id = scope.lex().next().id;
 
 		// Create the new function.
@@ -1310,7 +1312,7 @@ namespace li {
 
 		// Write the function with implicit return, insert it into constants.
 		//
-		function* result = write_func(new_fn, bc::reg(0));
+		function* result = write_func(new_fn, line_num, bc::reg(0));
 
 		// If closure is stateless, simply return as a constant.
 		//
@@ -1690,7 +1692,7 @@ namespace li {
 		if (!parse_body(fn)) {
 			return string::create(L, fn.lex.last_error.c_str());
 		} else {
-			return write_func(fn);
+			return write_func(fn, 0);
 		}
 	}
 };

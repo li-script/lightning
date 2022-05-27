@@ -107,6 +107,10 @@ int main() {
 			printf("\n");
 			return true;
 		});
+		export_global(L, "@gc", [](vm* L, const any* args, uint32_t n) {
+			L->gc.collect(L);
+			return true;
+		});
 		export_global(L, "@printbc", [](vm* L, const any* args, uint32_t n) {
 			if (n != 1 || !args->is(type_function)) {
 				L->push_stack(string::create(L, "@printbc expects a single vfunction"));

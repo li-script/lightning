@@ -1,6 +1,7 @@
 #include <vm/table.hpp>
 #include <vm/state.hpp>
 #include <vm/string.hpp>
+#include <vm/function.hpp>
 
 namespace li {
 	// Sparse string hasher.
@@ -119,7 +120,7 @@ namespace li {
 		str->hash    = 0;
 		L->empty_string = str;
 	}
-	void traverse_string_set(vm* L, gc::stage_context s) { L->str_intern->gc_traverse(s); }
+	void traverse_string_set(vm* L, gc::stage_context s) { L->str_intern->gc_tick(s); }
 
 	// String creation.
 	//
@@ -163,7 +164,7 @@ namespace li {
 		//
 		for (auto& entry : L->str_intern->find(str->hash)) {
 			if (entry && entry->view() == str->view()) {
-				str->gc_free();
+				L->gc.free(str);
 				return entry;
 			}
 		}
@@ -209,7 +210,8 @@ namespace li {
 				formatter("userdata @ %p", a.as_gc());
 				break;
 			case type_function:
-				formatter("function @ %p", a.as_gc());
+				//formatter("function @ %p", a.as_gc());
+				formatter("function @ %s:%u", a.as_vfn()->src_chunk->c_str(), a.as_vfn()->src_line);
 				break;
 			case type_nfunction:
 				formatter("nfunction @ %p", a.as_gc());

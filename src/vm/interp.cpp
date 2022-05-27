@@ -310,6 +310,7 @@ namespace li {
 						}
 					}
 					tbl.as_tbl()->set(this, key, val);
+					gc.tick(this);
 					continue;
 				}
 				case bc::GGET: {
@@ -318,29 +319,35 @@ namespace li {
 				}
 				case bc::GSET: {
 					f->environment->set(this, ref_reg(a), ref_reg(b));
+					gc.tick(this);
 					continue;
 				}
 				case bc::ANEW: {
+					gc.tick(this);
 					ref_reg(a) = any{array::create(this, b)};
 					continue;
 				}
 				case bc::ADUP: {
+					gc.tick(this);
 					auto arr = ref_kval(b);
 					LI_ASSERT(arr.is(type_array));
 					ref_reg(a) = arr.as_arr()->duplicate(this);
 					continue;
 				}
 				case bc::TNEW: {
+					gc.tick(this);
 					ref_reg(a) = any{table::create(this, b)};
 					continue;
 				}
 				case bc::TDUP: {
+					gc.tick(this);
 					auto tbl = ref_kval(b);
 					LI_ASSERT(tbl.is(type_table));
 					ref_reg(a) = tbl.as_tbl()->duplicate(this);
 					continue;
 				}
 				case bc::FDUP: {
+					gc.tick(this);
 					auto fn = ref_kval(b);
 					LI_ASSERT(fn.is(type_function));
 

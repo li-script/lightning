@@ -1,10 +1,10 @@
 #pragma once
+#include <array>
+#include <lang/types.hpp>
 #include <util/common.hpp>
+#include <util/format.hpp>
 #include <util/llist.hpp>
 #include <util/platform.hpp>
-#include <util/format.hpp>
-#include <lang/types.hpp>
-#include <array>
 
 namespace li {
 	struct vm;
@@ -18,12 +18,12 @@ namespace li::gc {
 
 	// GC configuration.
 	//
-	static constexpr size_t minimum_allocation = 2 * 1024 * 1024;
-	static constexpr size_t chunk_shift        = 4;
-	static constexpr size_t chunk_size         = 1ull << chunk_shift;
-	static constexpr size_t gc_interval        = 8192;
-	static constexpr size_t gc_min_debt        = 1024 / chunk_size;
-	static constexpr size_t gc_max_debt        = (1 * 1024 * 1024) / chunk_size;
+	static constexpr size_t   minimum_allocation = 2 * 1024 * 1024;
+	static constexpr size_t   chunk_shift        = 4;
+	static constexpr size_t   chunk_size         = 1ull << chunk_shift;
+	static constexpr uint32_t gc_interval        = 16384;
+	static constexpr size_t   gc_min_debt        = 4096 / chunk_size;
+	static constexpr size_t   gc_max_debt        = (1 * 1024 * 1024) / chunk_size;
 
 	static constexpr size_t chunk_ceil(size_t v) { return (v + chunk_size - 1) & ~(chunk_size - 1); }
 	static constexpr size_t chunk_floor(size_t v) { return v & ~(chunk_size - 1); }
@@ -103,7 +103,7 @@ namespace li::gc {
 		void               gc_init(page* p, vm* L, uint32_t qlen, bool traversable);
 		bool               gc_tick(stage_context s, bool weak = false);
 		virtual void       gc_traverse(stage_context s) = 0;
-		virtual value_type gc_identify() const         = 0;
+		virtual value_type gc_identify() const          = 0;
 
 		// Virtual destructor.
 		//
@@ -138,12 +138,12 @@ namespace li::gc {
 	// GC page.
 	//
 	struct page {
-		page*    prev           = nullptr;
-		page*    next           = nullptr;
-		uint32_t num_pages      = 0;
-		uint32_t num_objects    = 0;
-		uint32_t alive_objects  = 0;
-		uint32_t next_chunk     = chunk_ceil(sizeof(page));
+		page*    prev          = nullptr;
+		page*    next          = nullptr;
+		uint32_t num_pages     = 0;
+		uint32_t num_objects   = 0;
+		uint32_t alive_objects = 0;
+		uint32_t next_chunk    = chunk_ceil(sizeof(page));
 
 		// Default construction for head.
 		//
@@ -198,17 +198,17 @@ namespace li::gc {
 	struct state {
 		// Page allocator.
 		//
-		fn_alloc alloc_fn     = nullptr;  
-		void*    alloc_ctx    = nullptr;
+		fn_alloc alloc_fn  = nullptr;
+		void*    alloc_ctx = nullptr;
 
 		// Initial page entry.
 		//
-		page*    initial_page = nullptr;
+		page* initial_page = nullptr;
 
 		// Scheduling details.
 		//
-		size_t   gc_debt      = 0;        // Allocations made since last GC sweep.
-		size_t   ticks        = 0;        // Tick counter.
+		size_t  debt  = 0;            // Allocations made since last GC sweep.
+		int32_t ticks = gc_interval;  // Tick counter.
 
 		// Free lists.
 		//
@@ -248,9 +248,9 @@ namespace li::gc {
 		void collect(vm* L);
 		void tick(vm* L) {
 			// TODO: Proper scheduling.
-			++ticks;
-			if (gc_debt > gc_min_debt) [[unlikely]] {
-				if (ticks >= gc_interval || gc_debt > gc_max_debt) {
+			--ticks;
+			if (debt > gc_min_debt) [[unlikely]] {
+				if (ticks < 0 || debt > gc_max_debt) {
 					collect(L);
 				}
 			}

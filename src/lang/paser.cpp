@@ -133,13 +133,14 @@ namespace li {
 
 		// Inserts a new constant into the pool.
 		//
-		bc::reg add_const(any c) {
+		std::pair<bc::reg, any> add_const(any c) {
 			for (size_t i = 0; i != fn.kvalues.size(); i++) {
-				if (fn.kvalues[i] == c)
-					return (bc::reg) i;
+				if (fn.kvalues[i] == c) {
+					return {(bc::reg) i, fn.kvalues[i]};
+				}
 			}
 			fn.kvalues.emplace_back(c);
-			return (bc::reg) fn.kvalues.size() - 1;
+			return {(bc::reg) fn.kvalues.size() - 1, c};
 		}
 
 		// Loads the constant given in the register in the most efficient way.
@@ -154,7 +155,7 @@ namespace li {
 					break;
 				}
 				default: {
-					emit(bc::KGET, r, add_const(v));
+					emitx(bc::KIMM, r, add_const(v).second.value);
 					break;
 				}
 			}
@@ -1330,7 +1331,7 @@ namespace li {
 		for (size_t n = 0; n != new_fn.uvalues.size(); n++) {
 			expr_var(scope, new_fn.uvalues[n].id).to_reg(scope, uv + (bc::reg)n);
 		}
-		scope.emit(bc::FDUP, uv, scope.add_const(result), uv);
+		scope.emit(bc::FDUP, uv, scope.add_const(result).first, uv);
 
 		// Free the unnecessary space and return the function by register.
 		//

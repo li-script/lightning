@@ -33,7 +33,6 @@ namespace li::bc {
                                                                                        \
 	/* Constant operators. */                                                           \
 	_(KIMM, reg, xmm, ___) /* A=Bitcast(BC) */                                          \
-	_(KGET, reg, kvl, ___) /* A=KVAL[B] */                                              \
                                                                                        \
 	/* Upvalue operators. */                                                            \
 	_(UGET, reg, uvl, ___) /* A=UVAL[B] */                                              \
@@ -182,27 +181,14 @@ namespace li::bc {
 			print_op(d.a, a);
 
 			if (d.b == op_t::xmm) {
-				char        op[32];
-
-				any v{std::in_place, xmm()};
-				switch (v.type()) {
-					case type_number:
-						sprintf_s(op, "%lf", v.as_num());
-						break;
-					case type_false:
-						strcpy_s(op, "false");
-						break;
-					case type_true:
-						strcpy_s(op, "true");
-						break;
-					case type_none:
-						strcpy_s(op, "None");
-						break;
-					default:
-						sprintf_s(op, "0x%016llx", v.value);
-						break;
+				std::string op = any{std::in_place, xmm()}.to_string();
+				if (op.size() > 25) {
+					op[22] = '.';
+					op[23] = '.';
+					op[24] = '.';
+					op.resize(25);
 				}
-				printf(LI_BLU "%-25s " LI_DEF, op);
+				printf(LI_BLU "%-25s " LI_DEF, op.c_str());
 			} else {
 				print_op(d.b, b);
 				print_op(d.c, c);

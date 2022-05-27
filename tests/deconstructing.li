@@ -12,4 +12,5 @@ const {test2:x} = env {
 	const tmp = 4
 	test2 = tmp * test
 }
+
 @assert(x==16)

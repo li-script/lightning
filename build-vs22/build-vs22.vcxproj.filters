@@ -32,11 +32,11 @@
     <ClCompile Include="..\src\vm\gc.cpp">
       <Filter>VM\Types</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\platform.cpp">
-      <Filter>Utility</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\lib\std.cpp">
       <Filter>Library</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\util\platform.cpp">
+      <Filter>Utility</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

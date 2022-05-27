@@ -13,7 +13,7 @@ namespace li {
 		const char* str = v.data();
 		uint32_t    len = ( uint32_t ) v.size();
 
-#ifndef __EMSCRIPTEN__
+#if LI_HAS_CRC
 		uint32_t crc = len;
 		if (len >= 4) {
 			crc = _mm_crc32_u32(crc, *(const uint32_t*) (str));

@@ -54,7 +54,7 @@ namespace li::gc {
 
 	struct free_header {
 		uintptr_t valid : 1      = 0;  // Abusing the fact that VTable won't be misaligned.
-#if UINTPTR_MAX == 0xFFFFFFFF
+#if LI_32
 		intptr_t next_free : 31 = 0;  // Offset to next free block, 0 if last.
 #else
 		intptr_t next_free : 63 = 0;  // Offset to next free block, 0 if last.

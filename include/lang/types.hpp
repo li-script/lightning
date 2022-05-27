@@ -1,7 +1,4 @@
 #pragma once
-#ifndef __EMSCRIPTEN__
-	#include <intrin.h>
-#endif
 #include <algorithm>
 #include <bit>
 #include <string>
@@ -145,7 +142,7 @@ namespace li {
 		// Hasher.
 		//
 		inline uint32_t hash() const {
-#if defined(__EMSCRIPTEN__) || UINTPTR_MAX == 0xFFFFFFFF
+#if LI_32 || !LI_HAS_CRC
 			uint64_t x = value;
 			x ^= x >> 33U;
 			x *= UINT64_C(0xff51afd7ed558ccd);

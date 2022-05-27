@@ -131,6 +131,7 @@ namespace li::gc {
 	void state::free(header* o, bool internal) {
 		LI_ASSERT_MSG("Double free", !o->is_free());
 
+#if 0
 		if (auto t = o->gc_identify()) {
 			//printf("freeing: ");
 			//any v(std::in_place, mix_value(t, (uint64_t) o));
@@ -153,6 +154,7 @@ namespace li::gc {
 			//printf("freeing: opaque %p\n", o);
 #endif
 		}
+#endif
 
 		// If call was not made internally, decrement alive counter.
 		//
@@ -162,9 +164,11 @@ namespace li::gc {
 
 		// Set the object free.
 		//
-		uint64_t num_chunks  = o->num_chunks;
-		uint64_t page_offset = o->page_offset;
+		uint32_t num_chunks  = o->num_chunks;
+		uint32_t page_offset = o->page_offset;
+#ifndef __EMSCRIPTEN__
 		std::destroy_at(o);
+#endif
 		auto* fh        = o->get_free_header();
 		fh->valid       = true;
 		fh->next_free   = 0;
@@ -227,7 +231,6 @@ namespace li::gc {
 		//page* free_list = nullptr;
 		for_each([&](page* it) {
 			if (it->alive_objects != it->num_objects) {
-
 				uint32_t c = 1;
 				it->for_each([&](header* obj) {
 					c += obj->num_chunks;

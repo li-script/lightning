@@ -39,8 +39,8 @@ namespace li::gc {
 		2048 >> chunk_shift,
 		UINT32_MAX
 	};
-	static constexpr size_t   size_class_of( uint32_t nchunks ) {
-		for (size_t sc = 0; sc != std::size(size_classes); sc++) {
+	static constexpr size_t   size_class_of(uint32_t nchunks) {
+		  for (size_t sc = 0; sc != std::size(size_classes); sc++) {
 			if (nchunks <= size_classes[sc]) {
 				return sc;
 			}
@@ -53,8 +53,12 @@ namespace li::gc {
 	struct page;
 
 	struct free_header {
-		uint64_t valid : 1      = 0;  // Abusing the fact that VTable won't be misaligned.
-		int64_t  next_free : 63 = 0;  // Offset to next free block, 0 if last.
+		uintptr_t valid : 1      = 0;  // Abusing the fact that VTable won't be misaligned.
+#if UINTPTR_MAX == 0xFFFFFFFF
+		intptr_t next_free : 31 = 0;  // Offset to next free block, 0 if last.
+#else
+		intptr_t next_free : 63 = 0;  // Offset to next free block, 0 if last.
+#endif
 
 		// Should match header:
 		//
@@ -64,7 +68,7 @@ namespace li::gc {
 
 		// Next helper.
 		//
-		void         set_next(free_header* h) { next_free = h ? int64_t(h) - int64_t(this) : 0; }
+		void         set_next(free_header* h) { next_free = h ? intptr_t(h) - intptr_t(this) : 0; }
 		free_header* next() {
 			free_header* h = (free_header*) (((uint8_t*) this) + next_free);
 			return h != this ? h : nullptr;
@@ -109,7 +113,7 @@ namespace li::gc {
 		//
 		virtual ~header() = default;
 	};
-	static_assert(sizeof(header) == 16, "Invalid GC header size.");
+	static_assert(sizeof(header) == (8 + sizeof(uintptr_t)), "Invalid GC header size.");
 	static_assert(sizeof(free_header) == sizeof(header), "Invalid GC header size.");
 	template<typename T, bool Traversable = false>
 	struct tag : header {

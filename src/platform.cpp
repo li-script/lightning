@@ -2,7 +2,7 @@
 #include <util/platform.hpp>
 #include <vm/state.hpp>
 
-#ifdef _WIN64
+#ifdef _WIN32
 	#define NOMINMAX
 	#define WIN32_LEAN_AND_MEAN
 	#include <Windows.h>
@@ -11,7 +11,7 @@
 #endif
 
 namespace li::platform {
-#ifdef _WIN64
+#ifdef _WIN32
 	void* page_alloc(void*, void* pointer, size_t page_count, bool executable) {
 		if (pointer) {
 			VirtualFree(pointer, 0, MEM_RELEASE);

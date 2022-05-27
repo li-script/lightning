@@ -194,7 +194,7 @@ namespace li {
 	static function* write_func(func_state& fn, std::optional<bc::reg> implicit_ret = std::nullopt) {
 		// Fixup all labels before writing it.
 		//
-		for (uint32_t ip = 0; ip != fn.pc.size(); ip ++) {
+		for (uint32_t ip = 0; ip != fn.pc.size(); ip++) {
 			auto& insn = fn.pc[ip];
 
 			// Skip if flag is not set or it's not actually relative.
@@ -287,7 +287,6 @@ namespace li {
 		expression(string* g) : kind(expr::glb), glb(g) {}
 		expression(bc::reg tbl, bc::reg field) : kind(expr::idx), idx{tbl, field} {}
 
-		
 		// Default bytewise copy.
 		//
 		expression(const expression& o) { memcpy(this, &o, sizeof(expression)); }
@@ -541,8 +540,8 @@ namespace li {
 				return nullptr;
 			}
 
-			lhs               = emit_binop(scope, lhs, op->opcode, rhs);
-			op                = nextop;
+			lhs = emit_binop(scope, lhs, op->opcode, rhs);
+			op  = nextop;
 		}
 		return op;
 	}
@@ -599,7 +598,7 @@ namespace li {
 		// Try using existing local variable.
 		//
 		if (auto local = scope.lookup_local(name)) {
-			return *local; // local / arg
+			return *local;  // local / arg
 		}
 
 		// Try finding an argument.
@@ -613,7 +612,7 @@ namespace li {
 		// Try using existing upvalue.
 		//
 		if (auto uv = scope.lookup_uval(name)) {
-			return *uv;    // uvalue
+			return *uv;  // uvalue
 		}
 
 		// Try borrowing a value by creating an upvalue.
@@ -621,7 +620,7 @@ namespace li {
 		if (scope.fn.enclosing) {
 			expression ex = expr_var(*scope.fn.enclosing, name);
 			if (ex.kind != expr::glb) {
-				bool is_const = ex.freeze != 0;
+				bool    is_const = ex.freeze != 0;
 				bc::reg next_reg = (bc::reg) scope.fn.uvalues.size();
 				scope.fn.uvalues.push_back({name, is_const, next_reg});
 				return expression{upvalue_t{}, {next_reg, is_const}};
@@ -633,7 +632,7 @@ namespace li {
 
 	// Parses an array literal.
 	//
-	static expression expr_array( func_scope& scope ) {
+	static expression expr_array(func_scope& scope) {
 		// TODO: ADUP const part, dont care rn.
 
 		// Create a new array.
@@ -719,12 +718,12 @@ namespace li {
 
 		// Yes we really need double look-ahead.
 		//
-		auto pi = lex.input;
-		auto pl = lex.line;
-		auto ll = lex.scan();
+		auto pi   = lex.input;
+		auto pl   = lex.line;
+		auto ll   = lex.scan();
 		lex.input = pi;
-		lex.line = pl;
-		//printf("TBL INIT SAMPLE: '%s'\n", ll.to_string().c_str());
+		lex.line  = pl;
+		// printf("TBL INIT SAMPLE: '%s'\n", ll.to_string().c_str());
 		return (ll.id == ':' || ll.id == ',');
 	}
 
@@ -849,7 +848,6 @@ namespace li {
 		bool is_arr = scope.lex().opt('[').has_value();
 		bool is_tbl = scope.lex().opt('{').has_value();
 		if (is_arr || is_tbl) {
-
 			// Collect variable list.
 			//
 			std::pair<string*, any> mappings[32];
@@ -943,7 +941,7 @@ namespace li {
 			// Assign all locals.
 			//
 			for (size_t i = 0; i != size; i++) {
-				auto reg = scope.add_local(mappings[i].first, is_const);
+				auto reg   = scope.add_local(mappings[i].first, is_const);
 				auto field = expression(mappings[i].second).to_nextreg(scope);
 				scope.emit(bc::TGET, reg, field, ex.reg);
 				scope.free_reg(field);
@@ -995,7 +993,6 @@ namespace li {
 	static expression parse_assign_or_expr(func_scope& scope) {
 		auto expr = expr_parse(scope);
 		if (expr.is_lvalue()) {
-
 			// If simple assignment.
 			//
 			if (scope.lex().opt('=')) {
@@ -1049,7 +1046,6 @@ namespace li {
 	//
 	static expression expr_stmt(func_scope& scope, bool& fin) {
 		switch (scope.lex().tok.id) {
-
 			// Empty statement => None.
 			//
 			case ';': {
@@ -1083,12 +1079,12 @@ namespace li {
 				// void return:
 				//
 				if (auto& tk = scope.lex().tok; tk.id == ';' || tk.id == lex::token_eof || tk.id == '}') {
-					scope.emit(bc::RET, expression(any()).to_anyreg(scope));	
+					scope.emit(bc::RET, expression(any()).to_anyreg(scope));
 				}
 				// value return:
 				//
 				else {
-					scope.emit(bc::RET, expr_parse(scope).to_anyreg(scope));	
+					scope.emit(bc::RET, expr_parse(scope).to_anyreg(scope));
 				}
 				return expression(none);
 			}
@@ -1131,7 +1127,7 @@ namespace li {
 
 					// Discharge expression to last register at the owning block, jump out.
 					//
-					expr_parse(scope).to_reg(scope, s->reg_next-1);
+					expr_parse(scope).to_reg(scope, s->reg_next - 1);
 					scope.emit(bc::JMP, scope.lbl_break);
 				}
 				return expression(none);
@@ -1179,7 +1175,7 @@ namespace li {
 			//
 			if (into != -1) {
 				last.to_reg(scope, into);
-			} 
+			}
 			// Otherwise if value is not immediate, escape the value from sub-scope.
 			//
 			else if (last.kind != expr::imm) {
@@ -1200,7 +1196,6 @@ namespace li {
 	static bool parse_body(func_scope scope) {
 		bool fin = false;
 		while (scope.lex().tok != lex::token_eof) {
-
 			// If finalized but block is not closed, fail.
 			//
 			if (fin) {
@@ -1226,7 +1221,7 @@ namespace li {
 	static expression parse_call(func_scope& scope, const expression& func) {
 		// Callsite expression list.
 		//
-		expression callsite[32] = { func };
+		expression callsite[32] = {func};
 		uint32_t   size         = 1;
 
 		// Collect arguments.
@@ -1244,7 +1239,6 @@ namespace li {
 				return {};
 			if (!scope.lex().opt(')')) {
 				while (true) {
-
 					if (size == std::size(callsite)) {
 						scope.lex().error("too many arguments");
 						return {};
@@ -1254,7 +1248,6 @@ namespace li {
 						return {};
 					else
 						callsite[size++] = ex;
-
 
 					if (scope.lex().opt(')'))
 						break;
@@ -1273,8 +1266,8 @@ namespace li {
 
 		// Emit the call, free all arguments, return the result.
 		//
-		scope.emit(bc::CALL, c, size-1);
-		scope.free_reg(c+1, size-1);
+		scope.emit(bc::CALL, c, size - 1);
+		scope.free_reg(c + 1, size - 1);
 		return expression(c);
 	}
 
@@ -1329,7 +1322,7 @@ namespace li {
 		//
 		auto uv = scope.alloc_reg((uint32_t) new_fn.uvalues.size());
 		for (size_t n = 0; n != new_fn.uvalues.size(); n++) {
-			expr_var(scope, new_fn.uvalues[n].id).to_reg(scope, uv + (bc::reg)n);
+			expr_var(scope, new_fn.uvalues[n].id).to_reg(scope, uv + (bc::reg) n);
 		}
 		scope.emit(bc::FDUP, uv, scope.add_const(result).first, uv);
 
@@ -1348,11 +1341,11 @@ namespace li {
 		if (cc.kind == expr::err) {
 			return cc;
 		}
-		cc      = cc.to_nextreg(scope);
+		cc = cc.to_nextreg(scope);
 
 		// Define block reader.
 		//
-		auto block_or_exp = [ & ] () -> bool {
+		auto block_or_exp = [&]() -> bool {
 			if (scope.lex().opt('{')) {
 				return expr_block(scope, cc.reg).kind != expr::err;
 			} else {
@@ -1431,7 +1424,7 @@ namespace li {
 
 		// Restore the labels.
 		//
-		scope.lbl_break = pb;
+		scope.lbl_break    = pb;
 		scope.lbl_continue = pc;
 
 		// Return the result.
@@ -1539,7 +1532,7 @@ namespace li {
 			//
 			auto iter_base = scope.alloc_reg(4);
 			i.to_reg(scope, iter_base);
-			i2.to_reg(scope, iter_base+1);
+			i2.to_reg(scope, iter_base + 1);
 			scope.set_reg(iter_base + 2, step);
 			scope.set_reg(iter_base + 4, none);
 
@@ -1559,7 +1552,7 @@ namespace li {
 
 			// Parse the condition, jump to break if we reached the end.
 			//
-			scope.emit(bc::AADD, iter_base, iter_base, iter_base + 2);                           // it = it + step
+			scope.emit(bc::AADD, iter_base, iter_base, iter_base + 2);  // it = it + step
 			if (i2.kind != expr::imm || i2.imm != none) {
 				scope.emit(inclusive ? bc::CGT : bc::CGE, iter_base + 4, iter_base, iter_base + 1);  // cc = !cmp(it, max)
 				scope.emit(bc::JS, scope.lbl_break, iter_base + 4);
@@ -1684,7 +1677,7 @@ namespace li {
 		// Restore environment, free the save slot and return the table as the result.
 		//
 		scope.emit(bc::USET, bc::uval_env, space + 1);
-		scope.reg_next = space + 1; // Discard block result without making free_reg angry.
+		scope.reg_next = space + 1;  // Discard block result without making free_reg angry.
 		return {space};
 	}
 

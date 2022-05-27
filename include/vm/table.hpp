@@ -37,7 +37,7 @@ namespace li {
 
 		// GC enumerator.
 		//
-		void gc_traverse(gc::sweep_state& s) override;
+		void gc_traverse(gc::stage_context s) override;
 
 		// Rehashing resize.
 		//

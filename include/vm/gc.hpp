@@ -2,13 +2,16 @@
 #include <util/common.hpp>
 #include <util/llist.hpp>
 #include <util/platform.hpp>
+#include <util/format.hpp>
 #include <lang/types.hpp>
 
 namespace li {
 	struct vm;
 };
 namespace li::gc {
-	struct sweep_state;
+	struct stage_context {
+		uint32_t next_stage;
+	};
 	struct page;
 
 	static constexpr size_t minimum_allocation       = 512 * 1024;
@@ -18,9 +21,9 @@ namespace li::gc {
 	struct header {
 		uint32_t size_in_qwords : 31 = 0;
 		uint32_t traversable : 1     = 0;
-		uint32_t page_offset : 24    = 0;  // in page units.
 		uint32_t stage : 2           = 0;
 		uint32_t free : 1            = 0;
+		uint32_t page_offset : 24    = 0;  // in page units.
 
 		// Object size helper.
 		// - Size ignoring the header.
@@ -41,15 +44,11 @@ namespace li::gc {
 
 		// Internals.
 		//
-		void               gc_init(page* p, vm* L);
-		bool               gc_tick(sweep_state& s, bool weak = false);
-		virtual void       gc_traverse(sweep_state& s) = 0;
+		void               gc_init(page* p, vm* L, uint32_t qlen, bool traversable);
+		bool               gc_tick(stage_context s, bool weak = false);
+		virtual void       gc_traverse(stage_context s) = 0;
 		virtual value_type gc_identify() const         = 0;
 		void               gc_free();
-
-		// Constructed with whether or not it is traversable, page fills the size.
-		//
-		constexpr header(bool traversable) : traversable(traversable) {}
 
 		// Virtual destructor.
 		//
@@ -59,29 +58,28 @@ namespace li::gc {
 
 	template<typename T, bool Traversable = false>
 	struct tag : header {
-		// Default constructed, no copy.
-		//
-		constexpr tag() : header(Traversable) {}
+		static constexpr bool gc_traversable = Traversable;
 
 		// Returns the extra-space associated.
 		//
 		size_t extra_bytes() const { return total_bytes() - sizeof(T); }
 
-		// No copy.
+		// No copy, default constructed.
 		//
-		tag(const tag&) = delete;
+		constexpr tag()            = default;
+		tag(const tag&)            = delete;
 		tag& operator=(const tag&) = delete;
 	};
 	template<typename T, value_type V = value_type::type_none>
 	struct leaf : tag<T, false> {
-		void       gc_traverse(sweep_state& s) override {}
+		void       gc_traverse(stage_context s) override {}
 		value_type gc_identify() const override { return V; }
 	};
 	template<typename T, value_type V = value_type::type_none>
 	struct node : tag<T, true> {
 		value_type gc_identify() const override { return V; }
 	};
-	
+
 	// GC page.
 	//
 	struct page {
@@ -120,28 +118,16 @@ namespace li::gc {
 			return nullptr;
 		}
 
-		// Allocation helper.
+		// Allocates an uninitialized chunk, caller must have checked for space.
 		//
-		template<typename T>
-		bool check(size_t extra_length = 0) const {
-			uint32_t length = uint32_t((extra_length + sizeof(T) + 7) >> 3);
-			return free_qwords >= length;
-		}
-		template<typename T, typename... Tx>
-		T* create(vm* L, size_t extra_length = 0, Tx&&... args) {
-			uint32_t length = uint32_t((extra_length + sizeof(T) + 7) >> 3);
-			if (free_qwords >= length) {
-				uint64_t* base = ((uint64_t*) this) + (size_t(num_pages) << (12 - 3));
-				base -= free_qwords;
-				free_qwords -= length;
+		void* allocate_uninit(uint32_t qword_length) {
+			LI_ASSERT(free_qwords >= qword_length);
 
-				T* result = new (base) T(std::forward<Tx>(args)...);
-				result->size_in_qwords = length;
-				result->gc_init(this, L);
-				num_objects++;
-				return result;
-			}
-			return nullptr;
+			uint64_t* base = ((uint64_t*) this) + (size_t(num_pages) << (12 - 3));
+			base -= free_qwords;
+			free_qwords -= qword_length;
+			num_objects++;
+			return base;
 		}
 	};
 
@@ -153,6 +139,7 @@ namespace li::gc {
 		page*    initial_page = nullptr;  // Initial page entry.
 		size_t   gc_debt      = 0;        // Allocations made since last GC sweep.
 		size_t   ticks        = 0;        // Tick counter.
+
 
 		// Page enumerator.
 		//
@@ -186,24 +173,34 @@ namespace li::gc {
 		void collect(vm* L);
 		void tick(vm* L) {
 			// TODO: Proper scheduling.
-			if (++ticks > 128 || gc_debt > (1 * 1024 * 1024)) [[unlikely]] {
+			if (++ticks > 128 || gc_debt > (1 * 1024 * 1024) / 8) [[unlikely]] {
 				gc_debt = 0;
 				collect(L);
 			}
 		}
 
-		// Allocation helper.
+		// Allocates an uninitialized chunk.
+		//
+		std::pair<page*, void*> allocate_uninit(vm* L, uint32_t qword_length) {
+			auto* page = initial_page->prev;
+			if (page->free_qwords < qword_length) {
+				page = add_page(L, size_t(qword_length) * 8, false);
+				if (!page)
+					return {nullptr, nullptr};
+			}
+			gc_debt += qword_length;
+			return {page, page->allocate_uninit(qword_length)};
+		}
+
+		// Allocates and creates an object.
 		//
 		template<typename T, typename... Tx>
-		T* alloc(vm* L, size_t extra_length = 0, Tx&&... args) {
-			auto* page = initial_page->prev;
-			if (!page->check<T>(extra_length)) {
-				page = add_page(L, sizeof(T) + extra_length, false);
-				if (!page)
-					return nullptr;
-			}
-			gc_debt += extra_length + sizeof(T);
-			return page->create<T, Tx...>(L, extra_length, std::forward<Tx>(args)...);
+		T* create(vm* L, size_t extra_length = 0, Tx&&... args) {
+			uint32_t length   = uint32_t((extra_length + sizeof(T) + 7) >> 3);
+			auto [page, base] = allocate_uninit(L, length);
+			T* result         = new (base) T(std::forward<Tx>(args)...);
+			result->gc_init(page, L, length, T::gc_traversable);
+			return result;
 		}
 
 		// Page list management.

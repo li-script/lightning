@@ -5,17 +5,14 @@
 
 
 namespace li::gc {
-
-	struct sweep_state {
-		uint32_t next_stage;
-	};
-
-	void header::gc_init(page* p, vm* L) {
-		stage = L ? L->stage : 0;
-		page_offset = (uintptr_t(this) - uintptr_t(p)) >> 12;
+	void header::gc_init(page* p, vm* L, uint32_t qlen, bool traversable) {
+		size_in_qwords = qlen;
+		traversable    = traversable;
+		page_offset    = (uintptr_t(this) - uintptr_t(p)) >> 12;
+		stage          = L ? L->stage : 0;
+		free           = false;
 	}
-	bool header::gc_tick(sweep_state& s, bool weak) {
-
+	bool header::gc_tick(stage_context s, bool weak) {
 		// If dead, skip.
 		//
 		if (free) [[unlikely]] {
@@ -44,7 +41,7 @@ namespace li::gc {
 		free = true;
 	}
 
-	static void traverse_live(vm* L, sweep_state& sweep, bool include_weak) {
+	static void traverse_live(vm* L, stage_context sweep, bool include_weak) {
 		// Stack.
 		//
 		for (auto& e : std::span{L->stack, L->stack_top}) {
@@ -73,7 +70,7 @@ namespace li::gc {
 
 		// Mark all alive objects.
 		//
-		sweep_state ms{++L->stage};
+		stage_context ms{++L->stage};
 		traverse_live(L, ms, false);
 
 		// Free all dead objects.
@@ -105,7 +102,7 @@ namespace li::gc {
 
 		// Sweep dead references.
 		//
-		sweep_state ss{++L->stage};
+		stage_context ss{++L->stage};
 		traverse_live(L, ss, true);
 
 		// If we can free any pages, do so.

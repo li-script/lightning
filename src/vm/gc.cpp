@@ -125,7 +125,7 @@ namespace li::gc {
 
 		// Increment GC depth, return the result.
 		//
-		gc_debt += clen;
+		debt += clen;
 		return {pg, pg->allocate_uninit(clen)};
 	}
 	void state::free(header* o, bool internal) {
@@ -204,8 +204,8 @@ namespace li::gc {
 	LI_COLD void state::collect(vm* L) {
 		// Reset GC tick.
 		//
-		ticks   = 0;
-		gc_debt = 0;
+		ticks = gc_interval;
+		debt  = 0;
 
 		// Clear alive counter in all pages.
 		//

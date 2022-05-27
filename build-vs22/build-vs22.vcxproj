@@ -32,7 +32,7 @@
     <ClCompile Include="..\src\lang\paser.cpp" />
     <ClCompile Include="..\src\lib\std.cpp" />
     <ClCompile Include="..\src\main.cpp" />
-    <ClCompile Include="..\src\platform.cpp" />
+    <ClCompile Include="..\src\util\platform.cpp" />
     <ClCompile Include="..\src\vm\array.cpp" />
     <ClCompile Include="..\src\vm\function.cpp" />
     <ClCompile Include="..\src\vm\gc.cpp" />

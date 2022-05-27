@@ -19,7 +19,7 @@ namespace li::gc {
 	// GC configuration.
 	//
 	static constexpr size_t minimum_allocation = 2 * 1024 * 1024;
-	static constexpr size_t chunk_shift        = 5;
+	static constexpr size_t chunk_shift        = 4;
 	static constexpr size_t chunk_size         = 1ull << chunk_shift;
 	static constexpr size_t gc_interval        = 8192;
 	static constexpr size_t gc_min_debt        = 1024 / chunk_size;
@@ -31,9 +31,11 @@ namespace li::gc {
 	// Size classes.
 	//
 	static constexpr uint32_t size_classes[] = {
-		96 >> chunk_shift,
+		32 >> chunk_shift,
+		64 >> chunk_shift,
 		128 >> chunk_shift,
 		256 >> chunk_shift,
+		1024 >> chunk_shift,
 		2048 >> chunk_shift,
 		UINT32_MAX
 	};
@@ -141,7 +143,7 @@ namespace li::gc {
 		uint32_t num_pages      = 0;
 		uint32_t num_objects    = 0;
 		uint32_t alive_objects  = 0;
-		uint32_t next_chunk     = 1;
+		uint32_t next_chunk     = chunk_ceil(sizeof(page));
 
 		// Default construction for head.
 		//
@@ -164,7 +166,7 @@ namespace li::gc {
 
 		// Object enumeration.
 		//
-		header* begin() { return (header*) get_chunk(1); }
+		header* begin() { return (header*) get_chunk(chunk_ceil(sizeof(page))); }
 		void*   end() { return get_chunk(next_chunk); }
 		template<typename F>
 		header* for_each(F&& fn) {
@@ -190,7 +192,6 @@ namespace li::gc {
 			return p;
 		}
 	};
-	static_assert(sizeof(page) <= chunk_size, "Invalid page header.");
 
 	// GC state.
 	//

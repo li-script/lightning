@@ -22,4 +22,8 @@ namespace li::platform {
 	// Default page allocator.
 	//
 	void* page_alloc(void* ud, void* pointer, size_t page_count, bool executable);
+
+	// Checks if shift is being held for REPL.
+	//
+	bool is_shift_down();
 };

@@ -28,9 +28,16 @@
 	#error "Unknown target architecture."
 #endif
 
-#if LI_ARCH_X86 && (__has_include(<intrin.h>) || _MSC_VER)
+#if LI_ARCH_X86
 	#define LI_HAS_CRC 1
-	#include <intrin.h>
+	#if defined(__GNUC__) || defined(__clang__)
+		#define _mm_crc32_u8  __builtin_ia32_crc32qi
+		#define _mm_crc32_u16 __builtin_ia32_crc32hi
+		#define _mm_crc32_u32 __builtin_ia32_crc32si
+		#define _mm_crc32_u64 __builtin_ia32_crc32di
+	#else
+		#include <intrin.h>
+	#endif
 #endif
 #if UINTPTR_MAX == 0xFFFFFFFF
 	#define LI_32 1

@@ -1,1 +1,3 @@
-# lightning
+# ⚡ Script
+
+WIP

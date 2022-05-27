@@ -10,15 +10,19 @@ namespace li {
 		if (!ptr)
 			return nullptr;
 
-		// Initialize the GC page, create the VM.
+		// Initialize a GC state.
 		//
-		auto* gc           = new (ptr) gc::page(length);
-		vm*   L            = gc->create<vm>(nullptr, context_space);
-		gc->next           = gc;
-		gc->prev           = gc;
-		L->gc.alloc_fn     = alloc;
-		L->gc.alloc_ctx    = allocu;
-		L->gc.initial_page = gc;
+		gc::state gc{};
+		gc.alloc_fn           = alloc;
+		gc.alloc_ctx          = allocu;
+		gc.initial_page       = new (ptr) gc::page(length);
+		gc.initial_page->next = gc.initial_page;
+		gc.initial_page->prev = gc.initial_page;
+
+		// Create the VM.
+		//
+		vm* L = gc.create<vm>(nullptr, context_space);
+		L->gc = gc;
 
 		// Initialize stack.
 		//

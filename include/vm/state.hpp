@@ -17,7 +17,7 @@ namespace li {
 	//
 	struct string_set;
 	void init_string_intern(vm* L);
-	void traverse_string_set(vm* L, gc::sweep_state& s);
+	void traverse_string_set(vm* L, gc::stage_context s);
 
 	// Pseudo-type for stack.
 	//
@@ -126,7 +126,7 @@ namespace li {
 		//
 		template<typename T, typename... Tx>
 		T* alloc(size_t extra_length = 0, Tx&&... args) {
-			T* result = gc.alloc<T, Tx...>(this, extra_length, std::forward<Tx>(args)...);
+			T* result = gc.create<T, Tx...>(this, extra_length, std::forward<Tx>(args)...);
 			if (!result) [[unlikely]]
 				panic("out of memory");
 			return result;

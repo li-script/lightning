@@ -117,12 +117,12 @@ int main() {
 			puts(
 				 "Dumping bytecode of the function:\n"
 				 "-----------------------------------------------------");
-			for (size_t i = 0; i != f->length; i++) {
+			for (uint32_t i = 0; i != f->length; i++) {
 				f->opcode_array[i].print(i);
 			}
 			puts("-----------------------------------------------------");
-			for (size_t i = 0; i != f->num_uval; i++) {
-				printf(LI_CYN "u%llu:   " LI_DEF, i);
+			for (uint32_t i = 0; i != f->num_uval; i++) {
+				printf(LI_CYN "u%u:   " LI_DEF, i);
 				f->uvals()[i].print();
 				printf("\n");
 			}
@@ -163,7 +163,7 @@ int main() {
 			printf(" -> Parser error: %s\n", fn.as_str()->data);
 		}
 
-		L->gc.tick(L);
+		L->gc.collect(L);
 
 		L->close();
 	}

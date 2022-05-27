@@ -43,7 +43,7 @@ namespace li {
 
 		// GC enumerator.
 		//
-		void gc_traverse(gc::sweep_state& s) override {
+		void gc_traverse(gc::stage_context s) override {
 			for (auto& k : *this) {
 				if (k && !k->gc_tick(s, true)) {
 					k = nullptr;
@@ -119,7 +119,7 @@ namespace li {
 		str->hash    = 0;
 		L->empty_string = str;
 	}
-	void traverse_string_set(vm* L, gc::sweep_state& s) { L->str_intern->gc_traverse(s); }
+	void traverse_string_set(vm* L, gc::stage_context s) { L->str_intern->gc_traverse(s); }
 
 	// String creation.
 	//

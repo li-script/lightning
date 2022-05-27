@@ -27,7 +27,7 @@ namespace li {
 
 	// GC enumerator.
 	//
-	void table::gc_traverse(gc::sweep_state& s) {
+	void table::gc_traverse(gc::stage_context s) {
 		for (auto& [k, v] : *this) {
 			if (k.is_gc())
 				k.as_gc()->gc_tick(s);

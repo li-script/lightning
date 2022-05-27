@@ -2,8 +2,12 @@
 [project]
 name = "LibLi"
 
+[options]
+LIGHTING_TESTS = true
+
 [conditions]
 emscripten = "EMSCRIPTEN"
+tests = "LIGHTING_TESTS"
 
 [target.LibLi]
 type = "executable"
@@ -19,3 +23,6 @@ emscripten.link-options = [
     "-sEXTRA_EXPORTED_RUNTIME_METHODS=ccall,cwrap",
     "-sEXPORTED_FUNCTIONS=_main,_runscript",
 ]
+
+[subdir.tests]
+condition = "tests"

@@ -1,0 +1,17 @@
+$expect = |a, b| { if a != b { throw "Failed" } }
+
+let [a,b,,c] = ["a", "b", "c", "d"]
+$expect(a,"a")
+$expect(b,"b")
+$expect(c,"d")
+
+let {a:aa,b:bb} =  {a: 5, b: 6}
+$expect(aa, 5)
+$expect(bb, 6)
+
+const {test2:x} = env {
+	test = 4
+	const tmp = 4
+	test2 = tmp * test
+}
+$expect(x, 16)

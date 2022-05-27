@@ -13,3 +13,5 @@ build-emcmake/
 build-vs22/Debug/
 
 embuild.bat
+
+parser-test.li

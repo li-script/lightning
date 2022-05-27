@@ -19,10 +19,19 @@ namespace li {
 	void init_string_intern(vm* L);
 	void traverse_string_set(vm* L, gc::sweep_state& s);
 
+	// Pseudo-type for stack.
+	//
+	struct vm_stack : gc::leaf<vm_stack> {
+		any list[];
+	};
+
 	// VM state.
 	//
 	struct vm : gc::leaf<vm> {
 		static vm* create(fn_alloc alloc = &platform::page_alloc, void* allocu = nullptr, size_t context_space = 0);
+
+		static constexpr size_t initial_stack_length   = 32;
+		static constexpr size_t reserved_global_length = 32;
 
 		// VM state.
 		//
@@ -36,21 +45,19 @@ namespace li {
 		uint32_t    stack_top    = 0;               // Top of the stack.
 		uint32_t    stack_len    = 0;               // Maximum length of the stack.
 
-		// Handles garbage collection.
-		//
-		void collect_garbage();
-
 		// Closes the VM state.
 		//
 		void close();
 
-		// Grows the stack range.
+		// Grows the stack range by n.
 		//
 		LI_COLD void grow_stack(uint32_t n = 0) {
 			n     = std::max(n, stack_len);
-			stack = (any*) realloc(stack, (stack_len + n) * sizeof(any));
-			fill_none(&stack[stack_len], n);
-			stack_len += n;
+			auto* new_stack = alloc<vm_stack>((stack_len + n) * sizeof(any));
+			memcpy(new_stack->list, stack, stack_top * sizeof(any));
+			stack_len = new_stack->extra_bytes() / sizeof(any);
+			std::prev((gc::header*) stack)->gc_free();
+			stack     = new_stack->list;
 		}
 
 		// Pushes to or pops from the stack.

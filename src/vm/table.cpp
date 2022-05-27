@@ -42,18 +42,20 @@ namespace li {
 		size_t new_count = std::bit_ceil(n | (small_table_length - 1));
 		size_t old_count = size();
 		if (new_count > old_count) {
-			auto*  old_list = begin();
-			size_t alloc_length   = sizeof(typename table_entry) * (new_count + overflow_factor);
+			auto*  old_list     = node_list;
+			auto*  old_entries  = begin();
+			size_t alloc_length = sizeof(typename table_entry) * (new_count + overflow_factor);
 			node_list           = L->alloc<table_nodes>(alloc_length);
 			fill_none(node_list->entries, alloc_length / sizeof(any));
 
-			if (old_list) {
-				// TODO: Free old?
+			if (old_entries) {
 				for (size_t i = 0; i != old_count; i++) {
-					if (old_list[i].key != none) {
-						set(L, old_list[i].key, old_list[i].value, true);
+					if (old_entries[i].key != none) {
+						set(L, old_entries[i].key, old_entries[i].value, true);
 					}
 				}
+				if (old_list)
+					old_list->gc_free();
 			}
 		}
 	}

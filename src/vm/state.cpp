@@ -12,22 +12,28 @@ namespace li {
 
 		// Initialize the GC page, create the VM.
 		//
-		auto* gc    = new (ptr) gc::page(length);
-		vm*   L     = gc->create<vm>(nullptr, context_space);
-		L->gc.alloc_fn = alloc;
-		L->gc.alloc_ctx = allocu;
-		util::link_after(&L->gc.page_list_head, gc);
+		auto* gc           = new (ptr) gc::page(length);
+		vm*   L            = gc->create<vm>(nullptr, context_space);
+		gc->next           = gc;
+		gc->prev           = gc;
+		L->gc.alloc_fn     = alloc;
+		L->gc.alloc_ctx    = allocu;
+		L->gc.initial_page = gc;
+
+		// Initialize stack.
+		//
+		auto* stack  = L->alloc<vm_stack>(vm::initial_stack_length * sizeof(any));
+		L->stack_len = stack->extra_bytes() / sizeof(any);
+		L->stack     = stack->list;
+
+		// Initialize globals and string interning state.
+		//
+		L->globals = table::create(L, vm::reserved_global_length);
 		init_string_intern(L);
-		L->globals    = table::create(L, 32);
-		L->stack      = (any*) malloc(sizeof(any) * 32);
-		L->stack_len  = 32;
 		return L;
 	}
 
 	// Closes the VM state.
 	//
-	void vm::close() {
-		free(stack);
-		gc.close();
-	}
+	void vm::close() { gc.close(); }
 };

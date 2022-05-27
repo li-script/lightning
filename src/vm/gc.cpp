@@ -7,41 +7,113 @@
 namespace li::gc {
 
 	struct sweep_state {
-		uint8_t next_stage;
-		size_t  counter = 0;
+		uint32_t next_stage;
 	};
 
-	void header::gc_init(vm* L) { stage = L ? L->gc.stage : 0; }
+	void header::gc_init(page* p, vm* L) {
+		stage = L ? L->stage : 0;
+		page_offset = (uintptr_t(this) - uintptr_t(p)) >> 12;
+	}
 	bool header::gc_tick(sweep_state& s, bool weak) {
-		if (stage != s.next_stage) {
-			stage = s.next_stage;
-			if (traversable)
-				gc_traverse(s);
 
-			printf("marked gc object %llu: %p\n", s.counter++, this);
+		// If dead, skip.
+		//
+		if (free) [[unlikely]] {
+			return false;
 		}
+
+		// If already iterated, skip.
+		//
+		if (stage == s.next_stage) {
+			return true;
+		}
+
+		// Update stage, recurse.
+		//
+		stage = s.next_stage;
+		if (traversable)
+			gc_traverse(s);
+
+		// Increment counter.
+		//
+		get_page()->alive_objects++;
 		return true;
 	}
+	void header::gc_free() {
+		// TODO: Insert to free list
+		free = true;
+	}
 
-	void state::collect(vm* L) {
-		stage = !stage;
-		sweep_state sweep{stage};
-		
-		for (auto it = page_list_head.next; it != &page_list_head; it = it->next) {
-			printf("gc page %p has %llu objects\n", it, it->num_objects);
-		}
-
-
+	static void traverse_live(vm* L, sweep_state& sweep, bool include_weak) {
 		// Stack.
+		//
 		for (auto& e : std::span{L->stack, L->stack_top}) {
 			if (e.is_gc())
 				e.as_gc()->gc_tick(sweep);
 		}
 
 		// Globals.
+		//
 		L->globals->gc_traverse(sweep);
 
 		// Strings.
-		traverse_string_set(L, sweep);
+		//
+		((header*) L->empty_string)->gc_tick(sweep);
+		if (!include_weak)
+			traverse_string_set(L, sweep);
+	}
+
+	void state::collect(vm* L) {
+		// Clear alive counter in all pages.
+		//
+		initial_page->alive_objects = 1; // vm
+		for (auto it = initial_page->next; it != initial_page; it = it->next) {
+			it->alive_objects = 0;
+		}
+
+		// Mark all alive objects.
+		//
+		sweep_state ms{++L->stage};
+		traverse_live(L, ms, false);
+
+		// Free all dead objects.
+		//
+		page* free_list = nullptr;
+		for_each([&](page* it) {
+			if (it->alive_objects != it->num_objects) {
+
+				it->for_each([&](header* obj) {
+					if (obj->stage != ms.next_stage)
+						obj->gc_free();
+					return false;
+				});
+
+				if (!it->alive_objects) {
+					util::unlink(it);
+					if (!free_list) {
+						free_list = it;
+					} else {
+						it->next  = free_list;
+						free_list = it;
+					}
+				}
+
+				it->alive_objects = 0; // Will be incremented again by next step.
+			}
+			return false;
+		});
+
+		// Sweep dead references.
+		//
+		sweep_state ss{++L->stage};
+		traverse_live(L, ss, true);
+
+		// If we can free any pages, do so.
+		//
+		while (free_list) {
+			auto i = std::exchange(free_list, free_list->next);
+			alloc_fn(alloc_ctx, i, i->num_pages, false);
+		}
+		// TODO: Table/array/stack/strset shrinking.
 	}
 };

@@ -7,7 +7,7 @@ namespace li {
 	struct array_store : gc::leaf<array_store> {
 		any entries[];
 	};
-	struct array : gc::node<array> {
+	struct array : gc::node<array, type_array> {
 		static array* create(vm* L, size_t reserved_entry_count = 0);
 
 		array_store* storage = nullptr;

@@ -25,13 +25,14 @@ namespace li {
 
 	// TODO: Weak node?
 	struct string_set : gc::node<string_set> {
+		static constexpr size_t min_size = 512;
 		static constexpr size_t overflow_factor = 8;
 
 		string* entries[];
 
 		// Expose the same interface as table.
 		//
-		size_t             size() { return (this->object_bytes() / sizeof(string*)) - overflow_factor; }
+		size_t             size() { return std::bit_floor((this->object_bytes() / sizeof(string*)) - overflow_factor); }
 		size_t             mask() { return size() - 1; }
 		string**           begin() { return &entries[0]; }
 		string**           end() { return &entries[size() + overflow_factor]; }
@@ -106,14 +107,11 @@ namespace li {
 		}
 	};
 
-	
-	static constexpr size_t min_size = 512;
-
 	// Internal string-set implementation.
 	//
 	void init_string_intern(vm* L) {
-		L->str_intern = L->alloc<string_set>(sizeof(string*) * min_size);
-		std::fill_n(L->str_intern->entries, min_size, nullptr);
+		L->str_intern = L->alloc<string_set>(sizeof(string*) * string_set::min_size);
+		std::fill_n(L->str_intern->entries, string_set::min_size, nullptr);
 
 		string* str = L->alloc<string>(1);
 		str->data[0] = 0;
@@ -165,7 +163,7 @@ namespace li {
 		//
 		for (auto& entry : L->str_intern->find(str->hash)) {
 			if (entry && entry->view() == str->view()) {
-				// TODO: Free string?
+				str->gc_free();
 				return entry;
 			}
 		}

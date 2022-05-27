@@ -1,22 +1,18 @@
+#include <algorithm>
 #include <fstream>
 #include <lang/lexer.hpp>
-
+#include <lang/operator.hpp>
+#include <lang/parser.hpp>
+#include <lib/std.hpp>
+#include <optional>
+#include <tuple>
 #include <util/llist.hpp>
 #include <vector>
+#include <vm/bc.hpp>
+#include <vm/function.hpp>
 #include <vm/state.hpp>
 #include <vm/string.hpp>
 #include <vm/table.hpp>
-
-/*
-	statement == expression
-
-	struct array;
-	struct userdata;
-	struct function;
-	struct thread;
-	struct environment;
-
-*/
 
 namespace li::debug {
 	static void dump_table(table* t) {
@@ -45,65 +41,36 @@ namespace li::debug {
 	}
 };
 
-#include <algorithm>
-#include <optional>
-#include <tuple>
-
-#include <vm/bc.hpp>
-#include <vm/function.hpp>
-#include <lang/operator.hpp>
-#include <lang/parser.hpp>
-
-
 using namespace li;
-
-#include <unordered_map>
-#include <thread>
-#include <lib/std.hpp>
-
-
-void export_global( vm* L, const char* name, nfunc_t f ) {
-	auto nf = nfunction::create(L);
-	nf->callback = f;
-	L->globals->set(L, string::create(L, name), nf);
-}
-
-
-static vm* create_vm_with_stdlib() {
-	auto* L = vm::create();
-	lib::register_std(L);
-	return L;
-}
-
 #ifdef __EMSCRIPTEN__
 static vm* emscripten_vm = nullptr;
 extern "C" {
-	void  __attribute__((used)) runscript(const char* str) {
-		vm*  L  = emscripten_vm;
-		auto fn = li::load_script(L, str, "console", true);
-		if (fn.is(type_function)) {
-			L->push_stack(fn);
-			if (!L->scall(0)) {
-				printf(LI_RED "Exception: ");
-				L->pop_stack().print();
-				printf("\n" LI_DEF);
-			} else {
-				auto r = L->pop_stack();
-				if (!r.is(type_none)) {
-					printf(LI_GRN "");
-					r.print();
-					printf("\n" LI_DEF);
-
-					if (r.is(type_table))
-						debug::dump_table(r.as_tbl());
-				}
-			}
-			// puts("---------GLOBALS------------");
-			// debug::dump_table(L->globals);
+void __attribute__((used)) runscript(const char* str) {
+	vm*  L  = emscripten_vm;
+	auto fn = li::load_script(L, str, "console", true);
+	if (fn.is(type_function)) {
+		L->push_stack(fn);
+		if (!L->scall(0)) {
+			printf(LI_RED "Exception: ");
+			L->pop_stack().print();
+			printf("\n" LI_DEF);
 		} else {
-			printf(LI_RED "Parser error: %s\n" LI_DEF, fn.as_str()->data);
+			auto r = L->pop_stack();
+			if (!r.is(type_none)) {
+				printf(LI_GRN "");
+				r.print();
+				printf("\n" LI_DEF);
+
+				if (r.is(type_table))
+					debug::dump_table(r.as_tbl());
+			}
 		}
+		// puts("---------GLOBALS------------");
+		// debug::dump_table(L->globals);
+	} else {
+		printf(LI_RED "Parser error: %s\n" LI_DEF, fn.as_str()->data);
 	}
+}
 };
 #endif
 
@@ -111,7 +78,7 @@ int main() {
 	platform::setup_ansi_escapes();
 
 #ifndef __EMSCRIPTEN__
-	std::string last_exec;  
+	std::string last_exec;
 	while (true) {
 		// Read the file.
 		//
@@ -126,7 +93,8 @@ int main() {
 		}
 		last_exec = file_buf;
 
-		vm* L = create_vm_with_stdlib();
+		auto* L = vm::create();
+		lib::register_std(L);
 
 		// Execute the code, print the result.
 		//
@@ -162,7 +130,8 @@ int main() {
 		L->close();
 	}
 #else
-	emscripten_vm = create_vm_with_stdlib();
+	auto* emscripten_vm = vm::create();
+	lib::register_std(emscripten_vm);
 #endif
 	return 0;
 }

@@ -14,6 +14,16 @@
 #ifndef __has_feature
 	#define __has_feature(...) 0
 #endif
+#ifndef __has_include
+	#define __has_include(...) 0
+#endif
+#if __has_include(<intrin.h>) || _MSC_VER
+	#define LI_HAS_CRC 1
+	#include <intrin.h>
+#endif
+#if UINTPTR_MAX == 0xFFFFFFFF
+	#define LI_32 1
+#endif
 
 #define LI_STRINGIFY_I(x) #x
 #define LI_STRINGIFY(x)   LI_STRINGIFY_I(x)
@@ -35,7 +45,7 @@ namespace li {
 
 	// Compiler specifics.
 	//
-#if defined(__GNUC__) || defined(__clang__)
+#if defined(__GNUC__) || defined(__clang__) || defined(__EMSCRIPTEN__)
 	#define LI_PURE      __attribute__((pure))
 	#define LI_CONST     __attribute__((const))
 	#define LI_FLATTEN   __attribute__((flatten))

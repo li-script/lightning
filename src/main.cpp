@@ -44,12 +44,8 @@ namespace li::debug {
 };
 
 using namespace li;
-#if LI_ARCH_WASM
-static vm* emscripten_vm = nullptr;
-extern "C" {
-void __attribute__((used)) runscript(const char* str) {
-	vm*  L  = emscripten_vm;
-	auto fn = li::load_script(L, str, "console", true);
+static void handle_repl_io(vm* L, std::string_view input) {
+	auto fn = li::load_script(L, input, "console", true);
 	if (fn.is(type_function)) {
 		L->push_stack(fn);
 		if (!L->scall(0)) {
@@ -61,7 +57,7 @@ void __attribute__((used)) runscript(const char* str) {
 			if (!r.is(type_none)) {
 				printf(LI_GRN "");
 				r.print();
-				printf("" LI_DEF);
+				printf("\n" LI_DEF);
 				if (r.is(type_table))
 					debug::dump_table(r.as_tbl());
 			}
@@ -70,6 +66,13 @@ void __attribute__((used)) runscript(const char* str) {
 		printf(LI_RED "Parser error: %s\n" LI_DEF, fn.as_str()->data);
 	}
 }
+
+#if LI_ARCH_WASM
+static vm* emscripten_vm = nullptr;
+extern "C" {
+	void __attribute__((used)) runscript(const char* str) {
+		handle_repl_io(emscripten_vm, str);
+	}
 };
 #endif
 
@@ -116,26 +119,9 @@ int main(int argv, const char** args) {
 				buffer += "\n" + buffer2;
 			}
 
-			auto fn = li::load_script(L, buffer, "console", true);
-			if (fn.is(type_function)) {
-				L->push_stack(fn);
-				if (!L->scall(0)) {
-					printf(LI_RED "Exception: ");
-					L->pop_stack().print();
-					printf("\n" LI_DEF);
-				} else {
-					auto r = L->pop_stack();
-					if (!r.is(type_none)) {
-						printf(LI_GRN "");
-						r.print();
-						printf("\n" LI_DEF);
-						if (r.is(type_table))
-							debug::dump_table(r.as_tbl());
-					}
-				}
-			} else {
-				printf(LI_RED "Parser error: %s\n" LI_DEF, fn.as_str()->data);
-			}
+			// Execute and print.
+			//
+			handle_repl_io(L, buffer);
 		}
 	}
 

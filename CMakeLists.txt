@@ -30,7 +30,7 @@ endif()
 # Options
 option(LIGHTING_TESTS "" ON)
 
-project(LibLi
+project(lightning
 	LANGUAGES
 		CXX
 )
@@ -47,11 +47,11 @@ if(LIGHTING_TESTS) # tests
 	set(CMAKE_FOLDER ${CMKR_CMAKE_FOLDER})
 
 endif()
-# Target LibLi
-set(CMKR_TARGET LibLi)
-set(LibLi_SOURCES "")
+# Target li
+set(CMKR_TARGET li)
+set(li_SOURCES "")
 
-list(APPEND LibLi_SOURCES
+list(APPEND li_SOURCES
 	"src/lang/lexer.cpp"
 	"src/lang/operator.cpp"
 	"src/lang/paser.cpp"
@@ -84,34 +84,34 @@ list(APPEND LibLi_SOURCES
 	"include/vm/table.hpp"
 )
 
-list(APPEND LibLi_SOURCES
+list(APPEND li_SOURCES
 	cmake.toml
 )
 
-set(CMKR_SOURCES ${LibLi_SOURCES})
-add_executable(LibLi)
+set(CMKR_SOURCES ${li_SOURCES})
+add_executable(li)
 
-if(LibLi_SOURCES)
-	target_sources(LibLi PRIVATE ${LibLi_SOURCES})
+if(li_SOURCES)
+	target_sources(li PRIVATE ${li_SOURCES})
 endif()
 
 get_directory_property(CMKR_VS_STARTUP_PROJECT DIRECTORY ${PROJECT_SOURCE_DIR} DEFINITION VS_STARTUP_PROJECT)
 if(NOT CMKR_VS_STARTUP_PROJECT)
-	set_property(DIRECTORY ${PROJECT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT LibLi)
+	set_property(DIRECTORY ${PROJECT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT li)
 endif()
 
-source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${LibLi_SOURCES})
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${li_SOURCES})
 
-target_compile_features(LibLi PRIVATE
+target_compile_features(li PRIVATE
 	cxx_std_20
 )
 
-target_include_directories(LibLi PRIVATE
+target_include_directories(li PRIVATE
 	include
 )
 
 if(EMSCRIPTEN) # emscripten
-	target_link_options(LibLi PRIVATE
+	target_link_options(li PRIVATE
 		-sEXPORTED_RUNTIME_METHODS=ccall,cwrap
 		-sEXTRA_EXPORTED_RUNTIME_METHODS=ccall,cwrap
 		-sEXPORTED_FUNCTIONS=_main,_runscript
@@ -121,3 +121,19 @@ endif()
 unset(CMKR_TARGET)
 unset(CMKR_SOURCES)
 
+install(
+	TARGETS
+		li
+	DESTINATION
+		bin
+	COMPONENT
+		li
+)
+if(EMSCRIPTEN) # emscripten
+	install(
+		FILES
+			"$<TARGET_FILE_DIR:li>/li.wasm"
+		DESTINATION
+			bin
+	)
+endif()

@@ -7,31 +7,29 @@ jobs:
     # Skip building pull requests from the same repository
     if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
     runs-on: ${{ matrix.os }}
-    env:
-      PRESET: ${{ matrix.preset }}
     strategy:
       fail-fast: false
-      # TODO: replace extra-cmake-flags with presets
+      # TODO: replace extra-cmake-flags with CMake presets
       matrix:
-        preset:
+        target:
           - ubuntu
           - emscripten
           - windows
           - macos
         include:
-          - preset: ubuntu
+          - target: ubuntu
             os: ubuntu-latest
             build-type: Release
             extra-cmake-flags: "-DCMAKE_CXX_FLAGS=\"-flto -Wno-attributes -msse4.2\""
-          - preset: emscripten
+          - target: emscripten
             os: ubuntu-latest
             build-type: Debug
             extra-cmake-flags: "-DCMAKE_CXX_FLAGS=\"-Wno-attributes\" -DCMAKE_TOOLCHAIN_FILE=\"$EMSDK/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake\""
-          - preset: windows
+          - target: windows
             os: windows-latest
             build-type: Release
             extra-cmake-flags:
-          - preset: macos
+          - target: macos
             os: macOS-latest
             build-type: Release
             extra-cmake-flags: "-DCMAKE_CXX_FLAGS=\"-flto -Wno-attributes -msse4.2\""
@@ -47,7 +45,7 @@ jobs:
       uses: ilammy/msvc-dev-cmd@v1.7.0
 
     - name: Set up emscripten
-      if: ${{ matrix.preset == 'emscripten' }}
+      if: ${{ matrix.target == 'emscripten' }}
       uses: mymindstorm/setup-emsdk@v11
 
     - name: Set up GCC
@@ -60,8 +58,30 @@ jobs:
       run: |
         cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=${{ matrix.build-type }} ${{ matrix.extra-cmake-flags }}
         cmake --build build --config ${{ matrix.build-type }} --parallel
+        cmake --install build --prefix build/install --config ${{ matrix.build-type }}
     
     - name: Test
-      if: ${{ matrix.preset != 'emscripten' }}
+      if: ${{ matrix.target != 'emscripten' }}
       run: |
         ctest --output-on-failure --test-dir build/tests -C ${{ matrix.build-type }}
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: ${{ github.event.repository.name }}-${{ matrix.target }}
+        path: build/install/bin/*
+
+    - name: Compress artifacts
+      uses: vimtor/action-zip@v1
+      with:
+        files: build/install/bin/
+        dest: ${{ github.event.repository.name }}-${{ matrix.target }}.zip
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      if: ${{ startsWith(github.ref, 'refs/tags/') }}
+      with:
+        prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') || contains(github.ref, '-pre') }}
+        files: ${{ github.event.repository.name }}-${{ matrix.target }}.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

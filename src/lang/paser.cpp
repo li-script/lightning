@@ -1125,6 +1125,25 @@ namespace li {
 				return expression(none);
 			}
 
+			// Throw statement => None.
+			//
+			case lex::token_throw: {
+				scope.lex().next();
+				fin = true;
+
+				// void throw:
+				//
+				if (auto& tk = scope.lex().tok; tk.id == ';' || tk.id == lex::token_eof || tk.id == '}') {
+					scope.emit(bc::THRW, expression(any(scope.fn.L->empty_string)).to_anyreg(scope));
+				}
+				// value return:
+				//
+				else {
+					scope.emit(bc::THRW, expr_parse(scope).to_anyreg(scope));
+				}
+				return expression(none);
+			}
+
 			// Continue/Break.
 			//
 			case lex::token_continue: {

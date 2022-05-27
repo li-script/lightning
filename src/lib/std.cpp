@@ -1,6 +1,7 @@
 #include <lib/std.hpp>
 #include <util/user.hpp>
 #include <vm/function.hpp>
+#include <cmath>
 
 namespace li::lib {
 #define REMAP_MATH_UNARY(name)																					\

@@ -80,7 +80,7 @@ namespace li {
 		//
 		inline constexpr any() : value(kvalue_none) {}
 		inline constexpr any(bool v) : value(make_tag(type_false + v)) {}
-		inline constexpr any(number v) : value(std::bit_cast<uint64_t>(v)) {
+		inline constexpr any(number v) : value(__builtin_bit_cast(uint64_t, v)) {
 			if (v != v) [[unlikely]]
 				value = kvalue_nan;
 		}
@@ -107,7 +107,7 @@ namespace li {
 		// Getters.
 		//
 		inline bool        as_bool() const { return get_type(value) > type_false; }  // Free coersion.
-		inline number      as_num() const { return std::bit_cast<number>(value); }
+		inline number      as_num() const { return __builtin_bit_cast(number, value); }
 		inline gc::header* as_gc() const { return get_gc_value(value); }
 		inline array*      as_arr() const { return (array*) as_gc(); }
 		inline table*      as_tbl() const { return (table*) as_gc(); }

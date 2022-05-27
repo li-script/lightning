@@ -77,12 +77,11 @@ namespace li {
 		// Emits an instruction and returns the position in stream.
 		//
 		bc::pos emit(bc::opcode o, bc::reg a = 0, bc::reg b = 0, bc::reg c = 0) {
-			auto& i = fn.pc.emplace_back(bc::insn{o, a, b, c});
+			fn.pc.emplace_back(bc::insn{o, a, b, c});
 			return bc::pos(fn.pc.size() - 1);
 		}
 		bc::pos emitx(bc::opcode o, bc::reg a, uint64_t xmm) {
-			auto& i = fn.pc.emplace_back(bc::insn{o, a});
-			i.xmm() = xmm;
+			fn.pc.emplace_back(bc::insn{o, a}).xmm() = xmm;
 			return bc::pos(fn.pc.size() - 1);
 		}
 
@@ -279,9 +278,9 @@ namespace li {
 		// Constructed by value.
 		//
 		expression(bc::reg l) : kind(expr::reg), reg(l) {}
-		expression(std::pair<bc::reg, bool> l) : kind(expr::reg), reg(l.first), freeze(l.second) {}
+		expression(std::pair<bc::reg, bool> l) : kind(expr::reg), freeze(l.second), reg(l.first) {}
 		expression(upvalue_t, bc::reg u) : kind(expr::uvl), reg(u) {}
-		expression(upvalue_t, std::pair<bc::reg, bool> u) : kind(expr::uvl), reg(u.first), freeze(u.second) {}
+		expression(upvalue_t, std::pair<bc::reg, bool> u) : kind(expr::uvl), freeze(u.second), reg(u.first) {}
 		expression(param_t, bc::reg u) : kind(expr::pvl), reg(u) {}
 
 		expression(any k) : kind(expr::imm), imm(k) {}
@@ -310,6 +309,8 @@ namespace li {
 			LI_ASSERT(kind != expr::err);
 
 			switch (kind) {
+				case expr::err:
+					util::abort("unhandled error token");
 				case expr::reg:
 					if (r != reg)
 						scope.emit(bc::MOV, r, reg);
@@ -393,6 +394,8 @@ namespace li {
 					}
 					break;
 				}
+				default:
+					assume_unreachable();
 			}
 		}
 
@@ -566,7 +569,6 @@ namespace li {
 	// Parses block-like constructs, returns the result.
 	//
 	static expression parse_if(func_scope& scope);
-	static expression parse_switch(func_scope& scope);
 	static expression parse_match(func_scope& scope);
 	static expression parse_for(func_scope& scope);
 	static expression parse_loop(func_scope& scope);
@@ -771,7 +773,7 @@ namespace li {
 			return {};
 		}
 		if (base.kind == expr::err)
-			return base;
+			return {};
 
 		// Parse suffixes.
 		//
@@ -793,7 +795,7 @@ namespace li {
 					scope.lex().next();
 					expression field = expr_parse(scope);
 					if (field.kind == expr::err)
-						return field;
+						return {};
 					scope.lex().check(']');
 					base = {base.to_anyreg(scope), field.to_anyreg(scope)};
 					break;
@@ -1008,7 +1010,7 @@ namespace li {
 				//
 				expression value = expr_parse(scope);
 				if (value.kind == expr::err)
-					return value;
+					return {};
 
 				// Assign the value.
 				//
@@ -1162,7 +1164,7 @@ namespace li {
 				//
 				last = expr_stmt(scope, fin);
 				if (last.kind == expr::err) {
-					return last;
+					return {};
 				}
 
 				// If closed with semi-colon, clear value.
@@ -1306,7 +1308,7 @@ namespace li {
 			//
 			expression e = expr_parse(ns);
 			if (e.kind == expr::err)
-				return e;
+				return {};
 			e.to_reg(ns, 0);
 		}
 
@@ -1341,7 +1343,7 @@ namespace li {
 		//
 		auto cc = expr_parse(scope);
 		if (cc.kind == expr::err) {
-			return cc;
+			return {};
 		}
 		cc = cc.to_nextreg(scope);
 
@@ -1414,15 +1416,17 @@ namespace li {
 		if (scope.lex().check('{') == lex::token_error) {
 			return {};
 		}
-		if (expr_block(scope).kind != expr::err) {
-			// Jump to continue.
-			//
-			scope.emit(bc::JMP, scope.lbl_continue);
-
-			// Emit break label.
-			//
-			scope.set_label_here(scope.lbl_break);
+		if (expr_block(scope).kind == expr::err) {
+			return {};
 		}
+
+		// Jump to continue.
+		//
+		scope.emit(bc::JMP, scope.lbl_continue);
+
+		// Emit break label.
+		//
+		scope.set_label_here(scope.lbl_break);
 
 		// Restore the labels.
 		//
@@ -1447,7 +1451,7 @@ namespace li {
 		//
 		auto cc = expr_parse(scope);
 		if (cc.kind == expr::err) {
-			return cc;
+			return {};
 		}
 		scope.emit(bc::JNS, scope.lbl_break, cc.to_anyreg(scope));
 
@@ -1460,16 +1464,17 @@ namespace li {
 		if (scope.lex().check('{') == lex::token_error) {
 			return {};
 		}
-
-		if (expr_block(scope).kind != expr::err) {
-			// Jump to continue.
-			//
-			scope.emit(bc::JMP, scope.lbl_continue);
-
-			// Emit break label.
-			//
-			scope.set_label_here(scope.lbl_break);
+		if (expr_block(scope).kind == expr::err) {
+			return {};
 		}
+
+		// Jump to continue.
+		//
+		scope.emit(bc::JMP, scope.lbl_continue);
+
+		// Emit break label.
+		//
+		scope.set_label_here(scope.lbl_break);
 
 		// Restore the labels.
 		//
@@ -1565,16 +1570,17 @@ namespace li {
 			if (scope.lex().check('{') == lex::token_error) {
 				return {};
 			}
-
-			if (expr_block(scope).kind != expr::err) {
-				// Jump to continue.
-				//
-				scope.emit(bc::JMP, scope.lbl_continue);
-
-				// Emit break label.
-				//
-				scope.set_label_here(scope.lbl_break);
+			if (expr_block(scope).kind == expr::err) {
+				return {};
 			}
+
+			// Jump to continue.
+			//
+			scope.emit(bc::JMP, scope.lbl_continue);
+
+			// Emit break label.
+			//
+			scope.set_label_here(scope.lbl_break);
 
 			// Restore the labels, remove the local.
 			//
@@ -1632,15 +1638,17 @@ namespace li {
 
 				// Parse the block:
 				//
-				if (expr_block(iscope).kind != expr::err) {
-					// Jump to continue.
-					//
-					iscope.emit(bc::JMP, iscope.lbl_continue);
-
-					// Emit break label.
-					//
-					iscope.set_label_here(iscope.lbl_break);
+				if (expr_block(iscope).kind == expr::err) {
+					return {};
 				}
+
+				// Jump to continue.
+				//
+				iscope.emit(bc::JMP, iscope.lbl_continue);
+
+				// Emit break label.
+				//
+				iscope.set_label_here(iscope.lbl_break);
 
 				// Move the break result to outer scopes last register.
 				//

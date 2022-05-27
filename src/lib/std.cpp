@@ -62,7 +62,7 @@ namespace li::lib {
 		REMAP_MATH_UNARY(log);
 		REMAP_MATH_UNARY(log10);
 
-		// I/O.
+		// String.
 		//
 		util::export_as(L, "print", [](vm* L, const any* args, uint32_t n) {
 			for (size_t i = 0; i != n; i++) {
@@ -72,6 +72,43 @@ namespace li::lib {
 			printf("\n");
 			return true;
 		});
+		util::export_as(L, "tostring", [](vm* L, const any* args, uint32_t n) {
+			if (n == 0) {
+				L->push_stack(string::create(L));
+				return true;
+			} else {
+				L->push_stack(args->to_string(L));
+				return true;
+			}
+		});
+		util::export_as(L, "tonumber", [](vm* L, const any* args, uint32_t n) {
+			if (n == 0) {
+				L->push_stack(any(number(0)));
+				return true;
+			} else {
+				switch (args->type()) {
+					case type_false:
+						L->push_stack(any(number(0)));
+						return true;
+					case type_true:
+						L->push_stack(any(number(1)));
+						return true;
+					case type_number:
+						L->push_stack(*args);
+						return true;
+					case type_string: {
+						number out = 0;
+						sscanf(args->as_str()->c_str(), "%lf", &out);
+						L->push_stack(out);
+						return true;
+					}
+					default:
+						L->push_stack(string::create(L, "type is not convertible to number."));
+						return false;
+				}
+				return true;
+			}
+		});
 
 		// Misc.
 		//
@@ -79,7 +116,7 @@ namespace li::lib {
 			if (!n || args->as_bool())
 				return true;
 
-			if (n == 2 && args[1].is(type_string)) {
+			if (n >= 2 && args[1].is(type_string)) {
 				L->push_stack(args[1]);
 				return false;
 			} else {

@@ -231,9 +231,7 @@ namespace li::gc {
 		//page* free_list = nullptr;
 		for_each([&](page* it) {
 			if (it->alive_objects != it->num_objects) {
-				uint32_t c = 1;
 				it->for_each([&](header* obj) {
-					c += obj->num_chunks;
 					if (!obj->is_free() && obj->stage != ms.next_stage)
 						free(obj, true);
 					return false;

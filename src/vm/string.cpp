@@ -165,14 +165,15 @@ namespace li {
 		va_list a2;
 		va_copy(a2, a1);
 		char buffer[64];
-		int  n = vsnprintf(buffer, std::size(buffer), fmt, a2);
+		int  ns = vsnprintf(buffer, std::size(buffer), fmt, a2);
 		va_end(a2);
 
 		// If empty, handle.
 		//
-		if (n <= 0) {
+		if (ns <= 0) {
 			return L->empty_string;
 		}
+		uint32_t n = uint32_t(ns);
 
 		// If it did fit, forward to string::create with a view:
 		//
@@ -205,8 +206,28 @@ namespace li {
 	}
 
 	string* string::concat( vm* L, string* a, string* b) {
-		// TODO: lol
-		return string::format(L, "%s%s", a->data, b->data);
+		// Allocate a new GC string instance and concat within it.
+		//
+		uint32_t len = a->length + b->length;
+		string*  str = L->alloc<string>(len + 1);
+		str->length  = len;
+		memcpy(str->data, a->data, a->length);
+		memcpy(str->data + a->length, b->data, b->length + 1);
+		str->hash = sparse_hash(str->view());
+
+		// Return if already exists.
+		//
+		for (auto& entry : L->str_intern->find(str->hash)) {
+			if (entry && entry->view() == str->view()) {
+				L->gc.free(str);
+				return entry;
+			}
+		}
+
+		// Push and return.
+		//
+		L->str_intern = L->str_intern->push(L, str);
+		return str;
 	}
 
 	// String coercion.

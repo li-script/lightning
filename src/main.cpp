@@ -59,9 +59,7 @@ using namespace li;
 
 #include <unordered_map>
 #include <thread>
-
-// TODO: Static objects with skip gc flag?
-//       Weak ref type?
+#include <lib/std.hpp>
 
 
 void export_global( vm* L, const char* name, nfunc_t f ) {
@@ -73,46 +71,7 @@ void export_global( vm* L, const char* name, nfunc_t f ) {
 
 static vm* create_vm_with_stdlib() {
 	auto* L = vm::create();
-	export_global(L, "sqrt", [](vm* L, const any* args, uint32_t n) {
-		if (!args->is(type_number))
-			return false;
-		L->push_stack(any(sqrt(args->as_num())));
-		return true;
-	});
-	export_global(L, "print", [](vm* L, const any* args, uint32_t n) {
-		for (size_t i = 0; i != n; i++) {
-			args[i].print();
-			printf("\t");
-		}
-		printf("\n");
-		return true;
-	});
-	export_global(L, "@gc", [](vm* L, const any* args, uint32_t n) {
-		L->gc.collect(L);
-		return true;
-	});
-	export_global(L, "@printbc", [](vm* L, const any* args, uint32_t n) {
-		if (n != 1 || !args->is(type_function)) {
-			L->push_stack(string::create(L, "@printbc expects a single vfunction"));
-			return false;
-		}
-
-		auto f = args->as_vfn();
-		puts(
-			 "Dumping bytecode of the function:\n"
-			 "-----------------------------------------------------");
-		for (uint32_t i = 0; i != f->length; i++) {
-			f->opcode_array[i].print(i);
-		}
-		puts("-----------------------------------------------------");
-		for (uint32_t i = 0; i != f->num_uval; i++) {
-			printf(LI_CYN "u%u:   " LI_DEF, i);
-			f->uvals()[i].print();
-			printf("\n");
-		}
-		puts("-----------------------------------------------------");
-		return true;
-	});
+	lib::register_std(L);
 	return L;
 }
 

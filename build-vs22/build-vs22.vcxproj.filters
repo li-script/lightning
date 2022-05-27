@@ -35,6 +35,9 @@
     <ClCompile Include="..\src\platform.cpp">
       <Filter>Utility</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\lib\std.cpp">
+      <Filter>Library</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Language">
@@ -48,6 +51,9 @@
     </Filter>
     <Filter Include="VM\Types">
       <UniqueIdentifier>{9d2a0823-894f-4581-9058-05f4fb2a725a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Library">
+      <UniqueIdentifier>{c57d2e3d-b45c-41cf-abbe-fd7785828a57}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -95,6 +101,12 @@
     </ClInclude>
     <ClInclude Include="..\include\vm\gc.hpp">
       <Filter>VM\Types</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\lib\std.hpp">
+      <Filter>Library</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\util\user.hpp">
+      <Filter>Utility</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

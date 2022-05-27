@@ -3,27 +3,6 @@ name: CMake
 on: [push, pull_request]
 
 jobs:
-  build-emscripten:
-    # Skip building pull requests from the same repository
-    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
-    runs-on: ubuntu-latest
-    env:
-      BUILD_TYPE: Release
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v2
-
-    - name: Install ninja-build tool
-      uses: seanmiddleditch/gha-setup-ninja@v3
-
-    - name: Set up emscripten
-      uses: mymindstorm/setup-emsdk@v11
-
-    - name: Build
-      run: |
-        emcmake cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
-        cmake --build build --config ${{ env.BUILD_TYPE }} --parallel
-
   build:
     # Skip building pull requests from the same repository
     if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
@@ -40,6 +19,9 @@ jobs:
           - os: ubuntu-latest
             build-type: Release
             extra-cmake-flags: "-DCMAKE_CXX_FLAGS=\"-flto -Wno-attributes -msse4.2\""
+          - os: ubuntu-latest
+            build-type: Release
+            extra-cmake-flags: "-DCMAKE_CXX_FLAGS=\"-Wno-attributes\" -DCMAKE_TOOLCHAIN_FILE=\"$EMSDK/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake\""
           - os: windows-latest
             build-type: Release
             extra-cmake-flags:
@@ -56,6 +38,10 @@ jobs:
     - name: Enable Developer Command Prompt
       if: ${{ runner.os == 'Windows' }}
       uses: ilammy/msvc-dev-cmd@v1.7.0
+
+    - name: Set up emscripten
+      if: ${{ runner.os == 'Linux' }}
+      uses: mymindstorm/setup-emsdk@v11
 
     - name: Set up GCC
       if: ${{ runner.os == 'Linux' }}

@@ -33,7 +33,7 @@ namespace li::gc {
 
 		// If already iterated, skip.
 		//
-		if (stage == s.next_stage) {
+		if (stage == s.next_stage) [[likely]] {
 			return true;
 		}
 

@@ -1,6 +1,7 @@
 #pragma once
+#include <algorithm>
 
-namespace lightning::util {
+namespace li::util {
 	template<typename T, typename T2>
 	static void link_before(T* entry, T2* value) {
 		auto* prev  = std::exchange(entry->prev, value);

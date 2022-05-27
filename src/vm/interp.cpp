@@ -6,13 +6,13 @@
 #include <vm/string.hpp>
 #include <vm/table.hpp>
 
-namespace lightning::core {
+namespace li {
 	// Calls the function at the first slot in callsite with the arguments following it
 	// - Returns true on success and false if the VM throws an exception.
 	// - In either case and will replace the function with a value representing
 	//    either the exception or the result.
 	//
-	bool vm::call(uint32_t callsite, uint32_t n_args) {
+	LI_FLATTEN bool vm::call(uint32_t callsite, uint32_t n_args) {
 		/*
 			<fn>
 			arg0
@@ -48,60 +48,60 @@ namespace lightning::core {
 
 		// Return and ref helpers.
 		//
+		auto ref_arg = [&](bc::reg r) LI_INLINE -> any& {
+			// TODO: Arg# does not have to match :(
+			return stack[args_begin + r];
+		};
 		auto ref_reg = [&](bc::reg r) LI_INLINE -> any& {
-			if (r >= 0) {
-				LI_ASSERT(f->num_locals > r);
-				return stack[locals_begin + r];
-			} else {
-				r = -(r + 1);
-				// TODO: Arg# does not have to match :(
-				return stack[args_begin + r];
-			}
+			LI_ASSERT(f->num_locals > (uint32_t) r);
+			return stack[locals_begin + r];
 		};
 		auto ref_uval = [&](bc::reg r) LI_INLINE -> any& {
-			LI_ASSERT(f->num_uval > r);
+			LI_ASSERT(f->num_uval > (uint32_t) r);
 			return f->uvals()[r];
 		};
 		auto ref_kval = [&](bc::reg r) LI_INLINE -> const any& {
-			LI_ASSERT(f->num_kval > r);
+			LI_ASSERT(f->num_kval > (uint32_t) r);
 			return f->kvals()[r];
 		};
-
 
 		for (uint32_t ip = 0;;) {
 			const auto& insn   = f->opcode_array[ip++];
 			auto [op, a, b, c] = insn;
 
 			switch (op) {
-				case bc::TYPE:
-				case bc::LNOT:
-				case bc::ANEG: {
-					auto [r, ok] = apply_unary(this, ref_reg(b), op);
-					if (!ok) [[unlikely]]
-						return ret(r, true);
-					ref_reg(a) = r;
-					continue;
+				#define UNOP_SPECIALIZE(K) case K: {					  \
+					auto [r, ok] = apply_unary(this, ref_reg(b), K);  \
+					if (!ok) [[unlikely]]									  \
+						return ret(r, true);									  \
+					ref_reg(a) = r;											  \
+					continue;													  \
 				}
-				case bc::AADD:
-				case bc::ASUB:
-				case bc::AMUL:
-				case bc::ADIV:
-				case bc::AMOD:
-				case bc::APOW:
-				case bc::LAND:
-				case bc::LOR:
-				case bc::CEQ:
-				case bc::CNE:
-				case bc::CLT:
-				case bc::CGT:
-				case bc::CLE:
-				case bc::CGE: {
-					auto [r, ok] = apply_binary(this, ref_reg(b), ref_reg(c), op);
-					if (!ok) [[unlikely]]
-						return ret(r, true);
-					ref_reg(a) = r;
-					continue;
-				}
+				#define BINOP_SPECIALIZE(K) case K: {										 \
+					auto [r, ok] = apply_binary(this, ref_reg(b), ref_reg(c), K);	 \
+					if (!ok) [[unlikely]]														 \
+						return ret(r, true);														 \
+					ref_reg(a) = r;																 \
+					continue;																		 \
+				}																						 
+				UNOP_SPECIALIZE( bc::TYPE )
+				UNOP_SPECIALIZE( bc::LNOT )
+				UNOP_SPECIALIZE( bc::ANEG )
+				BINOP_SPECIALIZE( bc::AADD )
+				BINOP_SPECIALIZE( bc::ASUB )
+				BINOP_SPECIALIZE( bc::AMUL )
+				BINOP_SPECIALIZE( bc::ADIV )
+				BINOP_SPECIALIZE( bc::AMOD )
+				BINOP_SPECIALIZE( bc::APOW )
+				BINOP_SPECIALIZE( bc::LAND )
+				BINOP_SPECIALIZE( bc::LOR )
+				BINOP_SPECIALIZE( bc::CEQ )
+				BINOP_SPECIALIZE( bc::CNE )
+				BINOP_SPECIALIZE( bc::CLT )
+				BINOP_SPECIALIZE( bc::CGT )
+				BINOP_SPECIALIZE( bc::CLE )
+				BINOP_SPECIALIZE( bc::CGE )
+
 				case bc::CMOV: {
 					ref_reg(a) = ref_reg(b).as_bool() ? ref_reg(c) : none;
 					continue;
@@ -242,6 +242,14 @@ namespace lightning::core {
 					ref_reg(a) = ref_kval(b);
 					continue;
 				}
+				case bc::PGET: {
+					ref_reg(a) = ref_arg(b);
+					continue;
+				}
+				case bc::PSET: {
+					ref_arg(a) = ref_reg(b);
+					continue;
+				}
 				case bc::UGET: {
 					if (b == bc::uval_fun) {
 						ref_reg(a) = any(f);
@@ -351,12 +359,12 @@ namespace lightning::core {
 					continue;
 				}
 				case bc::CALL:
-					LI_ASSERT(a >= 0 && (a+b+1) <= f->num_locals);
+					LI_ASSERT(a >= 0 && uint32_t(a + b + 1) <= f->num_locals);
 					if (!call(locals_begin + a, b))
 						return ret(stack[locals_begin + a], true);
 					continue;
 				case bc::INVK:
-					LI_ASSERT(b >= 0 && (b+c+1) <= f->num_locals);
+					LI_ASSERT(b >= 0 && uint32_t(b + c + 1) <= f->num_locals);
 					if (!call(locals_begin + b, c))
 						ip += a;
 					continue;

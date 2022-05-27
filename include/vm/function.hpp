@@ -4,14 +4,14 @@
 #include <vm/bc.hpp>
 #include <vm/state.hpp>
 
-namespace lightning::core {
+namespace li {
 	// Native callback, at most one result should be pushed on stack, if returns false, signals exception.
 	//
 	using nfunc_t = bool (*)(vm* L, const any* args, uint32_t n);
 
 	// Native function.
 	//
-	struct nfunction : gc_node<nfunction> {
+	struct nfunction : gc::leaf<nfunction> {
 		static nfunction* create(vm* L, size_t context = 0) { return L->alloc<nfunction>(context); }
 
 		// Stack-based callback.
@@ -29,8 +29,8 @@ namespace lightning::core {
 
 	// VM function.
 	//
-	struct function : gc_node<function> {
-		static function* create(vm* L, std::span<const bc::insn> opcodes, std::span<const any> kval, uint32_t uval);
+	struct function : gc::node<function> {
+		static function* create(vm* L, std::span<const bc::insn> opcodes, std::span<const any> kval, size_t uval);
 
 		// Function details.
 		//
@@ -64,13 +64,6 @@ namespace lightning::core {
 
 		// GC enumerator.
 		//
-		template<typename F>
-		void enum_for_gc(F&& fn) {
-			fn(src_chunk);
-			for (auto& v : gcvals()) {
-				if (v.is_gc())
-					fn(v.as_gc());
-			}
-		}
+		void gc_traverse(gc::sweep_state& s) override;
 	};
 };

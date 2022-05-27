@@ -1,16 +1,17 @@
 #pragma once
 #include <intrin.h>
-#include <stdint.h>
-#include <cstring>
-#include <util/common.hpp>
-#include <bit>
 #include <algorithm>
+#include <bit>
+#include <string>
+#include <util/common.hpp>
 
 #pragma pack(push, 1)
-namespace lightning::core {
+namespace li {
+	struct vm;
+
 	// Integral types.
 	//
-	using number  = double;
+	using number = double;
 
 	// Opaque types.
 	//
@@ -23,7 +24,10 @@ namespace lightning::core {
 
 	// GC types (forward).
 	//
-	struct gc_header;
+	namespace gc {
+		struct header;
+	};
+	struct header;
 	struct array;
 	struct table;
 	struct string;
@@ -45,23 +49,23 @@ namespace lightning::core {
 		type_function  = 7,
 		type_nfunction = 8,
 		type_thread    = 9,
-		type_opaque    = 10, // No type/definition, unique integer part.
-		type_iopaque   = 11, // - Internal version used by bytecode, user shouldn't be able to touch it, value is blindly trusted.
+		type_opaque    = 10,  // No type/definition, unique integer part.
+		type_iopaque   = 11,  // - Internal version used by bytecode, user shouldn't be able to touch it, value is blindly trusted.
 		type_number    = 12,
 	};
 	static constexpr const char* type_names[] = {"none", "bool", "bool", "array", "table", "string", "userdata", "function", "nfunction", "thread", "opaque", "iopaque", "number"};
 
-	LI_INLINE static constexpr bool     is_gc_type(uint8_t type) { return type_array <= type && type <= type_thread; }
+	LI_INLINE static constexpr bool     is_gc_type(uint64_t type) { return type_array <= type && type <= type_thread; }
 	LI_INLINE static constexpr uint64_t mask_value(uint64_t value) { return value & ((1ull << 47) - 1); }
 	LI_INLINE static constexpr uint64_t mix_value(uint8_t type, uint64_t value) { return ((~uint64_t(type)) << 47) | mask_value(value); }
 	LI_INLINE static constexpr uint64_t make_tag(uint8_t type) { return ((~uint64_t(type)) << 47) | mask_value(~0ull); }
 	LI_INLINE static constexpr uint64_t get_type(uint64_t value) { return ((~value) >> 47); }
-	LI_INLINE static gc_header*         get_gc_value(uint64_t value) {
+	LI_INLINE static gc::header*        get_gc_value(uint64_t value) {
 		value = mask_value(value);
 #if _KERNEL_MODE
 		value |= ~0ull << 47;
 #endif
-		return (gc_header*) value;
+		return (gc::header*) value;
 	}
 	static constexpr uint64_t kvalue_none  = make_tag(type_none);
 	static constexpr uint64_t kvalue_false = make_tag(type_true);
@@ -77,8 +81,7 @@ namespace lightning::core {
 		//
 		inline constexpr any() : value(kvalue_none) {}
 		inline constexpr any(bool v) : value(make_tag(type_false + v)) {}
-		inline constexpr any(number v) : value(std::bit_cast<uint64_t>(v))
-		{
+		inline constexpr any(number v) : value(std::bit_cast<uint64_t>(v)) {
 			if (v != v) [[unlikely]]
 				value = kvalue_nan;
 		}
@@ -104,17 +107,17 @@ namespace lightning::core {
 
 		// Getters.
 		//
-		inline bool as_bool() const { return get_type(value) > type_false; } // Free coersion.
-		inline number as_num() const { return std::bit_cast<number>(value); }
-		inline gc_header* as_gc() const { return get_gc_value(value); }
-		inline array*     as_arr() const { return (array*) as_gc(); }
-		inline table*     as_tbl() const { return (table*) as_gc(); }
-		inline string*    as_str() const { return (string*) as_gc(); }
-		inline userdata*  as_udt() const { return (userdata*) as_gc(); }
-		inline function*  as_vfn() const { return (function*) as_gc(); }
-		inline nfunction* as_nfn() const { return (nfunction*) as_gc(); }
-		inline thread*    as_thr() const { return (thread*) as_gc(); }
-		inline opaque     as_opq() const { return {.bits = mask_value(value)}; }
+		inline bool        as_bool() const { return get_type(value) > type_false; }  // Free coersion.
+		inline number      as_num() const { return std::bit_cast<number>(value); }
+		inline gc::header* as_gc() const { return get_gc_value(value); }
+		inline array*      as_arr() const { return (array*) as_gc(); }
+		inline table*      as_tbl() const { return (table*) as_gc(); }
+		inline string*     as_str() const { return (string*) as_gc(); }
+		inline userdata*   as_udt() const { return (userdata*) as_gc(); }
+		inline function*   as_vfn() const { return (function*) as_gc(); }
+		inline nfunction*  as_nfn() const { return (nfunction*) as_gc(); }
+		inline thread*     as_thr() const { return (thread*) as_gc(); }
+		inline opaque      as_opq() const { return {.bits = mask_value(value)}; }
 
 		// Bytewise equal comparsion.
 		//
@@ -131,6 +134,12 @@ namespace lightning::core {
 		inline bool operator==(const any& other) const { return equals(other); }
 		inline bool operator!=(const any& other) const { return !equals(other); }
 
+		// String conversion.
+		//
+		string*     to_string(vm*) const;
+		std::string to_string() const;
+		void        print() const;
+
 		// Hasher.
 		//
 		inline uint32_t hash() const {
@@ -146,5 +155,10 @@ namespace lightning::core {
 	static constexpr any none{};
 	static constexpr any const_false{false};
 	static constexpr any const_true{true};
+
+	// Fills the any[] with nones.
+	//
+	static void fill_none(void* data, size_t count) { memset(data, 0xFF, count * 8); }
+
 };
 #pragma pack(pop)

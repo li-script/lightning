@@ -3,7 +3,7 @@
 #include <vm/state.hpp>
 #include <vm/string.hpp>
 
-namespace lightning::core {
+namespace li {
 
 	LI_COLD static any arg_error(vm* L, any a, const char* expected) { return string::format(L, "expected '%s', got '%s'", expected, type_names[a.type()]); }
 #define TYPE_ASSERT(v, t)     \
@@ -15,7 +15,7 @@ namespace lightning::core {
 	// Applies the unary/binary operator the values given. On failure (e.g. type mismatch),
 	// returns the exception as the result and false for the second return.
 	//
-	std::pair<any, bool> apply_unary(vm* L, any a, bc::opcode op) {
+	LI_INLINE std::pair<any, bool> apply_unary(vm* L, any a, bc::opcode op) {
 		switch (op) {
 			case bc::LNOT: {
 				return {any(!a.as_bool()), true};
@@ -34,7 +34,7 @@ namespace lightning::core {
 				assume_unreachable();
 		}
 	}
-	std::pair<any, bool> apply_binary(vm* L, any a, any b, bc::opcode op) {
+	LI_INLINE std::pair<any, bool> apply_binary(vm* L, any a, any b, bc::opcode op) {
 		switch (op) {
 			case bc::AADD:
 				if (a.is(type_array)) {

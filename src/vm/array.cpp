@@ -1,13 +1,21 @@
-#pragma once
 #include <vm/array.hpp>
 
-namespace lightning::core {
+namespace li {
 	array* array::create(vm* L, size_t reserved_entry_count) {
 		array* arr = L->alloc<array>();
 		if (reserved_entry_count) {
 			arr->reserve(L, reserved_entry_count);
 		}
 		return arr;
+	}
+
+	// GC enumerator.
+	//
+	void array::gc_traverse(gc::sweep_state& s) {
+		for (auto& e : *this) {
+			if (e.is_gc())
+				e.as_gc()->gc_tick(s);
+		}
 	}
 
 	// Duplicates the array.
@@ -38,7 +46,7 @@ namespace lightning::core {
 		size_t old_count = size();
 		if (n > old_count) {
 			reserve(L, n);
-			memset(end(), 0xFF, (n - old_count) * sizeof(any));
+			fill_none(end(), (n - old_count));
 		}
 		length = n;
 	}

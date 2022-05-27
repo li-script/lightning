@@ -3,7 +3,7 @@
 #include <string>
 #include <stdarg.h>
 
-namespace lightning::util {
+namespace li::util {
 	#define LI_BRG  "\x1B[1;37m"
 	#define LI_YLW  "\x1B[1;33m"
 	#define LI_PRP  "\x1B[1;35m"
@@ -51,15 +51,15 @@ namespace lightning::util {
 	#define LI_ASSERT(...)                                                                                                            \
 		do                                                                                                                             \
 			if (!(__VA_ARGS__)) [[unlikely]]                                                                                            \
-				lightning::util::abort("Assertion \"" LI_STRINGIFY(__VA_ARGS__) "\" failed. [" __FILE__ ":" LI_STRINGIFY(__LINE__) "]"); \
+				li::util::abort("Assertion \"" LI_STRINGIFY(__VA_ARGS__) "\" failed. [" __FILE__ ":" LI_STRINGIFY(__LINE__) "]"); \
 		while (0)
 	#define LI_ASSERT_MSG(msg, ...)                                                   \
 		do                                                                             \
 			if (!(__VA_ARGS__)) [[unlikely]]                                            \
-				lightning::util::abort(msg "[" __FILE__ ":" LI_STRINGIFY(__LINE__) "]"); \
+				li::util::abort(msg "[" __FILE__ ":" LI_STRINGIFY(__LINE__) "]"); \
 		while (0)
 #else
-	#define LI_ASSERT(...)          lightning::assume_that(__VA_ARGS__)
-	#define LI_ASSERT_MSG(msg, ...) lightning::assume_that(__VA_ARGS__)
+	#define LI_ASSERT(...)          li::assume_that(__VA_ARGS__)
+	#define LI_ASSERT_MSG(msg, ...) li::assume_that(__VA_ARGS__)
 #endif
 };

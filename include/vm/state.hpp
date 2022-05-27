@@ -5,7 +5,7 @@
 #include <vm/gc.hpp>
 #include <algorithm>
 
-namespace lightning::core {
+namespace li {
 	struct vm;
 
 	// Panic function, should not return.
@@ -17,16 +17,16 @@ namespace lightning::core {
 	//
 	struct string_set;
 	void init_string_intern(vm* L);
+	void traverse_string_set(vm* L, gc::sweep_state& s);
 
 	// VM state.
 	//
-	struct vm : gc_leaf<vm> {
-		static vm* create(fn_alloc alloc = &platform::page_alloc, size_t context_space = 0);
+	struct vm : gc::leaf<vm> {
+		static vm* create(fn_alloc alloc = &platform::page_alloc, void* allocu = nullptr, size_t context_space = 0);
 
 		// VM state.
 		//
-		fn_alloc    alloc_fn     = nullptr;         // Page allocator.
-		gc_page     gc_page_head = {};              // GC linked-list head.
+		gc::state   gc           = {};              // Garbage collector.
 		fn_panic    panic_fn     = &default_panic;  // Panic function.
 		string_set* str_intern   = nullptr;         // String interning state
 		string*     empty_string = nullptr;         // Constant "".
@@ -35,6 +35,10 @@ namespace lightning::core {
 		any*        stack        = nullptr;         // Stack base.
 		uint32_t    stack_top    = 0;               // Top of the stack.
 		uint32_t    stack_len    = 0;               // Maximum length of the stack.
+
+		// Handles garbage collection.
+		//
+		void collect_garbage();
 
 		// Closes the VM state.
 		//
@@ -45,7 +49,7 @@ namespace lightning::core {
 		LI_COLD void grow_stack(uint32_t n = 0) {
 			n     = std::max(n, stack_len);
 			stack = (any*) realloc(stack, (stack_len + n) * sizeof(any));
-			memset(&stack[stack_len], 0xFF, n * sizeof(any));
+			fill_none(&stack[stack_len], n);
 			stack_len += n;
 		}
 
@@ -94,20 +98,6 @@ namespace lightning::core {
 			panic_fn(this, msg);
 			assume_unreachable();
 		}
-		gc_page* add_page(size_t min_size, bool exec) {
-			min_size     = std::max(min_size, minimum_gc_allocation);
-			min_size     = (min_size + 0xFFF) >> 12;
-			void* alloc = alloc_fn(this, nullptr, min_size, exec);
-			if (!alloc)
-				panic(util::fmt("failed to allocate %llu pages, out of memory.", min_size).c_str());
-			auto* result = new (alloc) gc_page(min_size);
-			util::link_before(&gc_page_head, result);
-			return result;
-		}
-		void free_page(gc_page* gc) {
-			util::unlink(gc);
-			alloc_fn(this, gc, gc->num_pages, false);
-		}
 
 		// Calls the function at the first slot in callsite with the arguments following it
 		// - Returns true on success and false if the VM throws an exception.
@@ -129,11 +119,10 @@ namespace lightning::core {
 		//
 		template<typename T, typename... Tx>
 		T* alloc(size_t extra_length = 0, Tx&&... args) {
-			auto* page = gc_page_head.prev;
-			if (!page->check<T>(extra_length)) {
-				page = add_page(sizeof(T) + extra_length, false);
-			}
-			return page->create<T, Tx...>(extra_length, std::forward<Tx>(args)...);
+			T* result = gc.alloc<T, Tx...>(this, extra_length, std::forward<Tx>(args)...);
+			if (!result) [[unlikely]]
+				panic("out of memory");
+			return result;
 		}
 	};
 }

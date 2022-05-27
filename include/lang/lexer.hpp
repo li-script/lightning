@@ -7,11 +7,11 @@
 #include <util/format.hpp>
 #include <vm/string.hpp>
 
-namespace lightning::core {
+namespace li {
 	struct vm;
 };
 
-namespace lightning::lex {
+namespace li::lex {
 	// Token enumerator:
 	//  _    => keyword        | "let"
 	//  __   => symbol mapped  | "--"
@@ -116,8 +116,8 @@ namespace lightning::lex {
 		// Value.
 		//
 		union {
-			core::string* str_val;  // token_lstr, token_name
-			core::number  num_val;  // token_lnum
+			string* str_val;  // token_lstr, token_name
+			number  num_val;  // token_lnum
 		};
 
 		// Equality comparable with token id.
@@ -181,7 +181,7 @@ namespace lightning::lex {
 	struct state {
 		// Owning VM.
 		//
-		core::vm* L;
+		vm* L;
 
 		// Current parser location.
 		//
@@ -203,7 +203,7 @@ namespace lightning::lex {
 
 		// Initialized with a string view and a pointer to the VM for string interning.
 		//
-		state(core::vm* L, std::string_view input, std::string_view name = {}) : L(L), input(input), source_name(name), tok(scan()) {}
+		state(vm* L, std::string_view input, std::string_view name = {}) : L(L), input(input), source_name(name), tok(scan()) {}
 		state(std::string&&) = delete;
 
 		// Default copy.

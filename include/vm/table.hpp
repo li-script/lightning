@@ -3,7 +3,7 @@
 #include <span>
 #include <vm/state.hpp>
 
-namespace lightning::core {
+namespace li {
 	static constexpr size_t small_table_length = 4;
 	static constexpr size_t overflow_factor    = 3;
 
@@ -11,10 +11,10 @@ namespace lightning::core {
 		any key;
 		any value;
 	};
-	struct table_nodes : gc_leaf<table_nodes> {
+	struct table_nodes : gc::leaf<table_nodes> {
 		table_entry entries[];
 	};
-	struct table : gc_node<table> {
+	struct table : gc::node<table> {
 		static table* create(vm* L, size_t reserved_entry_count = 0);
 
 		table_nodes* node_list = nullptr;
@@ -37,15 +37,7 @@ namespace lightning::core {
 
 		// GC enumerator.
 		//
-		template<typename F>
-		void enum_for_gc(F&& fn) {
-			for (auto& [k, v] : *this) {
-				if (k.is_gc())
-					fn(k.as_gc());
-				if (v.is_gc())
-					fn(v.as_gc());
-			}
-		}
+		void gc_traverse(gc::sweep_state& s) override;
 
 		// Rehashing resize.
 		//

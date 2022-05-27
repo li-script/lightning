@@ -1,15 +1,15 @@
 #include <vm/function.hpp>
 #include <vm/string.hpp>
 
-namespace lightning::core {
-	function* function::create(vm* L, std::span<const bc::insn> opcodes, std::span<const any> kval, uint32_t uval) {
+namespace li {
+	function* function::create(vm* L, std::span<const bc::insn> opcodes, std::span<const any> kval, size_t uval) {
 		uint32_t routine_length = std::max((uint32_t) opcodes.size(), 1u);
 		uint32_t kval_n         = (uint32_t) kval.size();
 
 		// Set function details.
 		//
 		function* result        = L->alloc<function>(sizeof(bc::insn) * routine_length + sizeof(any) * (uval + kval_n));
-		result->num_uval        = uval;
+		result->num_uval        = (uint32_t) uval;
 		result->num_kval        = kval_n;
 		result->length          = routine_length;
 		result->src_chunk       = string::create(L);
@@ -20,8 +20,18 @@ namespace lightning::core {
 		//
 		std::copy_n(opcodes.data(), opcodes.size(), result->opcode_array);
 		std::copy_n(kval.data(), kval.size(), result->kvals().begin());
-		memset(result->uvals().data(), 0xFF, result->uvals().size_bytes());
+		fill_none(result->uvals().data(), result->uvals().size());
 		return result;
+	}
+
+	// GC enumerator.
+	//
+	void function::gc_traverse(gc::sweep_state& s) {
+		src_chunk->gc_tick(s);
+		for (auto& v : gcvals()) {
+			if (v.is_gc())
+				v.as_gc()->gc_tick(s);
+		}
 	}
 
 	// Duplicates the function.

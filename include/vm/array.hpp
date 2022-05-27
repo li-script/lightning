@@ -3,11 +3,11 @@
 #include <span>
 #include <vm/state.hpp>
 
-namespace lightning::core {
-	struct array_store : gc_leaf<array_store> {
+namespace li {
+	struct array_store : gc::leaf<array_store> {
 		any entries[];
 	};
-	struct array : gc_node<array> {
+	struct array : gc::node<array> {
 		static array* create(vm* L, size_t reserved_entry_count = 0);
 
 		array_store* storage = nullptr;
@@ -23,13 +23,7 @@ namespace lightning::core {
 
 		// GC enumerator.
 		//
-		template<typename F>
-		void enum_for_gc(F&& fn) {
-			for (auto& e : *this) {
-				if (e.is_gc())
-					fn(e.as_gc());
-			}
-		}
+		void gc_traverse(gc::sweep_state& s) override;
 
 		// Reserve and resize.
 		//

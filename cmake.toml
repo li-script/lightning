@@ -1,6 +1,6 @@
 # Reference: https://build-cpp.github.io/cmkr/cmake-toml
 [project]
-name = "LibLi"
+name = "lightning"
 languages = ["CXX"]
 
 [options]
@@ -10,7 +10,7 @@ LIGHTING_TESTS = true
 emscripten = "EMSCRIPTEN"
 tests = "LIGHTING_TESTS"
 
-[target.LibLi]
+[target.li]
 type = "executable"
 sources = [
     "src/**.cpp",
@@ -24,6 +24,15 @@ emscripten.link-options = [
     "-sEXTRA_EXPORTED_RUNTIME_METHODS=ccall,cwrap",
     "-sEXPORTED_FUNCTIONS=_main,_runscript",
 ]
+
+[[install]]
+targets = ["li"]
+destination = "bin"
+
+[[install]]
+condition = "emscripten"
+files = ["$<TARGET_FILE_DIR:li>/li.wasm"]
+destination = "bin"
 
 [subdir.tests]
 condition = "tests"

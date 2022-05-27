@@ -8,6 +8,6 @@ foreach(SOURCE ${SOURCES})
         NAME
             "${NAME}"
         COMMAND
-            "$<TARGET_FILE:LibLi>" "${SOURCE}"
+            "$<TARGET_FILE:li>" "${SOURCE}"
 )
 endforeach(SOURCE ${SOURCES})

@@ -27,8 +27,23 @@ if(CMKR_ROOT_PROJECT)
 	configure_file(cmake.toml cmake.toml COPYONLY)
 endif()
 
+# Options
+option(LIGHTING_TESTS "" ON)
+
 project(LibLi)
 
+if(LIGHTING_TESTS) # tests
+	# tests
+	set(CMKR_CMAKE_FOLDER ${CMAKE_FOLDER})
+	if(CMAKE_FOLDER)
+		set(CMAKE_FOLDER "${CMAKE_FOLDER}/tests")
+	else()
+		set(CMAKE_FOLDER tests)
+	endif()
+	add_subdirectory(tests)
+	set(CMAKE_FOLDER ${CMKR_CMAKE_FOLDER})
+
+endif()
 # Target LibLi
 set(CMKR_TARGET LibLi)
 set(LibLi_SOURCES "")

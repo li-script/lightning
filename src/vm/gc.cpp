@@ -57,13 +57,11 @@ namespace li::gc {
 
 		// Try allocating from a free list.
 		//
-		for (size_t scl = size_class_of(clen); scl < std::size(size_classes); scl++) {
+		auto try_alloc_class = [&](size_t scl, bool excess) LI_INLINE -> std::pair<page*, void*> {
 			free_header* it   = free_lists[scl];
 			free_header* prev = nullptr;
 			while (it) {
-				if (it->num_chunks >= clen) {
-					//printf("allocating from free list %llu(vs %llu) chunks!\n", it->num_chunks, clen);
-
+				if (excess || it->num_chunks >= clen) {
 					// Unlink the entry.
 					//
 					if (prev) {
@@ -71,15 +69,14 @@ namespace li::gc {
 					} else {
 						free_lists[scl] = it->next();
 					}
-					
+
 					// Get the page.
 					//
 					auto* page = ((header*) it)->get_page();
 
 					// If we didn't allocate all of the space, re-insert into the free-list.
 					//
-					if (uint32_t leftover = it->num_chunks - clen)
-					{
+					if (uint32_t leftover = it->num_chunks - clen) {
 						it->num_chunks   = clen;
 						auto* h2         = ((header*) it)->next();
 						auto* fh2        = h2->get_free_header();
@@ -105,11 +102,20 @@ namespace li::gc {
 					it   = it->next();
 				}
 			}
+			return {nullptr, nullptr};
+		};
+		{
+			size_t size_class = size_class_of(clen);
+			auto   alloc      = try_alloc_class(size_class, false);
+			if (!alloc.second && ++size_class != std::size(size_classes)) {
+				alloc = try_alloc_class(size_class, true);
+			}
+			if (alloc.second)
+				return alloc;
 		}
 
 		// Find a page with enough size to fit our object or allocate one.
 		//
-
 		auto* pg = for_each([&](page* p) { return p->check_space(clen); });
 		if (!pg) {
 			pg = add_page(L, size_t(clen) << chunk_shift, false);

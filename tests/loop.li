@@ -8,7 +8,7 @@ const T1 = || for i in 0.. {
 @assert(T1()==10)
 
 # Constrained loop, break not reached
-const T2 = || for i in 0..2 {
+const T2 = || for i in 0..=2 {
 	if i == 5 {
 		break i*2
 	}

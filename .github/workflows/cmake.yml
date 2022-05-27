@@ -3,7 +3,7 @@ name: CMake
 on: [push, pull_request]
 
 jobs:
-  build:
+  build-emscripten:
     # Skip building pull requests from the same repository
     if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
     runs-on: ubuntu-latest
@@ -23,3 +23,35 @@ jobs:
       run: |
         emcmake cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
         cmake --build build --config ${{ env.BUILD_TYPE }} --parallel
+
+  build:
+    # Skip building pull requests from the same repository
+    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
+    runs-on: ubuntu-latest
+    env:
+      BUILD_TYPE: Release
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Install ninja-build tool
+      uses: seanmiddleditch/gha-setup-ninja@v3
+
+    - name: Enable Developer Command Prompt
+      if: ${{ runner.os == 'Windows' }}
+      uses: ilammy/msvc-dev-cmd@v1.7.0
+
+    - name: Set up GCC
+      if: ${{ runner.os == 'Linux' }}
+      uses: egor-tensin/setup-gcc@v1
+      with:
+        version: 11
+
+    - name: Build
+      run: |
+        cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+        cmake --build build --config ${{ env.BUILD_TYPE }} --parallel
+    
+    - name: Test
+      run: |
+        ctest --output-on-failure --test-dir build\tests -C ${{ env.BUILD_TYPE }}

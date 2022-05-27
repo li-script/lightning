@@ -79,6 +79,7 @@ namespace li::gc {
 		uint32_t stage : 2        = 0;
 		uint32_t num_chunks : 29  = 0;
 		uint32_t page_offset : 24 = 0;  // in page units.
+		uint32_t reserved : 8     = 0;
 
 		// Object size helper.
 		// - Size ignoring the header.

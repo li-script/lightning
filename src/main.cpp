@@ -26,7 +26,7 @@ namespace li::debug {
 
 	static void dump_tokens(vm* L, std::string_view s) {
 		lex::state lexer{L, s};
-		size_t     last_line = 0;
+		uint32_t   last_line = 0;
 		while (true) {
 			if (last_line != lexer.line) {
 				printf("\n%03u: ", lexer.line);

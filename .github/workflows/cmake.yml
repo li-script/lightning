@@ -27,9 +27,21 @@ jobs:
   build:
     # Skip building pull requests from the same repository
     if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
-    runs-on: ubuntu-latest
-    env:
-      BUILD_TYPE: Release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      # TODO: replace extra-cmake-flags with presets
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+        include:
+          - os: ubuntu-latest
+            build-type: Release
+            extra-cmake-flags: "-DCMAKE_CXX_FLAGS=-flto -Wno-attributes"
+          - os: windows-latest
+            build-type: Release
+            extra-cmake-flags:
     steps:
     - name: Checkout
       uses: actions/checkout@v2
@@ -49,9 +61,9 @@ jobs:
 
     - name: Build
       run: |
-        cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
-        cmake --build build --config ${{ env.BUILD_TYPE }} --parallel
+        cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=${{ matrix.build-type }} ${{ matrix.extra-cmake-flags }}
+        cmake --build build --config ${{ matrix.build-type }} --parallel
     
     - name: Test
       run: |
-        ctest --output-on-failure --test-dir build\tests -C ${{ env.BUILD_TYPE }}
+        ctest --output-on-failure --test-dir build/tests -C ${{ matrix.build-type }}

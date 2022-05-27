@@ -38,9 +38,9 @@ namespace li::lib {
 		util::export_as(L, "math.nan", std::numeric_limits<double>::quiet_NaN());
 		util::export_as(L, "math.pi",  3.14159265358979323846264338327950288);
 
-		static constexpr auto max = fmax;
-		static constexpr auto min = fmin;
-		static constexpr auto abs = fabs;
+		static constexpr auto max = [](double a, double b) { return fmax(a, b); };
+		static constexpr auto min = [](double a, double b) { return fmin(a, b); };
+		static constexpr auto abs = [](double a) { return fabs(a); };
 
 		REMAP_MATH_BINARY(min);
 		REMAP_MATH_BINARY(max);

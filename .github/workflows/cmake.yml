@@ -17,9 +17,7 @@ jobs:
       uses: seanmiddleditch/gha-setup-ninja@v3
 
     - name: Set up emscripten
-      uses: lovasoa/setup-emscripten@master
-      with:
-        emscripten-version: '1.38.47'
+      uses: mymindstorm/setup-emsdk@v11
 
     - name: Build
       run: |

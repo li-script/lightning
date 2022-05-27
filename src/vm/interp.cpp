@@ -103,7 +103,8 @@ namespace li {
 				BINOP_SPECIALIZE( bc::CGE )
 
 				case bc::CMOV: {
-					ref_reg(a) = ref_reg(b).as_bool() ? ref_reg(c) : none;
+					if (ref_reg(c).as_bool())
+						ref_reg(a) = ref_reg(b);
 					continue;
 				}
 				case bc::MOV: {

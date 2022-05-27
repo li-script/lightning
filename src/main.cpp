@@ -32,7 +32,7 @@ namespace li::debug {
 		size_t     last_line = 0;
 		while (true) {
 			if (last_line != lexer.line) {
-				printf("\n%03llu: ", lexer.line);
+				printf("\n%03zu: ", lexer.line);
 				last_line = lexer.line;
 			}
 			auto token = lexer.next();

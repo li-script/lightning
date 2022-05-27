@@ -56,7 +56,7 @@ namespace li {
 
 		// If anything pushed, move to result slot, else set sensable defaults.
 		//
-		if (L->stack_top >= lim) {
+		if (L->stack_top > lim) {
 			L->stack[callsite] = L->stack[lim];
 		} else {
 			L->stack[callsite] = ok ? any() : L->empty_string; 

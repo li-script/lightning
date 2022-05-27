@@ -1,31 +1,30 @@
 # TODO:
-# - fix arg shit in BC
-# - metatables
-# - self/this
-# - switch/match
+# - implement realloc, table/array/strset/stack shrinking|expanding
+# - ref-counted objects for any[]
+# - re-entrant vm::call
+# - start using TDUP|ADUP
+# - strset & table shouldnt use object_bytes, no pow2 guarantee
+# - gc freeze for locals via RAII
+# - std::vector<> in gc space
+# - get rid of PGET | PSET
+# - metatables + self/this
+# - match
 # - varargs
 # - type test via "is"
 # - export/import
 # - table unpack ...
 # - tail call
-# - core::to_string
 # - coroutines|thread
 # - try/catch
 # - ternary
 # - string escape, long strings
 # - debug info in function
-# - GC, JIT
+# - JIT
 # - format string `{a}`
 # macro __add(a, b) {
 # 	a + b
 # }
 # - error on meaningless expressions (e.g. "1 2 3" as a line)
-#
-
-
-x = "lol"
-
-print(x!="lol")
 
 
 let z = ["a", "b", "c", "d"]
@@ -43,6 +42,78 @@ const {test2:x} = env {
 	test2 = test * test
 }
 print("env dstrc:", x)
+
+const k = {} 
+k.x = 4
+
+
+
+
+
+#const BottomUpTree = |_depth| {
+#	let depth = _depth
+#	if depth >= 0 {
+#		depth -= 1
+#		{ left: $F(depth), right: $F(depth) }
+#	}
+#}
+#const ItemCheck = |_tree| {
+#	const tree = _tree
+#	const l = tree.left
+#	if l {
+#		1 + $F(l) + $F(tree.right)
+#	} else {
+#		1
+#	}
+#}
+#const BottomUpTree = |_depth| {
+#	let depth = _depth
+#	if depth >= 0 {
+#		depth -= 1
+#		[$F(depth),$F(depth)]
+#	}
+#}
+#const ItemCheck = |_tree| {
+#	const tree = _tree
+#	const l = tree[0]
+#	if l {
+#		1 + $F(l) + $F(tree[1])
+#	} else {
+#		1
+#	}
+#}
+#
+#
+#const N = 15
+#let mindepth = 4
+#let maxdepth = mindepth + 2
+#if maxdepth < N {
+#	maxdepth = N
+#}
+#
+#{ 
+#    const stretchdepth = maxdepth + 1
+#    const stretchtree = BottomUpTree(stretchdepth)
+#}
+#
+# 
+#const longlivedtree = BottomUpTree(maxdepth)
+#
+#
+#let depth = mindepth
+#while depth <= maxdepth {
+#    const iterations = 2 ^ (maxdepth + mindepth - depth) 
+#	let check = 0
+#	for i in 0..iterations {
+#        check += ItemCheck(BottomUpTree(depth))
+#	}
+#	depth += 2
+#}
+#
+#
+#print("fin:", maxdepth, ItemCheck(longlivedtree))
+
+
 
 #
 #
@@ -74,58 +145,6 @@ print("env dstrc:", x)
 #for k,v in "abcd" {
 #	print(k,v)
 #}
-
-#const BottomUpTree = |_depth| {
-#	let depth = _depth
-#	if depth >= 0 {
-#		depth -= 1
-#		{ left: $F(depth), right: $F(depth) }
-#	}
-#}
-#const ItemCheck = |_tree| {
-#	const tree = _tree
-#	const l = tree.left
-#	if l {
-#		1 + $F(l) + $F(tree.right)
-#	} else {
-#		1
-#	}
-#}
-#
-#
-#const N = 15
-#let mindepth = 4
-#let maxdepth = mindepth + 2
-#if maxdepth < N {
-#	maxdepth = N
-#}
-#
-#{ 
-#    const stretchdepth = maxdepth + 1
-#    const stretchtree = BottomUpTree(stretchdepth)
-#}
-#
-# 
-#const longlivedtree = BottomUpTree(maxdepth)
-#
-#let depth = mindepth
-#while depth <= maxdepth {	
-#    const iterations = 2 ^ (maxdepth + mindepth - depth) 
-#	let check = 0
-#	for i in 0..iterations {
-#        check += ItemCheck(BottomUpTree(depth))
-#	}
-#	depth += 2
-#}
-#
-#
-#print("fin:", maxdepth, ItemCheck(longlivedtree))
-
-
-
-
-
-
 
 #const tbl = { a: 2, b:4, c: 6 }
 #

@@ -29,7 +29,7 @@ namespace li::bc {
 	_(CGT,  reg, reg, reg) /* A=B>C */                                                  \
 	_(CLE,  reg, reg, reg) /* A=B<=C */                                                 \
 	_(CGE,  reg, reg, reg) /* A=B>=C */                                                 \
-	_(CMOV, reg, reg, reg) /* A=B?C:None */                                             \
+	_(CMOV, reg, reg, reg) /* if(C){A=B} */                                             \
                                                                                        \
 	/* Constant operators. */                                                           \
 	_(KIMM, reg, xmm, ___) /* A=Bitcast(BC) */                                          \

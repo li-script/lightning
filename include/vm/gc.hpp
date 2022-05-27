@@ -147,7 +147,7 @@ namespace li::gc {
 		uint32_t num_pages     = 0;
 		uint32_t num_objects   = 0;
 		uint32_t alive_objects = 0;
-		uint32_t next_chunk    = chunk_ceil(sizeof(page));
+		uint32_t next_chunk    = (uint32_t) chunk_ceil(sizeof(page));
 
 		// Default construction for head.
 		//
@@ -170,7 +170,7 @@ namespace li::gc {
 
 		// Object enumeration.
 		//
-		header* begin() { return (header*) get_chunk(chunk_ceil(sizeof(page))); }
+		header* begin() { return (header*) get_chunk((uint32_t) chunk_ceil(sizeof(page))); }
 		void*   end() { return get_chunk(next_chunk); }
 		template<typename F>
 		header* for_each(F&& fn) {

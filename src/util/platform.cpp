@@ -42,6 +42,8 @@ namespace li::platform {
 		mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
 		SetConsoleMode(console_handle, mode);
 	}
+
+	bool is_shift_down() { return GetAsyncKeyState(VK_SHIFT) & 0x8000; }
 #else
 	void* page_alloc(void*, void* pointer, size_t page_count, bool executable) {
 		if (pointer) {
@@ -54,5 +56,8 @@ namespace li::platform {
 		}
 	}
 	void setup_ansi_escapes() {}
+
+	 /* TODO */
+	bool is_shift_down() { return false; }
 #endif
 };

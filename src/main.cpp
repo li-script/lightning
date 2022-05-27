@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <fstream>
+#include <iostream>
 #include <lang/lexer.hpp>
 #include <lang/operator.hpp>
 #include <lang/parser.hpp>
@@ -65,8 +66,6 @@ void __attribute__((used)) runscript(const char* str) {
 					debug::dump_table(r.as_tbl());
 			}
 		}
-		// puts("---------GLOBALS------------");
-		// debug::dump_table(L->globals);
 	} else {
 		printf(LI_RED "Parser error: %s\n" LI_DEF, fn.as_str()->data);
 	}
@@ -78,11 +77,66 @@ int main(int argv, const char** args) {
 	platform::setup_ansi_escapes();
 
 #if !LI_ARCH_WASM
-	// Take in a file name.
+	// Create the VM.
 	//
-	if (argv != 2) {
-		printf(LI_RED "Expected li <file-name>\n");
-		return 0;
+	auto* L = vm::create();
+	lib::register_std(L);
+
+	// Repl if no file given.
+	//
+	if (argv < 2) {
+		// clang-format off
+		static constexpr const char hdr[] =
+		LI_YLW "                 @          " LI_CYN "                                          \n"
+		LI_YLW "               @@           " LI_CYN "                                          \n"
+		LI_YLW "            ,@@@            " LI_CYN "   _      _  _____           _       _    \n" 
+		LI_YLW "          @@@@@             " LI_CYN "  | |    (_)/ ____|         (_)     | |   \n" 
+		LI_YLW "       ,@@@@@@              " LI_CYN "  | |     _| (___   ___ _ __ _ _ __ | |_  \n" 
+		LI_YLW "     @@@@@@@@               " LI_CYN "  | |    | |\___ \ / __| '__| | '_ \| __| \n" 
+		LI_YLW "  ,@@@@@@@@@@@@@@@@@@@@@@@  " LI_CYN "  | |____| |____) | (__| |  | | |_) | |_  \n" 
+		LI_YLW "               @@@@@@@@,    " LI_CYN "  |______|_|_____/ \___|_|  |_| .__/ \__| \n" 
+		LI_YLW "              @@@@@@@       " LI_CYN "                              | |         \n" 
+		LI_YLW "             @@@@@,         " LI_CYN "                              |_|         \n"
+		LI_YLW "             @@@            " LI_CYN "                                          \n"
+		LI_YLW "            @,              " LI_CYN "                                          \n" LI_DEF;
+		// clang-format on
+		puts(hdr);
+
+		while (true) {
+			std::string buffer;
+			fputs("> ", stdout);
+			std::getline(std::cin, buffer);
+
+			// While shift is being held, allow multiple lines to be inputted.
+			//
+			while (platform::is_shift_down()) {
+				std::string buffer2;
+				std::cout << "   ";
+				std::getline(std::cin, buffer2);
+				buffer += "\n" + buffer2;
+			}
+
+			auto fn = li::load_script(L, buffer, "console", true);
+			if (fn.is(type_function)) {
+				L->push_stack(fn);
+				if (!L->scall(0)) {
+					printf(LI_RED "Exception: ");
+					L->pop_stack().print();
+					printf("\n" LI_DEF);
+				} else {
+					auto r = L->pop_stack();
+					if (!r.is(type_none)) {
+						printf(LI_GRN "");
+						r.print();
+						printf("\n" LI_DEF);
+						if (r.is(type_table))
+							debug::dump_table(r.as_tbl());
+					}
+				}
+			} else {
+				printf(LI_RED "Parser error: %s\n" LI_DEF, fn.as_str()->data);
+			}
+		}
 	}
 
 	// Read the file.
@@ -93,11 +147,6 @@ int main(int argv, const char** args) {
 		return 1;
 	}
 	std::string file_buf{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
-
-	// Create the VM.
-	//
-	auto* L = vm::create();
-	lib::register_std(L);
 
 	// Execute the code, print the result.
 	//

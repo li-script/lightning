@@ -1512,11 +1512,15 @@ namespace li {
 		if (cc.kind == expr::err) {
 			return {};
 		}
-		scope.emit(bc::JNS, scope.lbl_break, cc.to_anyreg(scope));
+		cc = cc.to_anyreg(scope);
 
 		// Reserve next register for break-with-value, initialize to none.
 		//
 		auto result = expression{any()}.to_nextreg(scope);
+
+		// Emit the condition.
+		//
+		scope.emit(bc::JNS, scope.lbl_break, cc.reg);
 
 		// Parse the block.
 		//
@@ -1596,7 +1600,7 @@ namespace li {
 			// Allocate 5 consequtive registers:
 			// [it], [max], [step], [<cc>] [<result>]
 			//
-			auto iter_base = scope.alloc_reg(4);
+			auto iter_base = scope.alloc_reg(5);
 			i.to_reg(scope, iter_base);
 			i2.to_reg(scope, iter_base + 1);
 			scope.set_reg(iter_base + 2, step);
@@ -1620,8 +1624,8 @@ namespace li {
 			//
 			scope.emit(bc::AADD, iter_base, iter_base, iter_base + 2);  // it = it + step
 			if (i2.kind != expr::imm || i2.imm != none) {
-				scope.emit(inclusive ? bc::CGT : bc::CGE, iter_base + 4, iter_base, iter_base + 1);  // cc = !cmp(it, max)
-				scope.emit(bc::JS, scope.lbl_break, iter_base + 4);
+				scope.emit(inclusive ? bc::CGT : bc::CGE, iter_base + 3, iter_base, iter_base + 1);  // cc = !cmp(it, max)
+				scope.emit(bc::JS, scope.lbl_break, iter_base + 3);
 			}
 
 			// Parse the block.

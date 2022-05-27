@@ -1,0 +1,21 @@
+# Reference: https://build-cpp.github.io/cmkr/cmake-toml
+[project]
+name = "LibLi"
+
+[conditions]
+emscripten = "EMSCRIPTEN"
+
+[target.LibLi]
+type = "executable"
+sources = [
+    "src/**.cpp",
+    "src/**.hpp",
+    "include/**.hpp",
+]
+include-directories = ["include"]
+compile-features = ["cxx_std_20"]
+emscripten.link-options = [
+    "-sEXPORTED_RUNTIME_METHODS=ccall,cwrap",
+    "-sEXTRA_EXPORTED_RUNTIME_METHODS=ccall,cwrap",
+    "-sEXPORTED_FUNCTIONS=_main,_runscript",
+]

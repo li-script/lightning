@@ -53,12 +53,11 @@ namespace li {
 	// Determine build mode.
 	//
 #ifndef LI_DEBUG
-	#if NDEBUG
+	// NDEBUG seems standard: https://en.cppreference.com/w/cpp/error/assert
+	#if defined(NDEBUG) && !defined(_DEBUG)
 		#define LI_DEBUG 0
-	#elif _DEBUG               
-		#define LI_DEBUG 1
 	#else
-		#define LI_DEBUG 0
+		#define LI_DEBUG 1
 	#endif
 #endif
 

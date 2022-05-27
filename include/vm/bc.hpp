@@ -144,7 +144,7 @@ namespace li::bc {
 							sprintf_s(op, "@%x", ip + 1 + value);
 						} else {
 							col = LI_YLW; 
-							sprintf_s(op, "@%x", ip + 1 - value);
+							sprintf_s(op, "@%x", ip + 1 + value);
 						}
 						rel_pr = (rel) value;
 						break;
@@ -198,7 +198,7 @@ namespace li::bc {
 			// Details for relative.
 			//
 			if (rel_pr) {
-				if (*rel_pr < 0) {
+				if (*rel_pr >= 0) {
 					printf(LI_GRN " v" LI_DEF);
 				} else {
 					printf(LI_RED " ^" LI_DEF);

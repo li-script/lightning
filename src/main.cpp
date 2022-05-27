@@ -60,8 +60,7 @@ void __attribute__((used)) runscript(const char* str) {
 			if (!r.is(type_none)) {
 				printf(LI_GRN "");
 				r.print();
-				printf("\n" LI_DEF);
-
+				printf("" LI_DEF);
 				if (r.is(type_table))
 					debug::dump_table(r.as_tbl());
 			}
@@ -132,7 +131,7 @@ int main(int argv, const char** args) {
 	L->close();
 	return retval;
 #else
-	auto* emscripten_vm = vm::create();
+	emscripten_vm = vm::create();
 	lib::register_std(emscripten_vm);
 	return 0;
 #endif

@@ -27,7 +27,7 @@ namespace li {
 		if (storage) {
 			r->storage = L->alloc<array_store>(capacity() * sizeof(any));
 			r->length  = length;
-			memcpy(r->storage, storage, size() * sizeof(any));
+			memcpy(r->storage->entries, storage->entries, size() * sizeof(any));
 		}
 		return r;
 	}
@@ -41,7 +41,7 @@ namespace li {
 			auto*  old_list     = begin();
 			size_t alloc_length = sizeof(any) * new_capacity;
 			storage             = L->alloc<array_store>(alloc_length);
-			memcpy(storage, old_list, old_count * sizeof(any));
+			memcpy(storage->entries, old_list, old_count * sizeof(any));
 		}
 	}
 	void array::resize(vm* L, size_t n) {

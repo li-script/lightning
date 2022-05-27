@@ -46,7 +46,7 @@ namespace li {
 		if (new_count > old_count) {
 			auto*  old_list     = node_list;
 			auto*  old_entries  = begin();
-			size_t alloc_length = sizeof(typename table_entry) * (new_count + overflow_factor);
+			size_t alloc_length = sizeof(table_entry) * (new_count + overflow_factor);
 			node_list           = L->alloc<table_nodes>(alloc_length);
 			fill_none(node_list->entries, alloc_length / sizeof(any));
 

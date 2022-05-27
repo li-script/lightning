@@ -189,7 +189,7 @@ namespace li::lex {
 		// Current line index and source name.
 		//
 		std::string_view source_name = {};
-		size_t           line        = 1;
+		uint32_t         line        = 1;
 
 		// Current and lookahead token.
 		//

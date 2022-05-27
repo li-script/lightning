@@ -6,6 +6,13 @@
 	#define NOMINMAX
 	#define WIN32_LEAN_AND_MEAN
 	#include <Windows.h>
+	#pragma comment(lib, "ntdll.lib")
+
+extern "C" {
+	__declspec(dllimport) int32_t NtAllocateVirtualMemory(HANDLE ProcessHandle, PVOID* BaseAddress, ULONG_PTR ZeroBits, PSIZE_T RegionSize, ULONG AllocationType, ULONG Protect);
+	__declspec(dllimport) int32_t NtFreeVirtualMemory(HANDLE ProcessHandle, PVOID* BaseAddress, PSIZE_T RegionSize, ULONG FreeType);
+};
+
 #else
 	#include <sys/mman.h>
 #endif
@@ -14,10 +21,14 @@ namespace li::platform {
 #ifdef _WIN32
 	void* page_alloc(void*, void* pointer, size_t page_count, bool executable) {
 		if (pointer) {
-			VirtualFree(pointer, 0, MEM_RELEASE);
+			size_t region_size = 0;
+			LI_ASSERT(NtFreeVirtualMemory(HANDLE(-1), &pointer, &region_size, MEM_RELEASE) >= 0);
 			return nullptr;
 		} else if (page_count) {
-			return VirtualAlloc(nullptr, page_count << 12, MEM_COMMIT | MEM_RESERVE, executable ? PAGE_EXECUTE_READWRITE : PAGE_READWRITE);
+			void* base = nullptr;
+			size_t size = page_count << 12;
+			NtAllocateVirtualMemory(HANDLE(-1), &base, 0, &size, MEM_COMMIT | MEM_RESERVE, executable ? PAGE_EXECUTE_READWRITE : PAGE_READWRITE);
+			return base;
 		} else {
 			return nullptr;
 		}

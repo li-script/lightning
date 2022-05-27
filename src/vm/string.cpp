@@ -185,7 +185,7 @@ namespace li {
 	static void format_any( any a, F&& formatter ) {
 		switch (a.type()) {
 			case type_none:
-				formatter("None");
+				formatter("{}");
 				break;
 			case type_false:
 				formatter("false");
@@ -212,7 +212,7 @@ namespace li {
 				formatter("function @ %p", a.as_gc());
 				break;
 			case type_nfunction:
-				formatter("Nfunction @ %p", a.as_gc());
+				formatter("nfunction @ %p", a.as_gc());
 				break;
 			case type_opaque:
 				formatter("opaque %llx", (uint64_t) a.as_opq().bits);

@@ -23,7 +23,7 @@ namespace li {
 		// Initialize stack.
 		//
 		auto* stack  = L->alloc<vm_stack>(vm::initial_stack_length * sizeof(any));
-		L->stack_len = stack->extra_bytes() / sizeof(any);
+		L->stack_len = uint32_t(stack->extra_bytes() / sizeof(any));
 		L->stack     = stack->list;
 
 		// Initialize globals and string interning state.

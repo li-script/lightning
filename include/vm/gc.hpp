@@ -148,9 +148,11 @@ namespace li::gc {
 	// GC state.
 	//
 	struct state {
-		fn_alloc alloc_fn       = nullptr;  // Page allocator.
-		void*    alloc_ctx      = nullptr;  //
-		page*    initial_page   = nullptr;  // Initial page entry.
+		fn_alloc alloc_fn     = nullptr;  // Page allocator.
+		void*    alloc_ctx    = nullptr;  //
+		page*    initial_page = nullptr;  // Initial page entry.
+		size_t   gc_debt      = 0;        // Allocations made since last GC sweep.
+		size_t   ticks        = 0;        // Tick counter.
 
 		// Page enumerator.
 		//
@@ -184,7 +186,10 @@ namespace li::gc {
 		void collect(vm* L);
 		void tick(vm* L) {
 			// TODO: Proper scheduling.
-			collect(L);
+			if (++ticks > 128 || gc_debt > (1 * 1024 * 1024)) [[unlikely]] {
+				gc_debt = 0;
+				collect(L);
+			}
 		}
 
 		// Allocation helper.
@@ -197,6 +202,7 @@ namespace li::gc {
 				if (!page)
 					return nullptr;
 			}
+			gc_debt += extra_length + sizeof(T);
 			return page->create<T, Tx...>(L, extra_length, std::forward<Tx>(args)...);
 		}
 

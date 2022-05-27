@@ -55,7 +55,7 @@ namespace li {
 			n     = std::max(n, stack_len);
 			auto* new_stack = alloc<vm_stack>((stack_len + n) * sizeof(any));
 			memcpy(new_stack->list, stack, stack_top * sizeof(any));
-			stack_len = new_stack->extra_bytes() / sizeof(any);
+			stack_len = (uint32_t) (new_stack->extra_bytes() / sizeof(any));
 			std::prev((gc::header*) stack)->gc_free();
 			stack     = new_stack->list;
 		}

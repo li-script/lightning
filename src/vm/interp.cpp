@@ -238,10 +238,6 @@ namespace li {
 					ref_reg(a) = any(std::in_place, insn.xmm());
 					continue;
 				}
-				case bc::KGET: {
-					ref_reg(a) = ref_kval(b);
-					continue;
-				}
 				case bc::PGET: {
 					ref_reg(a) = ref_arg(b);
 					continue;

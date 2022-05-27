@@ -39,13 +39,13 @@ jobs:
         include:
           - os: ubuntu-latest
             build-type: Release
-            extra-cmake-flags: "-DCMAKE_CXX_FLAGS=-flto -Wno-attributes -msse4.2"
+            extra-cmake-flags: "-DCMAKE_CXX_FLAGS=\"-flto -Wno-attributes -msse4.2\""
           - os: windows-latest
             build-type: Release
             extra-cmake-flags:
           - os: macOS-latest
             build-type: Release
-            extra-cmake-flags: "-DCMAKE_CXX_FLAGS=-flto -Wno-attributes -msse4.2"
+            extra-cmake-flags: "-DCMAKE_CXX_FLAGS=\"-flto -Wno-attributes -msse4.2\""
     steps:
     - name: Checkout
       uses: actions/checkout@v2

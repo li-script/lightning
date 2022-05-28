@@ -32,6 +32,7 @@ namespace li::lex {
 		__(cpow, ^=) __(cnullc, ??=)                                             \
 		/* Language operators */															    \
 		__(dots, ...) __(rangei, ..=) __(range, ..) __(nullc, ??) ___(ref, '&')  \
+		__(icall, ->) __(ucall, ::)															 \
 		/* Literal tokens */																	    \
 		____(eof, <eof>) ____(lnum, <number>) ____(name, <name>)                 \
 		____(lstr, <string>) ____(error, <error>) 		                         \

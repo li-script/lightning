@@ -87,13 +87,12 @@ namespace li::bc {
 
 	// Magic upvalues.
 	//
-	static constexpr reg uval_fun = -1;
-	static constexpr reg uval_env = -2;
-	static constexpr reg uval_glb = -3;
+	static constexpr reg uval_env = -1;
+	static constexpr reg uval_glb = -2;
 
 	// Write all descriptors.
 	//
-	enum class op_t : uint8_t { none, reg, uvl, pvl, kvl, imm, xmm, rel, ___ = none };
+	enum class op_t : uint8_t { none, reg, uvl, kvl, imm, xmm, rel, ___ = none };
 	struct desc {
 		const char* name;
 		op_t        a, b, c;
@@ -132,13 +131,22 @@ namespace li::bc {
 					case op_t::none:
 						op[0] = 0;
 						break;
-					case op_t::pvl:
-						col = LI_YLW;
-						snprintf(op, std::size(op), "a%u", (uint32_t) value);
-						break;
 					case op_t::reg:
-						col = LI_RED;
-						snprintf(op, std::size(op), "r%u", (uint32_t) value);
+						if (value < 0) {
+							if (value == -2) {
+								col = LI_GRN;
+								strcpy(op, "self");
+							} else if (value == -1) {
+								col = LI_GRN;
+								strcpy(op, "$F");
+							} else {
+								col = LI_YLW;
+								snprintf(op, std::size(op), "a%u", (uint32_t) - (value + 3));
+							}
+						} else {
+							col = LI_RED;
+							snprintf(op, std::size(op), "r%u", (uint32_t) value);
+						}
 						break;
 					case op_t::rel:
 						if (value >= 0) {
@@ -151,10 +159,7 @@ namespace li::bc {
 						rel_pr = (rel) value;
 						break;
 					case op_t::uvl:
-						if (value == bc::uval_fun) {
-							col = LI_GRN;
-							strcpy(op, "$F");
-						} else if (value == bc::uval_env) {
+						if (value == bc::uval_env) {
 							col = LI_GRN;
 							strcpy(op, "$E");
 						} else if (value == bc::uval_glb) {

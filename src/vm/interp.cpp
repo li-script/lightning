@@ -244,9 +244,7 @@ namespace li {
 					continue;
 				}
 				case bc::UGET: {
-					if (b == bc::uval_fun) {
-						ref_reg(a) = any(f);
-					} else if (b == bc::uval_env) {
+					if (b == bc::uval_env) {
 						ref_reg(a) = any(f->environment);
 					} else if (b == bc::uval_glb) {
 						ref_reg(a) = any(globals);
@@ -297,6 +295,9 @@ namespace li {
 					auto  key = ref_reg(a);
 					auto  val = ref_reg(b);
 
+					if (key.is(type_none)) [[unlikely]] {
+						return ret(string::create(this, "indexing with null key"), true);
+					}
 					if (tbl.is(type_array)) {
 						if (!key.is(type_number)) [[unlikely]] {
 							return ret(string::create(this, "indexing array with non-integer key"), true);

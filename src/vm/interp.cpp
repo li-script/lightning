@@ -58,9 +58,9 @@ namespace li {
 			// If function entry:
 			//
 			function* f = nullptr;
-			uint32_t  locals_begin;
+			slot_t    locals_begin;
+			slot_t    n_args = 0;
 			int64_t   ip     = 0;
-			uint32_t  n_args = 0;
 			if (state == vm_begin) {
 				// Push the return frame for previous function.
 				//

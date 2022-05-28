@@ -1,0 +1,14 @@
+
+let a = [1,2]
+a += 3
+assert(a[0] == 1)
+assert(a[1] == 2)
+assert(a[2] == 3)
+
+let b = {y: 5}
+b.x = 3
+const k = "x"
+assert(b.x==b["x"])
+assert(b.x==b[k])
+assert(b.x==3)
+assert(b.y==5)

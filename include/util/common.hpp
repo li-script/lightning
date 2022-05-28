@@ -18,7 +18,7 @@
 	#define __has_include(...) 0
 #endif
 
-#if defined(__amd64__) || defined(__amd64) || defined(__x86_64__) || defined(__x86_64) || defined(__AMD_64) || defined(_M_AMD64) || defined(_M_X86) || defined(__i386__)
+#if defined(__amd64__) || defined(__amd64) || defined(__x86_64__) || defined(__x86_64) || defined(__AMD_64) || defined(_M_AMD64) || defined(_M_IX86) || defined(__i386)
 	#define LI_ARCH_X86  1
 #elif defined(__aarch64__) || defined(_M_ARM64)
 	#define LI_ARCH_ARM  1

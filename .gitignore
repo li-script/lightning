@@ -4,12 +4,10 @@ build*/
 # Include the Visual Studio project files
 !/build-vs22/
 build-vs22/x64/
+build-vs22/Win32/
 build-vs22/.vs
 build-vs22/*.user
 build-vs22/enc_temp_folder/
-build-vs22/Debug/
-build-vs22/Release/
-build-vs22/Release-LLVM/
 
 # Exlude dev stuff in root directory.
 *.bat

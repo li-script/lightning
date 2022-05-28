@@ -1,7 +1,7 @@
 <p align="center">
   <a href="https://www.liscript.org/">
     <img width="256" heigth="256" src="https://liscript.org/logo.png">
-  </a>  
+  </a>
 
   <h1 align="center">Lightning Script</h1>
 
@@ -24,4 +24,5 @@ cmake -B build
 cmake --build build
 ```
 
-Modify `cmake.toml` to change the build settings. For more information: https://cmkr.build.
+For the best performance, we recommend you compile with `-flto` for GCC/Clang and `/LTCG` for MSVC.
+Modify `cmake.toml` to change the build settings.

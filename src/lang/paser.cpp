@@ -1091,10 +1091,10 @@ namespace li {
 
 			// If export set globals as well as locals.
 			//
-			reg_sweeper _g{scope};
 			if (is_export) {
 				for (size_t i = 0; i != size; i++) {
-					auto reg = scope.add_local(mappings[i].first, is_const);
+					auto        reg = scope.add_local(mappings[i].first, is_const);
+					reg_sweeper _g{scope};
 					expression(mappings[i].second).to_reg(scope, reg);
 					scope.emit(bc::TGET, reg, reg, ex.reg);
 					expression{mappings[i].first}.assign(scope, expression(reg));
@@ -1104,7 +1104,8 @@ namespace li {
 			//
 			else {
 				for (size_t i = 0; i != size; i++) {
-					auto reg   = scope.add_local(mappings[i].first, is_const);
+					auto        reg = scope.add_local(mappings[i].first, is_const);
+					reg_sweeper _g{scope};
 					expression(mappings[i].second).to_reg(scope, reg);
 					scope.emit(bc::TGET, reg, reg, ex.reg);
 				}

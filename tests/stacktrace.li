@@ -1,0 +1,11 @@
+fn a() { debug.stacktrace() }
+fn b() { let ok; pcall(a, &ok) }
+fn c() { b() }
+fn d() { let ok; pcall(c, &ok) }
+fn e() { d() }
+fn f() { e() }
+
+const result =   f()
+for k,v in [a, "C", b, c, "C", d, e, f, $F] {
+	assert(result[k] == v, tostring(result[k]) + "!=" + tostring(v))
+}

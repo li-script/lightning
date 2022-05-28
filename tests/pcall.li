@@ -1,0 +1,3 @@
+let ok;
+assert(pcall(|x| { throw x }, &ok, "x") == "x" && !ok)
+assert(pcall(|x| { x }, &ok, "b") == "b" && ok)

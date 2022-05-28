@@ -16,11 +16,12 @@ namespace li {
 
 		// Reference the function and declare return helper.
 		//
-		uint32_t ret_slot = stack_top - 1;
-		auto     fv       = stack[ret_slot - stack_rsvd - stack_fn];
-		auto     ret      = [&](any value, bool is_exception) LI_INLINE {
-         stack[ret_slot] = value;
-         stack_top       = ret_slot + 1;
+		uint32_t locals_begin = stack_top;
+		uint32_t return_slot  = locals_begin + stack_ret;
+		auto     fv           = stack[locals_begin + stack_fn];
+		auto     ret          = [&](any value, bool is_exception) LI_INLINE {
+         stack[return_slot] = value;
+         stack_top          = locals_begin;
          return !is_exception;
 		};
 
@@ -36,14 +37,14 @@ namespace li {
 
 		// Locals.
 		//
-		uint32_t locals_begin = alloc_stack(f->num_locals);
-		uint32_t reset_pos    = stack_top;
+		alloc_stack(f->num_locals);
+		uint32_t reset_pos = stack_top;
 
 		// Return and ref helpers.
 		//
 		auto ref_reg = [&](bc::reg r) LI_INLINE -> any& {
 			if (r < 0) {
-				LI_ASSERT((f->num_arguments+2) >= (uint32_t) -r);
+				LI_ASSERT((n_args+stack_rsvd) >= (uint32_t) -r);
 			} else {
 				LI_ASSERT(f->num_locals > (uint32_t) r);
 			}
@@ -109,9 +110,7 @@ namespace li {
 					continue;
 				}
 				case bc::THRW: {
-					if (auto& e = ref_reg(a); e != none)
-						return ret(e, true);
-					continue;
+					return ret(ref_reg(a), true);
 				}
 				case bc::RET: {
 					return ret(ref_reg(a), false);
@@ -361,7 +360,7 @@ namespace li {
 				}
 				case bc::CALL:
 					if (!call(a, locals_begin, ip))
-						return ret(stack[stack_top - 1], true);
+						return ret(stack[stack_top + stack_ret], true);
 					continue;
 				case bc::PUSHR:
 					push_stack(ref_reg(a));
@@ -370,7 +369,7 @@ namespace li {
 					push_stack(any(std::in_place, insn.xmm()));
 					continue;
 				case bc::SLOAD:
-					ref_reg(a) = stack[stack_top - 1 - b];
+					ref_reg(a) = stack[stack_top - b];
 					continue;
 				case bc::SRST:
 					stack_top = reset_pos;

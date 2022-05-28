@@ -64,7 +64,7 @@ namespace li::bc {
 	/* Control flow. */                                                              \
 	_(CALL, imm, ___, ___) /* A = Arg count */                                       \
 	_(RET, reg, ___, ___)  /* RETURN A */                                            \
-	_(THRW, reg, ___, ___) /* THROW A (if A != None) */                              \
+	_(THRW, reg, ___, ___) /* THROW A */                                             \
 	_(JMP, rel, ___, ___)  /* JMP A */                                               \
 	_(JS, rel, reg, ___)   /* JMP A if B */                                          \
 	_(JNS, rel, reg, ___)  /* JMP A if !B */                                         \

@@ -186,7 +186,7 @@ namespace li::gc {
 	static void traverse_live(vm* L, stage_context sweep, bool include_weak) {
 		// Stack.
 		//
-		for (auto& e : std::span{L->stack, L->stack_top}) {
+		for (auto& e : std::span{L->stack, (size_t) L->stack_top}) {
 			if (e.is_gc())
 				e.as_gc()->gc_tick(sweep);
 		}

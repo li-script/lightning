@@ -193,6 +193,10 @@ namespace li {
 	// Writes a function state as a function.
 	//
 	static function* write_func(func_state& fn, uint32_t line, std::optional<bc::reg> implicit_ret = std::nullopt) {
+		// Validate IP.
+		//
+		LI_ASSERT(fn.pc.size() <= BC_MAX_IP);
+
 		// Apply all fixups before writing it.
 		//
 		for (uint32_t ip = 0; ip != fn.pc.size(); ip++) {
@@ -310,8 +314,9 @@ namespace li {
 		// Stores the expression value to the specified register.
 		//
 		void to_reg(func_scope& scope, bc::reg r) const {
-			LI_ASSERT(kind != expr::err);
 			switch (kind) {
+				case expr::err:
+					util::abort("unhandled error expression");
 				case expr::reg:
 					if (r != reg)
 						scope.emit(bc::MOV, r, reg);
@@ -353,6 +358,8 @@ namespace li {
 		void push(func_scope& scope) const {
 			LI_ASSERT(kind != expr::err);
 			switch (kind) {
+				case expr::err:
+					util::abort("unhandled error expression");
 				case expr::reg:
 					scope.emit(bc::PUSHR, reg);
 					return;
@@ -435,12 +442,12 @@ namespace li {
 					break;
 				case expr::reg:
 					if (reg < 0) {
-						if (reg == stack_self) {
+						if (reg == FRAME_SELF) {
 							printf(LI_GRN "self" LI_DEF);
-						} else if (reg == stack_fn) {
+						} else if (reg == FRAME_TARGET) {
 							printf(LI_GRN "$F" LI_DEF);
 						} else {
-							printf(LI_YLW "a%u" LI_DEF, (uint32_t) - (reg + stack_rsvd));
+							printf(LI_YLW "a%u" LI_DEF, (uint32_t) - (reg + FRAME_SIZE));
 						}
 					} else {
 						printf(LI_RED "r%u" LI_DEF, (uint32_t) reg);
@@ -651,9 +658,9 @@ namespace li {
 		// Handle special names.
 		//
 		if (name->view() == "self") {
-			return expression(std::pair{stack_self, true});
+			return expression(std::pair{(int32_t) FRAME_SELF, true});
 		} else if (name->view() == "$F") {
-			return expression(std::pair{stack_fn, true});
+			return expression(std::pair{(int32_t) FRAME_TARGET, true});
 		} else if (name->view() == "$E") {
 			return expression(upvalue_t{}, std::pair<bc::reg, bool>{bc::uval_env, true});
 		} else if (name->view() == "$G") {
@@ -670,14 +677,14 @@ namespace li {
 		//
 		for (bc::reg n = 0; n != scope.fn.args.size(); n++) {
 			if (scope.fn.args[n] == name) {
-				return expression(-stack_rsvd - (n+1));
+				return expression(int32_t(-FRAME_SIZE - (n + 1)));
 			}
 		}
 
 		// Try self-reference.
 		//
 		if (scope.fn.decl_name && name == scope.fn.decl_name) {
-			return expression(std::pair{stack_fn, true});
+			return expression(std::pair{(int32_t) FRAME_TARGET, true});
 		}
 
 		// Try using existing upvalue.
@@ -1430,8 +1437,8 @@ namespace li {
 	//
 	static expression parse_call(func_scope& scope, const expression& func, const expression& self) {
 		using parameter = std::pair<expression, bool>;
-		parameter callsite[max_arguments] = {};
-		uint32_t  size                    = 0;
+		parameter callsite[MAX_ARGS] = {};
+		uint32_t  size               = 0;
 
 		// Allocate temporary site for result.
 		//
@@ -1494,11 +1501,11 @@ namespace li {
 		//
 		for (bc::reg i = 0; i != size; i++) {
 			if (callsite[i].second) {
-				auto stack_slot = stack_rsvd + i + 1;
+				auto stack_slot = FRAME_SIZE + i + 1;
 				if (callsite[i].first.kind == expr::reg) {
-					scope.emit(bc::SLOAD, callsite[i].first.reg, stack_slot);
+					scope.emit(bc::SLOAD, callsite[i].first.reg, (int32_t) stack_slot);
 				} else {
-					scope.emit(bc::SLOAD, tmp + 1, stack_slot);
+					scope.emit(bc::SLOAD, tmp + 1, (int32_t) stack_slot);
 					callsite[i].first.assign(scope, tmp + 1);
 				}
 			}
@@ -1506,7 +1513,7 @@ namespace li {
 
 		// Load the result, reset the frame, free all temporaries and return.
 		//
-		scope.emit(bc::SLOAD, tmp, -stack_ret);
+		scope.emit(bc::SLOAD, tmp, -FRAME_RET);
 		scope.emit(bc::SRST);
 		scope.reg_next = tmp + 1;
 		return expression(tmp);
@@ -1537,6 +1544,10 @@ namespace li {
 						if (arg_name == lex::token_error)
 							return {};
 						new_fn.args.emplace_back(arg_name.str_val);
+						if (new_fn.args.size() > MAX_ARGS) {
+							scope.lex().error("too many arguments.");
+							return {};
+						}
 
 						if (ns.lex().opt(endtk))
 							break;

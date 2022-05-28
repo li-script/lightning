@@ -134,10 +134,10 @@ namespace li::bc {
 						break;
 					case op_t::reg:
 						if (value < 0) {
-							if (value == stack_self) {
+							if (value == FRAME_SELF) {
 								col = LI_GRN;
 								strcpy(op, "self");
-							} else if (value == stack_fn) {
+							} else if (value == FRAME_TARGET) {
 								col = LI_GRN;
 								strcpy(op, "$F");
 							} else {
@@ -150,10 +150,10 @@ namespace li::bc {
 						}
 						break;
 					case op_t::sp:
-						if (value > stack_rsvd) {
+						if (value > FRAME_SIZE) {
 							col = LI_YLW;
-							snprintf(op, std::size(op), "@a%u", (uint32_t) (value - stack_rsvd));
-						} else if (value == -stack_ret) {
+							snprintf(op, std::size(op), "@a%u", (uint32_t) (value - FRAME_SIZE));
+						} else if (value == -FRAME_RET) {
 							col = LI_YLW;
 							snprintf(op, std::size(op), "@ret");
 						} else {

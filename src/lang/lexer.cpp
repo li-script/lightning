@@ -73,10 +73,8 @@ namespace li::lex {
 
 	// Define the helpers.
 	//
-	static constexpr bool is_ctrl(char c) { return (char_traits[uint8_t(c)] & char_ctrl) != 0; }
 	static constexpr bool is_punct(char c) { return (char_traits[uint8_t(c)] & char_punct) != 0; }
 	static constexpr bool is_space(char c) { return (char_traits[uint8_t(c)] & char_space) != 0; }
-	static constexpr bool is_alpha(char c) { return (char_traits[uint8_t(c)] & char_alpha) != 0; }
 	static constexpr bool is_num(char c) { return (char_traits[uint8_t(c)] & char_num) != 0; }
 	static constexpr bool is_xnum(char c) { return (char_traits[uint8_t(c)] & char_xnum) != 0; }
 	static constexpr bool is_ident(char c) { return (char_traits[uint8_t(c)] & char_ident) != 0; }

@@ -10,17 +10,22 @@ namespace li {
 	// Caller must push all arguments in reverse order, then the self argument or none and the function itself.
 	// - Caller frame takes the caller's base of stack and the PC receives the "return pointer".
 	//
-	LI_FLATTEN bool vm::call(uint32_t n_args, uint32_t caller_frame, uint32_t caller_pc) {
+	LI_FLATTEN bool vm::call(slot_t n_args, slot_t caller_frame, uint32_t caller_pc) {
 		call_frame retframe{.stack_pos = caller_frame, .caller_pc = caller_pc, .n_args = n_args};
 		push_stack(bit_cast<iopaque>(retframe));
 
+		// Cache stack locally, we will update the reference if we call into anything with side-effects.
+		//
+		any* __restrict stack_ref = stack;
+		auto dirty_stack          = [&]() LI_INLINE { stack_ref = stack; };
+
 		// Reference the function and declare return helper.
 		//
-		uint32_t locals_begin = stack_top;
-		uint32_t return_slot  = locals_begin + stack_ret;
-		auto     fv           = stack[locals_begin + stack_fn];
+		slot_t   locals_begin = stack_top;
+		slot_t   return_slot  = locals_begin + FRAME_RET;
+		auto     fv           = stack_ref[locals_begin + FRAME_TARGET];
 		auto     ret          = [&](any value, bool is_exception) LI_INLINE {
-         stack[return_slot] = value;
+         stack_ref[return_slot] = value;
          stack_top          = locals_begin;
          return !is_exception;
 		};
@@ -34,21 +39,19 @@ namespace li {
 		auto* f = fv.as_vfn();
 		if (f->num_arguments != n_args)
 			return ret(string::format(this, "expected %u arguments, got %u", f->num_arguments, n_args), true);
-
-		// Locals.
-		//
 		alloc_stack(f->num_locals);
-		uint32_t reset_pos = stack_top;
+		dirty_stack();
+		slot_t reset_pos = stack_top;
 
 		// Return and ref helpers.
 		//
 		auto ref_reg = [&](bc::reg r) LI_INLINE -> any& {
 			if (r < 0) {
-				LI_ASSERT((n_args+stack_rsvd) >= (uint32_t) -r);
+				LI_ASSERT((n_args+FRAME_SIZE) >= (uint32_t) -r);
 			} else {
 				LI_ASSERT(f->num_locals > (uint32_t) r);
 			}
-			return stack[locals_begin + r];
+			return stack_ref[locals_begin + r];
 		};
 		auto ref_uval = [&](bc::reg r) LI_INLINE -> any& {
 			LI_ASSERT(f->num_uval > (uint32_t) r);
@@ -64,17 +67,20 @@ namespace li {
 			auto [op, a, b, c] = insn;
 
 			switch (op) {
-				#define UNOP_SPECIALIZE(K) case K: {					  \
-					auto [r, ok] = apply_unary(this, ref_reg(b), K);  \
-					if (!ok) [[unlikely]]									  \
-						return ret(r, true);									  \
-					ref_reg(a) = r;											  \
-					continue;													  \
+			#define UNOP_SPECIALIZE(K)                                  \
+				case K: {                                                \
+					auto [r, ok] = apply_unary(this, ref_reg(b), K);      \
+					if (!ok) [[unlikely]]                                 \
+						return ret(r, true);                               \
+					dirty_stack(); /*TODO: not really unless metacalled*/ \
+					ref_reg(a) = r;                                       \
+					continue;															\
 				}
 				#define BINOP_SPECIALIZE(K) case K: {										 \
 					auto [r, ok] = apply_binary(this, ref_reg(b), ref_reg(c), K);	 \
 					if (!ok) [[unlikely]]														 \
 						return ret(r, true);														 \
+					dirty_stack(); /*TODO: not really unless metacalled*/           \
 					ref_reg(a) = r;																 \
 					continue;																		 \
 				}																						 
@@ -358,18 +364,23 @@ namespace li {
 					ref_reg(a) = r;
 					continue;
 				}
-				case bc::CALL:
-					if (!call(a, locals_begin, ip))
-						return ret(stack[stack_top + stack_ret], true);
+				case bc::CALL: {
+					bool status = call(a, locals_begin, ip);
+					dirty_stack();
+					if (!status)
+						return ret(stack_ref[stack_top + FRAME_RET], true);
 					continue;
+				}
 				case bc::PUSHR:
 					push_stack(ref_reg(a));
+					dirty_stack();
 					continue;
 				case bc::PUSHI:
 					push_stack(any(std::in_place, insn.xmm()));
+					dirty_stack();
 					continue;
 				case bc::SLOAD:
-					ref_reg(a) = stack[stack_top - b];
+					ref_reg(a) = stack_ref[stack_top - b];
 					continue;
 				case bc::SRST:
 					stack_top = reset_pos;

@@ -7,6 +7,7 @@
 #pragma pack(push, 1)
 namespace li {
 	struct vm;
+	using  slot_t = intptr_t;
 
 	// Integral types.
 	//

@@ -51,7 +51,7 @@ namespace li {
 			fill_none(node_list->entries, alloc_length / sizeof(any));
 
 			if (old_entries) {
-				for (size_t i = 0; i != old_count; i++) {
+				for (size_t i = 0; i != (old_count + overflow_factor); i++) {
 					if (old_entries[i].key != none) {
 						set(L, old_entries[i].key, old_entries[i].value, true);
 					}
@@ -65,6 +65,7 @@ namespace li {
 	// Table get/set.
 	//
 	void table::set(vm* L, any key, any value, bool assert_no_resize) {
+
 		size_t hash = key.hash();
 
 		while (true) {

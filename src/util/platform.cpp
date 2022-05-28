@@ -9,8 +9,8 @@
 	#pragma comment(lib, "ntdll.lib")
 
 extern "C" {
-	__declspec(dllimport) int32_t NtAllocateVirtualMemory(HANDLE ProcessHandle, PVOID* BaseAddress, ULONG_PTR ZeroBits, PSIZE_T RegionSize, ULONG AllocationType, ULONG Protect);
-	__declspec(dllimport) int32_t NtFreeVirtualMemory(HANDLE ProcessHandle, PVOID* BaseAddress, PSIZE_T RegionSize, ULONG FreeType);
+	__declspec(dllimport) int32_t __stdcall NtAllocateVirtualMemory(HANDLE ProcessHandle, PVOID* BaseAddress, ULONG_PTR ZeroBits, PSIZE_T RegionSize, ULONG AllocationType, ULONG Protect);
+	__declspec(dllimport) int32_t __stdcall NtFreeVirtualMemory(HANDLE ProcessHandle, PVOID* BaseAddress, PSIZE_T RegionSize, ULONG FreeType);
 };
 
 #else
@@ -27,12 +27,12 @@ namespace li::platform {
 #ifdef _WIN32
 	void* page_alloc(void*, void* pointer, size_t page_count, bool executable) {
 		if (pointer) {
-			size_t region_size = 0;
+			SIZE_T region_size = 0;
 			LI_ASSERT(NtFreeVirtualMemory(HANDLE(-1), &pointer, &region_size, MEM_RELEASE) >= 0);
 			return nullptr;
 		} else if (page_count) {
 			void* base = nullptr;
-			size_t size = page_count << 12;
+			SIZE_T size = page_count << 12;
 			NtAllocateVirtualMemory(HANDLE(-1), &base, 0, &size, MEM_COMMIT | MEM_RESERVE, executable ? PAGE_EXECUTE_READWRITE : PAGE_READWRITE);
 			return base;
 		} else {

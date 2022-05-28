@@ -119,6 +119,12 @@ int main(int argv, const char** args) {
 				buffer += "\n" + buffer2;
 			}
 
+			// Exit on EOF (CTRL+D).
+			//
+			if (std::cin.eof()) {
+				return 0;
+			}
+
 			// Execute and print.
 			//
 			handle_repl_io(L, buffer);

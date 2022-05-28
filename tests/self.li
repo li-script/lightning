@@ -10,6 +10,9 @@ const reduce = || {
    }
 }
 
+const getself = || self
+assert(getself() == {})
+
 const arr = [1,2,0,3]
 assert(arr::reduce()==6)
 

@@ -24,7 +24,7 @@ namespace li {
 
 		// Replication of vm::call.
 		//
-		bool call(vm* L, uint32_t callsite, uint32_t n_args);
+		bool call(vm* L, uint32_t n_args, uint32_t caller_frame, uint32_t caller_pc);
 	};
 
 	// VM function.
@@ -36,7 +36,7 @@ namespace li {
 		//
 		uint32_t num_uval      = 0;        // Number of upvalues.
 		uint32_t num_kval      = 0;        // Number of constants.
-		uint32_t num_arguments = 0;        // Vararg if zero, else n-1 args.
+		uint32_t num_arguments = 0;        // Number of fixed arguments.
 		uint32_t num_locals    = 0;        // Number of local variables we need to reserve on stack.
 		uint32_t length        = 0;        // Bytecode length.
 		uint32_t src_line      = 0;        // Line of definition.

@@ -18,11 +18,11 @@ namespace li::lib {
 
 #define REMAP_MATH_BINARY(name)																					\
 	util::export_as(L, "math." LI_STRINGIFY(name), [](vm* L, const any* args, uint32_t n) {	\
-		if (n != 2 || !args[0].is(type_number) || !args[2].is(type_number)) {						\
+		if (n != 2 || !args[0].is(type_number) || !args[-1].is(type_number)) {						\
 			L->push_stack(any(string::create(L, "expected two numbers")));								\
 			return false;																								\
 		}																													\
-		L->push_stack(any(name(args[0].as_num(), args[1].as_num())));									\
+		L->push_stack(any(name(args[0].as_num(), args[-1].as_num())));									\
 		return true;																									\
 	});
 
@@ -70,9 +70,9 @@ namespace li::lib {
 
 		// If one arg given, generate [0, x] inclusive.
 		//
-		if (!args[n-1].is(type_number))
+		if (!args[1-n].is(type_number))
 			return L->error("expected one or two numbers.");
-		double x = args[n - 1].as_num();
+		double x = args[1-n].as_num();
 
 		// If two args given, generate [y, x] inclusive.
 		//
@@ -129,7 +129,7 @@ namespace li::lib {
 		//
 		util::export_as(L, "print", [](vm* L, const any* args, uint32_t n) {
 			for (size_t i = 0; i != n; i++) {
-				args[i].print();
+				args[-i].print();
 				printf("\t");
 			}
 			printf("\n");
@@ -166,11 +166,10 @@ namespace li::lib {
 				return L->error("expected string");
 			}
 			auto res = load_script(L, args->as_str()->view());
-			L->push_stack(res);
 			if (!res.is(type_function)) {
 				return false;
 			}
-			return L->scall(0);
+			return L->scall(0, res);
 		});
 
 		// Misc.
@@ -179,8 +178,8 @@ namespace li::lib {
 			if (!n || args->as_bool())
 				return true;
 
-			if (n >= 2 && args[1].is(type_string)) {
-				L->push_stack(args[1]);
+			if (n >= 2 && args[-1].is(type_string)) {
+				L->push_stack(args[-1]);
 				return false;
 			} else {
 				// TODO: Use debug info to provide line information.

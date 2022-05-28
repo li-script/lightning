@@ -44,6 +44,7 @@ namespace li {
 		any*        stack        = nullptr;           // Stack base.
 		uint32_t    stack_top    = 0;                 // Top of the stack.
 		uint32_t    stack_len    = 0;                 // Maximum length of the stack.
+		uint32_t    cframe       = UINT32_MAX;        // Last valid VM frame that called into C.
 
 		// Closes the VM state.
 		//
@@ -111,19 +112,21 @@ namespace li {
 			assume_unreachable();
 		}
 
-		// Calls the function at the first slot in callsite with the arguments following it
-		// - Returns true on success and false if the VM throws an exception.
-		// - In either case and will replace the function with a value representing
-		//    either the exception or the result.
+		// Caller must push all arguments in reverse order, then the self argument or none and the function itself.
+		// - Caller frame takes the caller's base of stack and the PC receives the "return pointer".
 		//
-		bool call(uint32_t callsite, uint32_t n_args);
+		bool call(uint32_t n_args, uint32_t caller_frame, uint32_t caller_pc);
 
-		// Simple version of call() for user-invocation that pops all arguments and the function from ToS.
+		// Simple version of call() for user-invocation that pops all arguments and the function/self from ToS.
 		//
-		bool scall(uint32_t n_args) {
-			uint32_t cs = stack_top - (n_args + 1);
-			bool ok = call(cs, n_args);
-			pop_stack_n(n_args);
+		bool scall(uint32_t n_args, any fn, any self = none) {
+			uint32_t req_slot = stack_top - n_args;
+			uint32_t ret_slot = stack_top; // @fn
+			push_stack(self);
+			push_stack(fn);
+			bool ok = call(n_args, cframe, UINT32_MAX);
+			stack[req_slot] = stack[ret_slot];
+			stack_top       = req_slot + 1;
 			return ok;
 		}
 

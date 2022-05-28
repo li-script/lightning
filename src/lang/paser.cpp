@@ -192,7 +192,7 @@ namespace li {
 	// Writes a function state as a function.
 	//
 	static function* write_func(func_state& fn, uint32_t line, std::optional<bc::reg> implicit_ret = std::nullopt) {
-		// Fixup all labels before writing it.
+		// Apply all fixups before writing it.
 		//
 		for (uint32_t ip = 0; ip != fn.pc.size(); ip++) {
 			auto& insn = fn.pc[ip];
@@ -308,8 +308,6 @@ namespace li {
 			LI_ASSERT(kind != expr::err);
 
 			switch (kind) {
-				case expr::err:
-					util::abort("unhandled error token");
 				case expr::reg:
 					if (r != reg)
 						scope.emit(bc::MOV, r, reg);
@@ -344,6 +342,40 @@ namespace li {
 			if (kind == expr::reg)
 				return reg;
 			return to_nextreg(scope);
+		}
+
+		// Emits a push instruction.
+		//
+		void push(func_scope& scope) const {
+			LI_ASSERT(kind != expr::err);
+
+			switch (kind) {
+				case expr::reg:
+					scope.emit(bc::PUSHR, reg);
+					return;
+				case expr::imm:
+					switch (imm.type()) {
+						case type_none:
+						case type_false:
+						case type_true:
+						case type_number: {
+							scope.emitx(bc::PUSHI, 0, imm.value);
+							break;
+						}
+						default: {
+							scope.emitx(bc::PUSHI, 0, scope.add_const(imm).second.value);
+							break;
+						}
+					}
+					return;
+				case expr::uvl:
+				case expr::idx:
+				case expr::glb:
+					auto r = to_nextreg(scope);
+					scope.emit(bc::PUSHR, r);
+					scope.free_reg(r);
+					return;
+			}
 		}
 
 		// Assigns a value to the lvalue expression.
@@ -583,9 +615,9 @@ namespace li {
 	//
 	static expression parse_closure(func_scope& scope);
 
-	// Parses a call, returns the result expression.
+	// Parses a call, returns the result.
 	//
-	static expression parse_call(func_scope& scope, const expression& func);
+	static expression parse_call(func_scope& scope, const expression& func, const expression& self);
 
 	// Parses block-like constructs, returns the result.
 	//
@@ -627,9 +659,12 @@ namespace li {
 
 		// Try finding an argument.
 		//
+		if (name->view() == "this") {
+			return expression(-2);
+		}
 		for (bc::reg n = 0; n != scope.fn.args.size(); n++) {
 			if (scope.fn.args[n] == name) {
-				return expression(-(n + 1));
+				return expression(-3 - n);
 			}
 		}
 
@@ -817,7 +852,7 @@ namespace li {
 				}
 				case lex::token_lstr:
 				case '(': {
-					base = parse_call(scope, base);
+					base = parse_call(scope, base, none);
 					if (base.kind == expr::err)
 						return {};
 					break;
@@ -1304,13 +1339,16 @@ namespace li {
 		return true;
 	}
 
-	// Parses a call, returns the instruction's position for catchpad correction.
+	// Parses a call, returns the result.
 	//
-	static expression parse_call(func_scope& scope, const expression& func) {
-		// Callsite expression list.
+	static expression parse_call(func_scope& scope, const expression& func, const expression& self) {
+		using parameter = std::pair<expression, bool>;
+		parameter callsite[32] = {};
+		uint32_t  size         = 0;
+
+		// Allocate temporary site for result.
 		//
-		expression callsite[32] = {func};
-		uint32_t   size         = 1;
+		bc::reg tmp = scope.alloc_reg(2);
 
 		// Collect arguments.
 		//
@@ -1318,10 +1356,10 @@ namespace li {
 			if (auto ex = expr_table(scope); ex.kind == expr::err) {
 				return {};
 			} else {
-				callsite[size++] = ex;
+				callsite[size++] = {ex, false};
 			}
 		} else if (auto lit = scope.lex().opt(lex::token_lstr)) {
-			callsite[size++] = expression(any(lit->str_val));
+			callsite[size++] = {expression(any(lit->str_val)), false};
 		} else {
 			if (scope.lex().check('(') == lex::token_error)
 				return {};
@@ -1332,10 +1370,23 @@ namespace li {
 						return {};
 					}
 
-					if (auto ex = expr_parse(scope); ex.kind == expr::err)
-						return {};
-					else
-						callsite[size++] = ex;
+					// If reference:
+					//
+					if (scope.lex().opt(lex::token_ref)) {
+						if (auto ex = expr_parse(scope); ex.kind == expr::err)
+							return {};
+						else if (ex.is_lvalue()) {
+							callsite[size++] = {ex, true};
+						} else {
+							scope.lex().error("expected lvalue to reference argument");
+							return {};
+						}
+					} else {
+						if (auto ex = expr_parse(scope); ex.kind == expr::err)
+							return {};
+						else
+							callsite[size++] = {ex, false};
+					}
 
 					if (scope.lex().opt(')'))
 						break;
@@ -1345,18 +1396,33 @@ namespace li {
 			}
 		}
 
-		// Allocate the callsite, dispatch to it.
+		for (bc::reg i = (size - 1); i >= 0; i--) {
+			callsite[i].first.push(scope);
+		}
+		self.push(scope);
+		func.push(scope);
+		scope.emit(bc::CALL, size);
+
+		// Reload all references.
 		//
-		auto c = scope.alloc_reg(size);
 		for (bc::reg i = 0; i != size; i++) {
-			callsite[i].to_reg(scope, c + i);
+			if (callsite[i].second) {
+				auto stack_slot = 2 + i;
+				if (callsite[i].first.kind == expr::reg) {
+					scope.emit(bc::SLOAD, callsite[i].first.reg, stack_slot);
+				} else {
+					scope.emit(bc::SLOAD, tmp + 1, stack_slot);
+					callsite[i].first.assign(scope, tmp + 1);
+				}
+			}
 		}
 
-		// Emit the call, free all arguments, return the result.
+		// Load the result, reset the frame, free all temporaries and return.
 		//
-		scope.emit(bc::CALL, c, size - 1);
-		scope.free_reg(c + 1, size - 1);
-		return expression(c);
+		scope.emit(bc::SLOAD, tmp + 1, 0);
+		scope.emit(bc::SRST);
+		scope.reg_next = tmp + 1;
+		return expression(tmp);
 	}
 
 	// Parses closure declaration, returns the function value.

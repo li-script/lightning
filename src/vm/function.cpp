@@ -46,25 +46,30 @@ namespace li {
 	
 	// Replication of vm::call.
 	//
-	bool nfunction::call(vm* L, uint32_t callsite, uint32_t n_args) {
+	bool nfunction::call(vm* L, uint32_t n_args, uint32_t caller_frame, uint32_t caller_pc) {
 		LI_ASSERT(callback != nullptr);
 
-		// Save stack pos, call the handler.
+		// Swap previous c-frame.
+		//
+		uint32_t prevcframe = std::exchange(L->cframe, caller_frame != UINT32_MAX ? caller_frame : L->cframe);
+
+		// Invoke callback.
 		//
 		uint32_t lim = L->stack_top;
-		bool ok = callback(L, &L->stack[callsite+1], n_args);
+		bool ok = callback(L, &L->stack[L->stack_top - 3], n_args);
 
 		// If anything pushed, move to result slot, else set sensable defaults.
 		//
 		if (L->stack_top > lim) {
-			L->stack[callsite] = L->stack[lim];
+			L->stack[lim - 1] = L->stack[lim];
 		} else {
-			L->stack[callsite] = ok ? any() : L->empty_string; 
+			L->stack[lim - 1] = ok ? any() : L->empty_string;
 		}
 
-		// Reset stack pos and return status.
+		// Restore c-frame and stack position, return.
 		//
 		L->stack_top = lim;
+		L->cframe    = prevcframe;
 		return ok;
 	}
 };

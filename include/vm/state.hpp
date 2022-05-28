@@ -91,7 +91,7 @@ namespace li {
 		// Error helper.
 		//
 		template<typename... Tx>
-		bool error(const char* fmt, Tx... args);
+		LI_COLD bool error(const char* fmt, Tx... args);
 
 		// Gets next random.
 		//

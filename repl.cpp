@@ -114,9 +114,10 @@ int main(int argv, const char** args) {
 			//
 			while (platform::is_shift_down()) {
 				std::string buffer2;
-				std::cout << "   ";
+				fputs("   ", stdout);
 				std::getline(std::cin, buffer2);
-				buffer += "\n" + buffer2;
+				buffer += "\n";
+				buffer += buffer2;
 			}
 
 			// Exit on EOF (CTRL+D).
@@ -139,9 +140,6 @@ int main(int argv, const char** args) {
 		return 1;
 	}
 	std::string file_buf{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
-
-	// Execute the code, print the result.
-	//
 	auto fn = li::load_script(L, file_buf);
 
 	// Validate, print the result.

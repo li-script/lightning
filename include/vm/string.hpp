@@ -28,7 +28,7 @@ namespace li {
 	// Define forwarded vm::error.
 	//
 	template<typename... Tx>
-	bool vm::error(const char* fmt, Tx... args) {
+	LI_COLD inline bool vm::error(const char* fmt, Tx... args) {
 		if constexpr (sizeof...(Tx) != 0) {
 			push_stack(string::format(this, fmt, args...));
 		} else {

@@ -55,7 +55,7 @@ namespace li {
 		std::vector<string*>     args       = {};       // Arguments.
 		bool                     is_vararg  = false;    //
 		std::vector<bc::insn>    pc         = {};       // Bytecode generated.
-		bool                     is_repl    = false;    // Disables locals and yields from chunk.
+		bool                     is_repl    = false;    // Disables locals.
 
 		// Labels.
 		//
@@ -1257,7 +1257,7 @@ namespace li {
 				// If closed with semi-colon, clear value.
 				//
 				if (scope.lex().opt(';')) {
-					last = {none};
+					last = none;
 				}
 			}
 
@@ -1300,16 +1300,16 @@ namespace li {
 				return false;
 			}
 
-			// Optionally consume ';', move on to the next one.
+			// If closed with semi-colon, clear value.
 			//
-			scope.lex().opt(';');
+			if (scope.lex().opt(';')) {
+				last = none;
+			}
 		}
 
-		// If repl, yield last value.
+		// Yield last value.
 		//
-		if (scope.fn.is_repl) {
-			scope.emit(bc::RET, last.to_anyreg(scope));
-		}
+		scope.emit(bc::RET, last.to_anyreg(scope));
 		return true;
 	}
 

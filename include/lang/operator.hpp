@@ -39,6 +39,7 @@ namespace li {
 		 {lex::token_div, lex::token_cdiv, bc::ADIV, 5, 5},
 		 {lex::token_mod, lex::token_cmod, bc::AMOD, 5, 5},
 		 {lex::token_pow, lex::token_cpow, bc::APOW, 5, 5},
+		 {lex::token_nullc, lex::token_cnullc, bc::NCS, 13, 13},
 		 {lex::token_land, {}, bc::LAND, 14, 14},
 		 {lex::token_lor, {}, bc::LOR, 15, 15},
 		 {lex::token_eq, {}, bc::CEQ, 10, 10},

@@ -19,7 +19,7 @@ namespace li::lex {
 	//  ____ => literal        | <string>
 	//
 #define LIGHTNING_ENUM_TOKENS(_, __, ___, ____)                                \
-	/* Logical operators */                                                     \
+		/* Logical operators */                                                  \
 		__(land, &&) __(lor, ||) ___(lnot, '!') __(eq, ==) __(ne, !=)			    \
 		___(lt, '<') ___(gt, '>') __(le, <=) __(ge, >=)						          \
 		/* Arithmetic operators */															    \
@@ -29,9 +29,9 @@ namespace li::lex {
 		___(tif, '?') ___(telse, ':')														    \
 		/* Compound operators */															    \
 		__(cadd, +=) __(csub, -=) __(cmul, *=) __(cdiv, /=) __(cmod, %=)         \
-		__(cpow, ^=)                                                   			 \
+		__(cpow, ^=) __(cnullc, ??=)                                             \
 		/* Language operators */															    \
-		__(dots, ...) __(rangei, ..=) __(range, ..)                              \
+		__(dots, ...) __(rangei, ..=) __(range, ..) __(nullc, ??)                \
 		/* Literal tokens */																	    \
 		____(eof, <eof>) ____(lnum, <number>) ____(name, <name>)                 \
 		____(lstr, <string>) ____(error, <error>) 		                         \

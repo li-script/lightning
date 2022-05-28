@@ -39,10 +39,6 @@ namespace li::bc {
 	_(UGET, reg, uvl, ___) /* A=UVAL[B] */                                              \
 	_(USET, uvl, reg, ___) /* UVAL[A]=B */                                              \
                                                                                        \
-	/* Parameter operators. */                                                          \
-	_(PGET, reg, pvl, ___) /* A=ARGS[B] */                                              \
-	_(PSET, pvl, reg, ___) /* ARGS[A]=B */                                              \
-                                                                                       \
 	/* Global operators. */                                                             \
 	_(GGET, reg, reg, ___) /* A=G[B] */                                                 \
 	_(GSET, reg, reg, ___) /* G[A]=B */                                                 \

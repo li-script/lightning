@@ -37,39 +37,35 @@ namespace li {
 	// Duplicates the function.
 	//
 	function* function::duplicate(vm* L) {
-		size_t    obj_len = this->object_bytes();
-		size_t    ext_len = this->extra_bytes();
-		function* f       = L->alloc<function>(ext_len);
-		memcpy(&f->num_uval, &num_uval, obj_len);
-		return f;
+		return L->duplicate<function>(this);
 	}
 	
 	// Replication of vm::call.
 	//
-	bool nfunction::call(vm* L, uint32_t n_args, uint32_t caller_frame, uint32_t caller_pc) {
+	bool nfunction::call(vm* L, slot_t n_args, slot_t caller_frame, uint32_t caller_pc) {
 		LI_ASSERT(callback != nullptr);
 
 		// Swap previous c-frame.
 		//
-		uint32_t prevcframe = std::exchange(L->cframe, caller_frame ? caller_frame : L->cframe);
+		slot_t prevcframe = std::exchange(L->last_vm_caller, caller_pc != FRAME_C_IP ? caller_frame : L->last_vm_caller);
 
 		// Invoke callback.
 		//
-		uint32_t lim = L->stack_top;
-		bool     ok  = callback(L, &L->stack[L->stack_top - 1 - stack_rsvd], (int32_t) n_args);
+		slot_t lim = L->stack_top;
+		bool   ok  = callback(L, &L->stack[L->stack_top - 1 - FRAME_SIZE], n_args);
 
 		// If anything pushed, move to result slot, else set sensable defaults.
 		//
 		if (L->stack_top > lim) {
-			L->stack[lim + stack_ret] = L->stack[L->stack_top - 1];
+			L->stack[lim + FRAME_RET] = L->stack[L->stack_top - 1];
 		} else {
-			L->stack[lim + stack_ret] = ok ? any() : L->empty_string;
+			L->stack[lim + FRAME_RET] = ok ? any() : L->empty_string;
 		}
 
 		// Restore c-frame and stack position, return.
 		//
-		L->stack_top = lim;
-		L->cframe    = prevcframe;
+		L->stack_top      = lim;
+		L->last_vm_caller = prevcframe;
 		return ok;
 	}
 };

@@ -7,7 +7,7 @@
 namespace li {
 	// Native callback, at most one result should be pushed on stack, if returns false, signals exception.
 	//
-	using nfunc_t = bool (*)(vm* L, any* args, int32_t n);
+	using nfunc_t = bool (*)(vm* L, any* args, slot_t n);
 
 	// Native function.
 	//
@@ -24,7 +24,7 @@ namespace li {
 
 		// Replication of vm::call.
 		//
-		bool call(vm* L, uint32_t n_args, uint32_t caller_frame, uint32_t caller_pc);
+		bool call(vm* L, slot_t n_args, slot_t caller_frame, uint32_t caller_pc);
 	};
 
 	// VM function.
@@ -34,14 +34,14 @@ namespace li {
 
 		// Function details.
 		//
-		uint32_t num_uval      = 0;        // Number of upvalues.
-		uint32_t num_kval      = 0;        // Number of constants.
-		uint32_t num_arguments = 0;        // Number of fixed arguments.
-		uint32_t num_locals    = 0;        // Number of local variables we need to reserve on stack.
-		uint32_t length        = 0;        // Bytecode length.
-		uint32_t src_line      = 0;        // Line of definition.
-		string*  src_chunk     = nullptr;  // Source of definition (chunk:function_name or chunk).
-		table*   environment   = nullptr;  // Table environment.
+		uint32_t num_arguments : 6 = 0;        // Number of fixed arguments.
+		uint32_t num_locals : 26   = 0;        // Number of local variables we need to reserve on stack.
+		uint32_t num_uval          = 0;        // Number of upvalues.
+		uint32_t num_kval          = 0;        // Number of constants.
+		uint32_t length            = 0;        // Bytecode length.
+		uint32_t src_line          = 0;        // Line of definition.
+		string*  src_chunk         = nullptr;  // Source of definition (chunk:function_name or chunk).
+		table*   environment       = nullptr;  // Table environment.
 
 		// Variable length part.
 		//

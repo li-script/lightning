@@ -27,13 +27,15 @@ namespace li {
 
 	// Call frame as a linked list of caller records.
 	//
-	static constexpr uint32_t max_arguments = 32;
-	static constexpr int32_t  stack_self    = -3;  // specials relative to local 0
-	static constexpr int32_t  stack_fn      = -2;
-	static constexpr int32_t  stack_ret     = -2;
-	static constexpr int32_t  stack_caller  = -1;
-	static constexpr int32_t  stack_rsvd    = 3;
-	static constexpr uint64_t pseudo_pc_c = (1ll << 18) - 1;
+	static constexpr uint32_t MAX_ARGS       = 32;
+	static constexpr slot_t   FRAME_SELF     = -3;  // specials relative to local 0
+	static constexpr slot_t   FRAME_TARGET   = -2;
+	static constexpr slot_t   FRAME_RET      = -2;
+	static constexpr slot_t   FRAME_CALLER   = -1;
+	static constexpr slot_t   FRAME_SIZE     = 3;
+	static constexpr uint64_t FRAME_C_IP     = (1ll << 18) - 1;
+	static constexpr slot_t   MAX_STACK_SIZE = (1ll << 23) - 1;
+	static constexpr slot_t   BC_MAX_IP      = FRAME_C_IP - 1;
 	struct call_frame {
 		// [locals of caller]
 		// argn>
@@ -44,12 +46,12 @@ namespace li {
 		// [call_frame for previous function as iopaque]
 		// [locals of this func]
 		//
-		uint64_t stack_pos : 23 = 0;  // Stack position of frame (@local0).
+		int64_t  stack_pos : 23 = 0;  // Stack position of frame (@local0).
 		uint64_t caller_pc : 18 = 0;  // Instruction pointer after the call.
-		uint64_t n_args : 6     = 0;
+		int64_t  n_args : 6     = 0;
 		uint64_t rsvd : 17;
 
-		inline constexpr bool multiplexed_by_c() const { return caller_pc == pseudo_pc_c; }
+		inline constexpr bool multiplexed_by_c() const { return caller_pc == FRAME_C_IP; }
 	};
 	static_assert(sizeof(call_frame) == sizeof(opaque), "Invalid call frame size.");
 
@@ -63,16 +65,16 @@ namespace li {
 
 		// VM state.
 		//
-		gc::state   gc           = {};                // Garbage collector.
-		fn_panic    panic_fn     = &default_panic;    // Panic function.
-		string_set* str_intern   = nullptr;           // String interning state
-		string*     empty_string = nullptr;           // Constant "".
-		table*      globals      = nullptr;           // Globals.
-		uint64_t    prng_seed    = platform::srng();  // PRNG seed.
-		any*        stack        = nullptr;           // Stack base.
-		uint32_t    stack_top    = 0;                 // Top of the stack. TODO: Make size_t, unnecessary zx.
-		uint32_t    stack_len    = 0;                 // Maximum length of the stack.
-		uint32_t    cframe       = 0;                 // Last valid VM frame that called into C.
+		gc::state   gc             = {};                // Garbage collector.
+		fn_panic    panic_fn       = &default_panic;    // Panic function.
+		string_set* str_intern     = nullptr;           // String interning state
+		string*     empty_string   = nullptr;           // Constant "".
+		table*      globals        = nullptr;           // Globals.
+		uint64_t    prng_seed      = platform::srng();  // PRNG seed.
+		any*        stack          = nullptr;           // Stack base.
+		slot_t      stack_top      = 0;                 // Top of the stack. TODO: Make size_t, unnecessary zx.
+		slot_t      stack_len      = 0;                 // Maximum length of the stack.
+		slot_t      last_vm_caller = 0;                 // Last valid VM frame that called into C.
 
 		// Closes the VM state.
 		//
@@ -80,11 +82,14 @@ namespace li {
 
 		// Grows the stack range by n.
 		//
-		LI_COLD void grow_stack(uint32_t n = 0) {
+		LI_COLD void grow_stack(slot_t n = 0) {
 			n     = std::max(n, stack_len);
+			if ((stack_len + n) > MAX_STACK_SIZE) [[unlikely]] {
+				panic("stack too large.");
+			}
 			auto* new_stack = alloc<vm_stack>((stack_len + n) * sizeof(any));
 			memcpy(new_stack->list, stack, stack_top * sizeof(any));
-			stack_len = (uint32_t) (new_stack->extra_bytes() / sizeof(any));
+			stack_len = slot_t(new_stack->extra_bytes() / sizeof(any));
 			gc.free(std::prev((gc::header*) stack));
 			stack = new_stack->list;
 		}
@@ -97,15 +102,15 @@ namespace li {
 			}
 			stack[stack_top++] = x;
 		}
-		LI_INLINE uint32_t alloc_stack(uint32_t n) {
+		LI_INLINE slot_t alloc_stack(slot_t n) {
 			if ((stack_top + n) >= stack_len) [[unlikely]] {
 				grow_stack(n);
 			}
-			uint32_t slot = stack_top;
+			slot_t s = stack_top;
 			stack_top += n;
-			return slot;
+			return s;
 		}
-		LI_INLINE void pop_stack_n(uint32_t n) {
+		LI_INLINE void pop_stack_n(slot_t n) {
 			stack_top = std::max(stack_top, n) - n;
 		}
 		LI_INLINE any peek_stack() { return stack[stack_top - 1]; }
@@ -143,16 +148,16 @@ namespace li {
 		// Caller must push all arguments in reverse order, then the self argument or none and the function itself.
 		// - Caller frame takes the caller's base of stack and the PC receives the "return pointer".
 		//
-		bool call(uint32_t n_args, uint32_t caller_frame, uint32_t caller_pc);
+		bool call(slot_t n_args, slot_t caller_frame, uint32_t caller_pc = FRAME_C_IP);
 
 		// Simple version of call() for user-invocation that pops all arguments and the function/self from ToS.
 		//
-		bool scall(uint32_t n_args, any fn, any self = none) {
-			uint32_t req_slot = stack_top - n_args;
+		bool scall(slot_t n_args, any fn, any self = none) {
+			slot_t req_slot = stack_top - n_args;
 			push_stack(self);
 			push_stack(fn);
-			bool ok         = call(n_args, cframe, pseudo_pc_c);
-			stack[req_slot] = stack[stack_top + stack_ret];
+			bool ok         = call(n_args, last_vm_caller);
+			stack[req_slot] = stack[stack_top + FRAME_RET];
 			stack_top       = req_slot + 1;
 			return ok;
 		}
@@ -164,6 +169,16 @@ namespace li {
 			T* result = gc.create<T, Tx...>(this, extra_length, std::forward<Tx>(args)...);
 			if (!result) [[unlikely]]
 				panic("out of memory");
+			return result;
+		}
+
+		// Duplication helper.
+		//
+		template<typename T>
+		T* duplicate(T* gc) {
+			size_t obj_len = gc->object_bytes();
+			T*     result  = alloc<T>(obj_len - (sizeof(T) - sizeof(gc::header)));
+			memcpy(std::next((gc::header*) result), std::next((gc::header*) gc), obj_len);
 			return result;
 		}
 	};

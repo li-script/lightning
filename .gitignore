@@ -15,3 +15,5 @@ build.bat
 embuild.bat
 
 parser-test.li
+
+bench.li

@@ -8,7 +8,7 @@
 
 namespace li::lib {
 #define REMAP_MATH_UNARY(name)																					\
-		util::export_as(L, "math." LI_STRINGIFY(name), [](vm* L, any* args, int32_t n) { \
+		util::export_as(L, "math." LI_STRINGIFY(name), [](vm* L, any* args, slot_t n) { \
 			if (n != 1 || !args->is(type_number)) {															\
 				L->push_stack(any(string::create(L, "expected number")));								\
 				return false;																							\
@@ -18,7 +18,7 @@ namespace li::lib {
 		});
 
 #define REMAP_MATH_BINARY(name)																					\
-	util::export_as(L, "math." LI_STRINGIFY(name), [](vm* L, any* args, int32_t n) {		\
+	util::export_as(L, "math." LI_STRINGIFY(name), [](vm* L, any* args, slot_t n) {		\
 		if (n != 2 || !args[0].is_num() || !args[-1].is_num()) {						\
 			L->push_stack(any(string::create(L, "expected two numbers")));								\
 			return false;																								\
@@ -33,7 +33,7 @@ namespace li::lib {
 	static double deg(double x) { return x * (pi / 180); }
 
 
-	static bool math_random_to_dbl(vm* L, any* args, int32_t n, uint64_t v) {
+	static bool math_random_to_dbl(vm* L, any* args, slot_t n, uint64_t v) {
 		constexpr uint32_t mantissa_bits = 52;
 		constexpr uint32_t exponent_bits = 11;
 		constexpr uint32_t exponent_0    = uint32_t((1u << (exponent_bits - 1)) - 3);  // 2^-2, max at 0.499999.
@@ -88,8 +88,8 @@ namespace li::lib {
 		return true;
 	}
 
-	static bool math_random(vm* L, any* args, int32_t n) { return math_random_to_dbl(L, args, n, L->random()); }
-	static bool math_srandom(vm* L, any* args, int32_t n) { return math_random_to_dbl(L, args, n, platform::srng()); }
+	static bool math_random(vm* L, any* args, slot_t n) { return math_random_to_dbl(L, args, n, L->random()); }
+	static bool math_srandom(vm* L, any* args, slot_t n) { return math_random_to_dbl(L, args, n, platform::srng()); }
 
 	// Registers standard library.
 	//
@@ -128,7 +128,7 @@ namespace li::lib {
 
 		// Protected call.
 		//
-		util::export_as(L, "pcall", [](vm* L, any* args, int32_t n) {
+		util::export_as(L, "pcall", [](vm* L, any* args, slot_t n) {
 			if (n < 2) {
 				return L->error("expected 2 or more arguments.");
 			}
@@ -140,7 +140,7 @@ namespace li::lib {
 			}
 
 			auto apos = &args[0] - L->stack;
-			for (int32_t i = -(n - 1); i < -1; i++)
+			for (slot_t i = -(n - 1); i < -1; i++)
 				L->push_stack(L->stack[apos+i]);
 
 			bool res           = L->scall(n - 2, f);
@@ -150,17 +150,17 @@ namespace li::lib {
 
 		// Debug.
 		//
-		util::export_as(L, "debug.stacktrace", [](vm* L, any* args, int32_t n) {
+		util::export_as(L, "debug.stacktrace", [](vm* L, any* args, slot_t n) {
 			auto result = array::create(L, 10);
 			auto cstr   = string::create(L, "C");
 
-			call_frame frame{.stack_pos = L->cframe};
-			while (frame.stack_pos >= stack_rsvd) {
+			call_frame frame{.stack_pos = L->last_vm_caller};
+			while (frame.stack_pos >= FRAME_SIZE) {
 				if (frame.multiplexed_by_c()) {
 					result->push(L, cstr);
 				}
-				result->push(L, L->stack[frame.stack_pos + stack_fn]);
-				auto ref = L->stack[frame.stack_pos + stack_caller];
+				result->push(L, L->stack[frame.stack_pos + FRAME_TARGET]);
+				auto ref = L->stack[frame.stack_pos + FRAME_CALLER];
 				if (ref.is_iopq()) {
 					frame = bit_cast<call_frame>(ref.as_opq());
 				} else {
@@ -170,7 +170,7 @@ namespace li::lib {
 			L->push_stack(result);
 			return true;
 		});
-		util::export_as(L, "debug.getuval", [](vm* L, any* args, int32_t n) {
+		util::export_as(L, "debug.getuval", [](vm* L, any* args, slot_t n) {
 			if (n != 2) {
 				return L->error("expected 2 arguments.");
 			}
@@ -192,7 +192,7 @@ namespace li::lib {
 			}
 			return true;
 		});
-		util::export_as(L, "debug.setuval", [](vm* L, any* args, int32_t n) {
+		util::export_as(L, "debug.setuval", [](vm* L, any* args, slot_t n) {
 			if (n != 3) {
 				return L->error("expected 3 arguments.");
 			}
@@ -216,11 +216,11 @@ namespace li::lib {
 			}
 			return true;
 		});
-		util::export_as(L, "debug.gc", [](vm* L, any* args, int32_t n) {
+		util::export_as(L, "debug.gc", [](vm* L, any* args, slot_t n) {
 			L->gc.collect(L);
 			return true;
 		});
-		util::export_as(L, "debug.dump", [](vm* L, any* args, int32_t n) {
+		util::export_as(L, "debug.dump", [](vm* L, any* args, slot_t n) {
 			if (n != 1 || !args->is(type_function)) {
 				return L->error("dump expects a single vfunction");
 			}
@@ -244,7 +244,7 @@ namespace li::lib {
 
 		// String.
 		//
-		util::export_as(L, "print", [](vm* L, any* args, int32_t n) {
+		util::export_as(L, "print", [](vm* L, any* args, slot_t n) {
 			for (int32_t i = 0; i != n; i++) {
 				args[-i].print();
 				printf("\t");
@@ -252,7 +252,7 @@ namespace li::lib {
 			printf("\n");
 			return true;
 		});
-		util::export_as(L, "tostring", [](vm* L, any* args, int32_t n) {
+		util::export_as(L, "tostring", [](vm* L, any* args, slot_t n) {
 			if (n == 0) {
 				L->push_stack(string::create(L));
 				return true;
@@ -261,7 +261,7 @@ namespace li::lib {
 				return true;
 			}
 		});
-		util::export_as(L, "tonumber", [](vm* L, any* args, int32_t n) {
+		util::export_as(L, "tonumber", [](vm* L, any* args, slot_t n) {
 			if (n == 0) {
 				L->push_stack(any(number(0)));
 				return true;
@@ -270,7 +270,7 @@ namespace li::lib {
 				return true;
 			}
 		});
-		util::export_as(L, "loadstring", [](vm* L, any* args, int32_t n) {
+		util::export_as(L, "loadstring", [](vm* L, any* args, slot_t n) {
 			if (n != 1 || !args->is(type_string)) {
 				return L->error("expected string");
 			}
@@ -278,7 +278,7 @@ namespace li::lib {
 			L->push_stack(res);
 			return res.is_vfn();
 		});
-		util::export_as(L, "eval", [](vm* L, any* args, int32_t n) {
+		util::export_as(L, "eval", [](vm* L, any* args, slot_t n) {
 			if (n != 1 || !args->is(type_string)) {
 				return L->error("expected string");
 			}
@@ -291,7 +291,7 @@ namespace li::lib {
 
 		// Misc.
 		//
-		util::export_as(L, "assert", [](vm* L, any* args, int32_t n) {
+		util::export_as(L, "assert", [](vm* L, any* args, slot_t n) {
 			if (!n || args->as_bool())
 				return true;
 

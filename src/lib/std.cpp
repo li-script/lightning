@@ -77,7 +77,7 @@ namespace li::lib {
 				L->push_stack(string::create(L));
 				return true;
 			} else {
-				L->push_stack(args->to_string(L));
+				L->push_stack(args->coerce_str(L));
 				return true;
 			}
 		});
@@ -86,26 +86,7 @@ namespace li::lib {
 				L->push_stack(any(number(0)));
 				return true;
 			} else {
-				switch (args->type()) {
-					case type_false:
-						L->push_stack(any(number(0)));
-						return true;
-					case type_true:
-						L->push_stack(any(number(1)));
-						return true;
-					case type_number:
-						L->push_stack(*args);
-						return true;
-					case type_string: {
-						number out = 0;
-						sscanf(args->as_str()->c_str(), "%lf", &out);
-						L->push_stack(out);
-						return true;
-					}
-					default:
-						L->push_stack(string::create(L, "type is not convertible to number."));
-						return false;
-				}
+				L->push_stack(args->coerce_num());
 				return true;
 			}
 		});

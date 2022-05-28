@@ -31,6 +31,16 @@ namespace li {
 	}
 	LI_INLINE std::pair<any, bool> apply_binary(vm* L, any a, any b, bc::opcode op) {
 		switch (op) {
+			case bc::NCS:
+				return {a == none ? b : a, true};
+			case bc::LOR:
+				return {a.as_bool() ? a : b, true};
+			case bc::LAND:
+				return {a.as_bool() ? b : a, true};
+			case bc::CEQ:
+				return {any(a == b), true};
+			case bc::CNE:
+				return {any(a != b), true};
 			case bc::AADD:
 				if (a.is_arr()) {
 					a.as_arr()->push(L, b);
@@ -63,16 +73,6 @@ namespace li {
 				TYPE_ASSERT(a, type_number);
 				TYPE_ASSERT(b, type_number);
 				return {any(pow(a.as_num(), b.as_num())), true};
-			case bc::LAND:
-				return {any(bool(a.as_bool() & b.as_bool())), true};
-			case bc::NCS:
-				return {a == none ? b : a, true};
-			case bc::LOR:
-				return {any(bool(a.as_bool() | b.as_bool())), true};
-			case bc::CEQ:
-				return {any(a == b), true};
-			case bc::CNE:
-				return {any(a != b), true};
 			case bc::CLT:
 				TYPE_ASSERT(a, type_number);
 				TYPE_ASSERT(b, type_number);

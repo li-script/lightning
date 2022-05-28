@@ -408,18 +408,7 @@ namespace li {
 					printf(LI_RED "<err>" LI_DEF);
 					break;
 				case expr::imm:
-					if (imm.is(type_string))
-						printf(LI_BLU "\"%s\"" LI_DEF, imm.as_str()->c_str());
-					else if (imm.is(type_true))
-						printf(LI_BLU "true" LI_DEF);
-					else if (imm.is(type_false))
-						printf(LI_BLU "false" LI_DEF);
-					else if (imm.is(type_none))
-						printf(LI_BLU "None" LI_DEF);
-					else if (imm.is(type_number))
-						printf(LI_BLU "%lf" LI_DEF, imm.as_num());
-					else
-						printf(LI_BLU "<gc const %p>" LI_DEF, imm.as_gc());
+					imm.print();
 					break;
 				case expr::reg:
 					printf(LI_RED "r%u" LI_DEF, (uint32_t) reg);

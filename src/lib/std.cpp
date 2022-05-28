@@ -93,7 +93,7 @@ namespace li::lib {
 
 		// Misc.
 		//
-		util::export_as(L, "@assert", [](vm* L, const any* args, uint32_t n) {
+		util::export_as(L, "assert", [](vm* L, const any* args, uint32_t n) {
 			if (!n || args->as_bool())
 				return true;
 
@@ -101,6 +101,7 @@ namespace li::lib {
 				L->push_stack(args[1]);
 				return false;
 			} else {
+				// TODO: Use debug info to provide line information.
 				L->push_stack(string::create(L, "assertion failed."));
 				return false;
 			}

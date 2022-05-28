@@ -279,7 +279,7 @@ namespace li {
 		}
 	};
 	string*     any::to_string(vm* L) const {
-		if (type() == type_string)
+		if (type() == type_string) [[likely]]
 			return as_str();
 		string* result;
 		format_any(*this, [&] <typename... Tx> (const char* fmt, Tx&&... args) {
@@ -312,5 +312,20 @@ namespace li {
 				printf(fmt, std::forward<Tx>(args)...);
 			}
 		});
+	}
+	number any::coerce_num() const {
+		if (type() == type_number) [[likely]]
+			return as_num();
+		switch (type()) {
+			case type_none:
+			case type_false:
+				return 0;
+			default:
+				return 1;
+			case type_string: {
+				char* end;
+				return strtod(as_str()->c_str(), &end);
+			}
+		}
 	}
 };

@@ -139,6 +139,12 @@ namespace li {
 		std::string to_string() const;
 		void        print() const;
 
+		// Type coercion.
+		//
+		string* coerce_str(vm* L) const { return to_string(L); }
+		bool    coerce_bool() const { return as_bool(); }
+		number  coerce_num() const;
+
 		// Hasher.
 		//
 		inline uint32_t hash() const {

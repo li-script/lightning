@@ -36,7 +36,7 @@ static void handle_repl_io(vm* L, std::string_view input) {
 			printf("\n" LI_DEF);
 		} else {
 			auto r = L->pop_stack();
-			if (!r.is(type_none)) {
+			if (r != none) {
 				printf(LI_GRN "");
 				r.print();
 				printf("\n" LI_DEF);

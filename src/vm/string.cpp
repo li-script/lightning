@@ -278,8 +278,8 @@ namespace li {
 				break;
 		}
 	};
-	string*     any::to_string(vm* L) const {
-		if (type() == type_string) [[likely]]
+	string* any::to_string(vm* L) const {
+		if (is_str()) [[likely]]
 			return as_str();
 		string* result;
 		format_any(*this, [&] <typename... Tx> (const char* fmt, Tx&&... args) {
@@ -292,7 +292,7 @@ namespace li {
 		return result;
 	}
 	std::string any::to_string() const {
-		if (type() == type_string)
+		if (is_str())
 			return std::string{as_str()->view()};
 		std::string result;
 		format_any(*this, [&]<typename... Tx>(const char* fmt, Tx&&... args) {
@@ -305,6 +305,8 @@ namespace li {
 		return result;
 	}
 	void any::print() const {
+		if (is_str()) [[likely]]
+			return (void) fputs(as_str()->c_str(), stdout);
 		format_any(*this, [&]<typename... Tx>(const char* fmt, Tx&&... args) {
 			if constexpr (sizeof...(Tx) == 0) {
 				fputs(fmt, stdout);
@@ -314,7 +316,7 @@ namespace li {
 		});
 	}
 	number any::coerce_num() const {
-		if (type() == type_number) [[likely]]
+		if (is_num()) [[likely]]
 			return as_num();
 		switch (type()) {
 			case type_none:

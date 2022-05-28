@@ -440,7 +440,7 @@ namespace li {
 						} else if (reg == stack_fn) {
 							printf(LI_GRN "$F" LI_DEF);
 						} else {
-							printf(LI_YLW "a%u" LI_DEF, (uint32_t) - (reg + 3));
+							printf(LI_YLW "a%u" LI_DEF, (uint32_t) - (reg + stack_rsvd));
 						}
 					} else {
 						printf(LI_RED "r%u" LI_DEF, (uint32_t) reg);
@@ -670,14 +670,14 @@ namespace li {
 		//
 		for (bc::reg n = 0; n != scope.fn.args.size(); n++) {
 			if (scope.fn.args[n] == name) {
-				return expression(-3 - n);
+				return expression(-stack_rsvd - (n+1));
 			}
 		}
 
 		// Try self-reference.
 		//
 		if (scope.fn.decl_name && name == scope.fn.decl_name) {
-			return expression(std::pair{-1, true});
+			return expression(std::pair{stack_fn, true});
 		}
 
 		// Try using existing upvalue.
@@ -1493,7 +1493,7 @@ namespace li {
 		//
 		for (bc::reg i = 0; i != size; i++) {
 			if (callsite[i].second) {
-				auto stack_slot = stack_rsvd + i;
+				auto stack_slot = stack_rsvd + i + 1;
 				if (callsite[i].first.kind == expr::reg) {
 					scope.emit(bc::SLOAD, callsite[i].first.reg, stack_slot);
 				} else {
@@ -1505,7 +1505,7 @@ namespace li {
 
 		// Load the result, reset the frame, free all temporaries and return.
 		//
-		scope.emit(bc::SLOAD, tmp, 0);
+		scope.emit(bc::SLOAD, tmp, -stack_ret);
 		scope.emit(bc::SRST);
 		scope.reg_next = tmp + 1;
 		return expression(tmp);

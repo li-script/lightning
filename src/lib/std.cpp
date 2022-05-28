@@ -1,6 +1,7 @@
 #include <lib/std.hpp>
 #include <util/user.hpp>
 #include <vm/function.hpp>
+#include <vm/array.hpp>
 #include <lang/parser.hpp>
 #include <cmath>
 #include <bit>
@@ -125,27 +126,9 @@ namespace li::lib {
 		REMAP_MATH_UNARY(log);
 		REMAP_MATH_UNARY(log10);
 
-		// Debug.
+		// Protected call.
 		//
-		util::export_as(L, "debug.stacktrace", [](vm* L, any* args, int32_t n) {
-
-			call_frame frame{.stack_pos = L->cframe};
-			while (frame.stack_pos >= stack_rsvd) {
-
-				if (frame.caller_pc == frame_c) {
-					printf("-> C\n");
-				}
-				printf("-> %s\n", L->stack[frame.stack_pos + stack_fn].to_string().c_str());
-				auto ref = L->stack[frame.stack_pos + stack_caller];
-				if (ref.is_iopq()) {
-					frame = bit_cast<call_frame>(ref.as_opq());
-				} else {
-					break;
-				}
-			}
-			return true;
-		});
-		util::export_as(L, "debug.pcall", [](vm* L, any* args, int32_t n) {
+		util::export_as(L, "pcall", [](vm* L, any* args, int32_t n) {
 			if (n < 2) {
 				return L->error("expected 2 or more arguments.");
 			}
@@ -156,10 +139,38 @@ namespace li::lib {
 				return true;
 			}
 
-			auto bpos = &args[-1] - L->stack;
-			for (int32_t i = -(n-1); i < -1; i++)
-				L->push_stack(args[i]);
-			L->stack[bpos] = L->scall(n - 2, f);
+			auto apos = &args[0] - L->stack;
+			for (int32_t i = -(n - 1); i < -1; i++)
+				L->push_stack(L->stack[apos+i]);
+
+			bool res           = L->scall(n - 2, f);
+			printf("result (%d):", res);
+			L->stack[L->stack_top - 1].print();
+			printf("\n");
+			L->stack[apos - 1] = res;
+			return true;
+		});
+
+		// Debug.
+		//
+		util::export_as(L, "debug.stacktrace", [](vm* L, any* args, int32_t n) {
+			auto result = array::create(L, 10);
+			auto cstr   = string::create(L, "C");
+
+			call_frame frame{.stack_pos = L->cframe};
+			while (frame.stack_pos >= stack_rsvd) {
+				if (frame.multiplexed_by_c()) {
+					result->push(L, cstr);
+				}
+				result->push(L, L->stack[frame.stack_pos + stack_fn]);
+				auto ref = L->stack[frame.stack_pos + stack_caller];
+				if (ref.is_iopq()) {
+					frame = bit_cast<call_frame>(ref.as_opq());
+				} else {
+					break;
+				}
+			}
+			L->push_stack(result);
 			return true;
 		});
 		util::export_as(L, "debug.getuval", [](vm* L, any* args, int32_t n) {

@@ -61,9 +61,9 @@ namespace li {
 		// If anything pushed, move to result slot, else set sensable defaults.
 		//
 		if (L->stack_top > lim) {
-			L->stack[lim - 1] = L->stack[lim];
+			L->stack[lim + stack_ret] = L->stack[L->stack_top - 1];
 		} else {
-			L->stack[lim - 1] = ok ? any() : L->empty_string;
+			L->stack[lim + stack_ret] = ok ? any() : L->empty_string;
 		}
 
 		// Restore c-frame and stack position, return.

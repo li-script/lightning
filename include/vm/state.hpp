@@ -28,11 +28,12 @@ namespace li {
 	// Call frame as a linked list of caller records.
 	//
 	static constexpr uint32_t max_arguments = 32;
-	static constexpr int32_t stack_self   = -3;  // specials relative to local 0
-	static constexpr int32_t stack_fn     = -2;
-	static constexpr int32_t stack_caller = -1;
-	static constexpr int32_t stack_rsvd   = 3;
-	static constexpr uint64_t frame_c      = (1ll << 18) - 1;
+	static constexpr int32_t  stack_self    = -3;  // specials relative to local 0
+	static constexpr int32_t  stack_fn      = -2;
+	static constexpr int32_t  stack_ret     = -2;
+	static constexpr int32_t  stack_caller  = -1;
+	static constexpr int32_t  stack_rsvd    = 3;
+	static constexpr uint64_t pseudo_pc_c = (1ll << 18) - 1;
 	struct call_frame {
 		// [locals of caller]
 		// argn>
@@ -46,6 +47,8 @@ namespace li {
 		uint64_t stack_pos : 23 = 0;  // Stack position of frame (@local0).
 		uint64_t caller_pc : 18 = 0;  // Instruction pointer after the call.
 		uint64_t n_args : 6     = 0;
+
+		inline constexpr bool multiplexed_by_c() const { return caller_pc == pseudo_pc_c; }
 	};
 
 	// VM state.
@@ -86,13 +89,13 @@ namespace li {
 
 		// Pushes to or pops from the stack.
 		//
-		void push_stack(any x) {
+		LI_INLINE void push_stack(any x) {
 			if (stack_top == stack_len) [[unlikely]] {
 				grow_stack(0);
 			}
 			stack[stack_top++] = x;
 		}
-		uint32_t alloc_stack(uint32_t n) {
+		LI_INLINE uint32_t alloc_stack(uint32_t n) {
 			if ((stack_top + n) >= stack_len) [[unlikely]] {
 				grow_stack(n);
 			}
@@ -100,11 +103,11 @@ namespace li {
 			stack_top += n;
 			return slot;
 		}
-		void pop_stack_n(uint32_t n) {
+		LI_INLINE void pop_stack_n(uint32_t n) {
 			stack_top = std::max(stack_top, n) - n;
 		}
-		any  peek_stack() { return stack[stack_top - 1]; }
-		any  pop_stack() {
+		LI_INLINE any peek_stack() { return stack[stack_top - 1]; }
+		LI_INLINE any pop_stack() {
 			if (stack_top == 0) {
 				return any{};
 			} else {
@@ -146,8 +149,8 @@ namespace li {
 			uint32_t req_slot = stack_top - n_args;
 			push_stack(self);
 			push_stack(fn);
-			bool ok         = call(n_args, cframe, frame_c);
-			stack[req_slot] = stack[stack_top - 1];
+			bool ok         = call(n_args, cframe, pseudo_pc_c);
+			stack[req_slot] = stack[stack_top + stack_ret];
 			stack_top       = req_slot + 1;
 			return ok;
 		}

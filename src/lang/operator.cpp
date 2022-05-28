@@ -66,7 +66,7 @@ namespace li {
 			case bc::LAND:
 				return {any(bool(a.as_bool() & b.as_bool())), true};
 			case bc::NCS:
-				return {a.is(type_none) ? b : a, true};
+				return {a == none ? b : a, true};
 			case bc::LOR:
 				return {any(bool(a.as_bool() | b.as_bool())), true};
 			case bc::CEQ:

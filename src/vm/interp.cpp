@@ -279,10 +279,17 @@ namespace li {
 					if (tbl.is(type_table)) {
 						ref_reg(a) = tbl.as_tbl()->get(this, ref_reg(b));
 					} else if (tbl.is(type_array)) {
-						if (!key.is(type_number)) [[unlikely]] {
-							return ret(string::create(this, "indexing array with non-integer key"), true);
+						if (!key.is(type_number) || key.as_num() < 0) [[unlikely]] {
+							return ret(string::create(this, "indexing array with non-integer or negative key"), true);
 						}
 						ref_reg(a) = tbl.as_arr()->get(this, size_t(key.as_num()));
+					} else if (tbl.is(type_string)) {
+						if (!key.is(type_number) || key.as_num() < 0) [[unlikely]] {
+							return ret(string::create(this, "indexing string with non-integer or negative key"), true);
+						}
+						auto i     = size_t(key.as_num());
+						auto v     = tbl.as_str()->view();
+						ref_reg(a) = v.size() <= i ? any(none) : any(number(v[i])); 
 					} else if (tbl.is(type_none)) {
 						ref_reg(a) = none;
 					} else {

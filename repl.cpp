@@ -107,14 +107,14 @@ int main(int argv, const char** args) {
 
 		while (true) {
 			std::string buffer;
-			fputs("> ", stdout);
+			fputs(LI_BRG "> " LI_DEF, stdout);
 			std::getline(std::cin, buffer);
 
 			// While shift is being held, allow multiple lines to be inputted.
 			//
 			while (platform::is_shift_down()) {
 				std::string buffer2;
-				fputs("   ", stdout);
+				fputs("  ", stdout);
 				std::getline(std::cin, buffer2);
 				buffer += "\n";
 				buffer += buffer2;

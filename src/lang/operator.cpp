@@ -21,12 +21,6 @@ namespace li {
 			case bc::LNOT: {
 				return {any(!a.as_bool()), true};
 			}
-			case bc::TYPE: {
-				auto t = a.type();
-				if (a == const_true)
-					t = type_false;
-				return {any(number(t)), true};
-			}
 			case bc::ANEG: {
 				TYPE_ASSERT(a, type_number);
 				return {any(-a.as_num()), true};

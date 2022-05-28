@@ -1,0 +1,7 @@
+assert(4 is number) # number
+assert([] is array)
+assert({x:4} is table) # table
+assert({} is table) # none -> table canonicalization
+assert("" is string) # string
+assert((|| 4) is function) # function
+assert(assert is function) # nfunction -> function canonicalization

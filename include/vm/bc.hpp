@@ -12,7 +12,6 @@ namespace li::bc {
 	_(LNOT, reg, reg, ___) /* A=!B */                                                   \
 	_(ANEG, reg, reg, ___) /* A=-B */                                                   \
 	_(MOV,  reg, reg, ___) /* A=B */                                                    \
-	_(TYPE, reg, reg, ___) /* A=TYPE(B) */                                              \
                                                                                        \
 	/* Binary operators.  */                                                            \
 	_(AADD, reg, reg, reg) /* A=B+C */                                                  \
@@ -29,6 +28,7 @@ namespace li::bc {
 	_(CGT,  reg, reg, reg) /* A=B>C */                                                  \
 	_(CLE,  reg, reg, reg) /* A=B<=C */                                                 \
 	_(CGE,  reg, reg, reg) /* A=B>=C */                                                 \
+	_(CTY,  reg, reg, imm) /* A=TYPE(B)==C */                                           \
 	_(CMOV, reg, reg, reg) /* if(C){A=B} */                                             \
                                                                                        \
 	/* Constant operators. */                                                           \

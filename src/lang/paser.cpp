@@ -56,6 +56,7 @@ namespace li {
 		bool                     is_vararg  = false;    //
 		std::vector<bc::insn>    pc         = {};       // Bytecode generated.
 		bool                     is_repl    = false;    // Disables locals.
+		string*                  decl_name  = nullptr;  // Name.
 
 		// Labels.
 		//
@@ -232,7 +233,11 @@ namespace li {
 		function* f      = function::create(fn.L, fn.pc, fn.kvalues, fn.uvalues.size());
 		f->num_locals    = fn.max_reg_id + 1;
 		f->num_arguments = (uint32_t) fn.args.size();
-		f->src_chunk     = string::create(fn.L, fn.lex.source_name);
+		if (fn.decl_name) {
+			f->src_chunk = string::format(fn.L, "%.*s:%s", (uint32_t) fn.lex.source_name.size(), fn.lex.source_name.data(), fn.decl_name->c_str());
+		} else {
+			f->src_chunk = string::create(fn.L, fn.lex.source_name);
+		}
 		f->src_line      = line;
 		return f;
 	}
@@ -615,9 +620,9 @@ namespace li {
 		return r;
 	}
 
-	// Parses closure declaration, returns the function value.
+	// Parses function declaration, returns the function value.
 	//
-	static expression parse_closure(func_scope& scope);
+	static expression parse_function(func_scope& scope, string* name = nullptr);
 
 	// Parses a call, returns the result.
 	//
@@ -669,6 +674,12 @@ namespace li {
 			if (scope.fn.args[n] == name) {
 				return expression(-3 - n);
 			}
+		}
+
+		// Try self-reference.
+		//
+		if (scope.fn.decl_name && name == scope.fn.decl_name) {
+			return expression(std::pair{-1, true});
 		}
 
 		// Try using existing upvalue.
@@ -835,8 +846,6 @@ namespace li {
 		} else if (tk.id == lex::token_env) {
 			scope.lex().next();
 			base = parse_env(scope);
-		} else if (tk.id == lex::token_lor) {
-			base = parse_closure(scope);
 		} else {
 			scope.lex().error("unexpected token %s", tk.to_string().c_str());
 			return {};
@@ -933,8 +942,9 @@ namespace li {
 				scope.lex().next();
 				return expression(const_false);
 			}
+			case lex::token_lor:
 			case '|': {
-				return parse_closure(scope);
+				return parse_function(scope);
 			}
 			default: {
 				return expr_primary(scope);
@@ -944,7 +954,47 @@ namespace li {
 
 	// Parses variable declaration.
 	//
-	static bool parse_decl(func_scope& scope, bool is_const) {
+	static bool parse_decl(func_scope& scope, bool is_export) {
+		// Get token traits and skip it.
+		//
+		auto keyword  = scope.lex().tok;
+		bool is_const = keyword == lex::token_fn || keyword == lex::token_const;
+		bool is_func  = keyword == lex::token_fn;
+		scope.lex().next();
+
+		// Validate exports.
+		//
+		if (is_export) {
+			if (scope.fn.enclosing) {
+				scope.lex().error("export is only valid at top-level declarations.");
+				return {};
+			}
+			if (!is_const) {
+				scope.lex().error("expected fn or const after export.");
+				return {};
+			}
+		}
+		is_export |= scope.fn.is_repl;
+
+		// If function declaration:
+		//
+		if (is_func) {
+			auto name = scope.lex().check(lex::token_name);
+			if (name == lex::token_error) {
+				return false;
+			}
+			if (scope.lex().tok != '(') {
+				scope.lex().check('(');
+				return false;
+			}
+
+			auto    fn  = parse_function(scope, name.str_val);
+			bc::reg reg = scope.add_local(name.str_val, is_const);
+			fn.to_reg(scope, reg);
+			if (is_export) expression(name.str_val).assign(scope, reg);
+			return true;
+		}
+
 		// If de-structruing assignment:
 		//
 		bool is_arr = scope.lex().opt('[').has_value();
@@ -1040,25 +1090,25 @@ namespace li {
 			}
 			ex = ex.to_anyreg(scope);
 
-			// If locals are disabled set globals.
+
+			// If export set globals as well as locals.
 			//
-			if (scope.fn.is_repl) {
+			reg_sweeper _g{scope};
+			if (is_export) {
 				for (size_t i = 0; i != size; i++) {
-					auto field = expression(mappings[i].second).to_nextreg(scope);
-					scope.emit(bc::TGET, field, field, ex.reg);
-					expression{mappings[i].first}.assign(scope, expression(field));
-					scope.reg_next = field;
+					auto reg = scope.add_local(mappings[i].first, is_const);
+					expression(mappings[i].second).to_reg(scope, reg);
+					scope.emit(bc::TGET, reg, reg, ex.reg);
+					expression{mappings[i].first}.assign(scope, expression(reg));
 				}
-				return true;
 			}
 			// Otherwise assign all locals.
 			//
 			else {
 				for (size_t i = 0; i != size; i++) {
 					auto reg   = scope.add_local(mappings[i].first, is_const);
-					auto field = expression(mappings[i].second).to_nextreg(scope);
-					scope.emit(bc::TGET, reg, field, ex.reg);
-					scope.free_reg(field);
+					expression(mappings[i].second).to_reg(scope, reg);
+					scope.emit(bc::TGET, reg, reg, ex.reg);
 				}
 			}
 			return true;
@@ -1080,17 +1130,15 @@ namespace li {
 				return false;
 			}
 
-			// If locals are disabled set global.
-			//
-			if (scope.fn.is_repl) {
-				expression{var.str_val}.assign(scope, ex);
-				return true;
-			}
-
 			// Push a new local and write it.
 			//
 			auto reg = scope.add_local(var.str_val, is_const);
 			ex.to_reg(scope, reg);
+
+			// If export set global as well as locals.
+			//
+			if (is_export)
+				expression(var.str_val).assign(scope, reg);
 		}
 		// Otherwise:
 		//
@@ -1173,6 +1221,7 @@ namespace li {
 	// Returns the expression representing the value of the statement.
 	//
 	static expression expr_stmt(func_scope& scope, bool& fin) {
+		bool fn_global = false;
 		switch (scope.lex().tok.id) {
 			// Empty statement => None.
 			//
@@ -1182,12 +1231,15 @@ namespace li {
 
 			// Variable declaration => None.
 			//
+			case lex::token_fn:
 			case lex::token_let:
+			case lex::token_export:
 			case lex::token_const: {
-				// Forward errors.
-				//
-				if (!parse_decl(scope, scope.lex().next().id == lex::token_const)) {
-					return expression();
+				bool is_export = scope.lex().tok.id == lex::token_export;
+				if (is_export)
+					scope.lex().next();
+				if (!parse_decl(scope, is_export)) {
+					return {};
 				}
 				return expression(none);
 			}
@@ -1462,10 +1514,10 @@ namespace li {
 		return expression(tmp);
 	}
 
-	// Parses closure declaration, returns the function value.
+	// Parses function declaration, returns the function value.
 	//
-	static expression parse_closure(func_scope& scope) {
-		// Consume the '|' or '||'.
+	static expression parse_function(func_scope& scope, string* name) {
+		// Consume the '|', '||' or ')'.
 		//
 		uint32_t line_num = scope.lex().line;
 		auto id = scope.lex().next().id;
@@ -1473,22 +1525,26 @@ namespace li {
 		// Create the new function.
 		//
 		func_state new_fn{scope.fn.L, scope.lex()};
+		new_fn.decl_name = name;
 		new_fn.enclosing = &scope;
 		{
 			// Collect arguments.
 			//
 			func_scope ns{new_fn};
-			if (id != lex::token_lor && !ns.lex().opt('|')) {
-				while (true) {
-					auto arg_name = ns.lex().check(lex::token_name);
-					if (arg_name == lex::token_error)
-						return {};
-					new_fn.args.emplace_back(arg_name.str_val);
+			if (id != lex::token_lor) {
+				auto endtk = id == '|' ? '|' : ')';
+				if (!ns.lex().opt(endtk)) {
+					while (true) {
+						auto arg_name = ns.lex().check(lex::token_name);
+						if (arg_name == lex::token_error)
+							return {};
+						new_fn.args.emplace_back(arg_name.str_val);
 
-					if (ns.lex().opt('|'))
-						break;
-					else if (ns.lex().check(',') == lex::token_error)
-						return {};
+						if (ns.lex().opt(endtk))
+							break;
+						else if (ns.lex().check(',') == lex::token_error)
+							return {};
+					}
 				}
 			}
 

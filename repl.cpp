@@ -62,7 +62,9 @@ static void handle_repl_io(vm* L, std::string_view input) {
 			}
 		}
 	} else {
-		printf(LI_RED "Parser error: %s\n" LI_DEF, fn.as_str()->data);
+		printf(LI_RED "Parser error: " LI_DEF);
+		fn.print();
+		putchar('\n');
 	}
 }
 
@@ -162,7 +164,9 @@ int main(int argv, const char** args) {
 			retval = 0;
 		}
 	} else {
-		printf(" -> Parser error: %s\n", fn.as_str()->data);
+		printf(LI_RED "Parser error: " LI_DEF);
+		fn.print();
+		putchar('\n');
 	}
 	L->close();
 	return retval;

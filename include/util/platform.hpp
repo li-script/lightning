@@ -26,4 +26,8 @@ namespace li::platform {
 	// Checks if shift is being held for REPL.
 	//
 	bool is_shift_down();
+
+	// Secure random generator.
+	//
+	uint64_t srng();
 };

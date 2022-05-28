@@ -17,7 +17,13 @@ extern "C" {
 	#include <sys/mman.h>
 #endif
 
+#include <random>
 namespace li::platform {
+	uint64_t srng() {
+		std::random_device dev {};
+		return __builtin_bit_cast(uint64_t, std::array<uint32_t, 2>{dev(), dev()});
+	}
+
 #ifdef _WIN32
 	void* page_alloc(void*, void* pointer, size_t page_count, bool executable) {
 		if (pointer) {

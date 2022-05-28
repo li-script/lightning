@@ -1,13 +1,13 @@
 const validate_random = |x,y| {
    if y {
       const r = math.random(x,y)
-      assert(x <= r && r <= y)
+      assert(x <= r && r <= y, tostring(r) + ": not between " + tostring(x) + " and " + tostring(y))
    } else if x {
       const r = math.random(x)
-      assert(0 <= r && r <= x)
+      assert(0 <= r && r <= x, tostring(r) + ": not between 0 and " + tostring(x))
    } else {
       const r = math.random()
-      assert(0 <= r && r <= 1)
+      assert(0 <= r && r <= 1, tostring(r) + ": not between 0 and 1")
    }
 }
 

@@ -42,18 +42,22 @@ namespace li {
 			return ret(string::create(this, "invoking non-function"), true);
 		auto* f = fv.as_vfn();
 
-		// Allocate locals.
+		// Allocate arguments and locals.
 		//
-		uint32_t locals_begin = alloc_stack(f->num_locals);
+		uint32_t cargs_begin = alloc_stack(f->num_arguments + f->num_locals);
+		uint32_t locals_begin = cargs_begin + f->num_arguments;
+		memcpy(stack + cargs_begin, stack + args_begin, std::min(f->num_arguments, n_args) * sizeof(any));
+		if (f->num_arguments > n_args)
+			fill_none(stack + cargs_begin + n_args, f->num_arguments - n_args);
 
 		// Return and ref helpers.
 		//
-		auto ref_arg = [&](bc::reg r) LI_INLINE -> any& {
-			// TODO: Arg# does not have to match :(
-			return stack[args_begin + r];
-		};
 		auto ref_reg = [&](bc::reg r) LI_INLINE -> any& {
-			LI_ASSERT(f->num_locals > (uint32_t) r);
+			if (r < 0) {
+				LI_ASSERT(f->num_arguments >= (uint32_t) -r);
+			} else {
+				LI_ASSERT(f->num_locals > (uint32_t) r);
+			}
 			return stack[locals_begin + r];
 		};
 		auto ref_uval = [&](bc::reg r) LI_INLINE -> any& {
@@ -241,14 +245,6 @@ namespace li {
 				}
 				case bc::KIMM: {
 					ref_reg(a) = any(std::in_place, insn.xmm());
-					continue;
-				}
-				case bc::PGET: {
-					ref_reg(a) = ref_arg(b);
-					continue;
-				}
-				case bc::PSET: {
-					ref_arg(a) = ref_reg(b);
 					continue;
 				}
 				case bc::UGET: {

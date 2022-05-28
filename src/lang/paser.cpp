@@ -229,10 +229,11 @@ namespace li {
 
 		// Create the function value.
 		//
-		function* f   = function::create(fn.L, fn.pc, fn.kvalues, fn.uvalues.size());
-		f->num_locals = fn.max_reg_id + 1;
-		f->src_chunk  = string::create(fn.L, fn.lex.source_name);
-		f->src_line   = line;
+		function* f      = function::create(fn.L, fn.pc, fn.kvalues, fn.uvalues.size());
+		f->num_locals    = fn.max_reg_id + 1;
+		f->num_arguments = (uint32_t) fn.args.size();
+		f->src_chunk     = string::create(fn.L, fn.lex.source_name);
+		f->src_line      = line;
 		return f;
 	}
 
@@ -252,12 +253,10 @@ namespace li {
 		imm,  // constant
 		reg,  // local
 		uvl,  // upvalue
-		pvl,  // paramter
 		glb,  // global
 		idx,  // index into local with another local
 	};
 	struct upvalue_t {};
-	struct param_t {};
 	struct expression {
 		expr    kind : 7   = expr::err;
 		uint8_t freeze : 1 = false;
@@ -282,7 +281,6 @@ namespace li {
 		expression(std::pair<bc::reg, bool> l) : kind(expr::reg), freeze(l.second), reg(l.first) {}
 		expression(upvalue_t, bc::reg u) : kind(expr::uvl), reg(u) {}
 		expression(upvalue_t, std::pair<bc::reg, bool> u) : kind(expr::uvl), freeze(u.second), reg(u.first) {}
-		expression(param_t, bc::reg u) : kind(expr::pvl), reg(u) {}
 
 		expression(any k) : kind(expr::imm), imm(k) {}
 		expression(string* g) : kind(expr::glb), glb(g) {}
@@ -321,9 +319,6 @@ namespace li {
 					return;
 				case expr::uvl:
 					scope.emit(bc::UGET, r, reg);
-					return;
-				case expr::pvl:
-					scope.emit(bc::PGET, r, reg);
 					return;
 				case expr::glb:
 					scope.set_reg(r, any(glb));
@@ -367,13 +362,6 @@ namespace li {
 						scope.free_reg(val);
 					return;
 				}
-				case expr::pvl: {
-					auto val = value.to_anyreg(scope);
-					scope.emit(bc::PSET, reg, val);
-					if (value.kind != expr::reg)
-						scope.free_reg(val);
-					return;
-				}
 				case expr::glb: {
 					auto val = value.to_anyreg(scope);
 					auto idx = scope.alloc_reg();
@@ -411,10 +399,11 @@ namespace li {
 					imm.print();
 					break;
 				case expr::reg:
-					printf(LI_RED "r%u" LI_DEF, (uint32_t) reg);
-					break;
-				case expr::pvl:
-					printf(LI_YLW "a%u" LI_DEF, (uint32_t) reg);
+					if (reg < 0) {
+						printf(LI_YLW "a%u" LI_DEF, (uint32_t) - (reg + 1));
+					} else {
+						printf(LI_RED "r%u" LI_DEF, (uint32_t) reg);
+					}
 					break;
 				case expr::uvl:
 					if (reg == bc::uval_fun) {
@@ -640,7 +629,7 @@ namespace li {
 		//
 		for (bc::reg n = 0; n != scope.fn.args.size(); n++) {
 			if (scope.fn.args[n] == name) {
-				return expression(param_t{}, n);
+				return expression(-n);
 			}
 		}
 

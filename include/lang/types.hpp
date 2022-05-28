@@ -53,6 +53,15 @@ namespace li {
 		type_number    = 12,
 	};
 	static constexpr const char* type_names[] = {"none", "bool", "bool", "array", "table", "string", "userdata", "function", "nfunction", "thread", "opaque", "iopaque", "number"};
+	LI_INLINE static constexpr value_type to_canonical_type_name( value_type t ) {
+		if (t == type_none)
+			return type_table;
+		if (t == type_true)
+			return type_false;
+		if (t == type_nfunction)
+			return type_function;
+		return t;
+	}
 
 	LI_INLINE static constexpr bool     is_gc_type(uint64_t type) { return type_array <= type && type <= type_thread; }
 	LI_INLINE static constexpr uint64_t mask_value(uint64_t value) { return value & ((1ull << 47) - 1); }

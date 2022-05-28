@@ -84,7 +84,6 @@ namespace li {
 					ref_reg(a) = r;																 \
 					continue;																		 \
 				}																						 
-				UNOP_SPECIALIZE( bc::TYPE )
 				UNOP_SPECIALIZE( bc::LNOT )
 				UNOP_SPECIALIZE( bc::ANEG )
 				BINOP_SPECIALIZE( bc::AADD )
@@ -102,6 +101,10 @@ namespace li {
 				BINOP_SPECIALIZE( bc::CLE )
 				BINOP_SPECIALIZE( bc::CGE )
 
+				case bc::CTY: {
+					ref_reg(a) = to_canonical_type_name(ref_reg(b).type()) == c;
+					continue;
+				}
 				case bc::CMOV: {
 					if (ref_reg(c).as_bool())
 						ref_reg(a) = ref_reg(b);

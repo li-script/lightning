@@ -490,12 +490,37 @@ namespace li {
 		return expression(r);
 	}
 
+	// Reads a type name.
+	//
+	static value_type parse_type(func_scope& scope) {
+		if (scope.lex().opt(lex::token_number)) {
+			return type_number;
+		} else if (scope.lex().opt(lex::token_bool)) {
+			return type_false;
+		} else if (scope.lex().opt(lex::token_array)) {
+			return type_array;
+		} else if (scope.lex().opt(lex::token_string)) {
+			return type_string;
+		} else if (scope.lex().opt(lex::token_userdata)) {
+			return type_userdata;
+		} else if (scope.lex().opt(lex::token_function)) {
+			return type_function;
+		} else if (scope.lex().opt(lex::token_thread)) {
+			return type_thread;
+		} else if (scope.lex().opt(lex::token_table)) {
+			return type_table;
+		} else {
+			scope.lex().error("expected type name.");
+			return type_none;
+		}
+	}
+
 	// Handles nested binary and unary operators with priorities, finally calls the expr_simple.
 	//
 	static expression             expr_simple(func_scope& scope);
 	static const operator_traits* expr_op(func_scope& scope, expression& out, uint8_t prio) {
 		auto& lhs = out;
-
+		
 		// If token matches a unary operator:
 		//
 		if (auto op = lookup_operator(scope.lex(), false)) {
@@ -517,6 +542,23 @@ namespace li {
 			lhs = expr_simple(scope);
 			if (lhs.kind == expr::err) {
 				out = {};
+				return nullptr;
+			}
+		}
+
+		// Handle special is operator.
+		//
+		if (scope.lex().opt(lex::token_is)) {
+			auto t = parse_type(scope);
+			if (t == type_none) {
+				return nullptr;
+			} else if (lhs.kind == expr::imm) {
+				out = expression(any(to_canonical_type_name(lhs.imm.type()) == t));
+				return nullptr;
+			} else {
+				auto r = lhs.to_nextreg(scope);
+				scope.emit(bc::CTY, r, r, t);
+				out = expression(r);
 				return nullptr;
 			}
 		}
@@ -636,21 +678,23 @@ namespace li {
 		// Until list is exhausted push expressions.
 		//
 		uint32_t nexpr = 0;
-		while (true) {
-			reg_sweeper _r{scope};
+		if (!scope.lex().opt(']')) {
+			while (true) {
+				reg_sweeper _r{scope};
 
-			expression value = expr_parse(scope);
-			if (value.kind == expr::err) {
-				return {};
-			}
-			nexpr++;
-			scope.emit(bc::AADD, result.reg, result.reg, value.to_anyreg(scope));
-
-			if (scope.lex().opt(']'))
-				break;
-			else {
-				if (scope.lex().check(',') == lex::token_error) {
+				expression value = expr_parse(scope);
+				if (value.kind == expr::err) {
 					return {};
+				}
+				nexpr++;
+				scope.emit(bc::AADD, result.reg, result.reg, value.to_anyreg(scope));
+
+				if (scope.lex().opt(']'))
+					break;
+				else {
+					if (scope.lex().check(',') == lex::token_error) {
+						return {};
+					}
 				}
 			}
 		}
@@ -671,35 +715,37 @@ namespace li {
 		// Until list is exhausted set fields.
 		//
 		uint32_t nexpr = 0;
-		while (true) {
-			reg_sweeper _r{scope};
+		if (!scope.lex().opt('}')) {
+			while (true) {
+				reg_sweeper _r{scope};
 
-			auto field = scope.lex().check(lex::token_name);
-			if (field == lex::token_error) {
-				return {};
-			}
-
-			expression value;
-			if (scope.lex().opt(':')) {
-				value = expr_parse(scope);
-			} else {
-				value = expr_var(scope, field.str_val);
-			}
-			if (value.kind == expr::err) {
-				return {};
-			}
-			value = value.to_anyreg(scope);
-
-			auto tmp = scope.alloc_reg();
-			scope.set_reg(tmp, any(field.str_val));
-			scope.emit(bc::TSET, tmp, value.reg, result.reg);
-			++nexpr;
-
-			if (scope.lex().opt('}'))
-				break;
-			else {
-				if (scope.lex().check(',') == lex::token_error) {
+				auto field = scope.lex().check(lex::token_name);
+				if (field == lex::token_error) {
 					return {};
+				}
+
+				expression value;
+				if (scope.lex().opt(':')) {
+					value = expr_parse(scope);
+				} else {
+					value = expr_var(scope, field.str_val);
+				}
+				if (value.kind == expr::err) {
+					return {};
+				}
+				value = value.to_anyreg(scope);
+
+				auto tmp = scope.alloc_reg();
+				scope.set_reg(tmp, any(field.str_val));
+				scope.emit(bc::TSET, tmp, value.reg, result.reg);
+				++nexpr;
+
+				if (scope.lex().opt('}'))
+					break;
+				else {
+					if (scope.lex().check(',') == lex::token_error) {
+						return {};
+					}
 				}
 			}
 		}

@@ -629,7 +629,7 @@ namespace li {
 		//
 		for (bc::reg n = 0; n != scope.fn.args.size(); n++) {
 			if (scope.fn.args[n] == name) {
-				return expression(-n);
+				return expression(-(n + 1));
 			}
 		}
 

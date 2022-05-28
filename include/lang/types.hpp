@@ -16,9 +16,11 @@ namespace li {
 	//
 	struct opaque {
 		uint64_t bits : 47;
+		uint64_t rsvd : 17;
 	};
 	struct iopaque {
 		uint64_t bits : 47;
+		uint64_t rsvd : 17;
 	};
 
 	// GC types (forward).

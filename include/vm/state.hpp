@@ -47,9 +47,11 @@ namespace li {
 		uint64_t stack_pos : 23 = 0;  // Stack position of frame (@local0).
 		uint64_t caller_pc : 18 = 0;  // Instruction pointer after the call.
 		uint64_t n_args : 6     = 0;
+		uint64_t rsvd : 17;
 
 		inline constexpr bool multiplexed_by_c() const { return caller_pc == pseudo_pc_c; }
 	};
+	static_assert(sizeof(call_frame) == sizeof(opaque), "Invalid call frame size.");
 
 	// VM state.
 	//

@@ -652,9 +652,9 @@ namespace li {
 		} else if (name->view() == "$F") {
 			return expression(std::pair{-1, true});
 		} else if (name->view() == "$E") {
-			return expression(upvalue_t{}, std::pair<bc::reg, bool>{-2, true});
+			return expression(upvalue_t{}, std::pair<bc::reg, bool>{bc::uval_env, true});
 		} else if (name->view() == "$G") {
-			return expression(upvalue_t{}, std::pair<bc::reg, bool>{-3, true});
+			return expression(upvalue_t{}, std::pair<bc::reg, bool>{bc::uval_glb, true});
 		}
 
 		// Try using existing local variable.

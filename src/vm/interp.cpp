@@ -7,55 +7,48 @@
 #include <vm/table.hpp>
 
 namespace li {
-	// Calls the function at the first slot in callsite with the arguments following it
-	// - Returns true on success and false if the VM throws an exception.
-	// - In either case and will replace the function with a value representing
-	//    either the exception or the result.
+	// Caller must push all arguments in reverse order, then the self argument or none and the function itself.
+	// - Caller frame takes the caller's base of stack and the PC receives the "return pointer".
 	//
-	LI_FLATTEN bool vm::call(uint32_t callsite, uint32_t n_args) {
+	LI_FLATTEN bool vm::call(uint32_t n_args, uint32_t caller_frame, uint32_t caller_pc) {
 		/*
-			<fn>
-			arg0
-			arg1
-			...
-			argn
-			<locals of caller ...>
-			<locals of this function> -> <retval>
+			<locals of caller>
+			<argn>
+			..
+			<arg0>
+			<this>
+			<fn> <-> <retval>
+			<locals off this func>
 		*/
 
-		// Declare frame bounds and return helper.
+		// Reference the function and declare return helper.
 		//
-		const uint32_t stack_frame = stack_top;
-		const uint32_t args_begin  = callsite + 1;
-		auto ret = [&](any value, bool is_exception) LI_INLINE {
-			stack_top = stack_frame;
-         stack[callsite] = value;
-			return !is_exception;
+		auto& fv = stack[stack_top - 1];
+		auto  ret = [&](any value, bool is_exception) LI_INLINE {
+         fv = value;
+         return !is_exception;
 		};
 
-		// Reference the function.
+		// Validate type and argument count.
 		//
-		auto fv = stack[callsite];
 		if (fv.is(type_nfunction))
-			return fv.as_nfn()->call(this, callsite, n_args);
+			return fv.as_nfn()->call(this, n_args, caller_frame, caller_pc);
 		if (!fv.is(type_function)) [[unlikely]]  // TODO: Meta
 			return ret(string::create(this, "invoking non-function"), true);
 		auto* f = fv.as_vfn();
+		if (f->num_arguments != n_args)
+			return ret(string::format(this, "expected %u arguments, got %u", f->num_arguments, n_args), true);
 
-		// Allocate arguments and locals.
+		// Locals.
 		//
-		uint32_t cargs_begin = alloc_stack(f->num_arguments + f->num_locals);
-		uint32_t locals_begin = cargs_begin + f->num_arguments;
-		for (uint32_t a = 0; a != f->num_arguments; a++) {
-			any v = a >= n_args ? none : stack[args_begin + a];
-			stack[locals_begin - 1 - a] = v;
-		}
+		uint32_t locals_begin = alloc_stack(f->num_locals);
+		uint32_t reset_pos    = stack_top;
 
 		// Return and ref helpers.
 		//
 		auto ref_reg = [&](bc::reg r) LI_INLINE -> any& {
 			if (r < 0) {
-				LI_ASSERT(f->num_arguments >= (uint32_t) -r);
+				LI_ASSERT((f->num_arguments+2) >= (uint32_t) -r);
 			} else {
 				LI_ASSERT(f->num_locals > (uint32_t) r);
 			}
@@ -371,14 +364,20 @@ namespace li {
 					continue;
 				}
 				case bc::CALL:
-					LI_ASSERT(a >= 0 && uint32_t(a + b + 1) <= f->num_locals);
-					if (!call(locals_begin + a, b))
+					if (!call(a, locals_begin, ip))
 						return ret(stack[locals_begin + a], true);
 					continue;
-				case bc::INVK:
-					LI_ASSERT(b >= 0 && uint32_t(b + c + 1) <= f->num_locals);
-					if (!call(locals_begin + b, c))
-						ip += a;
+				case bc::PUSHR:
+					push_stack(ref_reg(a));
+					continue;
+				case bc::PUSHI:
+					push_stack(any(std::in_place, insn.xmm()));
+					continue;
+				case bc::SLOAD:
+					ref_reg(a) = stack[stack_top - 1 - b];
+					continue;
+				case bc::SRST:
+					stack_top = reset_pos;
 					continue;
 				case bc::BP:
 					breakpoint();

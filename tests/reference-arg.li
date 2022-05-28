@@ -1,0 +1,7 @@
+const f = |a| {
+    a += 1
+}
+
+let x = 3
+f(&x)
+assert(x==4)

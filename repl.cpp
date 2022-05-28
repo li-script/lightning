@@ -47,8 +47,7 @@ using namespace li;
 static void handle_repl_io(vm* L, std::string_view input) {
 	auto fn = li::load_script(L, input, "console", true);
 	if (fn.is(type_function)) {
-		L->push_stack(fn);
-		if (!L->scall(0)) {
+		if (!L->scall(0, fn)) {
 			printf(LI_RED "Exception: ");
 			L->pop_stack().print();
 			printf("\n" LI_DEF);
@@ -136,7 +135,7 @@ int main(int argv, const char** args) {
 	//
 	std::ifstream file(args[1]);
 	if (!file.good()) {
-		printf(LI_RED "Failed reading file '%s'\n", args[1]);
+		printf(LI_RED "Failed reading file '%s'\n" LI_DEF, args[1]);
 		return 1;
 	}
 	std::string file_buf{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
@@ -146,10 +145,8 @@ int main(int argv, const char** args) {
 	//
 	int retval = 1;
 	if (fn.is(type_function)) {
-		L->push_stack(fn);
-
 		auto t0 = std::chrono::high_resolution_clock::now();
-		if (!L->scall(0)) {
+		if (!L->scall(0, fn)) {
 			auto t1 = std::chrono::high_resolution_clock::now();
 			printf(LI_BLU "(%.2lf ms) " LI_RED "Exception: " LI_DEF, (t1 - t0) / std::chrono::duration<double, std::milli>(1.0));
 			L->pop_stack().print();

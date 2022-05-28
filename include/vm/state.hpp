@@ -88,6 +88,11 @@ namespace li {
 			}
 		}
 
+		// Error helper.
+		//
+		template<typename... Tx>
+		bool error(const char* fmt, Tx... args);
+
 		// Gets next random.
 		//
 		uint64_t random() { 

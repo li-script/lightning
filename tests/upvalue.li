@@ -1,0 +1,11 @@
+const new_counter = || {
+   let i = 0;
+   || { i += 1}
+}
+
+const a = new_counter()
+const b = new_counter()
+assert(a() == 1)
+assert(b() == 1)
+assert(a() == 2)
+assert(b() == 2)

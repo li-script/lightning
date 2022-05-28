@@ -818,6 +818,8 @@ namespace li {
 				case lex::token_lstr:
 				case '(': {
 					base = parse_call(scope, base);
+					if (base.kind == expr::err)
+						return {};
 					break;
 				}
 

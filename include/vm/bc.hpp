@@ -58,7 +58,7 @@ namespace li::bc {
 	/* Stack operators. */                                                           \
 	_(PUSHR, reg, ___, ___) /* PUSH(A) */                                            \
 	_(PUSHI, ___, xmm, ___) /* PUSH(A) */                                            \
-	_(SLOAD, reg, imm, ___) /* A = STACK[TOP-B] */                                   \
+	_(SLOAD, reg, sp,  ___) /* A = STACK[TOP-B] */                                   \
 	_(SRST, ___, ___, ___)  /* Resets the stack pos */                               \
                                                                                     \
 	/* Control flow. */                                                              \
@@ -93,7 +93,7 @@ namespace li::bc {
 
 	// Write all descriptors.
 	//
-	enum class op_t : uint8_t { none, reg, uvl, kvl, imm, xmm, rel, ___ = none };
+	enum class op_t : uint8_t { none, reg, uvl, kvl, imm, xmm, sp, rel, ___ = none };
 	struct desc {
 		const char* name;
 		op_t        a, b, c;
@@ -147,6 +147,18 @@ namespace li::bc {
 						} else {
 							col = LI_RED;
 							snprintf(op, std::size(op), "r%u", (uint32_t) value);
+						}
+						break;
+					case op_t::sp:
+						if (value > stack_rsvd) {
+							col = LI_YLW;
+							snprintf(op, std::size(op), "@a%u", (uint32_t) (value - stack_rsvd));
+						} else if (value == -stack_ret) {
+							col = LI_YLW;
+							snprintf(op, std::size(op), "@ret");
+						} else {
+							col = LI_RED;
+							snprintf(op, std::size(op), "@undef");
 						}
 						break;
 					case op_t::rel:

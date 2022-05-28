@@ -11,9 +11,7 @@ build-vs22/Debug/
 build-vs22/Release/
 build-vs22/Release-LLVM/
 
-build.bat
-embuild.bat
-
-parser-test.li
-
-bench.li
+# Exlude dev stuff in root directory.
+*.bat
+*.li
+*.li

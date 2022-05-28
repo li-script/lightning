@@ -144,9 +144,6 @@ namespace li::lib {
 				L->push_stack(L->stack[apos+i]);
 
 			bool res           = L->scall(n - 2, f);
-			printf("result (%d):", res);
-			L->stack[L->stack_top - 1].print();
-			printf("\n");
 			L->stack[apos - 1] = res;
 			return true;
 		});
@@ -219,6 +216,31 @@ namespace li::lib {
 			}
 			return true;
 		});
+		util::export_as(L, "debug.gc", [](vm* L, any* args, int32_t n) {
+			L->gc.collect(L);
+			return true;
+		});
+		util::export_as(L, "debug.dump", [](vm* L, any* args, int32_t n) {
+			if (n != 1 || !args->is(type_function)) {
+				return L->error("dump expects a single vfunction");
+			}
+
+			auto f = args->as_vfn();
+			puts(
+				 "Dumping bytecode of the function:\n"
+				 "-----------------------------------------------------");
+			for (uint32_t i = 0; i != f->length; i++) {
+				f->opcode_array[i].print(i);
+			}
+			puts("-----------------------------------------------------");
+			for (uint32_t i = 0; i != f->num_uval; i++) {
+				printf(LI_CYN "u%u:   " LI_DEF, i);
+				f->uvals()[i].print();
+				printf("\n");
+			}
+			puts("-----------------------------------------------------");
+			return true;
+		});
 
 		// String.
 		//
@@ -280,31 +302,6 @@ namespace li::lib {
 				// TODO: Use debug info to provide line information.
 				return L->error("assertion failed.");
 			}
-		});
-		util::export_as(L, "@gc", [](vm* L, any* args, int32_t n) {
-			L->gc.collect(L);
-			return true;
-		});
-		util::export_as(L, "@printbc", [](vm* L, any* args, int32_t n) {
-			if (n != 1 || !args->is(type_function)) {
-				return L->error("@printbc expects a single vfunction");
-			}
-
-			auto f = args->as_vfn();
-			puts(
-				 "Dumping bytecode of the function:\n"
-				 "-----------------------------------------------------");
-			for (uint32_t i = 0; i != f->length; i++) {
-				f->opcode_array[i].print(i);
-			}
-			puts("-----------------------------------------------------");
-			for (uint32_t i = 0; i != f->num_uval; i++) {
-				printf(LI_CYN "u%u:   " LI_DEF, i);
-				f->uvals()[i].print();
-				printf("\n");
-			}
-			puts("-----------------------------------------------------");
-			return true;
 		});
 	}
 };

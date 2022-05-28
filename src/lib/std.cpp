@@ -37,7 +37,7 @@ namespace li::lib {
 		util::export_as(L, "math.eps", std::numeric_limits<double>::epsilon());
 		util::export_as(L, "math.inf", std::numeric_limits<double>::infinity());
 		util::export_as(L, "math.nan", std::numeric_limits<double>::quiet_NaN());
-		util::export_as(L, "math.pi",  3.14159265358979323846264338327950288);
+		util::export_as(L, "math.pi",  pi);
 
 		static constexpr auto max = [](double a, double b) { return fmax(a, b); };
 		static constexpr auto min = [](double a, double b) { return fmin(a, b); };

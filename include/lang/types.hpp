@@ -89,7 +89,7 @@ namespace li {
 		//
 		inline constexpr any() : value(kvalue_none) {}
 		inline constexpr any(bool v) : value(make_tag(type_false + v)) {}
-		inline constexpr any(number v) : value(__builtin_bit_cast(uint64_t, v)) {
+		inline constexpr any(number v) : value(bit_cast<uint64_t>(v)) {
 			if (v != v) [[unlikely]]
 				value = kvalue_nan;
 		}
@@ -112,11 +112,22 @@ namespace li {
 		inline value_type type() const { return (value_type) std::min(get_type(value), (uint64_t) type_number); }
 		inline bool       is(uint8_t t) const { return t == type(); }
 		inline bool       is_gc() const { return is_gc_type(get_type(value)); }
+		inline bool       is_bool() const { return get_type(value) == type_false || get_type(value) == type_true; }
+		inline bool       is_num() const { return get_type(value) >= type_number; }
+		inline bool       is_arr() const { return get_type(value) == type_array; }
+		inline bool       is_tbl() const { return get_type(value) == type_table; }
+		inline bool       is_str() const { return get_type(value) == type_string; }
+		inline bool       is_udt() const { return get_type(value) == type_userdata; }
+		inline bool       is_vfn() const { return get_type(value) == type_function; }
+		inline bool       is_nfn() const { return get_type(value) == type_nfunction; }
+		inline bool       is_thr() const { return get_type(value) == type_thread; }
+		inline bool       is_opq() const { return get_type(value) == type_opaque; }
+		inline bool       is_iopq() const { return get_type(value) == type_iopaque; }
 
 		// Getters.
 		//
 		inline bool        as_bool() const { return get_type(value) > type_false; }  // Free coersion.
-		inline number      as_num() const { return __builtin_bit_cast(number, value); }
+		inline number      as_num() const { return bit_cast<number>(value); }
 		inline gc::header* as_gc() const { return get_gc_value(value); }
 		inline array*      as_arr() const { return (array*) as_gc(); }
 		inline table*      as_tbl() const { return (table*) as_gc(); }

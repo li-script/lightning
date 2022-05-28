@@ -3,6 +3,7 @@
 #include <optional>
 #include <util/common.hpp>
 #include <util/format.hpp>
+#include <vm/state.hpp>
 
 namespace li::bc {
 	// Bytecode definitions.
@@ -133,10 +134,10 @@ namespace li::bc {
 						break;
 					case op_t::reg:
 						if (value < 0) {
-							if (value == -2) {
+							if (value == stack_self) {
 								col = LI_GRN;
 								strcpy(op, "self");
-							} else if (value == -1) {
+							} else if (value == stack_fn) {
 								col = LI_GRN;
 								strcpy(op, "$F");
 							} else {

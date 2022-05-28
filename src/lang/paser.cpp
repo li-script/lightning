@@ -311,7 +311,6 @@ namespace li {
 		//
 		void to_reg(func_scope& scope, bc::reg r) const {
 			LI_ASSERT(kind != expr::err);
-
 			switch (kind) {
 				case expr::reg:
 					if (r != reg)
@@ -353,7 +352,6 @@ namespace li {
 		//
 		void push(func_scope& scope) const {
 			LI_ASSERT(kind != expr::err);
-
 			switch (kind) {
 				case expr::reg:
 					scope.emit(bc::PUSHR, reg);
@@ -437,9 +435,9 @@ namespace li {
 					break;
 				case expr::reg:
 					if (reg < 0) {
-						if (reg == -2) {
+						if (reg == stack_self) {
 							printf(LI_GRN "self" LI_DEF);
-						} else if (reg == -1) {
+						} else if (reg == stack_fn) {
 							printf(LI_GRN "$F" LI_DEF);
 						} else {
 							printf(LI_YLW "a%u" LI_DEF, (uint32_t) - (reg + 3));
@@ -653,9 +651,9 @@ namespace li {
 		// Handle special names.
 		//
 		if (name->view() == "self") {
-			return expression(std::pair{-2, true});
+			return expression(std::pair{stack_self, true});
 		} else if (name->view() == "$F") {
-			return expression(std::pair{-1, true});
+			return expression(std::pair{stack_fn, true});
 		} else if (name->view() == "$E") {
 			return expression(upvalue_t{}, std::pair<bc::reg, bool>{bc::uval_env, true});
 		} else if (name->view() == "$G") {
@@ -1221,7 +1219,6 @@ namespace li {
 	// Returns the expression representing the value of the statement.
 	//
 	static expression expr_stmt(func_scope& scope, bool& fin) {
-		bool fn_global = false;
 		switch (scope.lex().tok.id) {
 			// Empty statement => None.
 			//
@@ -1432,8 +1429,8 @@ namespace li {
 	//
 	static expression parse_call(func_scope& scope, const expression& func, const expression& self) {
 		using parameter = std::pair<expression, bool>;
-		parameter callsite[32] = {};
-		uint32_t  size         = 0;
+		parameter callsite[max_arguments] = {};
+		uint32_t  size                    = 0;
 
 		// Allocate temporary site for result.
 		//
@@ -1496,7 +1493,7 @@ namespace li {
 		//
 		for (bc::reg i = 0; i != size; i++) {
 			if (callsite[i].second) {
-				auto stack_slot = 2 + i;
+				auto stack_slot = stack_rsvd + i;
 				if (callsite[i].first.kind == expr::reg) {
 					scope.emit(bc::SLOAD, callsite[i].first.reg, stack_slot);
 				} else {

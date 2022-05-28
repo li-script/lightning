@@ -50,6 +50,13 @@
 #define LI_STRCAT(x, y)   LI_STRCAT_I(x, y)
 
 namespace li {
+	// Implement bit-cast since many STL's lack it despite compiler support.
+	//
+	template<class To, typename From> requires(sizeof(To) == sizeof(From))
+	inline static constexpr To bit_cast(const From& x) noexcept {
+		return __builtin_bit_cast(To, x);
+	}
+
 	// Determine build mode.
 	//
 #ifndef LI_DEBUG

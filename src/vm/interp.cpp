@@ -11,20 +11,13 @@ namespace li {
 	// - Caller frame takes the caller's base of stack and the PC receives the "return pointer".
 	//
 	LI_FLATTEN bool vm::call(uint32_t n_args, uint32_t caller_frame, uint32_t caller_pc) {
-		/*
-			<locals of caller>
-			<argn>
-			..
-			<arg0>
-			<this>
-			<fn> <-> <retval>
-			<locals of this func>
-		*/
+		call_frame retframe{.stack_pos = caller_frame, .caller_pc = caller_pc, .n_args = n_args};
+		push_stack(bit_cast<iopaque>(retframe));
 
 		// Reference the function and declare return helper.
 		//
 		uint32_t ret_slot = stack_top - 1;
-		auto     fv       = stack[ret_slot];
+		auto     fv       = stack[ret_slot - stack_rsvd - stack_fn];
 		auto     ret      = [&](any value, bool is_exception) LI_INLINE {
          stack[ret_slot] = value;
          stack_top       = ret_slot + 1;
@@ -33,9 +26,9 @@ namespace li {
 
 		// Validate type and argument count.
 		//
-		if (fv.is(type_nfunction))
+		if (fv.is_nfn())
 			return fv.as_nfn()->call(this, n_args, caller_frame, caller_pc);
-		if (!fv.is(type_function)) [[unlikely]]  // TODO: Meta
+		if (!fv.is_vfn()) [[unlikely]]  // TODO: Meta
 			return ret(string::create(this, "invoking non-function"), true);
 		auto* f = fv.as_vfn();
 		if (f->num_arguments != n_args)
@@ -269,15 +262,15 @@ namespace li {
 					auto tbl = ref_reg(c);
 					auto key = ref_reg(b);
 
-					if (tbl.is(type_table)) {
+					if (tbl.is_tbl()) {
 						ref_reg(a) = tbl.as_tbl()->get(this, ref_reg(b));
-					} else if (tbl.is(type_array)) {
-						if (!key.is(type_number) || key.as_num() < 0) [[unlikely]] {
+					} else if (tbl.is_arr()) {
+						if (!key.is_num() || key.as_num() < 0) [[unlikely]] {
 							return ret(string::create(this, "indexing array with non-integer or negative key"), true);
 						}
 						ref_reg(a) = tbl.as_arr()->get(this, size_t(key.as_num()));
-					} else if (tbl.is(type_string)) {
-						if (!key.is(type_number) || key.as_num() < 0) [[unlikely]] {
+					} else if (tbl.is_str()) {
+						if (!key.is_num() || key.as_num() < 0) [[unlikely]] {
 							return ret(string::create(this, "indexing string with non-integer or negative key"), true);
 						}
 						auto i     = size_t(key.as_num());
@@ -298,8 +291,8 @@ namespace li {
 					if (key.is(type_none)) [[unlikely]] {
 						return ret(string::create(this, "indexing with null key"), true);
 					}
-					if (tbl.is(type_array)) {
-						if (!key.is(type_number)) [[unlikely]] {
+					if (tbl.is_arr()) {
+						if (!key.is_num()) [[unlikely]] {
 							return ret(string::create(this, "indexing array with non-integer key"), true);
 						}
 						if (!tbl.as_arr()->set(this, size_t(key.as_num()), val)) {
@@ -307,7 +300,7 @@ namespace li {
 						}
 						continue;
 					} 
-					else if (!tbl.is(type_table)) [[unlikely]] {
+					else if (!tbl.is_tbl()) [[unlikely]] {
 						if (tbl.is(type_none)) {
 							tbl = any{table::create(this)};
 						} else {
@@ -335,7 +328,7 @@ namespace li {
 				case bc::ADUP: {
 					gc.tick(this);
 					auto arr = ref_kval(b);
-					LI_ASSERT(arr.is(type_array));
+					LI_ASSERT(arr.is_arr());
 					ref_reg(a) = arr.as_arr()->duplicate(this);
 					continue;
 				}
@@ -347,14 +340,14 @@ namespace li {
 				case bc::TDUP: {
 					gc.tick(this);
 					auto tbl = ref_kval(b);
-					LI_ASSERT(tbl.is(type_table));
+					LI_ASSERT(tbl.is_tbl());
 					ref_reg(a) = tbl.as_tbl()->duplicate(this);
 					continue;
 				}
 				case bc::FDUP: {
 					gc.tick(this);
 					auto fn = ref_kval(b);
-					LI_ASSERT(fn.is(type_function));
+					LI_ASSERT(fn.is_vfn());
 
 					function* r = fn.as_vfn();
 					if (r->num_uval) {

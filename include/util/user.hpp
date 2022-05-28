@@ -22,7 +22,7 @@ namespace li::util {
 			auto key  = string::create(L, base);
 
 			auto it = tbl->get(L, key);
-			if (!it.is(type_table)) {
+			if (!it.is_tbl()) {
 				auto ntbl = table::create(L, 1);
 				tbl->set(L, key, ntbl);
 				it = ntbl;

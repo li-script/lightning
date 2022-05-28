@@ -21,7 +21,7 @@ extern "C" {
 namespace li::platform {
 	uint64_t srng() {
 		std::random_device dev {};
-		return __builtin_bit_cast(uint64_t, std::array<uint32_t, 2>{dev(), dev()});
+		return bit_cast<uint64_t>(std::array<uint32_t, 2>{dev(), dev()});
 	}
 
 #ifdef _WIN32

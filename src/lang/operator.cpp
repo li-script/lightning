@@ -32,10 +32,10 @@ namespace li {
 	LI_INLINE std::pair<any, bool> apply_binary(vm* L, any a, any b, bc::opcode op) {
 		switch (op) {
 			case bc::AADD:
-				if (a.is(type_array)) {
+				if (a.is_arr()) {
 					a.as_arr()->push(L, b);
 					return {any(a), true};
-				} else if (a.is(type_string)) {
+				} else if (a.is_str()) {
 					TYPE_ASSERT(b, type_string);
 					return {any(string::concat(L, a.as_str(), b.as_str())), true};
 				} else {

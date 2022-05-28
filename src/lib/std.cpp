@@ -32,7 +32,7 @@ namespace li::lib {
 	static double deg(double x) { return x * (pi / 180); }
 
 
-	static bool math_random(vm* L, const any* args, uint32_t n) {
+	static bool math_random_to_dbl(vm* L, const any* args, uint32_t n, uint64_t v) {
 		constexpr uint32_t mantissa_bits = 52;
 		constexpr uint32_t exponent_bits = 11;
 		constexpr uint32_t exponent_0    = uint32_t((1u << (exponent_bits - 1)) - 3);  // 2^-2, max at 0.499999.
@@ -43,7 +43,6 @@ namespace li::lib {
 		// between exponential levels.
 		//
 		constexpr uint32_t exponent_seed_bits = 64 - (mantissa_bits + 1);
-		uint64_t           v                  = L->random();
 		uint32_t           exponent           = exponent_0 - std::countr_zero<uint32_t>(uint32_t(v) | (1u << exponent_seed_bits));
 
 		// Clear and replace the exponent bits.
@@ -88,12 +87,16 @@ namespace li::lib {
 		return true;
 	}
 
+	static bool math_random(vm* L, const any* args, uint32_t n) { return math_random_to_dbl(L, args, n, L->random()); }
+	static bool math_srandom(vm* L, const any* args, uint32_t n) { return math_random_to_dbl(L, args, n, platform::srng()); }
+
 	// Registers standard library.
 	//
 	void register_std(vm* L) {
 		// Math library.
 		//
 		util::export_as(L, "math.random", math_random);
+		util::export_as(L, "math.srandom", math_srandom);
 		util::export_as(L, "math.eps", std::numeric_limits<double>::epsilon());
 		util::export_as(L, "math.inf", std::numeric_limits<double>::infinity());
 		util::export_as(L, "math.nan", std::numeric_limits<double>::quiet_NaN());

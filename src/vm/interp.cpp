@@ -46,9 +46,10 @@ namespace li {
 		//
 		uint32_t cargs_begin = alloc_stack(f->num_arguments + f->num_locals);
 		uint32_t locals_begin = cargs_begin + f->num_arguments;
-		memcpy(stack + cargs_begin, stack + args_begin, std::min(f->num_arguments, n_args) * sizeof(any));
-		if (f->num_arguments > n_args)
-			fill_none(stack + cargs_begin + n_args, f->num_arguments - n_args);
+		for (uint32_t a = 0; a != f->num_arguments; a++) {
+			any v = a >= n_args ? none : stack[args_begin + a];
+			stack[locals_begin - 1 - a] = v;
+		}
 
 		// Return and ref helpers.
 		//

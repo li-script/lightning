@@ -102,7 +102,7 @@ namespace li {
 			string_set* new_set = L->alloc<string_set>(sizeof(string*) * (new_count + overflow_factor));
 			std::fill_n(new_set->entries, new_count + overflow_factor, nullptr);
 
-			for (size_t i = 0; i != old_count; i++) {
+			for (size_t i = 0; i != (old_count + overflow_factor); i++) {
 				if (string* s = entries[i]) {
 					(void) new_set->push(L, s, true);
 				}

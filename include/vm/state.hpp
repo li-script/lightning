@@ -25,6 +25,29 @@ namespace li {
 		any list[];
 	};
 
+	// Call frame as a linked list of caller records.
+	//
+	static constexpr uint32_t max_arguments = 32;
+	static constexpr int32_t stack_self   = -3;  // specials relative to local 0
+	static constexpr int32_t stack_fn     = -2;
+	static constexpr int32_t stack_caller = -1;
+	static constexpr int32_t stack_rsvd   = 3;
+	static constexpr uint64_t frame_c      = (1ll << 18) - 1;
+	struct call_frame {
+		// [locals of caller]
+		// argn>
+		// ..
+		// arg0
+		// self
+		// fn <=> retval
+		// [call_frame for previous function as iopaque]
+		// [locals of this func]
+		//
+		uint64_t stack_pos : 23 = 0;  // Stack position of frame (@local0).
+		uint64_t caller_pc : 18 = 0;  // Instruction pointer after the call.
+		uint64_t n_args : 6     = 0;
+	};
+
 	// VM state.
 	//
 	struct vm : gc::leaf<vm> {
@@ -42,9 +65,9 @@ namespace li {
 		table*      globals      = nullptr;           // Globals.
 		uint64_t    prng_seed    = platform::srng();  // PRNG seed.
 		any*        stack        = nullptr;           // Stack base.
-		uint32_t    stack_top    = 0;                 // Top of the stack.
+		uint32_t    stack_top    = 0;                 // Top of the stack. TODO: Make size_t, unnecessary zx.
 		uint32_t    stack_len    = 0;                 // Maximum length of the stack.
-		uint32_t    cframe       = UINT32_MAX;        // Last valid VM frame that called into C.
+		uint32_t    cframe       = 0;                 // Last valid VM frame that called into C.
 
 		// Closes the VM state.
 		//
@@ -121,11 +144,10 @@ namespace li {
 		//
 		bool scall(uint32_t n_args, any fn, any self = none) {
 			uint32_t req_slot = stack_top - n_args;
-			uint32_t ret_slot = stack_top + 1; // @fn
 			push_stack(self);
 			push_stack(fn);
-			bool ok = call(n_args, cframe, UINT32_MAX);
-			stack[req_slot] = stack[ret_slot];
+			bool ok         = call(n_args, cframe, frame_c);
+			stack[req_slot] = stack[stack_top - 1];
 			stack_top       = req_slot + 1;
 			return ok;
 		}

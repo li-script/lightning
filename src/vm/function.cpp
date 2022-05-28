@@ -51,12 +51,12 @@ namespace li {
 
 		// Swap previous c-frame.
 		//
-		uint32_t prevcframe = std::exchange(L->cframe, caller_frame != UINT32_MAX ? caller_frame : L->cframe);
+		uint32_t prevcframe = std::exchange(L->cframe, caller_frame ? caller_frame : L->cframe);
 
 		// Invoke callback.
 		//
 		uint32_t lim = L->stack_top;
-		bool     ok  = callback(L, &L->stack[L->stack_top - 3], (int32_t) n_args);
+		bool     ok  = callback(L, &L->stack[L->stack_top - 1 - stack_rsvd], (int32_t) n_args);
 
 		// If anything pushed, move to result slot, else set sensable defaults.
 		//

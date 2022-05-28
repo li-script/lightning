@@ -139,7 +139,7 @@ namespace li::gc {
 			//if (t == type_table) {
 			//	printf(" [");
 			//	for (auto& [k, v] : *v.as_tbl()) {
-			//		if (k.is(type_string)) {
+			//		if (k.is_str()) {
 			//			printf("%s, ", k.as_str()->c_str());
 			//		}
 			//	}

@@ -24,29 +24,12 @@ namespace li::debug {
 			}
 		}
 	}
-
-	static void dump_tokens(vm* L, std::string_view s) {
-		lex::state lexer{L, s};
-		uint32_t   last_line = 0;
-		while (true) {
-			if (last_line != lexer.line) {
-				printf("\n%03u: ", lexer.line);
-				last_line = lexer.line;
-			}
-			auto token = lexer.next();
-			if (token == lex::token_eof)
-				break;
-			putchar(' ');
-			token.print();
-		}
-		puts("");
-	}
 };
 
 using namespace li;
 static void handle_repl_io(vm* L, std::string_view input) {
 	auto fn = li::load_script(L, input, "console", true);
-	if (fn.is(type_function)) {
+	if (fn.is_vfn()) {
 		if (!L->scall(0, fn)) {
 			printf(LI_RED "Exception: ");
 			L->pop_stack().print();
@@ -57,7 +40,7 @@ static void handle_repl_io(vm* L, std::string_view input) {
 				printf(LI_GRN "");
 				r.print();
 				printf("\n" LI_DEF);
-				if (r.is(type_table))
+				if (r.is_tbl())
 					debug::dump_table(r.as_tbl());
 			}
 		}
@@ -146,7 +129,7 @@ int main(int argv, const char** args) {
 	// Validate, print the result.
 	//
 	int retval = 1;
-	if (fn.is(type_function)) {
+	if (fn.is_vfn()) {
 		auto t0 = std::chrono::high_resolution_clock::now();
 		if (!L->scall(0, fn)) {
 			auto t1 = std::chrono::high_resolution_clock::now();
@@ -159,7 +142,7 @@ int main(int argv, const char** args) {
 			auto r = L->pop_stack();
 			r.print();
 			putchar('\n');
-			if (r.is(type_table))
+			if (r.is_tbl())
 				debug::dump_table(r.as_tbl());
 			retval = 0;
 		}

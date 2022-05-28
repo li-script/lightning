@@ -39,7 +39,7 @@ namespace li {
 		state                           = ex ? vm_exception : vm_ok; \
 		goto vret;                                                   \
 	}
-#ifndef LI_DEBUG
+#if !LI_DEBUG
 	#define REG(...)  stack[locals_begin + (__VA_ARGS__)]
 	#define UVAL(...) f->uvals()[(__VA_ARGS__)]
 	#define KVAL(...) f->kvals()[(__VA_ARGS__)]
@@ -116,7 +116,7 @@ namespace li {
 				any vf       = stack[locals_begin + FRAME_TARGET];
 				LI_ASSERT(vf.is_vfn());
 				f = vf.as_vfn();
-#ifdef LI_DEBUG
+#if LI_DEBUG
 				n_args = bit_cast<call_frame>(stack[locals_begin + FRAME_CALLER].as_opq()).n_args;
 #endif
 			}
@@ -126,7 +126,7 @@ namespace li {
 			{
 				// Define debug helpers.
 				//
-#ifdef LI_DEBUG
+#if LI_DEBUG
 				auto REG = [&](bc::reg r) LI_INLINE -> any& {
 					if (r < 0) {
 						LI_ASSERT((n_args + FRAME_SIZE) >= (uint32_t) -r);

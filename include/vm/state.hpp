@@ -121,7 +121,7 @@ namespace li {
 		//
 		bool scall(uint32_t n_args, any fn, any self = none) {
 			uint32_t req_slot = stack_top - n_args;
-			uint32_t ret_slot = stack_top; // @fn
+			uint32_t ret_slot = stack_top + 1; // @fn
 			push_stack(self);
 			push_stack(fn);
 			bool ok = call(n_args, cframe, UINT32_MAX);

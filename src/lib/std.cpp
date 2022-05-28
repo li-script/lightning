@@ -7,7 +7,7 @@
 
 namespace li::lib {
 #define REMAP_MATH_UNARY(name)																					\
-		util::export_as(L, "math." LI_STRINGIFY(name), [](vm* L, const any* args, uint32_t n) {\
+		util::export_as(L, "math." LI_STRINGIFY(name), [](vm* L, const any* args, int32_t n) { \
 			if (n != 1 || !args->is(type_number)) {															\
 				L->push_stack(any(string::create(L, "expected number")));								\
 				return false;																							\
@@ -17,7 +17,7 @@ namespace li::lib {
 		});
 
 #define REMAP_MATH_BINARY(name)																					\
-	util::export_as(L, "math." LI_STRINGIFY(name), [](vm* L, const any* args, uint32_t n) {	\
+	util::export_as(L, "math." LI_STRINGIFY(name), [](vm* L, const any* args, int32_t n) {		\
 		if (n != 2 || !args[0].is(type_number) || !args[-1].is(type_number)) {						\
 			L->push_stack(any(string::create(L, "expected two numbers")));								\
 			return false;																								\
@@ -32,7 +32,7 @@ namespace li::lib {
 	static double deg(double x) { return x * (pi / 180); }
 
 
-	static bool math_random_to_dbl(vm* L, const any* args, uint32_t n, uint64_t v) {
+	static bool math_random_to_dbl(vm* L, const any* args, int32_t n, uint64_t v) {
 		constexpr uint32_t mantissa_bits = 52;
 		constexpr uint32_t exponent_bits = 11;
 		constexpr uint32_t exponent_0    = uint32_t((1u << (exponent_bits - 1)) - 3);  // 2^-2, max at 0.499999.
@@ -87,8 +87,8 @@ namespace li::lib {
 		return true;
 	}
 
-	static bool math_random(vm* L, const any* args, uint32_t n) { return math_random_to_dbl(L, args, n, L->random()); }
-	static bool math_srandom(vm* L, const any* args, uint32_t n) { return math_random_to_dbl(L, args, n, platform::srng()); }
+	static bool math_random(vm* L, const any* args, int32_t n) { return math_random_to_dbl(L, args, n, L->random()); }
+	static bool math_srandom(vm* L, const any* args, int32_t n) { return math_random_to_dbl(L, args, n, platform::srng()); }
 
 	// Registers standard library.
 	//
@@ -127,7 +127,7 @@ namespace li::lib {
 
 		// String.
 		//
-		util::export_as(L, "print", [](vm* L, const any* args, uint32_t n) {
+		util::export_as(L, "print", [](vm* L, const any* args, int32_t n) {
 			for (size_t i = 0; i != n; i++) {
 				args[-i].print();
 				printf("\t");
@@ -135,7 +135,7 @@ namespace li::lib {
 			printf("\n");
 			return true;
 		});
-		util::export_as(L, "tostring", [](vm* L, const any* args, uint32_t n) {
+		util::export_as(L, "tostring", [](vm* L, const any* args, int32_t n) {
 			if (n == 0) {
 				L->push_stack(string::create(L));
 				return true;
@@ -144,7 +144,7 @@ namespace li::lib {
 				return true;
 			}
 		});
-		util::export_as(L, "tonumber", [](vm* L, const any* args, uint32_t n) {
+		util::export_as(L, "tonumber", [](vm* L, const any* args, int32_t n) {
 			if (n == 0) {
 				L->push_stack(any(number(0)));
 				return true;
@@ -153,7 +153,7 @@ namespace li::lib {
 				return true;
 			}
 		});
-		util::export_as(L, "loadstring", [](vm* L, const any* args, uint32_t n) {
+		util::export_as(L, "loadstring", [](vm* L, const any* args, int32_t n) {
 			if (n != 1 || !args->is(type_string)) {
 				return L->error("expected string");
 			}
@@ -161,7 +161,7 @@ namespace li::lib {
 			L->push_stack(res);
 			return res.is(type_function);
 		});
-		util::export_as(L, "eval", [](vm* L, const any* args, uint32_t n) {
+		util::export_as(L, "eval", [](vm* L, const any* args, int32_t n) {
 			if (n != 1 || !args->is(type_string)) {
 				return L->error("expected string");
 			}
@@ -174,7 +174,7 @@ namespace li::lib {
 
 		// Misc.
 		//
-		util::export_as(L, "assert", [](vm* L, const any* args, uint32_t n) {
+		util::export_as(L, "assert", [](vm* L, const any* args, int32_t n) {
 			if (!n || args->as_bool())
 				return true;
 
@@ -186,11 +186,11 @@ namespace li::lib {
 				return L->error("assertion failed.");
 			}
 		});
-		util::export_as(L, "@gc", [](vm* L, const any* args, uint32_t n) {
+		util::export_as(L, "@gc", [](vm* L, const any* args, int32_t n) {
 			L->gc.collect(L);
 			return true;
 		});
-		util::export_as(L, "@printbc", [](vm* L, const any* args, uint32_t n) {
+		util::export_as(L, "@printbc", [](vm* L, const any* args, int32_t n) {
 			if (n != 1 || !args->is(type_function)) {
 				return L->error("@printbc expects a single vfunction");
 			}

@@ -1,7 +1,9 @@
 #include <lib/std.hpp>
 #include <util/user.hpp>
 #include <vm/function.hpp>
+#include <lang/parser.hpp>
 #include <cmath>
+#include <bit>
 
 namespace li::lib {
 #define REMAP_MATH_UNARY(name)																					\
@@ -29,15 +31,73 @@ namespace li::lib {
 	static double rad(double x) { return x * (180 / pi); }
 	static double deg(double x) { return x * (pi / 180); }
 
+
+	static bool math_random(vm* L, const any* args, uint32_t n) {
+		constexpr uint32_t mantissa_bits = 52;
+		constexpr uint32_t exponent_bits = 11;
+		constexpr uint32_t exponent_0    = uint32_t((1u << (exponent_bits - 1)) - 3);  // 2^-2, max at 0.499999.
+		
+		// Find the lowest bit set, 0 requires 1 bit to be set to '0', 1 requires 
+		// 2 bits to be set to '0', each increment has half the chance of being 
+		// returned compared to the previous one which leads to equal distribution 
+		// between exponential levels.
+		//
+		constexpr uint32_t exponent_seed_bits = 64 - (mantissa_bits + 1);
+		uint64_t           v                  = L->random();
+		uint32_t           exponent           = exponent_0 - std::countr_zero<uint32_t>(uint32_t(v) | (1u << exponent_seed_bits));
+
+		// Clear and replace the exponent bits.
+		//
+		v &= ~((1ull << exponent_bits) - 1);
+		v |= exponent;
+
+		// Rotate until mantissa is at the bottom, add 0.5 to shift from [-0.5, +0.5] to [0.0, 1.0].
+		//
+		v = std::rotl( v, mantissa_bits );
+		double r =  __builtin_bit_cast( double, v ) + 0.5;
+
+		// If no args given, return.
+		//
+		if (n == 0) {
+			L->push_stack(r);
+			return true;
+		}
+
+		// Validate args.
+		//
+		if (n != 1 && n != 2) {
+			return L->error("expected one or two numbers.");
+		}
+
+		// If one arg given, generate [0, x] inclusive.
+		//
+		if (!args[n-1].is(type_number))
+			return L->error("expected one or two numbers.");
+		double x = args[n - 1].as_num();
+
+		// If two args given, generate [y, x] inclusive.
+		//
+		double y = 0;
+		if (n == 2) {
+			if (!args[0].is(type_number))
+				return L->error("expected one or two numbers.");
+			y = args[0].as_num();
+		}
+
+		L->push_stack(y + r * (x - y));
+		return true;
+	}
+
 	// Registers standard library.
 	//
 	void register_std(vm* L) {
 		// Math library.
 		//
+		util::export_as(L, "math.random", math_random);
 		util::export_as(L, "math.eps", std::numeric_limits<double>::epsilon());
 		util::export_as(L, "math.inf", std::numeric_limits<double>::infinity());
 		util::export_as(L, "math.nan", std::numeric_limits<double>::quiet_NaN());
-		util::export_as(L, "math.pi",  pi);
+		util::export_as(L, "math.pi", pi);
 
 		static constexpr auto max = [](double a, double b) { return fmax(a, b); };
 		static constexpr auto min = [](double a, double b) { return fmin(a, b); };
@@ -90,6 +150,25 @@ namespace li::lib {
 				return true;
 			}
 		});
+		util::export_as(L, "loadstring", [](vm* L, const any* args, uint32_t n) {
+			if (n != 1 || !args->is(type_string)) {
+				return L->error("expected string");
+			}
+			auto res = load_script(L, args->as_str()->view());
+			L->push_stack(res);
+			return res.is(type_function);
+		});
+		util::export_as(L, "eval", [](vm* L, const any* args, uint32_t n) {
+			if (n != 1 || !args->is(type_string)) {
+				return L->error("expected string");
+			}
+			auto res = load_script(L, args->as_str()->view());
+			L->push_stack(res);
+			if (!res.is(type_function)) {
+				return false;
+			}
+			return L->scall(0);
+		});
 
 		// Misc.
 		//
@@ -102,8 +181,7 @@ namespace li::lib {
 				return false;
 			} else {
 				// TODO: Use debug info to provide line information.
-				L->push_stack(string::create(L, "assertion failed."));
-				return false;
+				return L->error("assertion failed.");
 			}
 		});
 		util::export_as(L, "@gc", [](vm* L, const any* args, uint32_t n) {
@@ -112,8 +190,7 @@ namespace li::lib {
 		});
 		util::export_as(L, "@printbc", [](vm* L, const any* args, uint32_t n) {
 			if (n != 1 || !args->is(type_function)) {
-				L->push_stack(string::create(L, "@printbc expects a single vfunction"));
-				return false;
+				return L->error("@printbc expects a single vfunction");
 			}
 
 			auto f = args->as_vfn();

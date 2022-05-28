@@ -35,15 +35,15 @@ namespace li {
 
 		// VM state.
 		//
-		gc::state   gc           = {};              // Garbage collector.
-		fn_panic    panic_fn     = &default_panic;  // Panic function.
-		string_set* str_intern   = nullptr;         // String interning state
-		string*     empty_string = nullptr;         // Constant "".
-		table*      globals      = nullptr;         // Globals.
-		uint64_t    prng_seed    = 0;               // PRNG seed.
-		any*        stack        = nullptr;         // Stack base.
-		uint32_t    stack_top    = 0;               // Top of the stack.
-		uint32_t    stack_len    = 0;               // Maximum length of the stack.
+		gc::state   gc           = {};                // Garbage collector.
+		fn_panic    panic_fn     = &default_panic;    // Panic function.
+		string_set* str_intern   = nullptr;           // String interning state
+		string*     empty_string = nullptr;           // Constant "".
+		table*      globals      = nullptr;           // Globals.
+		uint64_t    prng_seed    = platform::srng();  // PRNG seed.
+		any*        stack        = nullptr;           // Stack base.
+		uint32_t    stack_top    = 0;                 // Top of the stack.
+		uint32_t    stack_len    = 0;                 // Maximum length of the stack.
 
 		// Closes the VM state.
 		//

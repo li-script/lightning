@@ -40,7 +40,7 @@ namespace li {
 		uint32_t num_locals    = 0;        // Number of local variables we need to reserve on stack.
 		uint32_t length        = 0;        // Bytecode length.
 		uint32_t src_line      = 0;        // Line of definition.
-		string*  src_chunk     = nullptr;  // Source of definition.
+		string*  src_chunk     = nullptr;  // Source of definition (chunk:function_name or chunk).
 		table*   environment   = nullptr;  // Table environment.
 
 		// Variable length part.

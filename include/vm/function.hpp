@@ -7,7 +7,7 @@
 namespace li {
 	// Native callback, at most one result should be pushed on stack, if returns false, signals exception.
 	//
-	using nfunc_t = bool (*)(vm* L, const any* args, uint32_t n);
+	using nfunc_t = bool (*)(vm* L, const any* args, int32_t n);
 
 	// Native function.
 	//

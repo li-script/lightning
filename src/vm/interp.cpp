@@ -18,14 +18,16 @@ namespace li {
 			<arg0>
 			<this>
 			<fn> <-> <retval>
-			<locals off this func>
+			<locals of this func>
 		*/
 
 		// Reference the function and declare return helper.
 		//
-		auto& fv = stack[stack_top - 1];
-		auto  ret = [&](any value, bool is_exception) LI_INLINE {
-         fv = value;
+		uint32_t ret_slot = stack_top - 1;
+		auto     fv       = stack[ret_slot];
+		auto     ret      = [&](any value, bool is_exception) LI_INLINE {
+         stack[ret_slot] = value;
+         stack_top       = ret_slot + 1;
          return !is_exception;
 		};
 
@@ -365,7 +367,7 @@ namespace li {
 				}
 				case bc::CALL:
 					if (!call(a, locals_begin, ip))
-						return ret(stack[locals_begin + a], true);
+						return ret(stack[stack_top - 1], true);
 					continue;
 				case bc::PUSHR:
 					push_stack(ref_reg(a));

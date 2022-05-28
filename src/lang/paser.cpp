@@ -1419,7 +1419,7 @@ namespace li {
 
 		// Load the result, reset the frame, free all temporaries and return.
 		//
-		scope.emit(bc::SLOAD, tmp + 1, 0);
+		scope.emit(bc::SLOAD, tmp, 0);
 		scope.emit(bc::SRST);
 		scope.reg_next = tmp + 1;
 		return expression(tmp);

@@ -56,7 +56,7 @@ namespace li {
 		// Invoke callback.
 		//
 		uint32_t lim = L->stack_top;
-		bool ok = callback(L, &L->stack[L->stack_top - 3], n_args);
+		bool     ok  = callback(L, &L->stack[L->stack_top - 3], (int32_t) n_args);
 
 		// If anything pushed, move to result slot, else set sensable defaults.
 		//

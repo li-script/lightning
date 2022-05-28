@@ -128,7 +128,7 @@ namespace li::lib {
 		// String.
 		//
 		util::export_as(L, "print", [](vm* L, const any* args, int32_t n) {
-			for (size_t i = 0; i != n; i++) {
+			for (int32_t i = 0; i != n; i++) {
 				args[-i].print();
 				printf("\t");
 			}

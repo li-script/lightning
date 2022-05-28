@@ -432,15 +432,19 @@ namespace li {
 					break;
 				case expr::reg:
 					if (reg < 0) {
-						printf(LI_YLW "a%u" LI_DEF, (uint32_t) - (reg + 1));
+						if (reg == -2) {
+							printf(LI_GRN "self" LI_DEF);
+						} else if (reg == -1) {
+							printf(LI_GRN "$F" LI_DEF);
+						} else {
+							printf(LI_YLW "a%u" LI_DEF, (uint32_t) - (reg + 3));
+						}
 					} else {
 						printf(LI_RED "r%u" LI_DEF, (uint32_t) reg);
 					}
 					break;
 				case expr::uvl:
-					if (reg == bc::uval_fun) {
-						printf(LI_GRN "$F" LI_DEF);
-					} else if (reg == bc::uval_env) {
+					if (reg == bc::uval_env) {
 						printf(LI_GRN "$E" LI_DEF);
 					} else if (reg == bc::uval_glb) {
 						printf(LI_GRN "$G" LI_DEF);
@@ -643,8 +647,10 @@ namespace li {
 	static expression expr_var(func_scope& scope, string* name) {
 		// Handle special names.
 		//
-		if (name->view() == "$F") {
-			return expression(upvalue_t{}, std::pair<bc::reg, bool>{-1, true});
+		if (name->view() == "self") {
+			return expression(std::pair{-2, true});
+		} else if (name->view() == "$F") {
+			return expression(std::pair{-1, true});
 		} else if (name->view() == "$E") {
 			return expression(upvalue_t{}, std::pair<bc::reg, bool>{-2, true});
 		} else if (name->view() == "$G") {
@@ -659,9 +665,6 @@ namespace li {
 
 		// Try finding an argument.
 		//
-		if (name->view() == "this") {
-			return expression(-2);
-		}
 		for (bc::reg n = 0; n != scope.fn.args.size(); n++) {
 			if (scope.fn.args[n] == name) {
 				return expression(-3 - n);
@@ -857,21 +860,49 @@ namespace li {
 						return {};
 					break;
 				}
+				case lex::token_ucall: {
+					scope.lex().next();
+					auto ftk = scope.lex().check(lex::token_name);
+					if (ftk == lex::token_error)
+						return {};
+					expression func = expr_var(scope, ftk.str_val);
+					if (func.kind == expr::err)
+						return {};
+					base = parse_call(scope, func, base);
+					if (base.kind == expr::err)
+						return {};
+					break;
+				}
+				case lex::token_icall: {
+					scope.lex().next();
+					auto ftk = scope.lex().check(lex::token_name);
+					if (ftk == lex::token_error)
+						return {};
+					expression field = any(ftk.str_val);
+					expression self = base;
+					base            = {base.to_anyreg(scope), field.to_anyreg(scope)};
+					base            = parse_call(scope, base, self);
+					if (base.kind == expr::err)
+						return {};
+					break;
+				}
 
 				// Index.
 				case '[': {
 					scope.lex().next();
 					expression field = expr_parse(scope);
-					if (field.kind == expr::err)
+					if (field.kind == expr::err || scope.lex().check(']') == lex::token_error)
 						return {};
-					scope.lex().check(']');
 					base = {base.to_anyreg(scope), field.to_anyreg(scope)};
 					break;
 				}
 				case '.': {
 					scope.lex().next();
-					expression field{any(scope.lex().check(lex::token_name).str_val)};
-					base = {base.to_anyreg(scope), field.to_anyreg(scope)};
+					auto ftk = scope.lex().check(lex::token_name);
+					if (ftk == lex::token_error)
+						return {};
+					expression field = any(ftk.str_val);
+					base             = {base.to_anyreg(scope), field.to_anyreg(scope)};
 					break;
 				}
 				default: {
@@ -1261,11 +1292,17 @@ namespace li {
 	// unless closed with a semi-colon.
 	//
 	static expression expr_block(func_scope& pscope, bc::reg into) {
+		// Fast path for {}.
+		//
+		if (pscope.lex().opt('}')) {
+			return none;
+		}
+
 		expression last{none};
 		{
 			bool       fin = false;
 			func_scope scope{pscope.fn};
-			while (!scope.lex().opt('}')) {
+			do {
 				// If finalized but block is not closed, fail.
 				//
 				if (fin) {
@@ -1285,7 +1322,7 @@ namespace li {
 				if (scope.lex().opt(';')) {
 					last = none;
 				}
-			}
+			} while (!scope.lex().opt('}'));
 
 			// If there is a target register, store.
 			//

@@ -153,13 +153,29 @@ namespace li::lib {
 		util::export_as(L, "debug.stacktrace", [](vm* L, any* args, slot_t n) {
 			auto result = array::create(L, 10);
 			auto cstr   = string::create(L, "C");
+			auto lstr   = string::create(L, "line");
+			auto fstr   = string::create(L, "func");
 
-			call_frame frame{.stack_pos = L->last_vm_caller};
+			call_frame frame = L->last_vm_caller;
+			uint32_t   ppc   = frame.caller_pc;
 			while (frame.stack_pos >= FRAME_SIZE) {
+				auto& target = L->stack[frame.stack_pos + FRAME_TARGET];
+
 				if (frame.multiplexed_by_c()) {
-					result->push(L, cstr);
+					auto tbl = table::create(L, 1);
+					tbl->set(L, fstr, cstr);
+					result->push(L, tbl);
 				}
-				result->push(L, L->stack[frame.stack_pos + FRAME_TARGET]);
+
+				auto tbl = table::create(L, 2);
+				if (ppc && target.is_vfn()) {
+					tbl->set(L, lstr, any(number(target.as_vfn()->lookup_line(frame.caller_pc))));
+				}
+				tbl->set(L, fstr, any(target));
+				result->push(L, tbl);
+
+				ppc = frame.caller_pc & ~FRAME_C_FLAG;
+
 				auto ref = L->stack[frame.stack_pos + FRAME_CALLER];
 				if (ref.is_iopq()) {
 					frame = bit_cast<call_frame>(ref.as_opq());
@@ -229,7 +245,13 @@ namespace li::lib {
 			puts(
 				 "Dumping bytecode of the function:\n"
 				 "-----------------------------------------------------");
+			uint32_t last_line = 0;
 			for (uint32_t i = 0; i != f->length; i++) {
+				if (uint32_t l = f->lookup_line(i); l != last_line) {
+					last_line = l;
+					printf("ln%-50u", l);
+					printf("|\n");
+				}
 				f->opcode_array[i].print(i);
 			}
 			puts("-----------------------------------------------------");

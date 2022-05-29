@@ -45,46 +45,65 @@ namespace li {
 	//
 	struct func_scope;
 	struct func_state {
-		vm*                      L;                     // VM state.
-		lex::state&              lex;                   // Lexer state.
-		func_scope*              enclosing  = nullptr;  // Enclosing function's scope.
-		std::vector<local_state> uvalues    = {};       // Upvalues mapped by name.
-		func_scope*              scope      = nullptr;  // Current scope.
-		std::vector<any>         kvalues    = {};       // Constant pool.
-		bc::reg                  max_reg_id = 1;        // Maximum register ID used.
-		std::vector<string*>     args       = {};       // Arguments.
-		bool                     is_vararg  = false;    //
-		std::vector<bc::insn>    pc         = {};       // Bytecode generated.
-		bool                     is_repl    = false;    // Disables locals.
-		string*                  decl_name  = nullptr;  // Name.
+		vm*                      L;                          // VM state.
+		lex::state&              lex;                        // Lexer state.
+		func_scope*              enclosing       = nullptr;  // Enclosing function's scope.
+		std::vector<local_state> uvalues         = {};       // Upvalues mapped by name.
+		func_scope*              scope           = nullptr;  // Current scope.
+		std::vector<any>         kvalues         = {};       // Constant pool.
+		bc::reg                  max_reg_id      = 1;        // Maximum register ID used.
+		std::vector<string*>     args            = {};       // Arguments.
+		bool                     is_vararg       = false;    //
+		std::vector<bc::insn>    pc              = {};       // Bytecode generated.
+		bool                     is_repl         = false;    // Disables locals.
+		string*                  decl_name       = nullptr;  // Name.
+		std::vector<line_info>   line_info       = {};       // Record for each time a line changed.
+		uint32_t                 last_line       = 0;        //
+		uint32_t                 last_lexed_line;
 
 		// Labels.
 		//
 		uint32_t                                 next_label = label_flag;  // Next label id.
 		std::vector<std::pair<bc::rel, bc::pos>> label_map  = {};          // Maps label id to position.
 
-		func_state(vm* L, lex::state& lex) : L(L), lex(lex) {}
+		func_state(vm* L, lex::state& lex) : L(L), lex(lex), last_lexed_line(lex.line) {}
+
+		// Syncs line-table with instruction stream.
+		//
+		void synclines(bc::pos ip) {
+			if (last_line != last_lexed_line) {
+				int32_t delta = last_lexed_line - last_line;
+				LI_ASSERT(delta > 0);
+				line_info.push_back({ip, (bc::pos) delta});
+				last_line = last_lexed_line;
+			}
+		}
 	};
 
 	// Local scope state.
 	//
 	struct func_scope {
-		func_state&              fn;                 // Function that scope belongs to.
-		func_scope*              prev;               // Outer scope.
-		bc::reg                  reg_next     = 0;   // Next free register.
-		std::vector<local_state> locals       = {};  // Locals declared in this scope.
-		bc::rel                  lbl_continue = 0;   // Labels.
-		bc::rel                  lbl_break    = 0;
+		func_state&              fn;                         // Function that scope belongs to.
+		func_scope*              prev;                       // Outer scope.
+		bc::reg                  reg_next     = 0;           // Next free register.
+		std::vector<local_state> locals       = {};          // Locals declared in this scope.
+		bc::rel                  lbl_continue = 0;           // Labels.
+		bc::rel                  lbl_break    = 0;           //
+
 
 		// Emits an instruction and returns the position in stream.
 		//
 		bc::pos emit(bc::opcode o, bc::reg a = 0, bc::reg b = 0, bc::reg c = 0) {
 			fn.pc.emplace_back(bc::insn{o, a, b, c});
-			return bc::pos(fn.pc.size() - 1);
+			bc::pos ip = bc::pos(fn.pc.size() - 1);
+			fn.synclines(ip);
+			return ip;
 		}
 		bc::pos emitx(bc::opcode o, bc::reg a, uint64_t xmm) {
 			fn.pc.emplace_back(bc::insn{o, a}).xmm() = xmm;
-			return bc::pos(fn.pc.size() - 1);
+			bc::pos ip = bc::pos(fn.pc.size() - 1);
+			fn.synclines(ip);
+			return ip;
 		}
 
 		// Reserves a label identifier.
@@ -101,7 +120,10 @@ namespace li {
 
 		// Gets the lexer.
 		//
-		lex::state& lex() { return fn.lex; }
+		lex::state& lex() {
+			fn.last_lexed_line = fn.lex.line;
+			return fn.lex;
+		}
 
 		// Looks up a variable.
 		//
@@ -234,13 +256,17 @@ namespace li {
 
 		// Create the function value.
 		//
-		function* f      = function::create(fn.L, fn.pc, fn.kvalues, fn.uvalues.size());
+		if (!fn.line_info.empty())
+			fn.line_info.front().line_delta -= line;
+		function* f      = function::create(fn.L, fn.pc, fn.kvalues, fn.uvalues.size(), fn.line_info);
 		f->num_locals    = fn.max_reg_id + 1;
 		f->num_arguments = (uint32_t) fn.args.size();
 		if (fn.decl_name) {
-			f->src_chunk = string::format(fn.L, "%.*s:%s", (uint32_t) fn.lex.source_name.size(), fn.lex.source_name.data(), fn.decl_name->c_str());
+			f->src_chunk = string::format(fn.L, "'%.*s':%s", (uint32_t) fn.lex.source_name.size(), fn.lex.source_name.data(), fn.decl_name->c_str());
+		} else if (line != 0) {
+			f->src_chunk = string::format(fn.L, "'%.*s':lambda-%u", (uint32_t) fn.lex.source_name.size(), fn.lex.source_name.data(), line);
 		} else {
-			f->src_chunk = string::create(fn.L, fn.lex.source_name);
+			f->src_chunk = string::format(fn.L, "'%.*s'", (uint32_t) fn.lex.source_name.size(), fn.lex.source_name.data());
 		}
 		f->src_line      = line;
 		return f;

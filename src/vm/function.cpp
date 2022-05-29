@@ -2,25 +2,27 @@
 #include <vm/string.hpp>
 
 namespace li {
-	function* function::create(vm* L, std::span<const bc::insn> opcodes, std::span<const any> kval, size_t uval) {
+	function* function::create(vm* L, std::span<const bc::insn> opcodes, std::span<const any> kval, size_t uval, std::span<const line_info> lines) {
 		uint32_t routine_length = std::max((uint32_t) opcodes.size(), 1u);
 		uint32_t kval_n         = (uint32_t) kval.size();
 
 		// Set function details.
 		//
-		function* result        = L->alloc<function>(sizeof(bc::insn) * routine_length + sizeof(any) * (uval + kval_n));
+		function* result        = L->alloc<function>(sizeof(bc::insn) * routine_length + sizeof(any) * (uval + kval_n) + sizeof(line_info) * lines.size());
 		result->num_uval        = (uint32_t) uval;
 		result->num_kval        = kval_n;
 		result->length          = routine_length;
 		result->src_chunk       = string::create(L);
 		result->opcode_array[0] = bc::insn{bc::BP};
 		result->environment     = L->globals;
+		result->num_lines       = (uint32_t) lines.size();
 
-		// Copy bytecode and constants, <none> initialize upvalues.
+		// Copy the information, initialize all upvalues to none.
 		//
 		std::copy_n(opcodes.data(), opcodes.size(), result->opcode_array);
 		std::copy_n(kval.data(), kval.size(), result->kvals().begin());
 		fill_none(result->uvals().data(), result->uvals().size());
+		std::copy_n(lines.data(), lines.size(), result->lines().begin());
 		return result;
 	}
 
@@ -36,10 +38,8 @@ namespace li {
 
 	// Duplicates the function.
 	//
-	function* function::duplicate(vm* L) {
-		return L->duplicate<function>(this);
-	}
-	
+	function* function::duplicate(vm* L) { return L->duplicate<function>(this); }
+
 	// Replication of vm::call.
 	//
 	bool nfunction::call(vm* L, slot_t n_args, slot_t caller_frame, uint32_t caller_pc) {
@@ -47,7 +47,10 @@ namespace li {
 
 		// Swap previous c-frame.
 		//
-		slot_t prevcframe = std::exchange(L->last_vm_caller, caller_pc != FRAME_C_IP ? caller_frame : L->last_vm_caller);
+		call_frame prevframe = L->last_vm_caller;
+		if (!(caller_pc & FRAME_C_FLAG)) {
+			L->last_vm_caller = call_frame{ .stack_pos = caller_frame, .caller_pc = caller_pc, .n_args = n_args };
+ 		}
 
 		// Invoke callback.
 		//
@@ -65,7 +68,7 @@ namespace li {
 		// Restore c-frame and stack position, return.
 		//
 		L->stack_top      = lim;
-		L->last_vm_caller = prevcframe;
+		L->last_vm_caller = prevframe;
 		return ok;
 	}
 };

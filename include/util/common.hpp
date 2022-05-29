@@ -49,6 +49,8 @@
 #define LI_STRINGIFY(x)   LI_STRINGIFY_I(x)
 #define LI_STRCAT_I(x, y) x##y
 #define LI_STRCAT(x, y)   LI_STRCAT_I(x, y)
+#define LI_NOOP(...)
+#define LI_IDENTITY(...)  __VA_ARGS__
 
 namespace li {
 	namespace util {

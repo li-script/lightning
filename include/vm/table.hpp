@@ -15,11 +15,10 @@ namespace li {
 	struct table_nodes : gc::leaf<table_nodes> {
 		table_entry entries[];
 	};
-	struct table : gc::node<table, type_table> {
+	struct table : with_traits<table, type_table> {
 		static table* create(vm* L, size_t reserved_entry_count = 0);
 
 		table_nodes*  node_list = nullptr;
-		table_traits* traits    = nullptr;
 		table_entry   small_table[small_table_length + overflow_factor];
 		uint32_t      active_count = 0;
 
@@ -37,6 +36,7 @@ namespace li {
 		table* duplicate(vm* L) const {
 			table* tbl     = L->duplicate(this);
 			tbl->node_list = L->duplicate(tbl->node_list);
+			tbl->has_gc    = has_trait<trait::gc>();
 			return tbl;
 		}
 
@@ -52,5 +52,10 @@ namespace li {
 		//
 		void set(vm* L, any key, any value);
 		any  get(vm* L, any key);
+
+		// Traitful table get/set.
+		//
+		std::pair<any, bool> tset(vm* L, any key, any value);
+		std::pair<any, bool> tget(vm* L, any key);
 	};
 };

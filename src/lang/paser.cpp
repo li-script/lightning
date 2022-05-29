@@ -1487,6 +1487,7 @@ namespace li {
 
 		// Collect arguments.
 		//
+		bool trait = false;
 		if (scope.lex().opt('{')) {
 			if (auto ex = expr_table(scope); ex.kind == expr::err) {
 				return {};
@@ -1496,6 +1497,14 @@ namespace li {
 		} else if (auto lit = scope.lex().opt(lex::token_lstr)) {
 			callsite[size++] = {expression(any(lit->str_val)), false};
 		} else {
+			if (scope.lex().opt('!')) {
+				trait = true;
+				if ((self.kind == expr::imm && self.imm == none) || func.kind != expr::glb) {
+					scope.lex().error("traits should be used with :: operator.");
+					return {};
+				}
+			}
+
 			if (scope.lex().check('(') == lex::token_error)
 				return {};
 			if (!scope.lex().opt(')')) {
@@ -1534,6 +1543,39 @@ namespace li {
 		// Handle special functions.
 		//
 		if (func.kind == expr::glb) {
+			// Handle traits.
+			//
+			if (trait) {
+				// Arg = (0=Getter, 1=Setter).
+				//
+				if (size > 1) {
+					scope.lex().error("trait observer should have one or no arguments.");
+					return {};
+				}
+
+				// Find trait by name.
+				//
+				for (uint32_t i = 0; i != uint32_t(trait::pseudo_max); i++) {
+					if (trait_names[i] == func.glb->view()) {
+						// Emit the opcode and return.
+						//
+						if (size == 0) {
+							bc::reg r = self.to_nextreg(scope);
+							scope.emit(bc::TRGET, r, r, i);
+							return expression(r);
+						} else {
+							reg_sweeper _r{scope};
+							scope.emit(bc::TRSET, self.to_anyreg(scope), callsite[0].first.to_anyreg(scope), i);
+							return expression(none);
+						}
+					}
+				}
+				scope.lex().error("unknown trait name '%s'.", func.glb->c_str());
+				return {};
+			}
+
+			// Handle functional helpers.
+			//
 			if (func.glb->view() == "len") {
 				return emit_unop(scope, bc::VLEN, self);
 			} else if (func.glb->view() == "dup") {

@@ -74,21 +74,25 @@ namespace li {
 
 				// Validate function.
 				//
-				auto vf = stack[L->stack_top + FRAME_TARGET];
-				f       = vf.as_vfn();
+				auto& vf = stack[L->stack_top + FRAME_TARGET];
+				if (vf.is_tbl() && vf.as_tbl()->has_trait<trait::call>()) {
+					stack[L->stack_top + FRAME_SELF] = vf;
+					vf                               = vf.as_tbl()->get_trait<trait::call>();
+				}
 				if (vf.is_nfn()) {
 					state = vf.as_nfn()->call(L, n_args, caller_frame, caller_pc) ? vm_ok : vm_exception;
 					dirty_stack();
 					goto vret;
 				} else if (!vf.is_vfn()) [[unlikely]] {
-					// TODO: Meta
 					stack[L->stack_top + FRAME_RET] = string::create(L, "invoking non-function");
 					state                           = vm_exception;
 					goto vret;
 				}
+
 				// Validate argument count.
 				//
-				else if (f->num_arguments > n_args) [[unlikely]] {
+				f = vf.as_vfn();
+				if (f->num_arguments > n_args) [[unlikely]] {
 					stack[L->stack_top + FRAME_RET] = string::format(L, "expected at least %u arguments, got %u", f->num_arguments, n_args);
 					state                           = vm_exception;
 					goto vret;
@@ -345,8 +349,12 @@ namespace li {
 							}
 
 							if (tbl.is_tbl()) {
-								REG(a) = tbl.as_tbl()->get(L, REG(b));
-								dirty_stack();  // meta
+								auto [r, ok] = tbl.as_tbl()->tget(L, REG(b));
+								if (!ok) [[unlikely]] {
+									VM_RET(r, true);
+								}
+								dirty_stack();
+								REG(a) = r;
 							} else if (tbl.is_arr()) {
 								if (!key.is_num() || key.as_num() < 0) [[unlikely]] {
 									VM_RET(string::create(L, "indexing array with non-integer or negative key"), true);
@@ -389,8 +397,12 @@ namespace li {
 									VM_RET(string::create(L, "indexing non-table"), true);
 								}
 							}
-							tbl.as_tbl()->set(L, key, val);
-							dirty_stack();  // meta
+
+							auto [r, ok] = tbl.as_tbl()->tset(L, key, val);
+							if (!ok) [[unlikely]] {
+								VM_RET(r, true);
+							}
+							dirty_stack();
 							L->gc.tick(L);
 							continue;
 						}
@@ -467,6 +479,30 @@ namespace li {
 								}
 							}
 							REG(a) = r;
+							continue;
+						}
+						case bc::TRGET: {
+							auto idx = trait(c);
+							auto holder = REG(b);
+							auto& trait  = REG(a);
+							if (!holder.is_tbl()) {
+								trait = none;
+							} else if (auto tbl = holder.as_tbl()) {
+								trait = tbl->trait_hide ? none : tbl->get_trait(idx);
+							}
+							continue;
+						}
+						case bc::TRSET: {
+							auto  idx    = trait(c);
+							auto  holder = REG(a);
+							auto  trait  = REG(b);
+							if (!holder.is_tbl()) {
+								VM_RET(string::create(L, "can't set traits on non-table"), true);
+							} else {
+								if (auto ex = holder.as_tbl()->set_trait(L, idx, trait)) {
+									VM_RET(string::create(L, ex), true);
+								}
+							}
 							continue;
 						}
 						case bc::CALL: {

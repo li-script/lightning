@@ -1,5 +1,6 @@
 #include <vm/table.hpp>
 #include <bit>
+#include <vm/string.hpp>
 
 namespace li {
 	table* table::create(vm* L, size_t reserved_entry_count) {
@@ -15,6 +16,7 @@ namespace li {
 	void table::gc_traverse(gc::stage_context s) {
 		if (node_list)
 			node_list->gc_tick(s);
+		trait_traverse(s);
 		for (auto& [k, v] : *this) {
 			if (k.is_gc())
 				k.as_gc()->gc_tick(s);
@@ -49,40 +51,39 @@ namespace li {
 
 	// Raw table get/set.
 	//
-	void table::set(vm* L, any key, any value) {
-		size_t hash = key.hash();
-
+	static bool set_if(table* t, any key, any value, size_t hash) {
 		if (value == none) {
-			for (auto& entry : find(key.hash())) {
+			for (auto& entry : t->find(hash)) {
 				if (entry.key == key) {
 					entry.key   = none;
 					entry.value = none;
-					active_count--;
-					break;
+					t->active_count--;
+					return true;
 				}
 			}
-			return;
 		}
-
-		uint32_t next_count = active_count + 1;
-
-		while (true) {
-			auto range = find(hash);
-			for (auto& entry : range) {
-				if (entry.key == key) {
-					entry.value  = value;
-					active_count = next_count - 1;
-					return;
-				}
+		for (auto& entry : t->find(hash)) {
+			if (entry.key == key) {
+				entry.value     = value;
+				return true;
 			}
-			for (auto& entry : range) {
-				if (entry.key == none) {
-					entry        = {key, value};
-					active_count = next_count;
-					return;
+		}
+		return false;
+	}
+	void table::set(vm* L, any key, any value) {
+		size_t hash = key.hash();
+		if (!set_if(this, key, value, hash)) {
+			uint32_t next_count = active_count + 1;
+			while (true) {
+				for (auto& entry : find(hash)) {
+					if (entry.key == none) {
+						entry        = {key, value};
+						active_count = next_count;
+						return;
+					}
 				}
+				resize(L, size() << 1);
 			}
-			resize(L, size() << 1);
 		}
 	}
 	any table::get(vm* L, any key) {
@@ -91,5 +92,51 @@ namespace li {
 				return entry.value;
 		}
 		return {};
+	}
+
+	// Traitful table get/set.
+	//
+	std::pair<any, bool> table::tset(vm* L, any key, any value) {
+		if (trait_freeze) {
+			return {string::create(L, "modifying frozen table."), false};
+		}
+
+		size_t hash = key.hash();
+		if (set_if(this, key, value, hash)) [[likely]] {
+			return {none, true};
+		}
+		if (!has_trait<trait::set>()) [[likely]] {
+			uint32_t next_count = active_count + 1;
+			while (true) {
+				for (auto& entry : find(hash)) {
+					if (entry.key == none) {
+						entry        = {key, value};
+						active_count = next_count;
+						return {none, true};
+					}
+				}
+				resize(L, size() << 1);
+			}
+		}
+
+		L->push_stack(value);
+		L->push_stack(key);
+		auto ok = L->scall(2, get_trait<trait::set>(), this);
+		return {L->pop_stack(), ok};
+	}
+	std::pair<any, bool> table::tget(vm* L, any key) {
+		auto result = get(L, key);
+		if (result != none || !has_trait<trait::get>()) [[likely]] {
+			return {result, true};
+		}
+
+		auto get = get_trait<trait::get>();
+		if (get.is_tbl()) {
+			return {get.as_tbl()->get(L, key), true};
+		} else {
+			L->push_stack(key);
+			auto ok = L->scall(1, get, this);
+			return {L->pop_stack(), ok};
+		}
 	}
 };

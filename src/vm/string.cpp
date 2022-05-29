@@ -252,7 +252,7 @@ namespace li {
 	// String coercion.
 	//
 	template<typename F>
-	static void format_any( any a, F&& formatter ) {
+	static void format_any(any a, F&& formatter) {
 		switch (a.type()) {
 			case type_none:
 				formatter("{}");
@@ -306,6 +306,17 @@ namespace li {
 	string* any::to_string(vm* L) const {
 		if (is_str()) [[likely]]
 			return as_str();
+		if (is_tbl()) {
+			auto* tbl = as_tbl();
+			if (tbl->has_trait<trait::str>()) {
+				bool ok = L->scall(0, tbl->get_trait<trait::str>(), *this);
+				auto res = L->pop_stack();
+				if (ok && res.is_str()) {
+					return res.as_str();
+				}
+			}
+		}
+
 		string* result;
 		format_any(*this, [&] <typename... Tx> (const char* fmt, Tx&&... args) {
 			if constexpr (sizeof...(Tx) == 0) {

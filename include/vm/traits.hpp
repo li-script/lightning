@@ -91,17 +91,17 @@ namespace li {
 		trait_table* traits                  = nullptr;  // Table of traits.
 
 		template<trait Ti>
-		bool has_trait() const {
+		LI_INLINE bool has_trait() const {
 			return trait_mask & (1u << uint32_t(Ti));
 		}
 		template<trait Ti>
-		any get_trait() const {
+		LI_INLINE any get_trait() const {
 			return get_trait(Ti);
 		}
 
 		// Getter.
 		//
-		any get_trait(trait t) const {
+		LI_INLINE any get_trait(trait t) const {
 			// Pseudo traits.
 			//
 			if (t >= trait::max) {

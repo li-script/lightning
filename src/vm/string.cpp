@@ -115,7 +115,7 @@ namespace li {
 			//
 			for (auto& entry : L->str_intern->find(s->hash)) {
 				if (entry && entry->view() == s->view()) {
-					L->gc.free(s);
+					L->gc.free(L, s);
 					return entry;
 				}
 			}

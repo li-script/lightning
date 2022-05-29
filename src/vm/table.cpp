@@ -42,7 +42,7 @@ namespace li {
 					}
 				}
 				if (old_list)
-					L->gc.free(old_list);
+					L->gc.free(L, old_list);
 			}
 		}
 	}

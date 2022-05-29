@@ -79,7 +79,7 @@ namespace li::gc {
 		uint32_t stage : 2        = 0;
 		uint32_t num_chunks : 29  = 0;
 		uint32_t page_offset : 24 = 0;  // in page units.
-		uint32_t reserved : 8     = 0;
+		uint32_t has_gc : 1       = 0;
 
 		// Object size helper.
 		// - Size ignoring the header.
@@ -109,10 +109,7 @@ namespace li::gc {
 		bool               gc_tick(stage_context s, bool weak = false);
 		virtual void       gc_traverse(stage_context s) = 0;
 		virtual value_type gc_identify() const          = 0;
-
-		// Virtual destructor.
-		//
-		virtual ~header() = default;
+		virtual void       gc_destroy(vm* L) {}
 	};
 	static_assert(sizeof(header) == (8 + sizeof(uintptr_t)), "Invalid GC header size.");
 	static_assert(sizeof(free_header) == sizeof(header), "Invalid GC header size.");
@@ -267,7 +264,7 @@ namespace li::gc {
 
 		// Immediately frees an object.
 		//
-		void free(header* o, bool internal = false);
+		void free(vm* L, header* o, bool internal = false);
 
 		// Allocates and creates an object.
 		//

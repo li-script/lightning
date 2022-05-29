@@ -128,7 +128,7 @@ namespace li::gc {
 		debt += clen;
 		return {pg, pg->allocate_uninit(clen)};
 	}
-	void state::free(header* o, bool internal) {
+	void state::free(vm* L, header* o, bool internal) {
 		LI_ASSERT_MSG("Double free", !o->is_free());
 
 #if 0
@@ -166,7 +166,9 @@ namespace li::gc {
 		//
 		uint32_t num_chunks  = o->num_chunks;
 		uint32_t page_offset = o->page_offset;
-		std::destroy_at(o);
+		if (o->has_gc) [[unlikely]] {
+			o->gc_destroy(L);
+		}
 		auto* fh        = o->get_free_header();
 		fh->valid       = true;
 		fh->next_free   = 0;
@@ -231,7 +233,7 @@ namespace li::gc {
 			if (it->alive_objects != it->num_objects) {
 				it->for_each([&](header* obj) {
 					if (!obj->is_free() && obj->stage != ms.next_stage)
-						free(obj, true);
+						free(L, obj, true);
 					return false;
 				});
 

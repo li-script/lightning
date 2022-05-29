@@ -90,7 +90,7 @@ namespace li {
 			auto* new_stack = alloc<vm_stack>((stack_len + n) * sizeof(any));
 			memcpy(new_stack->list, stack, stack_top * sizeof(any));
 			stack_len = slot_t(new_stack->extra_bytes() / sizeof(any));
-			gc.free(std::prev((gc::header*) stack));
+			gc.free(this, std::prev((gc::header*) stack));
 			stack = new_stack->list;
 		}
 

@@ -173,7 +173,6 @@ namespace li {
 				trait_mask &= ~(1u << uint32_t(t));
 
 				if (!trait_mask && traits) {
-					L->gc.free(L, traits);
 					traits = nullptr;
 				}
 			}

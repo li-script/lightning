@@ -36,6 +36,7 @@ namespace li::bc {
 	_(VIN,   reg, reg, reg) /* A=C Includes B */                                     \
                                                                                     \
    /* Helpers */                                                                    \
+	_(VJOIN, reg, reg, reg) /* A=JOIN(B<-C) */                                       \
 	_(VDUP,  reg, reg, ___) /* A=DUP(B) */                                           \
 	_(CCAT,  reg, imm, ___) /* A=CONCAT(A..A+B) */                                   \
                                                                                     \

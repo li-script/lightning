@@ -1579,14 +1579,23 @@ namespace li {
 			if (func.glb->view() == "len") {
 				return emit_unop(scope, bc::VLEN, self);
 			} else if (func.glb->view() == "dup") {
-				auto r = scope.alloc_reg();
 				if (self.kind == expr::reg) {
-					scope.emit(bc::VDUP, r, self.reg);
+					scope.emit(bc::VDUP, tmp, self.reg);
 				} else {
-					self.to_reg(scope, r);
-					scope.emit(bc::VDUP, r, r);
+					self.to_reg(scope, tmp);
+					scope.emit(bc::VDUP, tmp, tmp);
 				}
-				return expression(r);
+				scope.reg_next = tmp + 1;
+				return expression(tmp);
+			} else if (func.glb->view() == "join") {
+				if (size != 1) {
+					scope.lex().error("join expects 1 argument.");
+					return {};
+				}
+				self.to_reg(scope, tmp);
+				callsite[0].first.to_reg(scope, tmp + 1);  
+				scope.emit(bc::VJOIN, tmp, tmp, tmp + 1);
+				return expression(tmp);
 			} else if (func.glb->view() == "rawget") {
 				if (size != 1) {
 					scope.lex().error("rawget expects 1 argument.");

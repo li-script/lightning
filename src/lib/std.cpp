@@ -12,24 +12,24 @@ namespace li::lib {
 		args++;              \
 		n++;                 \
 	}
-#define REMAP_MATH_UNARY(name)																					\
-		util::export_as(L, "math." LI_STRINGIFY(name), [](vm* L, any* args, slot_t n) { \
-			if (n != 1 || !args->is(type_number)) {															\
-				L->push_stack(any(string::create(L, "expected number")));								\
-				return false;																							\
-			}																												\
-			L->push_stack(any(name(args->as_num())));															\
-			return true;																								\
-		});
+#define REMAP_MATH_UNARY(name)                                                     \
+	util::export_as(L, "math." LI_STRINGIFY(name), [](vm* L, any* args, slot_t n) { \
+		if (n != 1 || !args->is_num()) {                                             \
+			L->push_stack(any(string::create(L, "expected number")));                 \
+			return false;                                                             \
+		}                                                                            \
+		L->push_stack(any(name(args->as_num())));                                    \
+		return true;                                                                 \
+	});
 
-#define REMAP_MATH_BINARY(name)																					\
-	util::export_as(L, "math." LI_STRINGIFY(name), [](vm* L, any* args, slot_t n) {		\
-		if (n != 2 || !args[0].is_num() || !args[-1].is_num()) {						\
-			L->push_stack(any(string::create(L, "expected two numbers")));								\
-			return false;																								\
-		}																													\
-		L->push_stack(any(name(args[0].as_num(), args[-1].as_num())));									\
-		return true;																									\
+#define REMAP_MATH_BINARY(name)                                                    \
+	util::export_as(L, "math." LI_STRINGIFY(name), [](vm* L, any* args, slot_t n) { \
+		if (n != 2 || !args[0].is_num() || !args[-1].is_num()) {                     \
+			L->push_stack(any(string::create(L, "expected two numbers")));            \
+			return false;                                                             \
+		}                                                                            \
+		L->push_stack(any(name(args[0].as_num(), args[-1].as_num())));               \
+		return true;                                                                 \
 	});
 
 	static constexpr double pi = 3.14159265358979323846264338327950288;
@@ -111,8 +111,10 @@ namespace li::lib {
 		static constexpr auto max = [](double a, double b) { return fmax(a, b); };
 		static constexpr auto min = [](double a, double b) { return fmin(a, b); };
 		static constexpr auto abs = [](double a) { return fabs(a); };
+		static constexpr auto sgn = [](double a) -> double { return a < 0 ? -1 : +1; };
 
 		REMAP_MATH_BINARY(min);
+		REMAP_MATH_BINARY(copysign);
 		REMAP_MATH_BINARY(max);
 		REMAP_MATH_BINARY(atan2);
 		REMAP_MATH_UNARY(deg);
@@ -122,6 +124,7 @@ namespace li::lib {
 		REMAP_MATH_UNARY(cos);
 		REMAP_MATH_UNARY(sin);
 		REMAP_MATH_UNARY(tan);
+		REMAP_MATH_UNARY(sgn);
 		REMAP_MATH_UNARY(round);
 		REMAP_MATH_UNARY(ceil);
 		REMAP_MATH_UNARY(floor);
@@ -239,7 +242,7 @@ namespace li::lib {
 			return true;
 		});
 		util::export_as(L, "debug.dump", [](vm* L, any* args, slot_t n) {
-			if (n != 1 || !args->is(type_function)) {
+			if (n != 1 || !args->is_vfn()) {
 				return L->error("dump expects a single vfunction");
 			}
 
@@ -270,7 +273,11 @@ namespace li::lib {
 		//
 		util::export_as(L, "print", [](vm* L, any* args, slot_t n) {
 			for (int32_t i = 0; i != n; i++) {
-				args[-i].print();
+				if (args[-i].is_tbl() && args[-i].as_tbl()->has_trait<trait::str>()) [[unlikely]] {
+					fputs(args[-i].to_string(L)->c_str(), stdout);
+				} else {
+					args[-i].print();
+				}
 				printf("\t");
 			}
 			printf("\n");
@@ -287,7 +294,7 @@ namespace li::lib {
 			return true;
 		});
 		util::export_as(L, "loadstring", [](vm* L, any* args, slot_t n) {
-			if (n != 1 || !args->is(type_string)) {
+			if (n != 1 || !args->is_str()) {
 				return L->error("expected string");
 			}
 			auto res = load_script(L, args->as_str()->view());
@@ -295,7 +302,7 @@ namespace li::lib {
 			return res.is_vfn();
 		});
 		util::export_as(L, "eval", [](vm* L, any* args, slot_t n) {
-			if (n != 1 || !args->is(type_string)) {
+			if (n != 1 || !args->is_str()) {
 				return L->error("expected string");
 			}
 			auto res = load_script(L, args->as_str()->view());

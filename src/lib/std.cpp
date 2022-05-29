@@ -7,6 +7,11 @@
 #include <bit>
 
 namespace li::lib {
+#define OPTIONAL_SELF() \
+	if (args[1] != none) {  \
+		args++;              \
+		n++;                 \
+	}
 #define REMAP_MATH_UNARY(name)																					\
 		util::export_as(L, "math." LI_STRINGIFY(name), [](vm* L, any* args, slot_t n) { \
 			if (n != 1 || !args->is(type_number)) {															\
@@ -274,23 +279,15 @@ namespace li::lib {
 			printf("\n");
 			return true;
 		});
-		util::export_as(L, "tostring", [](vm* L, any* args, slot_t n) {
-			if (n == 0) {
-				L->push_stack(string::create(L));
-				return true;
-			} else {
-				L->push_stack(args->coerce_str(L));
-				return true;
-			}
+		util::export_as(L, "str", [](vm* L, any* args, slot_t n) {
+			OPTIONAL_SELF();
+			L->push_stack(args->coerce_str(L));
+			return true;
 		});
-		util::export_as(L, "tonumber", [](vm* L, any* args, slot_t n) {
-			if (n == 0) {
-				L->push_stack(any(number(0)));
-				return true;
-			} else {
-				L->push_stack(args->coerce_num());
-				return true;
-			}
+		util::export_as(L, "num", [](vm* L, any* args, slot_t n) {
+			OPTIONAL_SELF();
+			L->push_stack(args->coerce_num());
+			return true;
 		});
 		util::export_as(L, "loadstring", [](vm* L, any* args, slot_t n) {
 			if (n != 1 || !args->is(type_string)) {

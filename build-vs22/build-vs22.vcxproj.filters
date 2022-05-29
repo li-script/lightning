@@ -55,6 +55,9 @@
     <Filter Include="Library">
       <UniqueIdentifier>{c57d2e3d-b45c-41cf-abbe-fd7785828a57}</UniqueIdentifier>
     </Filter>
+    <Filter Include="JIT">
+      <UniqueIdentifier>{c978084a-5145-47d5-ac84-0a05a56eba6c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\lang\lexer.hpp">
@@ -113,6 +116,9 @@
     </ClInclude>
     <ClInclude Include="..\include\vm\traits.hpp">
       <Filter>VM\Types</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\jit\zydis.hpp">
+      <Filter>JIT</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

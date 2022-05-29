@@ -13,3 +13,4 @@ build-vs22/enc_temp_folder/
 *.bat
 *.li
 !/tests/*.li
+Lightning-VTune/

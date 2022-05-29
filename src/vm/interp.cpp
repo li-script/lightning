@@ -530,7 +530,11 @@ namespace li {
 						case bc::NOP:
 							continue;
 						default:
+#if LI_DEBUG
 							util::abort("unrecognized opcode '%02x'", (uint32_t) op);
+#else
+							assume_unreachable();
+#endif
 					}
 				}
 			}

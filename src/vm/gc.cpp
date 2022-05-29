@@ -131,31 +131,6 @@ namespace li::gc {
 	void state::free(vm* L, header* o, bool internal) {
 		LI_ASSERT_MSG("Double free", !o->is_free());
 
-#if 0
-		if (auto t = o->gc_identify()) {
-			//printf("freeing: ");
-			//any v(std::in_place, mix_value(t, (uint64_t) o));
-			//v.print();
-			//if (t == type_table) {
-			//	printf(" [");
-			//	for (auto& [k, v] : *v.as_tbl()) {
-			//		if (k.is_str()) {
-			//			printf("%s, ", k.as_str()->c_str());
-			//		}
-			//	}
-			//	printf("]");
-			//}
-			//
-			//putchar('\n');
-		} else {
-#if HAS_RTTI
-			//printf("freeing: opaque %p (%s)\n", o, typeid(*o).name());
-#else
-			//printf("freeing: opaque %p\n", o);
-#endif
-		}
-#endif
-
 		// If call was not made internally, decrement alive counter.
 		//
 		if (!internal) {

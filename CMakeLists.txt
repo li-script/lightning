@@ -35,6 +35,18 @@ project(lightning
 		CXX
 )
 
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "(amd64)|(AMD64)") # x86_64
+	# zydis
+	set(CMKR_CMAKE_FOLDER ${CMAKE_FOLDER})
+	if(CMAKE_FOLDER)
+		set(CMAKE_FOLDER "${CMAKE_FOLDER}/zydis")
+	else()
+		set(CMAKE_FOLDER zydis)
+	endif()
+	add_subdirectory(zydis)
+	set(CMAKE_FOLDER ${CMKR_CMAKE_FOLDER})
+
+endif()
 if(LIGHTING_TESTS) # tests
 	# tests
 	set(CMKR_CMAKE_FOLDER ${CMAKE_FOLDER})
@@ -64,6 +76,7 @@ list(APPEND libli_SOURCES
 	"src/vm/state.cpp"
 	"src/vm/string.cpp"
 	"src/vm/table.cpp"
+	"include/jit/zydis.hpp"
 	"include/lang/lexer.hpp"
 	"include/lang/operator.hpp"
 	"include/lang/parser.hpp"
@@ -74,6 +87,7 @@ list(APPEND libli_SOURCES
 	"include/util/llist.hpp"
 	"include/util/platform.hpp"
 	"include/util/user.hpp"
+	"include/util/utf.hpp"
 	"include/vm/array.hpp"
 	"include/vm/bc.hpp"
 	"include/vm/function.hpp"
@@ -81,6 +95,7 @@ list(APPEND libli_SOURCES
 	"include/vm/state.hpp"
 	"include/vm/string.hpp"
 	"include/vm/table.hpp"
+	"include/vm/traits.hpp"
 )
 
 list(APPEND libli_SOURCES
@@ -103,6 +118,12 @@ target_compile_features(libli PUBLIC
 target_include_directories(libli PUBLIC
 	include
 )
+
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "(amd64)|(AMD64)") # x86_64
+	target_link_libraries(libli PUBLIC
+		Zydis
+	)
+endif()
 
 unset(CMKR_TARGET)
 unset(CMKR_SOURCES)

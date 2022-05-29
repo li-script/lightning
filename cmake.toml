@@ -9,9 +9,11 @@ LIGHTING_TESTS = true
 [conditions]
 emscripten = "EMSCRIPTEN"
 tests = "LIGHTING_TESTS"
+x86_64 = "CMAKE_SYSTEM_PROCESSOR MATCHES \"(amd64)|(AMD64)\""
 
 [target.libli]
 type = "static"
+x86_64.link-libraries = ["Zydis"]
 include-directories = ["include"]
 compile-features = ["cxx_std_20"]
 sources = [
@@ -38,6 +40,9 @@ destination = "bin"
 condition = "emscripten"
 files = ["$<TARGET_FILE_DIR:li>/li.wasm"]
 destination = "bin"
+
+[subdir.zydis]
+condition = "x86_64"
 
 [subdir.tests]
 condition = "tests"

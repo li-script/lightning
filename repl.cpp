@@ -60,8 +60,34 @@ extern "C" {
 };
 #endif
 
+
+
+
+
+
+#include <jit/zydis.hpp>
+
+
 int main(int argv, const char** args) {
 	platform::setup_ansi_escapes();
+
+
+	std::vector<uint8_t> out;
+	li::zy::encode(out, ZYDIS_MNEMONIC_VMOVUPS, ZYDIS_REGISTER_YMM0, li::zy::mem{.size = 32, .base = ZYDIS_REGISTER_RAX});
+	li::zy::encode(out, ZYDIS_MNEMONIC_ADD, ZYDIS_REGISTER_RAX, 45);
+	li::zy::encode(out, ZYDIS_MNEMONIC_RET);
+
+	std::span<const uint8_t> data = out;
+	while (!data.empty()) {
+		auto res = li::zy::decode(data);
+		if (!res) {
+			printf("failed to decode\n");
+			break;
+		}
+		puts(res->to_string().c_str());
+	}
+
+
 
 #if !LI_ARCH_WASM
 	// Create the VM.

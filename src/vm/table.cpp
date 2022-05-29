@@ -8,7 +8,7 @@ namespace li {
 		if (reserved_entry_count) {
 			tbl->resize(L, reserved_entry_count);
 		}
-		tbl->mask = tbl->compute_mask();
+		tbl->mask = (uint32_t) tbl->compute_mask();
 		return tbl;
 	}
 

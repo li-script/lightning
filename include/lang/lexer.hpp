@@ -45,33 +45,31 @@ namespace li::lex {
 	// Token identifiers.
 	//
 	enum token : uint8_t {
-#define TK_NOOP(...)
 #define TK_CHAR(name, chr) token_##name = chr,
 #define TK_NAME(name, ...) token_##name,
 #define TK_RET(name, ...)  return token_##name;
 
 		// Character tokens, end at 0x7F.
-		LIGHTNING_ENUM_TOKENS(TK_NOOP, TK_NOOP, TK_CHAR, TK_NOOP) token_char_max = 0x7F,
+		LIGHTNING_ENUM_TOKENS(LI_NOOP, LI_NOOP, TK_CHAR, LI_NOOP) token_char_max = 0x7F,
 
 		// Symbolic tokens.
-		LIGHTNING_ENUM_TOKENS(TK_NOOP, TK_NAME, TK_NOOP, TK_NOOP)
+		LIGHTNING_ENUM_TOKENS(LI_NOOP, TK_NAME, LI_NOOP, LI_NOOP)
 		// Named tokens.
-		LIGHTNING_ENUM_TOKENS(TK_NAME, TK_NOOP, TK_NOOP, TK_NOOP)
+		LIGHTNING_ENUM_TOKENS(TK_NAME, LI_NOOP, LI_NOOP, LI_NOOP)
 		// Literal tokens.
-		LIGHTNING_ENUM_TOKENS(TK_NOOP, TK_NOOP, TK_NOOP, TK_NAME)
+		LIGHTNING_ENUM_TOKENS(LI_NOOP, LI_NOOP, LI_NOOP, TK_NAME)
 
 		token_lit_max_plus_one,
 		token_lit_max  = token_lit_max_plus_one - 1,
 		token_sym_min  = token_char_max + 1,
-		token_name_min = []() { LIGHTNING_ENUM_TOKENS(TK_RET, TK_NOOP, TK_NOOP, TK_NOOP); }(),
-		token_lit_min = []() { LIGHTNING_ENUM_TOKENS(TK_NOOP, TK_NOOP, TK_NOOP, TK_RET); }(),
+		token_name_min = []() { LIGHTNING_ENUM_TOKENS(TK_RET, LI_NOOP, LI_NOOP, LI_NOOP); }(),
+		token_lit_min = []() { LIGHTNING_ENUM_TOKENS(LI_NOOP, LI_NOOP, LI_NOOP, TK_RET); }(),
 		token_sym_max  = token_name_min,
 		token_name_max = token_lit_min,
 
 #undef TK_RET
 #undef TK_CHAR
 #undef TK_NAME
-#undef TK_NOOP
 	};
 
 	// Token traits.
@@ -85,20 +83,18 @@ namespace li::lex {
 	// Complex token to string conversion.
 	//
 	static constexpr std::string_view cx_token_to_str_map[] = {
-#define TK_NOOP(...)
 #define TK_SYM(name, ...)  #name,
 #define TK_NAME(name, sym) #sym,
 
 		 // Symbolic tokens.
-		 LIGHTNING_ENUM_TOKENS(TK_NOOP, TK_NAME, TK_NOOP, TK_NOOP)
+		 LIGHTNING_ENUM_TOKENS(LI_NOOP, TK_NAME, LI_NOOP, LI_NOOP)
 		 // Named tokens.
-		 LIGHTNING_ENUM_TOKENS(TK_SYM, TK_NOOP, TK_NOOP, TK_NOOP)
+		 LIGHTNING_ENUM_TOKENS(TK_SYM, LI_NOOP, LI_NOOP, LI_NOOP)
 		 // Literal tokens.
-		 LIGHTNING_ENUM_TOKENS(TK_NOOP, TK_NOOP, TK_NOOP, TK_NAME)
+		 LIGHTNING_ENUM_TOKENS(LI_NOOP, LI_NOOP, LI_NOOP, TK_NAME)
 
 #undef TK_SYM
 #undef TK_NAME
-#undef TK_NOOP
 	};
 	static constexpr std::string_view cx_token_to_strv(uint8_t tk) {
 		if (is_token_complex(tk)) {

@@ -1,0 +1,121 @@
+# TODO:
+# -- metatables & userdata
+# -- optimizer
+# -- array fixes -> cache mask -> gcfreeze
+# -- lazily parse assert
+#
+# -- more stdlib for iterables, inspriation: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array
+#
+# -- do not store to reg if const is expression with no sideeffects
+# -- vararg
+# -- constexpr
+# -- A&&B() shouldn't call B
+# -- ternary
+# -- max stack depth in parser
+# - implement realloc, table/array/strset/stack shrinking|expanding
+# - ref-counted objects for any[]
+# - start using TDUP|ADUP
+# - strset & table shouldnt use object_bytes, no pow2 guarantee
+# - gc freeze for locals via RAII
+# - std::vector<> in gc space
+# - match
+# - import
+# - table unpack ...
+# - tail call
+# - coroutines|thread
+# - try/catch
+# - ternary
+# - long strings
+# - JIT
+#   
+# - slicing string and array types
+#   "ab"[1..0]
+#   [1,2,3][1..0]
+#
+# - error on meaningless expressions (e.g. "1 2 3" as a line)
+# - Static objects with skip gc flag?
+
+
+const tbl = {a:4}
+
+# Comparison.
+#
+tbl::eq!(|a,b| math.sgn(a.a*b.a) == 1)
+assert(tbl=={a:5})
+assert({a:5}==tbl)
+assert(tbl!={a:-5})
+assert({a:-5}!=tbl)
+
+# Coercion.
+#
+tbl::str!(|| `<{self.a}>`)
+assert(tbl::str() == "<4>")
+
+# Unary.
+#
+tbl::neg!(|| {
+   const r = self::dup()
+   r.a = -r.a;
+   r
+})
+assert((-tbl)::str() == "<-4>")
+
+# Binary.
+#
+tbl::add!(|a, b| {
+   const r = self::dup()
+   r.a = a.a + b.a;
+   r
+})
+const x = tbl + {a:7}
+assert(x.a == (7+4))
+const y = {a:8} + x
+assert(y.a == (8+4+7))
+
+# Length.
+#
+tbl::len!(|| 999)
+assert(tbl::len() == 999)
+
+# Get as table or function.
+#
+tbl::get!(|k| {
+   if k == "a2" {
+      return self.a * self.a
+   }
+})
+assert(tbl.a2 == 16)
+
+tbl::get!({z: 3})
+assert(tbl.z == 3)
+
+# Set.
+#
+const set_list = []
+tbl::set!(|k, v| {
+   set_list += {k, v}
+});
+tbl.c = 4
+assert(set_list[0].k == "c" && set_list[0].v == 4)
+
+# Hide.
+#
+assert(tbl::set!() is function)
+tbl::hide!(true)
+assert(tbl::set!() == {})
+
+# Freeze.
+#
+tbl::freeze!(true);
+const T1 = || { tbl.z = 45 }
+let ok;
+const ex = pcall(T1, &ok)
+assert("modifying frozen table" in ex && !ok)
+
+# Seal.
+#
+tbl::seal!(true);
+const T1 = || {tbl::seal!(false)}
+let ok;
+const ex = pcall(T1, &ok)
+assert("modifying sealed traits" in ex && !ok)

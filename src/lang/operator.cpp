@@ -12,7 +12,28 @@ namespace li {
 	if (!v.is(t)) [[unlikely]] \
 		return {arg_error(L, v, type_names[t]), false};
 
-	// TODO: Coerce + Meta
+#define UNARY_APPLY_TRAIT(t)									 \
+	if (a.is_tbl()) [[unlikely]] {							 \
+		auto* tbl = a.as_tbl();									 \
+		if (tbl->has_trait<t>()) {								 \
+			bool ok = L->scall(0, tbl->get_trait<t>(), a);\
+			return {L->pop_stack(), ok};						 \
+		}																 \
+	}
+#define BINARY_APPLY_TRAIT_AND(t, TF) if(a.is_tbl() || b.is_tbl() ) [[unlikely]]	do{ \
+	trait_pointer tp = {}; any self;                             \
+	if (a.is_tbl() && a.as_tbl()->has_trait<t>())		          \
+		tp = a.as_tbl()->traits->list[uint32_t(t)], self = a;     \
+	else if (b.is_tbl() && b.as_tbl()->has_trait<t>())	          \
+		tp = b.as_tbl()->traits->list[uint32_t(t)], self = b;     \
+	if (tp.pointer) {															 \
+		L->push_stack(b);														 \
+		L->push_stack(a);														 \
+		bool ok = L->scall(2, tp.as_any(), self);						 \
+		any retval = L->pop_stack();                              \
+		return {TF(retval, ok)};								          \
+	} } while(0);
+#define BINARY_APPLY_TRAIT(t) BINARY_APPLY_TRAIT_AND(t, LI_IDENTITY)
 
 	// Applies the unary/binary operator the values given. On failure (e.g. type mismatch),
 	// returns the exception as the result and false for the second return.
@@ -23,10 +44,12 @@ namespace li {
 				return {any(!a.as_bool()), true};
 			}
 			case bc::ANEG: {
+				UNARY_APPLY_TRAIT(trait::neg);
 				TYPE_ASSERT(a, type_number);
 				return {any(-a.as_num()), true};
 			}
 			case bc::VLEN: {
+				UNARY_APPLY_TRAIT(trait::len);
 				if (a.is_arr()) {
 					return {any(number(a.as_arr()->length)), true};
 				} else if (a.is_tbl()) {
@@ -76,11 +99,8 @@ namespace li {
 				return {a.as_bool() ? a : b, true};
 			case bc::LAND:
 				return {a.as_bool() ? b : a, true};
-			case bc::CEQ:
-				return {any(a == b), true};
-			case bc::CNE:
-				return {any(a != b), true};
 			case bc::AADD:
+				BINARY_APPLY_TRAIT(trait::add);
 				if (a.is_arr()) {
 					a.as_arr()->push(L, b);
 					return {any(a), true};
@@ -93,38 +113,66 @@ namespace li {
 					return {any(a.as_num() + b.as_num()), true};
 				}
 			case bc::ASUB:
+				BINARY_APPLY_TRAIT(trait::sub);
 				TYPE_ASSERT(a, type_number);
 				TYPE_ASSERT(b, type_number);
 				return {any(a.as_num() - b.as_num()), true};
 			case bc::AMUL:
+				BINARY_APPLY_TRAIT(trait::mul);
 				TYPE_ASSERT(a, type_number);
 				TYPE_ASSERT(b, type_number);
 				return {any(a.as_num() * b.as_num()), true};
 			case bc::ADIV:
+				BINARY_APPLY_TRAIT(trait::div);
 				TYPE_ASSERT(a, type_number);
 				TYPE_ASSERT(b, type_number);
 				return {any(a.as_num() / b.as_num()), true};
 			case bc::AMOD:
+				BINARY_APPLY_TRAIT(trait::mod);
 				TYPE_ASSERT(a, type_number);
 				TYPE_ASSERT(b, type_number);
 				return {any(fmod(a.as_num(), b.as_num())), true};
 			case bc::APOW:
+				BINARY_APPLY_TRAIT(trait::pow);
 				TYPE_ASSERT(a, type_number);
 				TYPE_ASSERT(b, type_number);
 				return {any(pow(a.as_num(), b.as_num())), true};
+			case bc::CEQ:
+				if (a == b)
+					return {true, true};
+				BINARY_APPLY_TRAIT(trait::eq);
+				return {false, true};
+			case bc::CNE:
+				if (a == b)
+					return {false, true};
+				#define NEGATE(res, ok) ok?any(!res.as_bool()):res, ok
+				BINARY_APPLY_TRAIT_AND(trait::eq, NEGATE);
+				return {true, true};
 			case bc::CLT:
+				BINARY_APPLY_TRAIT(trait::lt);
 				TYPE_ASSERT(a, type_number);
 				TYPE_ASSERT(b, type_number);
 				return {any(a.as_num() < b.as_num()), true};
 			case bc::CGT:
+				{
+					auto x=a,y=b;
+					auto a=y,b=x;
+					BINARY_APPLY_TRAIT(trait::lt);
+				}
 				TYPE_ASSERT(a, type_number);
 				TYPE_ASSERT(b, type_number);
 				return {any(a.as_num() > b.as_num()), true};
 			case bc::CLE:
+				BINARY_APPLY_TRAIT(trait::le);
 				TYPE_ASSERT(a, type_number);
 				TYPE_ASSERT(b, type_number);
 				return {any(a.as_num() <= b.as_num()), true};
 			case bc::CGE:
+				{
+					auto x=a,y=b;
+					auto a=y,b=x;
+					BINARY_APPLY_TRAIT(trait::le);
+				}
 				TYPE_ASSERT(a, type_number);
 				TYPE_ASSERT(b, type_number);
 				return {any(a.as_num() >= b.as_num()), true};

@@ -39,6 +39,10 @@ namespace li::bc {
 	_(VDUP,  reg, reg, ___) /* A=DUP(B) */                                           \
 	_(CCAT,  reg, imm, ___) /* A=CONCAT(A..A+B) */                                   \
                                                                                     \
+   /* Trait operators. */                                                           \
+	_(TRSET, reg, reg, imm) /* A[Trait C] = B */                                     \
+	_(TRGET, reg, reg, imm) /* A = B[Trait C] */                                     \
+                                                                                    \
 	/* Constant operators. */                                                        \
 	_(KIMM,  reg, xmm, ___) /* A=Bitcast(BC) */                                      \
                                                                                     \

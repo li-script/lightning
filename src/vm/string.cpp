@@ -51,10 +51,9 @@ namespace li {
 #endif
 	}
 
-	// TODO: Weak node?
 	struct string_set : gc::node<string_set> {
 		static constexpr size_t min_size = 512;
-		static constexpr size_t overflow_factor = 8;
+		static constexpr size_t overflow_factor = 3;
 
 		string* entries[];
 
@@ -66,7 +65,7 @@ namespace li {
 		string**           end() { return &entries[size() + overflow_factor]; }
 		std::span<string*> find(size_t hash) {
 			auto it = begin() + (hash & mask());
-			return {it, it + overflow_factor};
+			return {it, end()}; // allow full load.
 		}
 
 		// GC enumerator.
@@ -204,6 +203,9 @@ namespace li {
 	}
 
 	string* string::concat( vm* L, string* a, string* b) {
+		if (a == b && a == L->empty_string)
+			return a;
+
 		// Allocate a new GC string instance and concat within it.
 		//
 		uint32_t len = a->length + b->length;

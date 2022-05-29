@@ -5,6 +5,7 @@
 #include <vm/function.hpp>
 #include <vm/string.hpp>
 #include <vm/table.hpp>
+#include <util/utf.hpp>
 
 namespace li {
 	// Operator traits for parsing.
@@ -1978,6 +1979,16 @@ namespace li {
 	// If code parsing fails, result is instead a string explaining the error.
 	//
 	any load_script(vm* L, std::string_view source, std::string_view source_name, bool is_repl) {
+		// Handle UTF input.
+		//
+		std::string temp;
+		if (util::utf::utf_is_bom(source)) [[unlikely]] {
+			temp = util::utf::utf_convert<char>(std::as_bytes(std::span(source)));
+			source = temp;
+		}
+
+		// Parse the body and propagate the result.
+		//
 		lex::state lx{L, source, source_name};
 		func_state fn{L, lx};
 		fn.is_repl = is_repl;

@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <cstring>
+#include <type_traits>
 
 #ifndef __has_builtin
 	#define __has_builtin(...) 0
@@ -50,6 +51,37 @@
 #define LI_STRCAT(x, y)   LI_STRCAT_I(x, y)
 
 namespace li {
+	namespace util {
+		static constexpr uint64_t fill_bits(int x, int o = 0) { return (x ? (~0ull >> (64 - x)) : 0) << o; }
+
+		template<typename T>
+		static constexpr T bswap(T value) {
+			if constexpr (sizeof(T) == 1) {
+				return value;
+			} else if constexpr (sizeof(T) == 2) {
+#if __has_builtin(__builtin_bswap16)
+				if (!std::is_constant_evaluated())
+					return __builtin_bswap16(uint16_t(value));
+#endif
+				return T(uint16_t((uint16_t(value) & 0xFF) << 8) | uint16_t((uint16_t(value) & 0xFF00) >> 8));
+			} else if constexpr (sizeof(T) == 4) {
+#if __has_builtin(__builtin_bswap32)
+				if (!std::is_constant_evaluated())
+					return __builtin_bswap32(uint32_t(value));
+#endif
+				return T(uint32_t(bswap(uint16_t((uint32_t(value) << 16) >> 16))) << 16) | (uint32_t(bswap(uint16_t((uint32_t(value) >> 16)))));
+			} else if constexpr (sizeof(T) == 8) {
+#if __has_builtin(__builtin_bswap64)
+				if (!std::is_constant_evaluated())
+					return __builtin_bswap64(value);
+#endif
+				return T(uint64_t(bswap(uint32_t((uint64_t(value) << 32) >> 32))) << 32) | (uint64_t(bswap(uint32_t((uint64_t(value) >> 32)))));
+			} else {
+				static_assert(sizeof(T) == -1, "unexpected integer size");
+			}
+		}
+	};
+
 	// Implement bit-cast since many STL's lack it despite compiler support.
 	//
 	template<class To, typename From> requires(sizeof(To) == sizeof(From))

@@ -67,7 +67,7 @@ namespace li {
 	}
 
 	LI_INLINE static constexpr bool     is_gc_type(uint64_t type) { return type_array <= type && type <= type_thread; }
-	LI_INLINE static constexpr uint64_t mask_value(uint64_t value) { return value & ((1ull << 47) - 1); }
+	LI_INLINE static constexpr uint64_t mask_value(uint64_t value) { return value & util::fill_bits(47); }
 	LI_INLINE static constexpr uint64_t mix_value(uint8_t type, uint64_t value) { return ((~uint64_t(type)) << 47) | mask_value(value); }
 	LI_INLINE static constexpr uint64_t make_tag(uint8_t type) { return ((~uint64_t(type)) << 47) | mask_value(~0ull); }
 	LI_INLINE static constexpr uint64_t get_type(uint64_t value) { return ((~value) >> 47); }

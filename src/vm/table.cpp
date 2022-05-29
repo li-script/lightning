@@ -65,8 +65,17 @@ namespace li {
 	// Table get/set.
 	//
 	void table::set(vm* L, any key, any value) {
-
 		size_t hash = key.hash();
+
+		if (value == none) {
+			for (auto& entry : find(key.hash())) {
+				if (entry.key == key) {
+					entry.value = none;
+					break;
+				}
+			}
+			return;
+		}
 
 		while (true) {
 			auto range = find(hash);

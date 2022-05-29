@@ -168,6 +168,7 @@ namespace li {
 
 						case bc::CCAT: {
 							REG(a) = string::concat(L, &REG(a), b);
+							dirty_stack();  // meta
 							continue;
 						}
 						case bc::CTY: {
@@ -337,6 +338,9 @@ namespace li {
 						case bc::TGET: {
 							auto tbl = REG(c);
 							auto key = REG(b);
+							if (key == none) [[unlikely]] {
+								VM_RET(string::create(L, "indexing with null key"), true);
+							}
 
 							if (tbl.is_tbl()) {
 								REG(a) = tbl.as_tbl()->get(L, REG(b));
@@ -353,7 +357,7 @@ namespace li {
 								auto i = size_t(key.as_num());
 								auto v = tbl.as_str()->view();
 								REG(a) = v.size() <= i ? any(none) : any(number((uint8_t)v[i]));
-							} else if (tbl.is(type_none)) {
+							} else if (tbl == none) {
 								REG(a) = none;
 							} else {
 								VM_RET(string::create(L, "indexing non-table"), true);
@@ -365,7 +369,7 @@ namespace li {
 							auto  key = REG(a);
 							auto  val = REG(b);
 
-							if (key.is(type_none)) [[unlikely]] {
+							if (key == none) [[unlikely]] {
 								VM_RET(string::create(L, "indexing with null key"), true);
 							}
 							if (tbl.is_arr()) {
@@ -377,7 +381,7 @@ namespace li {
 								}
 								continue;
 							} else if (!tbl.is_tbl()) [[unlikely]] {
-								if (tbl.is(type_none)) {
+								if (tbl == none) {
 									tbl = any{table::create(L)};
 								} else [[unlikely]] {
 									VM_RET(string::create(L, "indexing non-table"), true);
@@ -389,11 +393,17 @@ namespace li {
 							continue;
 						}
 						case bc::GGET: {
+							if (REG(b) == none) [[unlikely]] {
+								VM_RET(string::create(L, "indexing with null key"), true);
+							}
 							REG(a) = f->environment->get(L, REG(b));
 							dirty_stack();  // meta
 							continue;
 						}
 						case bc::GSET: {
+							if (REG(a) == none) [[unlikely]] {
+								VM_RET(string::create(L, "indexing with null key"), true);
+							}
 							f->environment->set(L, REG(a), REG(b));
 							dirty_stack();  // meta
 							L->gc.tick(L);

@@ -33,7 +33,7 @@ namespace li {
 					return {any(number(a.as_tbl()->active_count)), true};
 				} else if (a.is_str()) {
 					return {any(number(a.as_str()->length)), true};
-				} else {
+				} else [[unlikely]] {
 					return {arg_error(L, a, "iterable"), false};
 				}
 			}
@@ -44,6 +44,32 @@ namespace li {
 	}
 	LI_INLINE std::pair<any, bool> apply_binary(vm* L, any a, any b, bc::opcode op) {
 		switch (op) {
+			case bc::VIN: {
+				if (b.is_arr()) {
+					for (auto& k : *b.as_arr())
+						if (k == a)
+							return {const_true, true};
+					return {const_false, true};
+				} else if (b.is_tbl()) {
+					return {any(a != none && b.as_tbl()->get(L, a) != none), true};
+				} else if (b.is_str()) {
+
+					if (a.is_num()) {
+						if (auto num = uint32_t(a.as_num()); num <= 0xFF) {
+							for (auto& k : b.as_str()->view())
+								if (uint8_t(k) == num)
+									return {const_true, true};
+						}
+						return {const_false, true};
+					} else if (a.is_str()) {
+						return { bool(b.as_str()->view().contains(a.as_str()->view())), true };
+					} else {
+						return {arg_error(L, b, "string or character"), false};
+					}
+				} else [[unlikely]] {
+					return {arg_error(L, b, "iterable"), false};
+				}
+			}
 			case bc::NCS:
 				return {a == none ? b : a, true};
 			case bc::LOR:

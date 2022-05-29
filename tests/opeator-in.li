@@ -1,0 +1,6 @@
+assert("ab" in "abc")
+assert("ab" in ["ab", "cd"])
+assert("ab" in {ab: 4})
+assert(!("xb" in "abc"))
+assert(!("xb" in ["ab", "cd"]))
+assert(!("xb" in {ab: 4}))

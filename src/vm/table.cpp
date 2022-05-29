@@ -99,7 +99,7 @@ namespace li {
 	// Traitful table get/set.
 	//
 	std::pair<any, bool> table::tset(vm* L, any key, any value) {
-		if (trait_freeze) {
+		if (trait_freeze) [[unlikely]] {
 			return {string::create(L, "modifying frozen table."), false};
 		}
 

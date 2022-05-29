@@ -52,6 +52,7 @@
     <ClInclude Include="..\include\util\llist.hpp" />
     <ClInclude Include="..\include\util\platform.hpp" />
     <ClInclude Include="..\include\util\user.hpp" />
+    <ClInclude Include="..\include\util\utf.hpp" />
     <ClInclude Include="..\include\vm\array.hpp" />
     <ClInclude Include="..\include\vm\bc.hpp" />
     <ClInclude Include="..\include\vm\function.hpp" />

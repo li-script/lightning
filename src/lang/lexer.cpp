@@ -1,6 +1,7 @@
 #include <stdarg.h>
 #include <array>
 #include <lang/lexer.hpp>
+#include <util/utf.hpp>
 #include <util/common.hpp>
 #include <util/format.hpp>
 #include <cmath>
@@ -114,12 +115,111 @@ namespace li::lex {
 
 	// Handles escapes within a string.
 	//
-	static std::string escape_string(std::string_view str) {
-		// TODO:
-		// unicode escape \u1234
-		// escape \v \f \\ ...
+	template<int Base>
+	LI_INLINE static std::optional<int> parse_digit(std::string_view& value);
+
+	static std::string escape_string(std::string_view str, std::string_view& err) {
+		std::string result(str);
+
+		// For each escape character found:
 		//
-		return std::string(str);
+		size_t n = 0;
+		while (n < result.size()) {
+			auto pos = result.find('\\', n);
+			if (pos == std::string::npos) {
+				break;
+			}
+			LI_ASSERT((pos + 1) != result.size());
+
+#define SIMPLE_ESCAPE(x, y)                   \
+	case x: {                                  \
+		result[pos] = y;                        \
+		result.erase(result.begin() + pos + 1); \
+		n = pos + 1;                            \
+		continue;                               \
+	}												
+
+			switch (result[pos + 1]) {
+				SIMPLE_ESCAPE('a', '\a')
+				SIMPLE_ESCAPE('b', '\b')
+				SIMPLE_ESCAPE('f', '\f')
+				SIMPLE_ESCAPE('n', '\n')
+				SIMPLE_ESCAPE('r', '\r')
+				SIMPLE_ESCAPE('t', '\t')
+				SIMPLE_ESCAPE('v', '\v')
+				SIMPLE_ESCAPE('\\', '\\')
+				// \xAB
+				case 'x': {
+					// Parse 2 hexadecimal digits.
+					//
+					if ((pos + 4) > result.size()) {
+						err = "invalid hex escape.";
+						return {};
+					}
+					std::string_view src{result.data() + pos + 2, 2};
+					auto             n1 = parse_digit<16>(src);
+					auto             n0 = parse_digit<16>(src);
+					if (!n1 || !n0) {
+						err = "invalid hex escape.";
+						return {};
+					}
+
+					// Insert-inplace.
+					//
+					uint8_t x = 0;
+					x |= uint8_t(*n1) << (1 * 4);
+					x |= uint8_t(*n0) << (0 * 4);
+					result[pos] = (char) x;
+					result.erase(result.begin() + pos + 1, result.begin() + pos + 4);
+					n = pos + 1;
+					break;
+				}
+				// \uABCD
+				case 'u': {
+					// Parse 4 hexadecimal digits.
+					//
+					if ((pos + 6) > result.size()) {
+						err = "invalid unicode escape.";
+						return {};
+					}
+					std::string_view src{result.data() + pos + 2, 4};
+					auto n3 = parse_digit<16>(src);
+					auto n2 = parse_digit<16>(src);
+					auto n1 = parse_digit<16>(src);
+					auto n0 = parse_digit<16>(src);
+					if (!n3 || !n2 || !n1 || !n0) {
+						err = "invalid unicode escape.";
+						return {};
+					}
+
+					// Read as U16LE.
+					//
+					uint32_t cp = 0;
+					cp |= uint32_t(*n3) << (3 * 4);
+					cp |= uint32_t(*n2) << (2 * 4);
+					cp |= uint32_t(*n1) << (1 * 4);
+					cp |= uint32_t(*n0) << (0 * 4);
+
+					// Insert-inplace.
+					//
+					static_assert(util::utf::codepoint_cvt<char>::max_out <= 6, "can't write inplace");
+					auto it = &result[pos];
+					util::utf::codepoint_cvt<char>::encode(cp, it);
+					auto len = it  - & result[pos];
+
+					// Remove all after it.
+					//
+					result.erase(result.begin() + pos + len, result.begin() + pos + 6);
+					n = pos + len + 1;
+					break;
+				}
+				default:
+					err = "invalid escape sequence.";
+					return {};
+			}
+#undef SIMPLE_ESCAPE
+		}
+		return result;
 	}
 
 	// Skips to next line.
@@ -156,7 +256,11 @@ namespace li::lex {
 			}
 			// If not escaped end of string, return.
 			else if (!escape && state.input[i] == '"') {
-				std::string str    = escape_string(state.input.substr(0, i));
+				std::string_view err    = {};
+				std::string      str    = escape_string(state.input.substr(0, i), err);
+				if (!err.empty()) {
+					return state.error(err);
+				}
 				token_value result = {.id = token_lstr, .str_val = string::create(state.L, str)};
 				state.input.remove_prefix(i + 1);
 				return result;

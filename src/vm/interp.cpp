@@ -348,7 +348,7 @@ namespace li {
 								}
 								auto i = size_t(key.as_num());
 								auto v = tbl.as_str()->view();
-								REG(a) = v.size() <= i ? any(none) : any(number(v[i]));
+								REG(a) = v.size() <= i ? any(none) : any(number((uint8_t)v[i]));
 							} else if (tbl.is(type_none)) {
 								REG(a) = none;
 							} else {

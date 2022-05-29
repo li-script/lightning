@@ -222,6 +222,12 @@ namespace li::lex {
 			}
 			return token_value{.id = token_error};
 		}
+		token_value error(std::string_view err) {
+			if (last_error.empty()) {
+				last_error.assign(err);
+			}
+			return token_value{.id = token_error};
+		}
 
 		// Scans for the next token.
 		//

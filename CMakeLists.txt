@@ -35,7 +35,7 @@ project(lightning
 		CXX
 )
 
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "(amd64)|(AMD64)") # x86_64
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "(amd64)|(AMD64)|(x86_64)") # x86_64
 	# zydis
 	set(CMKR_CMAKE_FOLDER ${CMAKE_FOLDER})
 	if(CMAKE_FOLDER)
@@ -119,7 +119,7 @@ target_include_directories(libli PUBLIC
 	include
 )
 
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "(amd64)|(AMD64)") # x86_64
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "(amd64)|(AMD64)|(x86_64)") # x86_64
 	target_link_libraries(libli PUBLIC
 		Zydis
 	)

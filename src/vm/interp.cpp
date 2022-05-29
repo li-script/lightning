@@ -341,6 +341,42 @@ namespace li {
 							}
 							continue;
 						}
+						case bc::TGETR: {
+							auto tbl = REG(c);
+							auto key = REG(b);
+							if (key == none) [[unlikely]] {
+								VM_RET(string::create(L, "indexing with null key"), true);
+							}
+							if (tbl.is_tbl()) {
+								REG(a) = tbl.as_tbl()->get(L, REG(b));
+							} else {
+								VM_RET(string::create(L, "indexing non-table"), true);
+							}
+							continue;
+						}
+						case bc::TSETR: {
+							auto& tbl = REG(c);
+							auto  key = REG(a);
+							auto  val = REG(b);
+
+							if (key == none) [[unlikely]] {
+								VM_RET(string::create(L, "indexing with null key"), true);
+							}
+							if (!tbl.is_tbl()) [[unlikely]] {
+								if (tbl == none) {
+									tbl = any{table::create(L)};
+								} else [[unlikely]] {
+									VM_RET(string::create(L, "indexing non-table"), true);
+								}
+							}
+							if (tbl.as_tbl()->trait_freeze) [[unlikely]] {
+								VM_RET(string::create(L, "modifying frozen table."), true);
+							}
+
+							tbl.as_tbl()->set(L, key, val);
+							L->gc.tick(L);
+							continue;
+						}
 						case bc::TGET: {
 							auto tbl = REG(c);
 							auto key = REG(b);

@@ -61,6 +61,8 @@ namespace li::bc {
 	_(TDUP,  reg, kvl, ___) /* A=Duplicate(KVAL[B]) */                               \
 	_(TGET,  reg, reg, reg) /* A=C[B] */                                             \
 	_(TSET,  reg, reg, reg) /* C[A]=B */                                             \
+	_(TGETR, reg, reg, reg) /* A=C[B] | Raw */                                       \
+	_(TSETR, reg, reg, reg) /* C[A]=B | Raw */                                       \
                                                                                     \
 	/* Closure operators. */                                                         \
 	_(FDUP,  reg, kvl, reg) /* A=Duplicate(KVAL[B]), A.UVAL[0]=C, A.UVAL[1]=C+1.. */ \

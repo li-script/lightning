@@ -1,0 +1,49 @@
+const {sqrt, floor} = math
+
+const vec3 = {x:0,y:0,z:0}
+vec3::get!({
+   dot:  |a| (a.x*self.x+a.y*self.y+a.z*self.z),
+   size: 3
+})
+vec3::len!(|| sqrt(self->dot(self)))
+vec3::neg!(|| {
+   const r = vec3::dup()
+   r.x = -self.x; r.y = -self.y; r.z = -self.z;
+   r
+})
+vec3::add!(|a,b| {
+   const r = vec3::dup()
+   r.x = a.x+b.x; r.y = a.y+b.y; r.z = a.z+b.z;
+   r
+})
+vec3::sub!(|a,b| {
+   const r = vec3::dup()
+   r.x = a.x-b.x; r.y = a.y-b.y; r.z = a.z-b.z;
+   r
+})
+vec3::mul!(|a,b| {
+   const r = vec3::dup()
+   r.x = a.x*b.x; r.y = a.y*b.y; r.z = a.z*b.z;
+   r
+})
+vec3::div!(|a,b| {
+   const r = vec3::dup()
+   r.x = a.x/b.x; r.y = a.y/b.y; r.z = a.z/b.z;
+   r
+})
+vec3::eq!(|a,b| a.x==b.x && a.y==b.y && a.z==b.z)
+vec3::str!(|| `{{{self.x},{self.y},{self.z}}}`)
+vec3::call!(|x,y,z| {
+   const r = vec3::dup()
+   r.x = x; r.y = y; r.z = z;
+   r
+})
+vec3::seal!(true)
+
+const a = vec3(1,2,0)
+const b = vec3(5,6,7)
+assert(a == vec3(1,2,0))
+assert(((a+b)*-a)::str() == "{-6,-16,-0}")
+assert(a->dot(b) == 17)
+assert(floor(a::len()) == 2)
+assert(a.size == 3)

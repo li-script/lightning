@@ -19,7 +19,11 @@ namespace li {
 
 		// Duplicates the array.
 		//
-		array* duplicate(vm* L);
+		array* duplicate(vm* L) const {
+			array* r   = L->duplicate(this);
+			r->storage = L->duplicate(r->storage);
+			return r;
+		}
 
 		// GC enumerator.
 		//

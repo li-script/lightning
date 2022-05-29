@@ -65,7 +65,7 @@ namespace li {
 
 		// Duplicates the function.
 		//
-		function* duplicate(vm* L);
+		function* duplicate(vm* L) const { return L->duplicate(this); }
 
 		// Converts BC -> Line.
 		//

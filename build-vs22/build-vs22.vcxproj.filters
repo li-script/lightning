@@ -111,6 +111,9 @@
     <ClInclude Include="..\include\util\utf.hpp">
       <Filter>Utility</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\vm\traits.hpp">
+      <Filter>VM\Types</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\.clang-format" />

@@ -37,10 +37,6 @@ namespace li {
 		}
 	}
 
-	// Duplicates the function.
-	//
-	function* function::duplicate(vm* L) { return L->duplicate<function>(this); }
-
 	// Replication of vm::call.
 	//
 	bool nfunction::call(vm* L, slot_t n_args, slot_t caller_frame, uint32_t caller_pc) {

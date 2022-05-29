@@ -1,0 +1,9 @@
+fn check(a) {
+   const b = a::dup()
+   assert(a!=b)
+   for k,v in a {
+      assert(v == b[k])
+   }
+}
+check([1,2,3])
+check({a:4})

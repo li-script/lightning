@@ -10,55 +10,56 @@ namespace li::bc {
 	//
 #define LIGHTNING_ENUM_BC(_)                                                        \
 	/* Unary operators */                                                            \
-	_(LNOT, reg, reg, ___) /* A=!B */                                                \
-	_(ANEG, reg, reg, ___) /* A=-B */                                                \
-	_(MOV,  reg, reg, ___) /* A=B */                                                 \
-	_(VLEN, reg, reg, ___) /* A=LEN(B) */                                            \
+	_(LNOT,  reg, reg, ___) /* A=!B */                                               \
+	_(ANEG,  reg, reg, ___) /* A=-B */                                               \
+	_(MOV,   reg, reg, ___) /* A=B */                                                \
+	_(VLEN,  reg, reg, ___) /* A=LEN(B) */                                           \
                                                                                     \
 	/* Binary operators.  */                                                         \
-	_(AADD, reg, reg, reg) /* A=B+C */                                               \
-	_(ASUB, reg, reg, reg) /* A=B-C */                                               \
-	_(AMUL, reg, reg, reg) /* A=B*C */                                               \
-	_(ADIV, reg, reg, reg) /* A=B/C */                                               \
-	_(AMOD, reg, reg, reg) /* A=B%C */                                               \
-	_(APOW, reg, reg, reg) /* A=B^C */                                               \
-	_(LAND, reg, reg, reg) /* A=B&&C */                                              \
-	_(LOR,  reg, reg, reg) /* A=B||C */                                              \
-	_(NCS,  reg, reg, reg) /* A=B==null?C:B */                                       \
-	_(CEQ,  reg, reg, reg) /* A=B==C */                                              \
-	_(CNE,  reg, reg, reg) /* A=B!=C */                                              \
-	_(CLT,  reg, reg, reg) /* A=B<C */                                               \
-	_(CGT,  reg, reg, reg) /* A=B>C */                                               \
-	_(CLE,  reg, reg, reg) /* A=B<=C */                                              \
-	_(CGE,  reg, reg, reg) /* A=B>=C */                                              \
-	_(CTY,  reg, reg, imm) /* A=TYPE(B)==C */                                        \
-	_(CMOV, reg, reg, reg) /* if(C){A=B} */                                          \
-	_(VIN,  reg, reg, reg) /* A=C Includes B */                                      \
+	_(AADD,  reg, reg, reg) /* A=B+C */                                              \
+	_(ASUB,  reg, reg, reg) /* A=B-C */                                              \
+	_(AMUL,  reg, reg, reg) /* A=B*C */                                              \
+	_(ADIV,  reg, reg, reg) /* A=B/C */                                              \
+	_(AMOD,  reg, reg, reg) /* A=B%C */                                              \
+	_(APOW,  reg, reg, reg) /* A=B^C */                                              \
+	_(LAND,  reg, reg, reg) /* A=B&&C */                                             \
+	_(LOR,   reg, reg, reg) /* A=B||C */                                             \
+	_(NCS,   reg, reg, reg) /* A=B==null?C:B */                                      \
+	_(CEQ,   reg, reg, reg) /* A=B==C */                                             \
+	_(CNE,   reg, reg, reg) /* A=B!=C */                                             \
+	_(CLT,   reg, reg, reg) /* A=B<C */                                              \
+	_(CGT,   reg, reg, reg) /* A=B>C */                                              \
+	_(CLE,   reg, reg, reg) /* A=B<=C */                                             \
+	_(CGE,   reg, reg, reg) /* A=B>=C */                                             \
+	_(CTY,   reg, reg, imm) /* A=TYPE(B)==C */                                       \
+	_(CMOV,  reg, reg, reg) /* if(C){A=B} */                                         \
+	_(VIN,   reg, reg, reg) /* A=C Includes B */                                     \
                                                                                     \
    /* Helpers */                                                                    \
-	_(CCAT, reg, imm, ___) /* A=CONCAT(A..A+B) */                                    \
+	_(VDUP,  reg, reg, ___) /* A=DUP(B) */                                           \
+	_(CCAT,  reg, imm, ___) /* A=CONCAT(A..A+B) */                                   \
                                                                                     \
 	/* Constant operators. */                                                        \
-	_(KIMM, reg, xmm, ___) /* A=Bitcast(BC) */                                       \
+	_(KIMM,  reg, xmm, ___) /* A=Bitcast(BC) */                                      \
                                                                                     \
 	/* Upvalue operators. */                                                         \
-	_(UGET, reg, uvl, ___) /* A=UVAL[B] */                                           \
-	_(USET, uvl, reg, ___) /* UVAL[A]=B */                                           \
+	_(UGET,  reg, uvl, ___) /* A=UVAL[B] */                                          \
+	_(USET,  uvl, reg, ___) /* UVAL[A]=B */                                          \
                                                                                     \
 	/* Global operators. */                                                          \
-	_(GGET, reg, reg, ___) /* A=G[B] */                                              \
-	_(GSET, reg, reg, ___) /* G[A]=B */                                              \
+	_(GGET,  reg, reg, ___) /* A=G[B] */                                             \
+	_(GSET,  reg, reg, ___) /* G[A]=B */                                             \
                                                                                     \
 	/* Table/Array operators. */                                                     \
-	_(ANEW, reg, imm, ___) /* A=ARRAY{Reserved=B} */                                 \
-	_(TNEW, reg, imm, ___) /* A=TABLE{Reserved=B} */                                 \
-	_(ADUP, reg, kvl, ___) /* A=Duplicate(KVAL[B]) */                                \
-	_(TDUP, reg, kvl, ___) /* A=Duplicate(KVAL[B]) */                                \
-	_(TGET, reg, reg, reg) /* A=C[B] */                                              \
-	_(TSET, reg, reg, reg) /* C[A]=B */                                              \
+	_(ANEW,  reg, imm, ___) /* A=ARRAY{Reserved=B} */                                \
+	_(TNEW,  reg, imm, ___) /* A=TABLE{Reserved=B} */                                \
+	_(ADUP,  reg, kvl, ___) /* A=Duplicate(KVAL[B]) */                               \
+	_(TDUP,  reg, kvl, ___) /* A=Duplicate(KVAL[B]) */                               \
+	_(TGET,  reg, reg, reg) /* A=C[B] */                                             \
+	_(TSET,  reg, reg, reg) /* C[A]=B */                                             \
                                                                                     \
 	/* Closure operators. */                                                         \
-	_(FDUP, reg, kvl, reg) /* A=Duplicate(KVAL[B]), A.UVAL[0]=C, A.UVAL[1]=C+1... */ \
+	_(FDUP,  reg, kvl, reg) /* A=Duplicate(KVAL[B]), A.UVAL[0]=C, A.UVAL[1]=C+1.. */ \
                                                                                     \
 	/* Stack operators. */                                                           \
 	_(PUSHR, reg, ___, ___) /* PUSH(A) */                                            \
@@ -67,15 +68,15 @@ namespace li::bc {
 	_(SRST,  ___, ___, ___) /* Resets the stack pos */                               \
                                                                                     \
 	/* Control flow. */                                                              \
-	_(CALL, imm, ___, ___) /* A = Arg count */                                       \
-	_(RET,  reg, ___, ___) /* RETURN A */                                            \
-	_(THRW, reg, ___, ___) /* THROW A */                                             \
-	_(JMP,  rel, ___, ___) /* JMP A */                                               \
-	_(JS,   rel, reg, ___) /* JMP A if B */                                          \
-	_(JNS,  rel, reg, ___) /* JMP A if !B */                                         \
-	_(ITER, rel, reg, reg) /* B[1,2] = C[B].kv, JMP A if end */                      \
+	_(CALL,  imm, ___, ___) /* A = Arg count */                                      \
+	_(RET,   reg, ___, ___) /* RETURN A */                                           \
+	_(THRW,  reg, ___, ___) /* THROW A */                                            \
+	_(JMP,   rel, ___, ___) /* JMP A */                                              \
+	_(JS,    rel, reg, ___) /* JMP A if B */                                         \
+	_(JNS,   rel, reg, ___) /* JMP A if !B */                                        \
+	_(ITER,  rel, reg, reg) /* B[1,2] = C[B].kv, JMP A if end */                     \
 	/* Misc. */                                                                      \
-	_(NOP,  ___, ___, ___) /* No-op */                                              
+	_(NOP,   ___, ___, ___) /* No-op */                                              
 
 	// Opcodes.
 	//

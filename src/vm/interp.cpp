@@ -411,6 +411,25 @@ namespace li {
 							L->gc.tick(L);
 							continue;
 						}
+						case bc::VDUP: {
+							any value = REG(b);
+							if (value.is_gc() && !value.is_str()) {
+								if (value.is_arr()) {
+									value = value.as_arr()->duplicate(L);
+								} else if (value.is_tbl()) {
+									value = value.as_tbl()->duplicate(L);
+								} else if (value.is_vfn()) {
+									value = value.as_vfn()->duplicate(L);
+								} else if (value.is_nfn()) {
+									value = L->duplicate(value.as_nfn());
+								} else {
+									// TODO: Thread, userdata
+								}
+							}
+							REG(a) = value;
+							L->gc.tick(L);
+							continue;
+						}
 						case bc::ANEW: {
 							L->gc.tick(L);
 							REG(a) = any{array::create(L, b)};

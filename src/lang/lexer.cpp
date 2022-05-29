@@ -1,10 +1,10 @@
 #include <stdarg.h>
 #include <array>
+#include <cmath>
 #include <lang/lexer.hpp>
-#include <util/utf.hpp>
 #include <util/common.hpp>
 #include <util/format.hpp>
-#include <cmath>
+#include <util/utf.hpp>
 
 namespace li::lex {
 	// Character traits.
@@ -137,19 +137,20 @@ namespace li::lex {
 		result.erase(result.begin() + pos + 1); \
 		n = pos + 1;                            \
 		continue;                               \
-	}												
+	}
 
 			switch (result[pos + 1]) {
-				SIMPLE_ESCAPE('a',  '\a')
-				SIMPLE_ESCAPE('b',  '\b')
-				SIMPLE_ESCAPE('f',  '\f')
-				SIMPLE_ESCAPE('n',  '\n')
-				SIMPLE_ESCAPE('r',  '\r')
-				SIMPLE_ESCAPE('t',  '\t')
-				SIMPLE_ESCAPE('v',  '\v')
+				SIMPLE_ESCAPE('a', '\a')
+				SIMPLE_ESCAPE('b', '\b')
+				SIMPLE_ESCAPE('f', '\f')
+				SIMPLE_ESCAPE('n', '\n')
+				SIMPLE_ESCAPE('r', '\r')
+				SIMPLE_ESCAPE('t', '\t')
+				SIMPLE_ESCAPE('v', '\v')
 				SIMPLE_ESCAPE('\\', '\\')
-				SIMPLE_ESCAPE('"',  '"')
-				SIMPLE_ESCAPE('`',  '`')
+				SIMPLE_ESCAPE('"', '"')
+				SIMPLE_ESCAPE('`', '`')
+				SIMPLE_ESCAPE('\'', '\'')
 				// \xAB
 				case 'x': {
 					// Parse 2 hexadecimal digits.
@@ -185,10 +186,10 @@ namespace li::lex {
 						return {};
 					}
 					std::string_view src{result.data() + pos + 2, 4};
-					auto n3 = parse_digit<16>(src);
-					auto n2 = parse_digit<16>(src);
-					auto n1 = parse_digit<16>(src);
-					auto n0 = parse_digit<16>(src);
+					auto             n3 = parse_digit<16>(src);
+					auto             n2 = parse_digit<16>(src);
+					auto             n1 = parse_digit<16>(src);
+					auto             n0 = parse_digit<16>(src);
 					if (!n3 || !n2 || !n1 || !n0) {
 						err = "invalid unicode escape.";
 						return {};
@@ -207,7 +208,7 @@ namespace li::lex {
 					static_assert(util::utf::codepoint_cvt<char>::max_out <= 6, "can't write inplace");
 					auto it = &result[pos];
 					util::utf::codepoint_cvt<char>::encode(cp, it);
-					auto len = it  - & result[pos];
+					auto len = it - &result[pos];
 
 					// Remove all after it.
 					//
@@ -246,7 +247,7 @@ namespace li::lex {
 
 		// Until we escape all of it properly:
 		//
-		std::string result{};
+		std::string      result{};
 		std::string_view err{};
 		while (!str.empty() && err.empty()) {
 			auto next = str.find_first_of("\n`{");
@@ -352,7 +353,7 @@ namespace li::lex {
 		for (size_t i = 0;; i++) {
 			// If we reached EOF|EOL and there is no end of string, error.
 			if (i == state.input.size() || state.input[i] == '\n') {
-				return state.error("Unfinished string: line %d\n", state.line);
+				return state.error("unfinished string.", state.line);
 			}
 			// If escaping next character, set the flag.
 			else if (!escape && state.input[i] == '\\') {
@@ -361,12 +362,49 @@ namespace li::lex {
 			}
 			// If not escaped end of string, return.
 			else if (!escape && state.input[i] == '"') {
-				std::string_view err    = {};
-				std::string      str    = escape_string(state.input.substr(0, i), err);
+				std::string_view err = {};
+				std::string      str = escape_string(state.input.substr(0, i), err);
 				if (!err.empty()) {
 					return state.error(err);
 				}
 				token_value result = {.id = token_lstr, .str_val = string::create(state.L, str)};
+				state.input.remove_prefix(i + 1);
+				return result;
+			}
+
+			// Clear escape.
+			escape = false;
+		}
+	}
+	static token_value scan_chr(state& state) {
+		// Consume the quote.
+		//
+		state.input.remove_prefix(1);
+
+		// TODO: Long string
+		bool escape = false;
+		for (size_t i = 0;; i++) {
+			// If we reached EOF|EOL and there is no end of string, error.
+			if (i == state.input.size() || state.input[i] == '\n') {
+				return state.error("unfinished character literal.", state.line);
+			}
+			// If escaping next character, set the flag.
+			else if (!escape && state.input[i] == '\\') {
+				escape = true;
+				continue;
+			}
+			// If not escaped end of string, return.
+			else if (!escape && state.input[i] == '\'') {
+				std::string_view err = {};
+				std::string      str = escape_string(state.input.substr(0, i), err);
+				if (!err.empty()) {
+					return state.error(err);
+				} else if (str.empty()) {
+					return state.error("character literal empty.");
+				} else if (str.size() != 1) {
+					return state.error("character literal too long.");
+				}
+				token_value result = {.id = token_lnum, .num_val = number(str[0])};
 				state.input.remove_prefix(i + 1);
 				return result;
 			}
@@ -569,6 +607,12 @@ namespace li::lex {
 					input.remove_prefix(1);
 					nextline(*this);
 					continue;
+
+				// Character literal:
+				//
+				case '\'': {
+					return scan_chr(*this);
+				}
 
 				// String literal:
 				case '`':

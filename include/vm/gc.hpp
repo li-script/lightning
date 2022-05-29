@@ -21,7 +21,7 @@ namespace li::gc {
 	static constexpr size_t   minimum_allocation = 2 * 1024 * 1024;
 	static constexpr size_t   chunk_shift        = 4;
 	static constexpr size_t   chunk_size         = 1ull << chunk_shift;
-	static constexpr uint32_t gc_interval        = 16384;
+	static constexpr uint32_t gc_interval        = 1 << 15;
 	static constexpr size_t   gc_min_debt        = 4096 / chunk_size;
 	static constexpr size_t   gc_max_debt        = (1 * 1024 * 1024) / chunk_size;
 
@@ -253,8 +253,8 @@ namespace li::gc {
 		void collect(vm* L);
 		void tick(vm* L) {
 			// TODO: Proper scheduling.
-			--ticks;
 			if (debt > gc_min_debt) [[unlikely]] {
+				--ticks;
 				if (ticks < 0 || debt > gc_max_debt) {
 					collect(L);
 				}

@@ -53,7 +53,7 @@ namespace li {
 			if (old_entries) {
 				for (size_t i = 0; i != (old_count + overflow_factor); i++) {
 					if (old_entries[i].key != none) {
-						set(L, old_entries[i].key, old_entries[i].value, true);
+						set(L, old_entries[i].key, old_entries[i].value);
 					}
 				}
 				if (old_list)
@@ -64,7 +64,7 @@ namespace li {
 
 	// Table get/set.
 	//
-	void table::set(vm* L, any key, any value, bool assert_no_resize) {
+	void table::set(vm* L, any key, any value) {
 
 		size_t hash = key.hash();
 
@@ -82,8 +82,6 @@ namespace li {
 					return;
 				}
 			}
-
-			LI_ASSERT(!assert_no_resize);
 			resize(L, size() << 1);
 		}
 	}

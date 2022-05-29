@@ -175,9 +175,9 @@ namespace li {
 		// Duplication helper.
 		//
 		template<typename T>
-		T* duplicate(T* gc) {
+		T* duplicate(T* gc, size_t extra_size = 0) {
 			size_t obj_len = gc->object_bytes();
-			T*     result  = alloc<T>(obj_len - (sizeof(T) - sizeof(gc::header)));
+			T*     result  = alloc<T>(extra_size + obj_len - (sizeof(T) - sizeof(gc::header)));
 			memcpy(std::next((gc::header*) result), std::next((gc::header*) gc), obj_len);
 			return result;
 		}

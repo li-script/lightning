@@ -162,7 +162,6 @@ namespace li::lib {
 			auto fstr   = string::create(L, "func");
 
 			call_frame frame = L->last_vm_caller;
-			uint32_t   ppc   = frame.caller_pc & ~FRAME_C_FLAG;
 			while (frame.stack_pos >= FRAME_SIZE) {
 				auto& target = L->stack[frame.stack_pos + FRAME_TARGET];
 
@@ -173,13 +172,11 @@ namespace li::lib {
 				}
 
 				auto tbl = table::create(L, 2);
-				if (ppc && target.is_vfn()) {
-					tbl->set(L, lstr, any(number(target.as_vfn()->lookup_line(ppc))));
+				if (target.is_vfn()) {
+					tbl->set(L, lstr, any(number(target.as_vfn()->lookup_line(frame.caller_pc & ~FRAME_C_FLAG))));
 				}
 				tbl->set(L, fstr, any(target));
 				result->push(L, tbl);
-
-				ppc = frame.caller_pc & ~FRAME_C_FLAG;
 
 				auto ref = L->stack[frame.stack_pos + FRAME_CALLER];
 				if (ref.is_iopq()) {

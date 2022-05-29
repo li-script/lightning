@@ -1571,7 +1571,7 @@ namespace li {
 	//
 	static expression parse_format(func_scope& scope) {
 		expression parts[64];
-		slot_t     size = 0;
+		uint32_t   size = 0;
 
 		// Parse format string.
 		//
@@ -1579,7 +1579,7 @@ namespace li {
 		auto add = [&](const expression& e) -> bool {
 			// If string literal:
 			//
-			if (e.kind == expr::imm && e.imm.is_str()) {
+			if (e.kind == expr::imm && e.imm.is_str() && size) {
 				// Try merging with the previous instance.
 				//
 				if (parts[size - 1].kind == expr::imm && parts[size - 1].imm.is_str()) {
@@ -1665,7 +1665,7 @@ namespace li {
 		// Allocate base of concat.
 		//
 		auto r = scope.alloc_reg(size);
-		for (slot_t i = 0; i != size; i++) {
+		for (uint32_t i = 0; i != size; i++) {
 			parts[i].to_reg(scope, r + i);
 		}
 		scope.emit(bc::CCAT, r, (int32_t) size);

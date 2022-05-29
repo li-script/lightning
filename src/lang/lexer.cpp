@@ -140,14 +140,16 @@ namespace li::lex {
 	}												
 
 			switch (result[pos + 1]) {
-				SIMPLE_ESCAPE('a', '\a')
-				SIMPLE_ESCAPE('b', '\b')
-				SIMPLE_ESCAPE('f', '\f')
-				SIMPLE_ESCAPE('n', '\n')
-				SIMPLE_ESCAPE('r', '\r')
-				SIMPLE_ESCAPE('t', '\t')
-				SIMPLE_ESCAPE('v', '\v')
+				SIMPLE_ESCAPE('a',  '\a')
+				SIMPLE_ESCAPE('b',  '\b')
+				SIMPLE_ESCAPE('f',  '\f')
+				SIMPLE_ESCAPE('n',  '\n')
+				SIMPLE_ESCAPE('r',  '\r')
+				SIMPLE_ESCAPE('t',  '\t')
+				SIMPLE_ESCAPE('v',  '\v')
 				SIMPLE_ESCAPE('\\', '\\')
+				SIMPLE_ESCAPE('"',  '"')
+				SIMPLE_ESCAPE('`',  '`')
 				// \xAB
 				case 'x': {
 					// Parse 2 hexadecimal digits.
@@ -236,13 +238,116 @@ namespace li::lex {
 
 	// String reader.
 	//
-	static token_value scan_str(state& state, bool fmt) {
+	static token_value scan_fstr(state& state) {
+		// Consume the quote.
+		//
+		auto& str = state.input;
+		str.remove_prefix(1);
+
+		// Until we escape all of it properly:
+		//
+		std::string result{};
+		std::string_view err{};
+		while (!str.empty() && err.empty()) {
+			auto next = str.find_first_of("\n`{");
+
+			// Error if we reach EOL or EOF.
+			if (next == std::string::npos) {
+				return state.error("unmatched format string.");
+			}
+			if (str[next] == '\n') {
+				return state.error("improperly terminated format string.");
+			}
+
+			// Break if we reached the end.
+			//
+			if (str[next] == '`') {
+				result += escape_string(str.substr(0, next), err);
+				str.remove_prefix(next + 1);
+				break;
+			}
+
+			// Handle leftovers.
+			//
+			if (next != 0) {
+				result += escape_string(str.substr(0, next), err);
+				str.remove_prefix(next);
+			}
+
+			// Skip if escaped.
+			//
+			if (str.starts_with("{{")) {
+				result += '{';
+				str.remove_prefix(1);
+				continue;
+			}
+
+			// Do not escape until we meet the end.
+			//
+			size_t it     = 1;
+			char   in_str = 0;
+			char   escape = 0;
+			for (size_t debt = 1; debt > 0; it++) {
+				if (it == str.size()) {
+					return state.error("unmatched format string.");
+				}
+
+				// If within a string, and we see a '\', set the escape flag, if we see '\n' error.
+				//
+				if (!escape && in_str) {
+					if (str[it] == '\n') {
+						return state.error("improperly terminated format string.");
+					}
+					if (str[it] == '\\') {
+						escape = in_str;
+						continue;
+					}
+				}
+
+				// If end of string, go back to block processing:
+				//
+				if (!escape && str[it] == in_str) {
+					in_str = 0;
+					continue;
+				}
+				escape = false;
+
+				// If processing blocks:
+				//
+				if (!in_str) {
+					if (str[it] == '"' || str[it] == '`') {
+						in_str = str[it];
+						continue;
+					}
+					if (str[it] == '{') {
+						if ((it + 1) == str.size() || str[it + 1] != '{') {
+							debt++;
+						}
+					} else if (str[it] == '}') {
+						if ((it + 1) == str.size() || str[it + 1] != '}') {
+							debt--;
+						}
+					}
+				}
+			}
+
+			result += str.substr(0, it);
+			str.remove_prefix(it);
+		}
+
+		// Propagate errors.
+		//
+		if (!err.empty()) {
+			return state.error(err);
+		}
+		return {.id = token_fstr, .str_val = string::create(state.L, result)};
+	}
+	static token_value scan_str(state& state) {
 		// Consume the quote.
 		//
 		state.input.remove_prefix(1);
 
 		// TODO: Long string
-
 		bool escape = false;
 		for (size_t i = 0;; i++) {
 			// If we reached EOF|EOL and there is no end of string, error.
@@ -250,18 +355,18 @@ namespace li::lex {
 				return state.error("Unfinished string: line %d\n", state.line);
 			}
 			// If escaping next character, set the flag.
-			else if (state.input[i] == '\\') {
+			else if (!escape && state.input[i] == '\\') {
 				escape = true;
 				continue;
 			}
 			// If not escaped end of string, return.
-			else if (!escape && state.input[i] == (fmt?'`':'"')) {
+			else if (!escape && state.input[i] == '"') {
 				std::string_view err    = {};
 				std::string      str    = escape_string(state.input.substr(0, i), err);
 				if (!err.empty()) {
 					return state.error(err);
 				}
-				token_value result = {.id = (fmt?token_fstr:token_lstr), .str_val = string::create(state.L, str)};
+				token_value result = {.id = token_lstr, .str_val = string::create(state.L, str)};
 				state.input.remove_prefix(i + 1);
 				return result;
 			}
@@ -467,8 +572,9 @@ namespace li::lex {
 
 				// String literal:
 				case '`':
+					return scan_fstr(*this);
 				case '"':
-					return scan_str(*this, c == '`');
+					return scan_str(*this);
 
 				// Finally, return as a single char token.
 				default:

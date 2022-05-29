@@ -45,7 +45,7 @@ namespace li {
 	#define KVAL(...) f->kvals()[(__VA_ARGS__)]
 #endif
 
-	static bool vm_loop(vm* __restrict L, call_frame frame, vm_state state) {
+	LI_NOINLINE static bool vm_loop(vm* __restrict L, call_frame frame, vm_state state) {
 		// Cache stack locally, we will update the reference if we call into anything with side-effects.
 		//
 		any* __restrict stack = nullptr;
@@ -494,5 +494,5 @@ namespace li {
 	// Caller must push all arguments in reverse order, then the self argument or none and the function itself.
 	// - Caller frame takes the caller's base of stack and the PC receives the "return pointer".
 	//
-	LI_FLATTEN bool vm::call(slot_t n_args, slot_t caller_frame, uint32_t caller_pc) { return vm_loop(this, call_frame{.stack_pos = caller_frame, .caller_pc = caller_pc, .n_args = n_args}, vm_begin); }
+	LI_INLINE bool vm::call(slot_t n_args, slot_t caller_frame, uint32_t caller_pc) { return vm_loop(this, call_frame{.stack_pos = caller_frame, .caller_pc = caller_pc, .n_args = n_args}, vm_begin); }
 };

@@ -57,7 +57,7 @@ namespace li {
 		std::vector<bc::insn>    pc              = {};       // Bytecode generated.
 		bool                     is_repl         = false;    // Disables locals.
 		string*                  decl_name       = nullptr;  // Name.
-		std::vector<line_info>   line_info       = {};       // Record for each time a line changed.
+		std::vector<line_info>   line_table      = {};       // Record for each time a line changed.
 		uint32_t                 last_line       = 0;        //
 		uint32_t                 last_lexed_line;
 
@@ -74,7 +74,7 @@ namespace li {
 			if (last_line != last_lexed_line) {
 				int32_t delta = last_lexed_line - last_line;
 				LI_ASSERT(delta > 0);
-				line_info.push_back({ip, (bc::pos) delta});
+				line_table.push_back({ip, (bc::pos) delta});
 				last_line = last_lexed_line;
 			}
 		}
@@ -256,9 +256,9 @@ namespace li {
 
 		// Create the function value.
 		//
-		if (!fn.line_info.empty())
-			fn.line_info.front().line_delta -= line;
-		function* f      = function::create(fn.L, fn.pc, fn.kvalues, fn.uvalues.size(), fn.line_info);
+		if (!fn.line_table.empty())
+			fn.line_table.front().line_delta -= line;
+		function* f      = function::create(fn.L, fn.pc, fn.kvalues, fn.uvalues.size(), fn.line_table);
 		f->num_locals    = fn.max_reg_id + 1;
 		f->num_arguments = (uint32_t) fn.args.size();
 		if (fn.decl_name) {

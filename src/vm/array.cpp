@@ -20,18 +20,6 @@ namespace li {
 		}
 	}
 
-	// Duplicates the array.
-	//
-	array* array::duplicate(vm* L) {
-		array* r = L->alloc<array>();
-		if (storage) {
-			r->storage = L->alloc<array_store>(capacity() * sizeof(any));
-			r->length  = length;
-			memcpy(r->storage->entries, storage->entries, size() * sizeof(any));
-		}
-		return r;
-	}
-
 	// Reserve and resize.
 	//
 	void array::reserve(vm* L, size_t n) {

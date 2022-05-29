@@ -2,6 +2,7 @@
 #include <bit>
 #include <span>
 #include <vm/state.hpp>
+#include <vm/traits.hpp>
 
 namespace li {
 	static constexpr size_t small_table_length = 4;
@@ -17,11 +18,10 @@ namespace li {
 	struct table : gc::node<table, type_table> {
 		static table* create(vm* L, size_t reserved_entry_count = 0);
 
-		table_nodes* node_list = nullptr;
-		table_entry  small_table[small_table_length + overflow_factor];
-		uint32_t     active_count = 0;
-
-		// TODO: Metatable.
+		table_nodes*  node_list = nullptr;
+		table_traits* traits    = nullptr;
+		table_entry   small_table[small_table_length + overflow_factor];
+		uint32_t      active_count = 0;
 
 		table_entry*           begin() { return node_list ? &node_list->entries[0] : &small_table[0]; }
 		table_entry*           end() { return begin() + size() + overflow_factor; }
@@ -34,7 +34,11 @@ namespace li {
 
 		// Duplicates the table.
 		//
-		table* duplicate(vm* L);
+		table* duplicate(vm* L) const {
+			table* tbl     = L->duplicate(this);
+			tbl->node_list = L->duplicate(tbl->node_list);
+			return tbl;
+		}
 
 		// GC enumerator.
 		//
@@ -44,7 +48,7 @@ namespace li {
 		//
 		void resize(vm* L, size_t n);
 
-		// Table get/set.
+		// Raw table get/set.
 		//
 		void set(vm* L, any key, any value);
 		any  get(vm* L, any key);

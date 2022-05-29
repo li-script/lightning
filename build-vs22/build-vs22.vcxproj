@@ -60,6 +60,7 @@
     <ClInclude Include="..\include\vm\state.hpp" />
     <ClInclude Include="..\include\vm\string.hpp" />
     <ClInclude Include="..\include\vm\table.hpp" />
+    <ClInclude Include="..\include\vm\traits.hpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\.clang-format" />

@@ -1025,6 +1025,9 @@ namespace li {
 			}
 
 			auto    fn  = parse_function(scope, name.str_val);
+			if (fn.kind == expr::err) {
+				return {};
+			}
 			bc::reg reg = scope.add_local(name.str_val, is_const);
 			fn.to_reg(scope, reg);
 			if (is_export) expression(name.str_val).assign(scope, reg);
@@ -1533,6 +1536,15 @@ namespace li {
 		if (func.kind == expr::glb) {
 			if (func.glb->view() == "len") {
 				return emit_unop(scope, bc::VLEN, self);
+			} else if (func.glb->view() == "dup") {
+				auto r = scope.alloc_reg();
+				if (self.kind == expr::reg) {
+					scope.emit(bc::VDUP, r, self.reg);
+				} else {
+					self.to_reg(scope, r);
+					scope.emit(bc::VDUP, r, r);
+				}
+				return expression(r);
 			}
 		}
 

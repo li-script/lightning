@@ -13,7 +13,7 @@
     <ClCompile Include="..\src\vm\interp.cpp">
       <Filter>VM</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\lang\paser.cpp">
+    <ClCompile Include="..\src\lang\parser.cpp">
       <Filter>Language</Filter>
     </ClCompile>
     <ClCompile Include="..\src\vm\array.cpp">

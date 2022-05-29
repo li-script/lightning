@@ -721,7 +721,7 @@ namespace li {
 		// Try using existing upvalue.
 		//
 		if (auto uv = scope.lookup_uval(name)) {
-			return *uv;  // uvalue
+			return expression(upvalue_t{}, *uv);  // uvalue
 		}
 
 		// Try borrowing a value by creating an upvalue.

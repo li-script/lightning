@@ -64,14 +64,15 @@ extern "C" {
 
 
 
-
-#include <jit/zydis.hpp>
-
+#if LI_ARCH_X86 && !LI_32
+	#define LI_JIT 1
+	#include <jit/zydis.hpp>
+#endif
 
 int main(int argv, const char** args) {
 	platform::setup_ansi_escapes();
 
-
+#if LI_ARCH_X86 && !LI_32
 	std::vector<uint8_t> out;
 	li::zy::encode(out, ZYDIS_MNEMONIC_VMOVUPS, ZYDIS_REGISTER_YMM0, li::zy::mem{.size = 32, .base = ZYDIS_REGISTER_RAX});
 	li::zy::encode(out, ZYDIS_MNEMONIC_ADD, ZYDIS_REGISTER_RAX, 45);
@@ -86,6 +87,7 @@ int main(int argv, const char** args) {
 		}
 		puts(res->to_string().c_str());
 	}
+#endif
 
 
 

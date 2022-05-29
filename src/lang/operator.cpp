@@ -62,7 +62,7 @@ namespace li {
 						}
 						return {const_false, true};
 					} else if (a.is_str()) {
-						return { bool(b.as_str()->view().contains(a.as_str()->view())), true };
+						return { bool(b.as_str()->view().find(a.as_str()->view())!=std::string::npos), true };
 					} else {
 						return {arg_error(L, b, "string or character"), false};
 					}

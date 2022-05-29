@@ -162,7 +162,7 @@ namespace li::lib {
 			auto fstr   = string::create(L, "func");
 
 			call_frame frame = L->last_vm_caller;
-			uint32_t   ppc   = frame.caller_pc;
+			uint32_t   ppc   = frame.caller_pc & ~FRAME_C_FLAG;
 			while (frame.stack_pos >= FRAME_SIZE) {
 				auto& target = L->stack[frame.stack_pos + FRAME_TARGET];
 
@@ -174,7 +174,7 @@ namespace li::lib {
 
 				auto tbl = table::create(L, 2);
 				if (ppc && target.is_vfn()) {
-					tbl->set(L, lstr, any(number(target.as_vfn()->lookup_line(frame.caller_pc))));
+					tbl->set(L, lstr, any(number(target.as_vfn()->lookup_line(ppc))));
 				}
 				tbl->set(L, fstr, any(target));
 				result->push(L, tbl);
@@ -318,8 +318,18 @@ namespace li::lib {
 				L->push_stack(args[-1]);
 				return false;
 			} else {
-				// TODO: Use debug info to provide line information.
-				return L->error("assertion failed.");
+				call_frame frame  = L->last_vm_caller;
+				const char* fn    = "C";
+				uint32_t    line   = 0;
+				if (frame.stack_pos >= FRAME_SIZE) {
+					auto&    target = L->stack[frame.stack_pos + FRAME_TARGET];
+					if (target.is_vfn()) {
+						auto vfn = target.as_vfn();
+						fn       = vfn->src_chunk->c_str();
+						line     = vfn->lookup_line(frame.caller_pc & ~FRAME_C_FLAG);
+					}
+				}
+				return L->error("assertion failed at %s, line %u", fn, line);
 			}
 		});
 	}

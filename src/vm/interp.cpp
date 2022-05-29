@@ -150,6 +150,7 @@ namespace li {
 					switch (op) {
 						UNOP_HANDLE(bc::LNOT)
 						UNOP_HANDLE(bc::ANEG)
+						UNOP_HANDLE(bc::VLEN)
 						BINOP_HANDLE(bc::AADD)
 						BINOP_HANDLE(bc::ASUB)
 						BINOP_HANDLE(bc::AMUL)
@@ -470,13 +471,10 @@ namespace li {
 							}
 							L->stack_top = locals_begin + f->num_locals;
 							continue;
-						case bc::BP:
-							breakpoint();
-							continue;
 						case bc::NOP:
 							continue;
 						default:
-							util::abort("unrecognized bytecode '%02x'", (uint32_t) op);
+							util::abort("unrecognized opcode '%02x'", (uint32_t) op);
 					}
 				}
 			}

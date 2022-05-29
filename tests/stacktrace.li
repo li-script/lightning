@@ -11,7 +11,7 @@ const result =         f()
 const expected_funcs = [a, "C", b, c, "C", d, e, f, $F]
 const expected_lines = [1, {},  2, 3, {},  4, 5, 6, 8 ]
 for k,v in expected_funcs {
-	assert(result[k].func == v, tostring(result[k].func) + "!=" + tostring(v))
+	assert(result[k].func == v, `{result[k].func} != {v}`)
 }for k,v in expected_lines {
-	assert(result[k].line == v, tostring(result[k].line) + "!=" + tostring(v))
+	assert(result[k].line == v, `{result[k].line} != {v}`)
 }

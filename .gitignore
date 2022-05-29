@@ -12,4 +12,4 @@ build-vs22/enc_temp_folder/
 # Exlude dev stuff in root directory.
 *.bat
 *.li
-*.li
+!/tests/*.li

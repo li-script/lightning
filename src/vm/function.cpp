@@ -3,7 +3,9 @@
 
 namespace li {
 	function* function::create(vm* L, std::span<const bc::insn> opcodes, std::span<const any> kval, size_t uval, std::span<const line_info> lines) {
-		uint32_t routine_length = std::max((uint32_t) opcodes.size(), 1u);
+		uint32_t routine_length = (uint32_t) opcodes.size();
+		LI_ASSERT(routine_length != 0);
+
 		uint32_t kval_n         = (uint32_t) kval.size();
 
 		// Set function details.
@@ -13,7 +15,6 @@ namespace li {
 		result->num_kval        = kval_n;
 		result->length          = routine_length;
 		result->src_chunk       = string::create(L);
-		result->opcode_array[0] = bc::insn{bc::BP};
 		result->environment     = L->globals;
 		result->num_lines       = (uint32_t) lines.size();
 

@@ -36,6 +36,7 @@ namespace li {
 		//
 		call, // Invocation.
 		str,  // Type coercion to string.
+		gc,   // Invoked on destruction.
 
 		// Pseudo-indices.
 		max,

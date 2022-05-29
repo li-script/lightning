@@ -924,10 +924,10 @@ namespace li {
 		while (true) {
 			switch (scope.lex().tok.id) {
 				// Call.
-				case '{': {
-					if (!is_table_init(scope))
-						return base;
-				}
+				//case '{': {
+				//	if (!is_table_init(scope))
+				//		return base;
+				//}
 				case lex::token_lstr:
 				case '(': {
 					base = parse_call(scope, base, none);
@@ -1298,7 +1298,7 @@ namespace li {
 				// void return:
 				//
 				if (auto& tk = scope.lex().tok; tk.id == ';' || tk.id == lex::token_eof || tk.id == '}') {
-					scope.emit(bc::RET, expression(any()).to_anyreg(scope));
+					scope.emit(bc::RET, expression(none).to_anyreg(scope));
 				}
 				// value return:
 				//
@@ -1317,7 +1317,7 @@ namespace li {
 				// void throw:
 				//
 				if (auto& tk = scope.lex().tok; tk.id == ';' || tk.id == lex::token_eof || tk.id == '}') {
-					scope.emit(bc::THRW, expression(any(scope.fn.L->empty_string)).to_anyreg(scope));
+					scope.emit(bc::THRW, expression(none).to_anyreg(scope));
 				}
 				// value return:
 				//

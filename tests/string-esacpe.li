@@ -1,0 +1,11 @@
+const hex = "\xaa\xcc"
+assert(hex[0] == 0xAA)
+assert(hex[1] == 0xcc)
+assert(hex[2] == {})
+
+const utf = "\u6F22"
+assert(utf == "\xe6\xbc\xa2")
+
+const x = "\\\t"
+assert(x[0] == 92)
+assert(x[1] == 9)

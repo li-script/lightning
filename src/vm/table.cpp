@@ -22,6 +22,7 @@ namespace li {
 		} else {
 			memcpy(tbl->small_table, small_table, sizeof(small_table));
 		}
+		tbl->active_count = active_count;
 		return tbl;
 	}
 
@@ -70,24 +71,30 @@ namespace li {
 		if (value == none) {
 			for (auto& entry : find(key.hash())) {
 				if (entry.key == key) {
+					entry.key   = none;
 					entry.value = none;
+					active_count--;
 					break;
 				}
 			}
 			return;
 		}
 
+		uint32_t next_count = active_count + 1;
+
 		while (true) {
 			auto range = find(hash);
 			for (auto& entry : range) {
 				if (entry.key == key) {
-					entry.value = value;
+					entry.value  = value;
+					active_count = next_count - 1;
 					return;
 				}
 			}
 			for (auto& entry : range) {
 				if (entry.key == none) {
-					entry = {key, value};
+					entry        = {key, value};
+					active_count = next_count;
 					return;
 				}
 			}

@@ -2,6 +2,7 @@
 #include <vm/array.hpp>
 #include <vm/state.hpp>
 #include <vm/string.hpp>
+#include <vm/table.hpp>
 #include <cmath>
 
 namespace li {
@@ -25,6 +26,18 @@ namespace li {
 				TYPE_ASSERT(a, type_number);
 				return {any(-a.as_num()), true};
 			}
+			case bc::VLEN: {
+				if (a.is_arr()) {
+					return {any(number(a.as_arr()->length)), true};
+				} else if (a.is_tbl()) {
+					return {any(number(a.as_tbl()->active_count)), true};
+				} else if (a.is_str()) {
+					return {any(number(a.as_str()->length)), true};
+				} else {
+					return {arg_error(L, a, "iterable"), false};
+				}
+			}
+
 			default:
 				assume_unreachable();
 		}

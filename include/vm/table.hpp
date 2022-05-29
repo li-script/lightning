@@ -19,6 +19,7 @@ namespace li {
 
 		table_nodes* node_list = nullptr;
 		table_entry  small_table[small_table_length + overflow_factor];
+		uint32_t     active_count = 0;
 
 		// TODO: Metatable.
 

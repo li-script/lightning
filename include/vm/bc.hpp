@@ -13,6 +13,7 @@ namespace li::bc {
 	_(LNOT, reg, reg, ___) /* A=!B */                                                \
 	_(ANEG, reg, reg, ___) /* A=-B */                                                \
 	_(MOV,  reg, reg, ___) /* A=B */                                                 \
+	_(VLEN, reg, reg, ___) /* A=LEN(B) */                                            \
                                                                                     \
 	/* Binary operators.  */                                                         \
 	_(AADD, reg, reg, reg) /* A=B+C */                                               \
@@ -73,8 +74,7 @@ namespace li::bc {
 	_(JNS,  rel, reg, ___) /* JMP A if !B */                                         \
 	_(ITER, rel, reg, reg) /* B[1,2] = C[B].kv, JMP A if end */                      \
 	/* Misc. */                                                                      \
-	_(NOP,  ___, ___, ___) /* No-op */                                               \
-	_(BP,   ___, ___, ___) /* Breakpoint */
+	_(NOP,  ___, ___, ___) /* No-op */                                              
 
 	// Opcodes.
 	//

@@ -1528,6 +1528,16 @@ namespace li {
 			}
 		}
 
+		// Handle special functions.
+		//
+		if (func.kind == expr::glb) {
+			if (func.glb->view() == "len") {
+				return emit_unop(scope, bc::VLEN, self);
+			}
+		}
+
+		// Create the callsite.
+		//
 		for (bc::reg i = (size - 1); i >= 0; i--) {
 			callsite[i].first.push(scope);
 		}

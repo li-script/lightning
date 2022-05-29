@@ -101,13 +101,11 @@ namespace li::util::utf {
 			if constexpr (ForeignEndianness)
 				front = (T) util::bswap((uint16_t) front);
 			uint8_t result = 1 + ((uint16_t(front) >> 10) == 0x36);
-			assume(result != 0 && result <= max_out);
 			return result;
 		}
 		inline static constexpr uint8_t length(uint32_t cp) {
 			// Assuming valid codepoint outside the surrogates.
 			uint8_t result = 1 + bool(cp >> 16);
-			assume(result != 0 && result <= max_out);
 			return result;
 		}
 		inline static constexpr void encode(uint32_t cp, T*& out) {

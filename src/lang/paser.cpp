@@ -656,6 +656,10 @@ namespace li {
 	//
 	static expression parse_function(func_scope& scope, string* name = nullptr);
 
+	// Parses a format string and returns the result.
+	//
+	static expression parse_format(func_scope& scope);
+
 	// Parses a call, returns the result.
 	//
 	static expression parse_call(func_scope& scope, const expression& func, const expression& self);
@@ -677,7 +681,7 @@ namespace li {
 	// Parses a block expression made up of N statements, final one is the expression value
 	// unless closed with a semi-colon.
 	//
-	static expression expr_block(func_scope& scope, bc::reg into = -1);
+	static expression expr_block(func_scope& scope, bc::reg into = -1, bool no_term = false);
 
 	// Creates a variable expression.
 	//
@@ -965,6 +969,9 @@ namespace li {
 			}
 			case lex::token_lstr: {
 				return expression(any{scope.lex().next().str_val});
+			}
+			case lex::token_fstr: {
+				return parse_format(scope);
 			}
 			case lex::token_true: {
 				scope.lex().next();
@@ -1375,10 +1382,12 @@ namespace li {
 	// Parses a block expression made up of N statements, final one is the expression value
 	// unless closed with a semi-colon.
 	//
-	static expression expr_block(func_scope& pscope, bc::reg into) {
+	static expression expr_block(func_scope& pscope, bc::reg into, bool no_term) {
 		// Fast path for {}.
 		//
-		if (pscope.lex().opt('}')) {
+		if (pscope.lex().tok == '}') {
+			if (!no_term)
+				pscope.lex().next();
 			return none;
 		}
 
@@ -1386,7 +1395,7 @@ namespace li {
 		{
 			bool       fin = false;
 			func_scope scope{pscope.fn};
-			do {
+			while (true) {
 				// If finalized but block is not closed, fail.
 				//
 				if (fin) {
@@ -1406,7 +1415,12 @@ namespace li {
 				if (scope.lex().opt(';')) {
 					last = none;
 				}
-			} while (!scope.lex().opt('}'));
+				if (scope.lex().tok == '}') {
+					if (!no_term)
+						scope.lex().next();
+					break;
+				}
+			};
 
 			// If there is a target register, store.
 			//
@@ -1544,6 +1558,115 @@ namespace li {
 		scope.emit(bc::SRST);
 		scope.reg_next = tmp + 1;
 		return expression(tmp);
+	}
+
+	// Parses a format string and returns the result.
+	//
+	static expression parse_format(func_scope& scope) {
+		expression parts[64];
+		slot_t     size = 0;
+
+		// Parse format string.
+		//
+		auto fmt = scope.lex().next().str_val->view();
+		auto add = [&](const expression& e) -> bool {
+			// If string literal:
+			//
+			if (e.kind == expr::imm && e.imm.is_str()) {
+				// Try merging with the previous instance.
+				//
+				if (parts[size - 1].kind == expr::imm && parts[size - 1].imm.is_str()) {
+					parts[size - 1] = any(string::concat(scope.fn.L, parts[size - 1].imm.as_str(), e.imm.as_str()));
+					return true;
+				}
+			}
+
+			// Size check.
+			//
+			if (size == std::size(parts)) {
+				scope.lex().error("format string too complex");
+				return false;
+			}
+
+			// Append and return.
+			//
+			parts[size++] = e;
+			return true;
+		};
+		while (!fmt.empty()) {
+			// If we reached the end, push the rest as literal.
+			//
+			if (auto next = fmt.find_first_of("{}"); next == std::string::npos) {
+				if (!add(any(string::create(scope.fn.L, fmt)))) {
+					return {};
+				}
+				break;
+			}
+			// Otherwise push the leftover.
+			//
+			else if (next != 0) {
+				if (!add(any(string::create(scope.fn.L, fmt.substr(0, next))))) {
+					return {};
+				}
+				fmt.remove_prefix(next);
+			}
+
+			// Make sure it is properly terminated.
+			//
+			if (fmt.size() == 1) {
+				scope.lex().error("unterminated format string");
+				return {};
+			}
+
+			// Skip if escaped.
+			//
+			if (fmt[1] == fmt[0]) {
+				if (!add(any(string::create(scope.fn.L, fmt.substr(0, 1))))) {
+					return {};
+				}
+				fmt.remove_prefix(2);
+				continue;
+			}
+
+			// Unmatched block?
+			//
+			if (fmt[0] == '}') {
+				scope.lex().error("unmatched block within format string");
+				return {};
+			}
+
+			// Parse a block expression absuing lexer buffer.
+			//
+			fmt.remove_prefix(1);
+			auto [pi, pt, pl]  = std::tuple(scope.lex().input, scope.lex().tok, std::move(scope.lex().tok_lookahead));
+			scope.fn.lex.input = fmt;
+			scope.fn.lex.tok   = scope.fn.lex.scan();
+			scope.fn.lex.tok_lookahead.reset();
+
+			auto expr                 = expr_block(scope, -1, true);
+			LI_ASSERT(!scope.lex().tok_lookahead);
+
+			fmt                       = scope.lex().input;
+			scope.lex().input         = pi;
+			scope.lex().tok           = pt;
+			scope.lex().tok_lookahead = std::move(pl);
+
+			if (expr.kind == expr::err || !add(expr))
+				return {};
+		}
+
+		// Allocate base of concat.
+		//
+		auto r = scope.alloc_reg(size);
+		for (slot_t i = 0; i != size; i++) {
+			parts[i].to_reg(scope, r + i);
+		}
+		scope.emit(bc::CCAT, r, (int32_t) size);
+
+		// Free the rest of the registers and return the result.
+		//
+		scope.reg_next = r + 1;
+		return expression(r);
 	}
 
 	// Parses function declaration, returns the function value.

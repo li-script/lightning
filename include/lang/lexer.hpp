@@ -35,7 +35,7 @@ namespace li::lex {
 		__(icall, ->) __(ucall, ::)															 \
 		/* Literal tokens */																	    \
 		____(eof, <eof>) ____(lnum, <number>) ____(name, <name>)                 \
-		____(lstr, <string>) ____(error, <error>) 		                         \
+		____(lstr, <string>) ____(fstr, <fstring>) ____(error, <error>) 		    \
 		/* Keywords */																			    \
 		_(true) _(false)  _(let) _(const) _(if) _(else) _(while) _(for) _(loop)  \
 		_(break) _(continue) _(try) _(catch) _(throw) _(return) _(in) _(is)      \
@@ -117,7 +117,7 @@ namespace li::lex {
 		// Value.
 		//
 		union {
-			string* str_val;  // token_lstr, token_name
+			string* str_val;  // token_lstr, token_fstr, token_name
 			number  num_val;  // token_lnum
 		};
 
@@ -134,14 +134,18 @@ namespace li::lex {
 				std::string result;
 				result += (char) id;
 				return result;
+			} else if (id == token_eof) {
+				return util::fmt("<EOF>", str_val->c_str());
 			}
 			// Named/Symbolic token.
 			else if (id < token_lit_min) {
 				return std::string(cx_token_to_strv(id));
 			}
 			// String literal.
-			else if (id == token_lstr) {
+			else if (id == token_fstr) {
 				return util::fmt("\"%s\"", str_val->c_str());
+			} else if (id == token_fstr) {
+				return util::fmt("`%s`", str_val->c_str());
 			}
 			// Identifier.
 			else if (id == token_name) {
@@ -165,6 +169,8 @@ namespace li::lex {
 			// String literal.
 			else if (id == token_lstr) {
 				printf(LI_BLU "\"%s\"" LI_DEF, str_val->c_str());
+			} else if (id == token_fstr) {
+				printf(LI_BLU "`%s`" LI_DEF, str_val->c_str());
 			}
 			// Identifier.
 			else if (id == token_name) {

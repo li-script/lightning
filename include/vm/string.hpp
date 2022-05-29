@@ -14,6 +14,7 @@ namespace li {
 		//
 		static string* format(vm* L, const char* fmt, ...);
 		static string* concat(vm* L, string* a, string* b);
+		static string* concat(vm* L, any* a, slot_t n);
 
 		// String data.
 		//

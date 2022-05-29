@@ -80,7 +80,7 @@ namespace li {
 
 		// Simpler implementation of the same algorithm as table with no fixed holder.
 		//
-		[[nodiscard]] string_set* push(vm* L, string* s, bool assert_no_resize = false) {
+		[[nodiscard]] string_set* push(vm* L, string* s) {
 			string_set* ss = this;
 			while (true) {
 				for (auto& entry : ss->find(s->hash)) {
@@ -89,7 +89,6 @@ namespace li {
 						return ss;
 					}
 				}
-				LI_ASSERT(!assert_no_resize);
 				ss = nextsize(L);
 			}
 			return ss;
@@ -103,7 +102,7 @@ namespace li {
 
 			for (size_t i = 0; i != (old_count + overflow_factor); i++) {
 				if (string* s = entries[i]) {
-					(void) new_set->push(L, s, true);
+					new_set = new_set->push(L, s);
 				}
 			}
 			return new_set;

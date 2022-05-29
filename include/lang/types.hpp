@@ -173,14 +173,13 @@ namespace li {
 		inline uint32_t hash() const {
 #if LI_32 || !LI_HAS_CRC
 			uint64_t x = value;
-			x ^= x >> 33U;
-			x *= UINT64_C(0xff51afd7ed558ccd);
-			x ^= x >> 33U;
+			x ^= x >> 33;
+			x *= 0xff51afd7ed558ccdull;
+			x ^= x >> 33;
 			return (uint32_t)x;
 #else
-			uint64_t h = ~0;
-			h          = _mm_crc32_u64(h, value);
-			return uint32_t(h + 1) * 134775813;
+			uint64_t h = value >> 8;
+			return uint32_t(_mm_crc32_u64(h, value));
 #endif
 		}
 	};

@@ -45,7 +45,7 @@ namespace li {
 
 		// Table get/set.
 		//
-		void set(vm* L, any key, any value, bool assert_no_resize = false);
+		void set(vm* L, any key, any value);
 		any  get(vm* L, any key);
 	};
 };

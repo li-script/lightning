@@ -236,7 +236,7 @@ namespace li::lex {
 
 	// String reader.
 	//
-	static token_value scan_str(state& state) {
+	static token_value scan_str(state& state, bool fmt) {
 		// Consume the quote.
 		//
 		state.input.remove_prefix(1);
@@ -255,13 +255,13 @@ namespace li::lex {
 				continue;
 			}
 			// If not escaped end of string, return.
-			else if (!escape && state.input[i] == '"') {
+			else if (!escape && state.input[i] == (fmt?'`':'"')) {
 				std::string_view err    = {};
 				std::string      str    = escape_string(state.input.substr(0, i), err);
 				if (!err.empty()) {
 					return state.error(err);
 				}
-				token_value result = {.id = token_lstr, .str_val = string::create(state.L, str)};
+				token_value result = {.id = (fmt?token_fstr:token_lstr), .str_val = string::create(state.L, str)};
 				state.input.remove_prefix(i + 1);
 				return result;
 			}
@@ -466,8 +466,9 @@ namespace li::lex {
 					continue;
 
 				// String literal:
+				case '`':
 				case '"':
-					return scan_str(*this);
+					return scan_str(*this, c == '`');
 
 				// Finally, return as a single char token.
 				default:

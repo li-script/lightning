@@ -166,6 +166,10 @@ namespace li {
 						BINOP_HANDLE(bc::CLE)
 						BINOP_HANDLE(bc::CGE)
 
+						case bc::CCAT: {
+							REG(a) = string::concat(L, &REG(a), b);
+							continue;
+						}
 						case bc::CTY: {
 							REG(a) = to_canonical_type_name(REG(b).type()) == c;
 							continue;

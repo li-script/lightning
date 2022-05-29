@@ -107,6 +107,24 @@ namespace li {
 			}
 			return new_set;
 		}
+		static string* push_if(vm* L, string* s) {
+			LI_ASSERT(s->length != 0);
+			s->hash = sparse_hash(s->view());
+
+			// Return if already exists.
+			//
+			for (auto& entry : L->str_intern->find(s->hash)) {
+				if (entry && entry->view() == s->view()) {
+					L->gc.free(s);
+					return entry;
+				}
+			}
+
+			// Push and return.
+			//
+			L->str_intern = L->str_intern->push(L, s);
+			return s;
+		}
 		static string* push(vm* L, std::string_view key) {
 			if (key.empty()) [[unlikely]] {
 				return L->empty_string;
@@ -183,26 +201,13 @@ namespace li {
 		string* str = L->alloc<string>(n + 1);
 		str->length = n;
 		vsnprintf(str->data, n, fmt, a1);
-		str->hash = sparse_hash(str->view());
 		va_end(a1);
-		
-		// Return if already exists.
-		//
-		for (auto& entry : L->str_intern->find(str->hash)) {
-			if (entry && entry->view() == str->view()) {
-				L->gc.free(str);
-				return entry;
-			}
-		}
-
-		// Push and return.
-		//
-		L->str_intern = L->str_intern->push(L, str);
-		return str;
+		return string_set::push_if(L, str);
 	}
-
 	string* string::concat( vm* L, string* a, string* b) {
-		if (a == b && a == L->empty_string)
+		// Handle empty case.
+		//
+		if (a == b && a == L->empty_string) [[unlikely]]
 			return a;
 
 		// Allocate a new GC string instance and concat within it.
@@ -212,22 +217,37 @@ namespace li {
 		str->length  = len;
 		memcpy(str->data, a->data, a->length);
 		memcpy(str->data + a->length, b->data, b->length + 1);
-		str->hash = sparse_hash(str->view());
-
-		// Return if already exists.
+		return string_set::push_if(L, str);
+	}
+	string* string::concat(vm* L, any* a, slot_t n) {
+		// Coerce all to string and compute total length.
 		//
-		for (auto& entry : L->str_intern->find(str->hash)) {
-			if (entry && entry->view() == str->view()) {
-				L->gc.free(str);
-				return entry;
-			}
+		uint32_t len = 0;
+		for (slot_t i = 0; i < n; i++) {
+			string* s = a[i].coerce_str(L);
+			len += s->length;
+			a[i] = s;
 		}
 
-		// Push and return.
+		// Handle empty case.
 		//
-		L->str_intern = L->str_intern->push(L, str);
-		return str;
+		if (!len) [[unlikely]]
+			return L->empty_string;
+
+		// Allocate a new GC string instance and concat within it.
+		//
+		string*  str = L->alloc<string>(len + 1);
+		str->length  = len;
+		char* it = str->data;
+		for (slot_t i = 0; i < n; i++) {
+			string* s = a[i].as_str();
+			memcpy(it, s->data, s->length);
+			it += s->length;
+		}
+		*it++ = '\x0';
+		return string_set::push_if(L, str);
 	}
+
 
 	// String coercion.
 	//
@@ -244,7 +264,11 @@ namespace li {
 				formatter("true");
 				break;
 			case type_number:
-				formatter("%lf", a.as_num());
+				if (a.as_num() == (int64_t) a.as_num()) {
+					formatter("%.0lf", a.as_num());
+				} else {
+					formatter("%lf", a.as_num());
+				}
 				break;
 			case type_array:
 				formatter("array @ %p", a.as_gc());

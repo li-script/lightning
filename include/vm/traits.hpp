@@ -90,13 +90,13 @@ namespace li {
 		uint32_t     trait_mask : num_traits = 0;        // Mask of non-null traits.
 		trait_table* traits                  = nullptr;  // Table of traits.
 
-		template<trait T>
+		template<trait Ti>
 		bool has_trait() const {
-			return trait_mask & (1u << uint32_t(T));
+			return trait_mask & (1u << uint32_t(Ti));
 		}
-		template<trait T>
+		template<trait Ti>
 		any get_trait() const {
-			return get_trait(T);
+			return get_trait(Ti);
 		}
 
 		// Getter.

@@ -33,9 +33,9 @@ namespace li {
 	static constexpr slot_t   FRAME_RET      = -2;
 	static constexpr slot_t   FRAME_CALLER   = -1;
 	static constexpr slot_t   FRAME_SIZE     = 3;
-	static constexpr uint64_t FRAME_C_IP     = (1ll << 18) - 1;
+	static constexpr uint64_t FRAME_C_FLAG   = (1ll << 17);
 	static constexpr slot_t   MAX_STACK_SIZE = (1ll << 23) - 1;
-	static constexpr slot_t   BC_MAX_IP      = FRAME_C_IP - 1;
+	static constexpr slot_t   BC_MAX_IP      = FRAME_C_FLAG - 1;
 	struct call_frame {
 		// [locals of caller]
 		// argn>
@@ -49,9 +49,9 @@ namespace li {
 		int64_t  stack_pos : 23 = 0;  // Stack position of frame (@local0).
 		uint64_t caller_pc : 18 = 0;  // Instruction pointer after the call.
 		int64_t  n_args : 6     = 0;
-		uint64_t rsvd : 17;
+		uint64_t rsvd : 17      = 0;
 
-		inline constexpr bool multiplexed_by_c() const { return caller_pc == FRAME_C_IP; }
+		inline constexpr bool multiplexed_by_c() const { return caller_pc & FRAME_C_FLAG; }
 	};
 	static_assert(sizeof(call_frame) == sizeof(opaque), "Invalid call frame size.");
 
@@ -74,7 +74,7 @@ namespace li {
 		any*        stack          = nullptr;           // Stack base.
 		slot_t      stack_top      = 0;                 // Top of the stack. TODO: Make size_t, unnecessary zx.
 		slot_t      stack_len      = 0;                 // Maximum length of the stack.
-		slot_t      last_vm_caller = 0;                 // Last valid VM frame that called into C.
+		call_frame  last_vm_caller = {};                // Last valid VM frame that called into C.
 
 		// Closes the VM state.
 		//
@@ -148,7 +148,7 @@ namespace li {
 		// Caller must push all arguments in reverse order, then the self argument or none and the function itself.
 		// - Caller frame takes the caller's base of stack and the PC receives the "return pointer".
 		//
-		bool call(slot_t n_args, slot_t caller_frame, uint32_t caller_pc = FRAME_C_IP);
+		bool call(slot_t n_args, slot_t caller_frame, uint32_t caller_pc = FRAME_C_FLAG);
 
 		// Simple version of call() for user-invocation that pops all arguments and the function/self from ToS.
 		//
@@ -156,7 +156,7 @@ namespace li {
 			slot_t req_slot = stack_top - n_args;
 			push_stack(self);
 			push_stack(fn);
-			bool ok         = call(n_args, last_vm_caller);
+			bool ok         = call(n_args, last_vm_caller.stack_pos, uint32_t(last_vm_caller.caller_pc | FRAME_C_FLAG));
 			stack[req_slot] = stack[stack_top + FRAME_RET];
 			stack_top       = req_slot + 1;
 			return ok;

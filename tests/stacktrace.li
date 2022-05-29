@@ -5,7 +5,13 @@ fn d() { let ok; pcall(c, &ok) }
 fn e() { d() }
 fn f() { e() }
 
-const result =   f()
-for k,v in [a, "C", b, c, "C", d, e, f, $F] {
-	assert(result[k] == v, tostring(result[k]) + "!=" + tostring(v))
+const result =         f()
+
+
+const expected_funcs = [a, "C", b, c, "C", d, e, f, $F]
+const expected_lines = [1, {},  2, 3, {},  4, 5, 6, 8 ]
+for k,v in expected_funcs {
+	assert(result[k].func == v, tostring(result[k].func) + "!=" + tostring(v))
+}for k,v in expected_lines {
+	assert(result[k].line == v, tostring(result[k].line) + "!=" + tostring(v))
 }

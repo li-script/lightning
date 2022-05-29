@@ -124,7 +124,7 @@ int main(int argv, const char** args) {
 		return 1;
 	}
 	std::string file_buf{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
-	auto fn = li::load_script(L, file_buf);
+	auto        fn = li::load_script(L, file_buf, args[1]);
 
 	// Validate, print the result.
 	//

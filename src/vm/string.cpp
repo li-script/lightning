@@ -259,7 +259,7 @@ namespace li {
 				break;
 			case type_function:
 				//formatter("function @ %p", a.as_gc());
-				formatter("function @ %s:%u", a.as_vfn()->src_chunk->c_str(), a.as_vfn()->src_line);
+				formatter("function @ %s", a.as_vfn()->src_chunk->c_str());
 				break;
 			case type_nfunction:
 				formatter("nfunction @ %p", a.as_gc());

@@ -459,6 +459,51 @@ namespace li {
 							L->gc.tick(L);
 							continue;
 						}
+						case bc::VJOIN: {
+							auto src = REG(c);
+							if (src.is_tbl()) {
+								if (auto dst = REG(b); dst == none) {
+									REG(a) = src.as_tbl()->duplicate(L);
+								} else {
+									REG(a) = dst;
+									if (!dst.is_tbl()) [[unlikely]] {
+										VM_RET(string::create(L, "can't join different types, expected table"), true);
+									}
+									auto* s = src.as_tbl();
+									auto* d = dst.as_tbl();
+
+									// Copy every trait except freeze.
+									//
+									d->trait_seal   = s->trait_seal;
+									d->trait_hide   = s->trait_hide;
+									d->trait_mask   = s->trait_mask;
+									d->traits       = s->traits;
+									d->has_gc       = s->has_trait<trait::gc>();
+
+									// Copy fields raw.
+									//
+									for (auto& [k, v] : *s) {
+										if (k != none)
+											d->set(L, k, v);
+									}
+								}
+							} else if (src.is_arr()) {
+								auto dst = REG(b);
+								REG(a) = dst;
+								if (!dst.is_arr()) [[unlikely]] {
+									VM_RET(string::create(L, "can't join different types, expected array"), true);
+								}
+								auto* s = src.as_arr();
+								auto* d = dst.as_arr();
+
+								size_t pos = d->size();
+								d->resize(L, pos + s->size());
+								memcpy(d->begin() + pos, s->begin(), s->size() * sizeof(any));
+							} else {
+								VM_RET(string::create(L, "join expected table or array"), true);
+							}
+							continue;
+						}
 						case bc::VDUP: {
 							any value = REG(b);
 							if (value.is_gc() && !value.is_str()) {
@@ -530,14 +575,17 @@ namespace li {
 						}
 						case bc::TRSET: {
 							auto  idx    = trait(c);
-							auto  holder = REG(a);
+							auto& holder = REG(a);
 							auto  trait  = REG(b);
-							if (!holder.is_tbl()) {
-								VM_RET(string::create(L, "can't set traits on non-table"), true);
-							} else {
-								if (auto ex = holder.as_tbl()->set_trait(L, idx, trait)) {
-									VM_RET(string::create(L, ex), true);
+							if (!holder.is_tbl()) [[unlikely]] {
+								if (holder == none) {
+									holder = table::create(L);
+								} else {
+									VM_RET(string::create(L, "can't set traits on non-table"), true);
 								}
+							}
+							if (auto ex = holder.as_tbl()->set_trait(L, idx, trait)) [[unlikely]] {
+								VM_RET(string::create(L, ex), true);
 							}
 							continue;
 						}

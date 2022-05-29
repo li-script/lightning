@@ -314,6 +314,14 @@ namespace li::lib {
 
 		// Misc.
 		//
+		util::export_as(L, "@table", [](vm* L, any* args, slot_t n) {
+			uint16_t r = 0;
+			if (n && args->is_num()) {
+				r = (uint16_t) (uint64_t) std::abs(args->as_num());
+			}
+			L->push_stack(table::create(L, r));
+			return true;
+		});
 		util::export_as(L, "assert", [](vm* L, any* args, slot_t n) {
 			if (!n || args->as_bool())
 				return true;

@@ -2106,7 +2106,7 @@ namespace li {
 		//
 		std::string temp;
 		if (util::utf::utf_is_bom(source)) [[unlikely]] {
-			temp = util::utf::utf_convert<char>(std::as_bytes(std::span(source)));
+			temp   = util::utf::utf_convert<char>(std::span((const uint8_t*) source.data(), source.size()));
 			source = temp;
 		}
 

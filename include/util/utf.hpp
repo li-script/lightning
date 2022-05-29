@@ -224,13 +224,13 @@ namespace li::util::utf {
 		// Try matching against UTF-32 LE/BE:
 		//
 		if (std::u32string_view view{(const char32_t*) data.data(), data.size() / sizeof(char32_t)}; !view.empty()) {
-			if (view.front() == 0xFEFF || view.front() == util::bswap<char16_t>(0xFEFF))
+			if (view.front() == 0xFEFF || view.front() == util::bswap<char32_t>(0xFEFF))
 				return true;
 		}
 		// Try matching against UTF-16 LE/BE:
 		//
 		if (std::u16string_view view{(const char16_t*) data.data(), data.size() / sizeof(char16_t)}; !view.empty()) {
-			if (view.front() == 0xFEFF || view.front() == util::bswap<char32_t>(0xFEFF))
+			if (view.front() == 0xFEFF || view.front() == util::bswap<char16_t>(0xFEFF))
 				return true;
 		}
 		return false;
@@ -240,7 +240,7 @@ namespace li::util::utf {
 	// if relevant and re-encodes into the requested codepoint.
 	//
 	template<typename To>
-	inline static std::basic_string<To> utf_convert(std::span<const std::byte> data) {
+	inline static std::basic_string<To> utf_convert(std::span<const uint8_t> data) {
 		// If stream does not start with UTF8 BOM:
 		//
 		if (data.size() < 3 || memcmp(data.data(), "\xEF\xBB\xBF", 3)) {
@@ -257,7 +257,7 @@ namespace li::util::utf {
 			if (std::u16string_view view{(const char16_t*) data.data(), data.size() / sizeof(char16_t)}; !view.empty()) {
 				if (view.front() == 0xFEFF)
 					return utf_convert<To, char16_t, false>(view.substr(1));
-				if (view.front() == util::bswap<char32_t>(0xFEFF)) [[unlikely]]
+				if (view.front() == util::bswap<char16_t>(0xFEFF)) [[unlikely]]
 					return utf_convert<To, char16_t, true>(view.substr(1));
 			}
 		}

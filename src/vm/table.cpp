@@ -53,7 +53,7 @@ namespace li {
 
 	// Raw table get/set.
 	//
-	static bool set_if(table* t, any key, any value, size_t hash) {
+	LI_INLINE static bool set_if(table* t, any key, any value, size_t hash) {
 		if (value == none) {
 			for (auto& entry : t->find(hash)) {
 				if (entry.key == key) {
@@ -103,22 +103,9 @@ namespace li {
 			return {string::create(L, "modifying frozen table."), false};
 		}
 
-		size_t hash = key.hash();
-		if (set_if(this, key, value, hash)) [[likely]] {
-			return {none, true};
-		}
 		if (!has_trait<trait::set>()) [[likely]] {
-			uint32_t next_count = active_count + 1;
-			while (true) {
-				for (auto& entry : find(hash)) {
-					if (entry.key == none) {
-						entry        = {key, value};
-						active_count = next_count;
-						return {none, true};
-					}
-				}
-				resize(L, size() << 1);
-			}
+			set(L, key, value);
+			return {none, true};
 		}
 
 		L->push_stack(value);

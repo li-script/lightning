@@ -567,8 +567,6 @@ namespace li {
 			return type_userdata;
 		} else if (scope.lex().opt(lex::token_function)) {
 			return type_function;
-		} else if (scope.lex().opt(lex::token_thread)) {
-			return type_thread;
 		} else if (scope.lex().opt(lex::token_table)) {
 			return type_table;
 		} else {
@@ -2115,7 +2113,7 @@ namespace li {
 
 				// Initialize istate and the result.
 				//
-				expression(any(iopaque{.bits = 0})).to_reg(iscope, iter_base);
+				expression(any(opaque{.bits = 0})).to_reg(iscope, iter_base);
 				expression(any()).to_reg(iscope, iter_base + 3);
 
 				// Assign the locals.

@@ -19,10 +19,6 @@ namespace li {
 		uint64_t bits : 47;
 		uint64_t rsvd : 17;
 	};
-	struct iopaque {
-		uint64_t bits : 47;
-		uint64_t rsvd : 17;
-	};
 
 	// GC types (forward).
 	//
@@ -36,27 +32,26 @@ namespace li {
 	struct userdata;
 	struct function;
 	struct nfunction;
-	struct thread;
 
 	// Type enumerator.
 	//
 	enum value_type : uint8_t /*:4*/ {
-		type_none      = 0,  // <-- must be 0, memset(0xFF) = array of nulls
-		type_false     = 1,  // <-- canonical type boolean
-		type_true      = 2,
-		type_array     = 3,
-		type_table     = 4,
-		type_string    = 5,
-		type_userdata  = 6,
-		type_function  = 7,
-		type_nfunction = 8,
-		type_thread    = 9,
-		type_opaque    = 10,  // No type/definition, unique integer part.
-		type_iopaque   = 11,  // - Internal version used by bytecode, user shouldn't be able to touch it, value is blindly trusted.
-		type_number    = 12,
+		// - first gc type
+		type_table     = 0,
+		type_array     = 1,
+		type_string    = 2,
+		type_userdata  = 3,
+		type_function  = 4,
+		type_nfunction = 5,
+		// last gc type
+		type_none      = 6,
+		type_false     = 7,
+		type_true      = 8,
+		type_opaque    = 9,  // No type/definition, unique integer part.
+		type_number    = 10,
 	};
-	static constexpr const char* type_names[] = {"none", "bool", "bool", "array", "table", "string", "userdata", "function", "nfunction", "thread", "opaque", "iopaque", "number"};
-	LI_INLINE static constexpr value_type to_canonical_type_name( value_type t ) {
+	static constexpr const char*          type_names[] = {"table", "array", "string", "userdata", "function", "nfunction", "none", "bool", "bool", "opaque", "number"};
+	LI_INLINE static constexpr value_type to_canonical_type_name(value_type t) {
 		if (t == type_none)
 			return type_table;
 		if (t == type_true)
@@ -66,7 +61,7 @@ namespace li {
 		return t;
 	}
 
-	LI_INLINE static constexpr bool     is_gc_type(uint64_t type) { return type_array <= type && type <= type_thread; }
+	LI_INLINE static constexpr bool     is_gc_type(uint64_t type) { return type <= type_nfunction; }
 	LI_INLINE static constexpr uint64_t mask_value(uint64_t value) { return value & util::fill_bits(47); }
 	LI_INLINE static constexpr uint64_t mix_value(uint8_t type, uint64_t value) { return ((~uint64_t(type)) << 47) | mask_value(value); }
 	LI_INLINE static constexpr uint64_t make_tag(uint8_t type) { return ((~uint64_t(type)) << 47) | mask_value(~0ull); }
@@ -106,9 +101,7 @@ namespace li {
 		inline any(userdata* v) : value(mix_value(type_userdata, (uint64_t) v)) {}
 		inline any(function* v) : value(mix_value(type_function, (uint64_t) v)) {}
 		inline any(nfunction* v) : value(mix_value(type_nfunction, (uint64_t) v)) {}
-		inline any(thread* v) : value(mix_value(type_thread, (uint64_t) v)) {}
 		inline any(opaque v) : value(mix_value(type_opaque, (uint64_t) v.bits)) {}
-		inline any(iopaque v) : value(mix_value(type_iopaque, (uint64_t) v.bits)) {}
 
 		// Type check.
 		//
@@ -123,13 +116,11 @@ namespace li {
 		inline bool       is_udt() const { return get_type(value) == type_userdata; }
 		inline bool       is_vfn() const { return get_type(value) == type_function; }
 		inline bool       is_nfn() const { return get_type(value) == type_nfunction; }
-		inline bool       is_thr() const { return get_type(value) == type_thread; }
 		inline bool       is_opq() const { return get_type(value) == type_opaque; }
-		inline bool       is_iopq() const { return get_type(value) == type_iopaque; }
 
 		// Getters.
 		//
-		inline bool        as_bool() const { return get_type(value) > type_false; }  // Free coersion.
+		inline bool        as_bool() const { return get_type(value) == type_true; }
 		inline number      as_num() const { return bit_cast<number>(value); }
 		inline gc::header* as_gc() const { return get_gc_value(value); }
 		inline array*      as_arr() const { return (array*) as_gc(); }
@@ -138,7 +129,6 @@ namespace li {
 		inline userdata*   as_udt() const { return (userdata*) as_gc(); }
 		inline function*   as_vfn() const { return (function*) as_gc(); }
 		inline nfunction*  as_nfn() const { return (nfunction*) as_gc(); }
-		inline thread*     as_thr() const { return (thread*) as_gc(); }
 		inline opaque      as_opq() const { return {.bits = mask_value(value)}; }
 
 		// Bytewise equal comparsion.
@@ -165,7 +155,7 @@ namespace li {
 		// Type coercion.
 		//
 		string* coerce_str(vm* L) const { return to_string(L); }
-		bool    coerce_bool() const { return as_bool(); }
+		bool    coerce_bool() const { return get_type(value) != type_false && get_type(value) != type_none; }
 		number  coerce_num() const;
 
 		// Hasher.
@@ -193,7 +183,8 @@ namespace li {
 
 	// Fills the any[] with nones.
 	//
-	static void fill_none(void* data, size_t count) { memset(data, 0xFF, count * 8); }
-
+	static void fill_none(void* data, size_t count) {
+		std::fill_n((uint64_t*) data, count, none.value);
+	}
 };
 #pragma pack(pop)

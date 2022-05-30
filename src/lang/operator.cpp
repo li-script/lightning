@@ -41,7 +41,7 @@ namespace li {
 	LI_INLINE std::pair<any, bool> apply_unary(vm* L, any a, bc::opcode op) {
 		switch (op) {
 			case bc::LNOT: {
-				return {any(!a.as_bool()), true};
+				return {any(!a.coerce_bool()), true};
 			}
 			case bc::ANEG: {
 				UNARY_APPLY_TRAIT(trait::neg);
@@ -96,9 +96,9 @@ namespace li {
 			case bc::NCS:
 				return {a == none ? b : a, true};
 			case bc::LOR:
-				return {a.as_bool() ? a : b, true};
+				return {a.coerce_bool() ? a : b, true};
 			case bc::LAND:
-				return {a.as_bool() ? b : a, true};
+				return {a.coerce_bool() ? b : a, true};
 			case bc::AADD:
 				BINARY_APPLY_TRAIT(trait::add);
 				if (a.is_arr()) {

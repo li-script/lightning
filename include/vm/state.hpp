@@ -43,7 +43,7 @@ namespace li {
 		// arg0
 		// self
 		// fn <=> retval
-		// [call_frame for previous function as iopaque]
+		// [call_frame for previous function as opaque]
 		// [locals of this func]
 		//
 		int64_t  stack_pos : 23 = 0;  // Stack position of frame (@local0).

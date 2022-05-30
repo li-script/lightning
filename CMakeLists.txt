@@ -66,7 +66,7 @@ set(libli_SOURCES "")
 list(APPEND libli_SOURCES
 	"src/lang/lexer.cpp"
 	"src/lang/operator.cpp"
-	"src/lang/paser.cpp"
+	"src/lang/parser.cpp"
 	"src/lib/std.cpp"
 	"src/util/platform.cpp"
 	"src/vm/array.cpp"

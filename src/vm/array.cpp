@@ -23,13 +23,14 @@ namespace li {
 	// Reserve and resize.
 	//
 	void array::reserve(vm* L, size_t n) {
-		if (n > capacity()) {
-			size_t old_count    = size();
-			size_t new_capacity = std::bit_ceil(n | 7);
-			auto*  old_list     = begin();
-			size_t alloc_length = sizeof(any) * new_capacity;
-			storage             = L->alloc<array_store>(alloc_length);
-			memcpy(storage->entries, old_list, old_count * sizeof(any));
+		if (!storage) {
+			storage = L->alloc<array_store>(n);
+		} else if (size_t c = capacity(); n > c) {
+			size_t new_capacity = std::max(n, c + (c >> 1));
+			auto*  old_list     = storage;
+			storage             = L->alloc<array_store>(sizeof(any) * new_capacity);
+			memcpy(storage->entries, old_list->entries, c * sizeof(any));
+			L->gc.free(L, old_list);
 		}
 	}
 	void array::resize(vm* L, size_t n) {

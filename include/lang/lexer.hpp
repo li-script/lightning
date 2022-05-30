@@ -138,7 +138,7 @@ namespace li::lex {
 				return std::string(cx_token_to_strv(id));
 			}
 			// String literal.
-			else if (id == token_fstr) {
+			else if (id == token_lstr) {
 				return util::fmt("\"%s\"", str_val->c_str());
 			} else if (id == token_fstr) {
 				return util::fmt("`%s`", str_val->c_str());

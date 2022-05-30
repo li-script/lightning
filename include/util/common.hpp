@@ -53,6 +53,8 @@
 #define LI_IDENTITY(...)  __VA_ARGS__
 
 namespace li {
+	// Missing bit operations.
+	//
 	namespace util {
 		static constexpr uint64_t fill_bits(int x, int o = 0) { return (x ? (~0ull >> (64 - x)) : 0) << o; }
 

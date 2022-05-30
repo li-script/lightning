@@ -1,4 +1,5 @@
 #pragma once
+#include <util/common.hpp>
 #if !LI_ARCH_X86 || LI_32
 	#error "JIT mode is only available for x86-64."
 #endif
@@ -7,8 +8,10 @@
 #include <Zycore/LibC.h>
 #include <Zydis/Zydis.h>
 #include <span>
-#include <util/common.hpp>
 #include <vector>
+#include <string>
+#include <optional>
+
 namespace li::zy {
 	// Rename registers.
 	//

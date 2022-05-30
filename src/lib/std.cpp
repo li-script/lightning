@@ -182,7 +182,7 @@ namespace li::lib {
 				result->push(L, tbl);
 
 				auto ref = L->stack[frame.stack_pos + FRAME_CALLER];
-				if (ref.is_iopq()) {
+				if (ref.is_opq()) {
 					frame = bit_cast<call_frame>(ref.as_opq());
 				} else {
 					break;
@@ -323,7 +323,7 @@ namespace li::lib {
 			return true;
 		});
 		util::export_as(L, "assert", [](vm* L, any* args, slot_t n) {
-			if (!n || args->as_bool())
+			if (!n || args->coerce_bool())
 				return true;
 
 			if (n >= 2 && args[-1].is_str()) {

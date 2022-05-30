@@ -68,7 +68,7 @@ namespace li {
 				n_args                = caller.n_args;
 				uint32_t caller_frame = caller.stack_pos;
 				uint32_t caller_pc    = caller.caller_pc;
-				L->push_stack(bit_cast<iopaque>(caller));
+				L->push_stack(bit_cast<opaque>(caller));
 				dirty_stack();
 				locals_begin = L->stack_top;
 
@@ -182,7 +182,7 @@ namespace li {
 							continue;
 						}
 						case bc::CMOV: {
-							if (REG(c).as_bool())
+							if (REG(c).coerce_bool())
 								REG(a) = REG(b);
 							continue;
 						}
@@ -195,12 +195,12 @@ namespace li {
 						case bc::RET:
 							VM_RET(REG(a), false);
 						case bc::JNS:
-							if (REG(b).as_bool())
+							if (REG(b).coerce_bool())
 								continue;
 							ip += a;
 							continue;
 						case bc::JS:
-							if (!REG(b).as_bool())
+							if (!REG(b).coerce_bool())
 								continue;
 							ip += a;
 							continue;
@@ -239,7 +239,7 @@ namespace li {
 
 										// Update the iterator.
 										//
-										iter = iopaque{.bits = it + 1};
+										iter = opaque{.bits = it + 1};
 
 										// Break.
 										//
@@ -262,7 +262,7 @@ namespace li {
 
 										// Update the iterator.
 										//
-										iter = iopaque{.bits = it + 1};
+										iter = opaque{.bits = it + 1};
 
 										// Break.
 										//
@@ -286,7 +286,7 @@ namespace li {
 
 											// Update the iterator.
 											//
-											iter = iopaque{.bits = it + 1};
+											iter = opaque{.bits = it + 1};
 
 											// Break.
 											//

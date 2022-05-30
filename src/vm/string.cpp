@@ -292,12 +292,6 @@ namespace li {
 			case type_opaque:
 				formatter("opaque %llx", (uint64_t) a.as_opq().bits);
 				break;
-			case type_iopaque:
-				formatter("iopaque %llx", (uint64_t) a.as_opq().bits);
-				break;
-			case type_thread:
-				formatter("thread @ %p", a.as_gc());
-				break;
 			default:
 				util::abort("invalid type");
 				break;

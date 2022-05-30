@@ -134,13 +134,13 @@ namespace li {
 			//
 			if (t >= trait::max) {
 				if (t == trait::seal) {
-					trait_seal = v.as_bool();
+					trait_seal = v.coerce_bool();
 					return nullptr;
 				} else if (t == trait::freeze) {
-					trait_freeze = v.as_bool();
+					trait_freeze = v.coerce_bool();
 					return nullptr;
 				} else if (t == trait::hide) {
-					trait_hide = v.as_bool();
+					trait_hide = v.coerce_bool();
 					return nullptr;
 				}
 			}

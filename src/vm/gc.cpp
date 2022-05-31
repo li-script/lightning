@@ -125,7 +125,7 @@ namespace li::gc {
 
 		// Run destructor if relevant.
 		//
-		if (o->gc_type == type_table) {
+		if (is_traitful(o->gc_type)) {
 			((traitful_node<>*) o)->gc_destroy(L);
 		}
 #if LI_DEBUG
@@ -161,6 +161,29 @@ namespace li::gc {
 		//
 		((header*) L->empty_string)->gc_tick(s);
 		((header*) L->strset)->gc_tick(s);
+	}
+
+	void state::close(vm* L) {
+		// Clear stack and globals.
+		//
+		L->stack_top = 0;
+		fill_none(L->globals->begin(), L->globals->realsize() * 2);
+
+		// GC.
+		//
+		L->gc.collect(L);
+
+		// Free all pages.
+		//
+		auto* alloc = alloc_fn;
+		void* actx  = alloc_ctx;
+		auto* head  = initial_page;
+		for (auto it = head->next; it != head;) {
+			auto p = std::exchange(it, it->next);
+			alloc(actx, p, p->num_pages, false);
+		}
+		alloc(actx, head, head->num_pages, false);
+		alloc(actx, actx, 0, false);
 	}
 
 	LI_COLD void state::collect(vm* L) {

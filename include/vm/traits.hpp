@@ -84,11 +84,11 @@ namespace li {
 	//
 	template<typename T = void, value_type V = type_none>
 	struct traitful_node : gc::node<T, V> {
+		trait_table* traits                  = nullptr;  // Table of traits.
 		uint32_t     trait_freeze : 1        = 0;        // Allows constant optimizations and errors on value set.
 		uint32_t     trait_seal : 1          = 0;        // Allows constant optimizations and errors on trait set.
 		uint32_t     trait_hide : 1          = 0;        // Hides the metatable from getter.
 		uint32_t     trait_mask : num_traits = 0;        // Mask of non-null traits.
-		trait_table* traits                  = nullptr;  // Table of traits.
 
 		template<trait Ti>
 		LI_INLINE bool has_trait() const {
@@ -145,17 +145,17 @@ namespace li {
 				}
 			}
 
-			// Type check.
-			//
-			if (!v.is_vfn() && !v.is_nfn()) {
-				if (v.is_tbl() && t != trait::get) {
-					return "only get trait can be a table";
-				}
-			}
-
 			// Set value.
 			//
 			if (v != none) {
+				// Type check.
+				//
+				if (!v.is_vfn() && !v.is_nfn()) {
+					if (v.is_tbl() && t != trait::get) {
+						return "only get trait can be a table";
+					}
+				}
+
 				if (!traits) {
 					traits = L->alloc<trait_table>();
 				}

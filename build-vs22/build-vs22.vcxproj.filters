@@ -120,6 +120,12 @@
     <ClInclude Include="..\include\jit\zydis.hpp">
       <Filter>JIT</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\vm\userdata.hpp">
+      <Filter>VM\Types</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\util\ltti.hpp">
+      <Filter>Utility</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\.clang-format" />

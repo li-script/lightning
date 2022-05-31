@@ -75,7 +75,7 @@ namespace li {
 				// Validate function.
 				//
 				auto& vf = stack[L->stack_top + FRAME_TARGET];
-				if (vf.is_tbl() && vf.as_tbl()->has_trait<trait::call>()) {
+				if (vf.is_traitful() && ((traitful_node<>*) vf.as_gc())->has_trait<trait::call>()) {
 					stack[L->stack_top + FRAME_SELF] = vf;
 					vf                               = vf.as_tbl()->get_trait<trait::call>();
 				}

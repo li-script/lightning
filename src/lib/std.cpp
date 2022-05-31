@@ -273,7 +273,7 @@ namespace li::lib {
 		//
 		util::export_as(L, "print", [](vm* L, any* args, slot_t n) {
 			for (int32_t i = 0; i != n; i++) {
-				if (args[-i].is_tbl() && args[-i].as_tbl()->has_trait<trait::str>()) [[unlikely]] {
+				if (args[-i].is_traitful() && ((traitful_node<>*)args[-i].as_gc())->has_trait<trait::str>()) [[unlikely]] {
 					fputs(args[-i].to_string(L)->c_str(), stdout);
 				} else {
 					args[-i].print();

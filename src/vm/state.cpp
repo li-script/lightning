@@ -39,5 +39,5 @@ namespace li {
 
 	// Closes the VM state.
 	//
-	void vm::close() { gc.close(); }
+	void vm::close() { gc.close(this); }
 };

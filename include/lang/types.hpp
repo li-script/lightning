@@ -58,6 +58,8 @@ namespace li {
 		type_first_non_gc        = type_none,
 		type_gc_last_traversable = type_function,
 	};
+	static constexpr bool is_traitful(uint8_t t) { return t == type_table || t == type_userdata; }
+
 	static constexpr std::array<const char*, 16> type_names = []() {
 		std::array<const char*, 16> result;
 		result.fill("invalid");
@@ -100,6 +102,12 @@ namespace li {
 	static constexpr uint64_t kvalue_true  = make_tag(type_false);
 	static constexpr uint64_t kvalue_nan   = 0xfff8000000000000;
 
+	// Forward for auto-typing.
+	//
+	namespace gc {
+		static value_type identify(const header* h);
+	};
+
 	// Boxed object type, fixed 16-bytes.
 	//
 	struct LI_TRIVIAL_ABI any {
@@ -124,6 +132,7 @@ namespace li {
 		inline any(function* v) : value(mix_value(type_function, (uint64_t) v)) {}
 		inline any(nfunction* v) : value(mix_value(type_nfunction, (uint64_t) v)) {}
 		inline any(opaque v) : value(mix_value(type_opaque, (uint64_t) v.bits)) {}
+		inline any(gc::header* v) : value(mix_value(gc::identify(v), (uint64_t) v)) {}
 
 		// Type check.
 		//
@@ -139,6 +148,7 @@ namespace li {
 		inline bool       is_vfn() const { return get_type(value) == type_function; }
 		inline bool       is_nfn() const { return get_type(value) == type_nfunction; }
 		inline bool       is_opq() const { return get_type(value) == type_opaque; }
+		inline bool       is_traitful() const { return is_tbl() || is_udt(); }
 
 		// Getters.
 		//

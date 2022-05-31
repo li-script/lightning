@@ -13,6 +13,11 @@ namespace li {
 	//
 	struct nfunction : gc::leaf<nfunction, type_nfunction> {
 		static nfunction* create(vm* L, size_t context = 0) { return L->alloc<nfunction>(context); }
+		static nfunction* create(vm* L, nfunc_t f, size_t context = 0) {
+			nfunction* nf = create(L, context);
+			nf->callback  = f;
+			return nf;
+		}
 
 		// Stack-based callback.
 		//

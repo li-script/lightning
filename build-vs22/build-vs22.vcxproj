@@ -51,6 +51,7 @@
     <ClInclude Include="..\include\util\common.hpp" />
     <ClInclude Include="..\include\util\format.hpp" />
     <ClInclude Include="..\include\util\llist.hpp" />
+    <ClInclude Include="..\include\util\ltti.hpp" />
     <ClInclude Include="..\include\util\platform.hpp" />
     <ClInclude Include="..\include\util\user.hpp" />
     <ClInclude Include="..\include\util\utf.hpp" />
@@ -62,6 +63,7 @@
     <ClInclude Include="..\include\vm\string.hpp" />
     <ClInclude Include="..\include\vm\table.hpp" />
     <ClInclude Include="..\include\vm\traits.hpp" />
+    <ClInclude Include="..\include\vm\userdata.hpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\.clang-format" />

@@ -12,27 +12,31 @@ namespace li {
 	if (!v.is(t)) [[unlikely]] \
 		return {arg_error(L, v, type_names[t]), false};
 
-#define UNARY_APPLY_TRAIT(t)									 \
-	if (a.is_tbl()) [[unlikely]] {							 \
-		auto* tbl = a.as_tbl();									 \
-		if (tbl->has_trait<t>()) {								 \
-			bool ok = L->scall(0, tbl->get_trait<t>(), a);\
-			return {L->pop_stack(), ok};						 \
-		}																 \
+#define UNARY_APPLY_TRAIT(t)                           \
+	if (a.is_traitful()) [[unlikely]] {                 \
+		auto* ta = (traitful_node<>*) a.as_gc();         \
+		if (ta->has_trait<t>()) {                        \
+			bool ok = L->scall(0, ta->get_trait<t>(), a); \
+			return {L->pop_stack(), ok};                  \
+		}                                                \
 	}
-#define BINARY_APPLY_TRAIT_AND(t, TF) if(a.is_tbl() || b.is_tbl() ) [[unlikely]]	do{ \
-	trait_pointer tp = {}; any self;                             \
-	if (a.is_tbl() && a.as_tbl()->has_trait<t>())		          \
-		tp = a.as_tbl()->traits->list[uint32_t(t)], self = a;     \
-	else if (b.is_tbl() && b.as_tbl()->has_trait<t>())	          \
-		tp = b.as_tbl()->traits->list[uint32_t(t)], self = b;     \
-	if (tp.pointer) {															 \
-		L->push_stack(b);														 \
-		L->push_stack(a);														 \
-		bool ok = L->scall(2, tp.as_any(), self);						 \
-		any retval = L->pop_stack();                              \
-		return {TF(retval, ok)};								          \
-	} } while(0);
+#define BINARY_APPLY_TRAIT_AND(t, TF)                                                 \
+	if (a.is_traitful() || b.is_traitful()) [[unlikely]]                               \
+		do {                                                                            \
+			trait_pointer tp = {};                                                       \
+			any           self;                                                          \
+			if (a.is_traitful() && ((traitful_node<>*) a.as_gc())->has_trait<t>())       \
+				tp = ((traitful_node<>*) a.as_gc())->traits->list[uint32_t(t)], self = a; \
+			else if (b.is_traitful() && ((traitful_node<>*) b.as_gc())->has_trait<t>())  \
+				tp = ((traitful_node<>*) b.as_gc())->traits->list[uint32_t(t)], self = b; \
+			if (tp.pointer) {                                                            \
+				L->push_stack(b);                                                         \
+				L->push_stack(a);                                                         \
+				bool ok     = L->scall(2, tp.as_any(), self);                             \
+				any  retval = L->pop_stack();                                             \
+				return {TF(retval, ok)};                                                  \
+			}                                                                            \
+		} while (0);
 #define BINARY_APPLY_TRAIT(t) BINARY_APPLY_TRAIT_AND(t, LI_IDENTITY)
 
 	// Applies the unary/binary operator the values given. On failure (e.g. type mismatch),

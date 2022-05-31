@@ -306,10 +306,10 @@ namespace li {
 	string* any::to_string(vm* L) const {
 		if (is_str()) [[likely]]
 			return as_str();
-		if (is_tbl()) {
-			auto* tbl = as_tbl();
-			if (tbl->has_trait<trait::str>()) {
-				bool ok = L->scall(0, tbl->get_trait<trait::str>(), *this);
+		if (is_traitful()) {
+			auto* t = (traitful_node<>*) as_gc();
+			if (t->has_trait<trait::str>()) {
+				bool ok = L->scall(0, t->get_trait<trait::str>(), *this);
 				auto res = L->pop_stack();
 				if (ok && res.is_str()) {
 					return res.as_str();

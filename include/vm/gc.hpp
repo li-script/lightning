@@ -106,6 +106,10 @@ namespace li::gc {
 	static_assert(sizeof(header) == 8, "Invalid GC header size.");
 	static_assert((sizeof(header) + sizeof(uintptr_t)) <= chunk_size, "Invalid GC header size.");
 
+	// Forward for any.
+	//
+	static value_type identify(const header* h) { return (value_type) h->gc_type; }
+
 	template<typename T>
 	struct tag : header {
 		// Returns the extra-space associated.
@@ -226,20 +230,9 @@ namespace li::gc {
 			return nullptr;
 		}
 
-		// Deletes all memory.
+		// Calls all destructors and deallocates all memory.
 		//
-		void close() {
-			auto* alloc = alloc_fn;
-			void* actx  = alloc_ctx;
-			auto* head  = initial_page;
-
-			for (auto it = head->next; it != head;) {
-				auto p = std::exchange(it, it->next);
-				alloc(actx, p, p->num_pages, false);
-			}
-			alloc(actx, head, head->num_pages, false);
-			alloc(actx, actx, 0, false);
-		}
+		void close(vm* L);
 
 		// Tick.
 		//

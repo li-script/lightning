@@ -82,7 +82,7 @@ namespace li {
 
 	// Final tag.
 	//
-	template<typename T = std::monostate, value_type V = type_none>
+	template<typename T = void, value_type V = type_none>
 	struct traitful_node : gc::node<T, V> {
 		uint32_t     trait_freeze : 1        = 0;        // Allows constant optimizations and errors on value set.
 		uint32_t     trait_seal : 1          = 0;        // Allows constant optimizations and errors on trait set.
@@ -191,7 +191,7 @@ namespace li {
 		void gc_destroy(vm* L) {
 			if (trait_mask & (1u << uint32_t(trait::gc))) {
 				any self;
-				if constexpr (std::is_same_v<T, std::monostate>) {
+				if constexpr (std::is_void_v<T>) {
 					self = any(std::in_place, mix_value(((gc::header*)this)->gc_type, (uint64_t) this));
 				} else {
 					self = any((T*) this);

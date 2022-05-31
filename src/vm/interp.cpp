@@ -100,7 +100,8 @@ namespace li {
 				// Allocate locals and call.
 				//
 				else {
-					L->alloc_stack(f->num_locals);
+					L->alloc_stack(f->num_locals + MAX_ARGS);
+					L->pop_stack_n(MAX_ARGS);
 					dirty_stack();
 				}
 			}
@@ -594,13 +595,12 @@ namespace li {
 							frame = {.stack_pos = locals_begin, .caller_pc = (uint32_t) ip, .n_args = a};
 							goto vcall;
 						}
+						// Size availability guaranteed by +MAX_ARGUMENTS over-allocation.
 						case bc::PUSHR:
-							L->push_stack(REG(a));
-							dirty_stack();
+							stack[L->stack_top++] = REG(a);
 							continue;
 						case bc::PUSHI:
-							L->push_stack(any(std::in_place, insn.xmm()));
-							dirty_stack();
+							stack[L->stack_top++] = any(std::in_place, insn.xmm());
 							continue;
 						case bc::SLOAD:
 							REG(a) = stack[L->stack_top - b];

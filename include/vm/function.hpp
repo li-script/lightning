@@ -78,9 +78,5 @@ namespace li {
 			}
 			return n;
 		}
-
-		// GC enumerator.
-		//
-		void gc_traverse(gc::stage_context s) override;
 	};
 };

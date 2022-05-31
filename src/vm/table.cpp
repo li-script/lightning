@@ -14,11 +14,11 @@ namespace li {
 
 	// GC enumerator.
 	//
-	void table::gc_traverse(gc::stage_context s) {
-		if (node_list)
-			node_list->gc_tick(s);
-		trait_traverse(s);
-		for (auto& [k, v] : *this) {
+	void gc::traverse(gc::stage_context s, table* o) {
+		if (o->node_list)
+			o->node_list->gc_tick(s);
+		o->trait_traverse(s);
+		for (auto& [k, v] : *o) {
 			if (k.is_gc())
 				k.as_gc()->gc_tick(s);
 			if (v.is_gc())

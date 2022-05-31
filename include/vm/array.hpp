@@ -25,10 +25,6 @@ namespace li {
 			return r;
 		}
 
-		// GC enumerator.
-		//
-		void gc_traverse(gc::stage_context s) override;
-
 		// Reserve and resize.
 		//
 		void reserve(vm* L, size_t n);

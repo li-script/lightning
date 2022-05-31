@@ -68,16 +68,6 @@ namespace li {
 			return {it, end()}; // allow full load.
 		}
 
-		// GC enumerator.
-		//
-		void gc_traverse(gc::stage_context s) override {
-			for (auto& k : *this) {
-				if (k && !k->gc_tick(s, true)) {
-					k = nullptr;
-				}
-			}
-		}
-
 		// Simpler implementation of the same algorithm as table with no fixed holder.
 		//
 		[[nodiscard]] string_set* push(vm* L, string* s) {
@@ -151,6 +141,16 @@ namespace li {
 		}
 	};
 
+	// GC enumerator.
+	//
+	void gc::traverse(gc::stage_context s, string_set* o) {
+		for (auto& k : *o) {
+			if (k && !k->gc_tick(s, true)) {
+				k = nullptr;
+			}
+		}
+	}
+
 	// Internal string-set implementation.
 	//
 	void init_string_intern(vm* L) {
@@ -163,7 +163,27 @@ namespace li {
 		str->hash    = 0;
 		L->empty_string = str;
 	}
-	void traverse_string_set(vm* L, gc::stage_context s) { L->str_intern->gc_tick(s); }
+	void traverse_string_set(vm* L, gc::stage_context s) {
+		auto* i = L->str_intern;
+		if (i->stage == s.next_stage) [[likely]] {
+			return;
+		}
+		i->stage = s.next_stage;
+
+		for (auto& k : *i) {
+			if (k) {
+				if (!k->is_free()) {
+					k = nullptr;
+					continue;
+				}
+				if (k->stage != s.next_stage) {
+					k->stage = s.next_stage;
+					k->get_page()->alive_objects++;
+				}
+			}
+		}
+		i->get_page()->alive_objects++;
+	}
 
 	// String creation.
 	//

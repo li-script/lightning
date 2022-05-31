@@ -8,13 +8,26 @@
 
 namespace li {
 	struct vm;
+
+	// Traversable types.
+	//
+	struct array;
+	struct table;
+	struct function;
+	struct string_set;
 };
 namespace li::gc {
-	// Context for header::gc_tick.
+	struct header;
+
+	// Context for header::gc_tick and traverse.
 	//
 	struct stage_context {
 		uint32_t next_stage;
 	};
+	void traverse(stage_context s, array* o);
+	void traverse(stage_context s, table* o);
+	void traverse(stage_context s, function* o);
+	void traverse(stage_context s, string_set* o);
 
 	// GC configuration.
 	//
@@ -52,45 +65,27 @@ namespace li::gc {
 	//
 	struct page;
 
-	struct free_header {
-		uintptr_t valid : 1      = 0;  // Abusing the fact that VTable won't be misaligned.
-#if LI_32
-		intptr_t next_free : 31 = 0;  // Offset to next free block, 0 if last.
-#else
-		intptr_t next_free : 63 = 0;  // Offset to next free block, 0 if last.
-#endif
-
-		// Should match header:
-		//
-		uint32_t rsvd : 3         = 0;
-		uint32_t num_chunks : 29  = 0;
-		uint32_t page_offset : 24 = 0;  // in page units.
-
-		// Next helper.
-		//
-		void         set_next(free_header* h) { next_free = h ? intptr_t(h) - intptr_t(this) : 0; }
-		free_header* next() {
-			free_header* h = (free_header*) (((uint8_t*) this) + next_free);
-			return h != this ? h : nullptr;
-		}
-	};
 	struct header {
-		uint32_t traversable : 1  = 0;
-		uint32_t stage : 2        = 0;
-		uint32_t num_chunks : 29  = 0;
+		// [0..32]
+		uint32_t gc_type : 4     = type_gc_uninit;
+		uint32_t num_chunks : 28 = 0;
+		// [32..64]
 		uint32_t page_offset : 24 = 0;  // in page units.
-		uint32_t has_gc : 1       = 0;
+		uint32_t stage : 2        = 0;
+		// [64..128]
+		intptr_t next_free = 0; // TODO: Compress
+
+		// Free header helpers.
+		//
+		bool    is_free() const { return gc_type == type_gc_free; }
+		void    set_next_free(header* h) { next_free = h ? intptr_t(h) : 0; }
+		header* get_next_free() { return (header*) (next_free); }
 
 		// Object size helper.
 		// - Size ignoring the header.
 		size_t object_bytes() const { return total_bytes() - sizeof(header); }
 		// - Size with the header.
 		size_t total_bytes() const { return size_t(num_chunks) << chunk_shift; }
-
-		// Gets the free header.
-		//
-		free_header* get_free_header() const { return (free_header*) this; }
-		bool         is_free() const { return get_free_header()->valid; }
 
 		// Page helper.
 		//
@@ -105,18 +100,12 @@ namespace li::gc {
 
 		// Internals.
 		//
-		void               gc_init(page* p, vm* L, uint32_t qlen, bool traversable);
+		void               gc_init(page* p, vm* L, uint32_t qlen, value_type t);
 		bool               gc_tick(stage_context s, bool weak = false);
-		virtual void       gc_traverse(stage_context s) = 0;
-		virtual value_type gc_identify() const          = 0;
-		virtual void       gc_destroy(vm* L) {}
 	};
 	static_assert(sizeof(header) == (8 + sizeof(uintptr_t)), "Invalid GC header size.");
-	static_assert(sizeof(free_header) == sizeof(header), "Invalid GC header size.");
-	template<typename T, bool Traversable = false>
+	template<typename T>
 	struct tag : header {
-		static constexpr bool gc_traversable = Traversable;
-
 		// Returns the extra-space associated.
 		//
 		size_t extra_bytes() const { return total_bytes() - sizeof(T); }
@@ -127,14 +116,15 @@ namespace li::gc {
 		tag(const tag&)            = delete;
 		tag& operator=(const tag&) = delete;
 	};
-	template<typename T, value_type V = value_type::type_none>
-	struct leaf : tag<T, false> {
-		void       gc_traverse(stage_context s) override {}
-		value_type gc_identify() const override { return V; }
+	template<typename T, value_type V = type_gc_private>
+	struct leaf : tag<T> {
+		static constexpr value_type gc_type        = V;
+		static constexpr bool gc_traversable = false;
 	};
-	template<typename T, value_type V = value_type::type_none>
-	struct node : tag<T, true> {
-		value_type gc_identify() const override { return V; }
+	template<typename T, value_type V = type_gc_private>
+	struct node : tag<T> {
+		static constexpr value_type gc_type        = V;
+		static constexpr bool gc_traversable = true;
 	};
 
 	// GC page.
@@ -214,7 +204,7 @@ namespace li::gc {
 
 		// Free lists.
 		//
-		std::array<free_header*, std::size(size_classes)> free_lists = {nullptr};
+		std::array<header*, std::size(size_classes)> free_lists = {nullptr};
 
 		// Page enumerator.
 		//
@@ -273,7 +263,7 @@ namespace li::gc {
 			uint32_t length   = (uint32_t) (chunk_ceil(extra_length + sizeof(T)) >> chunk_shift);
 			auto [page, base] = allocate_uninit(L, length);
 			T* result         = new (base) T(std::forward<Tx>(args)...);
-			result->gc_init(page, L, length, T::gc_traversable);
+			result->gc_init(page, L, length, T::gc_type);
 			return result;
 		}
 

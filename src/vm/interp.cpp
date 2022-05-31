@@ -478,7 +478,6 @@ namespace li {
 									d->trait_hide   = s->trait_hide;
 									d->trait_mask   = s->trait_mask;
 									d->traits       = s->traits;
-									d->has_gc       = s->has_trait<trait::gc>();
 
 									// Copy fields raw.
 									//

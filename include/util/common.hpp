@@ -107,21 +107,23 @@ namespace li {
 	// Compiler specifics.
 	//
 #if defined(__GNUC__) || defined(__clang__) || defined(__EMSCRIPTEN__)
-	#define LI_PURE      __attribute__((pure))
-	#define LI_CONST     __attribute__((const))
-	#define LI_FLATTEN   __attribute__((flatten))
-	#define LI_COLD      __attribute__((cold, noinline, disable_tail_calls))
-	#define LI_INLINE    __attribute__((always_inline))
-	#define LI_NOINLINE  __attribute__((noinline))
-	#define LI_ALIGN(x)  __attribute__((aligned(x)))
+	#define LI_PURE        __attribute__((pure))
+	#define LI_CONST       __attribute__((const))
+	#define LI_FLATTEN     __attribute__((flatten))
+	#define LI_COLD        __attribute__((cold, noinline, disable_tail_calls))
+	#define LI_INLINE      __attribute__((always_inline))
+	#define LI_NOINLINE    __attribute__((noinline))
+	#define LI_ALIGN(x)    __attribute__((aligned(x)))
+	#define LI_TRIVIAL_ABI __attribute__((trivial_abi))
 #elif _MSC_VER
-	#define LI_PURE     
-	#define LI_CONST    
-	#define LI_FLATTEN  
+	#define LI_PURE
+	#define LI_CONST
+	#define LI_FLATTEN
 	#define LI_INLINE   [[msvc::forceinline]]
 	#define LI_NOINLINE __declspec(noinline)
 	#define LI_COLD     LI_NOINLINE
 	#define LI_ALIGN(x) __declspec(align(x))
+	#define LI_TRIVIAL_ABI
 #endif
 	LI_INLINE inline static void breakpoint() {
 #if __has_builtin(__builtin_debugtrap)

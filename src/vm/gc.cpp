@@ -18,9 +18,9 @@
 #endif
 
 namespace li::gc {
-	void header::gc_init(page* p, vm* L, uint32_t clen, bool trv) {
+	void header::gc_init(page* p, vm* L, uint32_t clen, value_type t) {
+		gc_type        = t;
 		num_chunks     = clen;
-		traversable    = trv;
 		page_offset    = (uintptr_t(this) - uintptr_t(p)) >> 12;
 		stage          = L ? L->stage : 0;
 	}
@@ -40,8 +40,14 @@ namespace li::gc {
 		// Update stage, recurse.
 		//
 		stage = s.next_stage;
-		if (traversable)
-			gc_traverse(s);
+		if (gc_type <= type_gc_last_traversable) {
+			if (gc_type == type_array)
+				traverse(s, (array*) this);
+			else if (gc_type == type_table)
+				traverse(s, (table*) this);
+			else if (gc_type == type_function)
+				traverse(s, (function*) this);
+		}
 
 		// Increment counter.
 		//
@@ -58,30 +64,30 @@ namespace li::gc {
 		// Try allocating from a free list.
 		//
 		auto try_alloc_class = [&](size_t scl, bool excess) LI_INLINE -> std::pair<page*, void*> {
-			free_header* it   = free_lists[scl];
-			free_header* prev = nullptr;
+			header* it   = free_lists[scl];
+			header* prev = nullptr;
 			while (it) {
 				if (excess || it->num_chunks >= clen) {
 					// Unlink the entry.
 					//
 					if (prev) {
-						prev->set_next(it->next());
+						prev->set_next_free(it->get_next_free());
 					} else {
-						free_lists[scl] = it->next();
+						free_lists[scl] = it->get_next_free();
 					}
 
 					// Get the page.
 					//
-					auto* page = ((header*) it)->get_page();
+					auto* page = it->get_page();
 
 					// If we didn't allocate all of the space, re-insert into the free-list.
 					//
 					if (uint32_t leftover = it->num_chunks - clen) {
 						it->num_chunks   = clen;
-						auto* h2         = ((header*) it)->next();
-						auto* fh2        = h2->get_free_header();
-						fh2->valid       = true;
-						fh2->next_free   = 0;
+						it->gc_type      = type_gc_uninit;
+						auto* fh2        = it->next();
+						fh2->gc_type     = type_gc_free;
+						fh2->set_next_free(nullptr);
 						fh2->num_chunks  = leftover;
 						fh2->page_offset = (uintptr_t(fh2) - uintptr_t(page)) >> 12;
 
@@ -89,7 +95,7 @@ namespace li::gc {
 						//
 						if (clen != 1) {
 							auto& free_list = free_lists[size_class_of(fh2->num_chunks)];
-							fh2->set_next(free_list);
+							fh2->set_next_free(free_list);
 							free_list = fh2;
 						}
 					}
@@ -99,7 +105,7 @@ namespace li::gc {
 					return {page, it};
 				} else {
 					prev = it;
-					it   = it->next();
+					it   = it->get_next_free();
 				}
 			}
 			return {nullptr, nullptr};
@@ -139,25 +145,20 @@ namespace li::gc {
 
 		// Set the object free.
 		//
-		uint32_t num_chunks  = o->num_chunks;
-		uint32_t page_offset = o->page_offset;
-		if (o->has_gc) [[unlikely]] {
-			o->gc_destroy(L);
+		if (o->gc_type == type_table) {
+			((traitful_node<>*) o)->gc_destroy(L);
 		}
-		auto* fh        = o->get_free_header();
-		fh->valid       = true;
-		fh->next_free   = 0;
-		fh->num_chunks  = num_chunks;
-		fh->page_offset = page_offset;
+		o->gc_type   = type_gc_free;
+		o->set_next_free(nullptr);
 #if LI_DEBUG
-		memset(fh + 1, 0xCC, (num_chunks << chunk_shift) - sizeof(header));
+		memset(o + 1, 0xCC, (size_t(o->num_chunks) << chunk_shift) - sizeof(header));
 #endif
 
 		// Insert into the free list.
 		//
-		auto& free_list = free_lists[size_class_of(num_chunks)];
-		fh->set_next(free_list);
-		free_list = fh;
+		auto& free_list = free_lists[size_class_of(o->num_chunks)];
+		o->set_next_free(free_list);
+		free_list = o;
 	}
 
 	static void traverse_live(vm* L, stage_context sweep, bool include_weak) {

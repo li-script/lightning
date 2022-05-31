@@ -29,9 +29,9 @@ namespace li {
 
 	// GC enumerator.
 	//
-	void function::gc_traverse(gc::stage_context s) {
-		src_chunk->gc_tick(s);
-		for (auto& v : gcvals()) {
+	void gc::traverse(gc::stage_context s, function* o) {
+		o->src_chunk->gc_tick(s);
+		for (auto& v : o->gcvals()) {
 			if (v.is_gc())
 				v.as_gc()->gc_tick(s);
 		}

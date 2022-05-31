@@ -39,9 +39,9 @@ namespace li {
 		// - first gc type
 		type_table     = 0,
 		type_array     = 1,
-		type_string    = 2,
-		type_userdata  = 3,
-		type_function  = 4,
+		type_function  = 2, // Last traversable.
+		type_string    = 3,
+		type_userdata  = 4,
 		type_nfunction = 5,
 		// last gc type
 		type_none      = 6,
@@ -49,6 +49,12 @@ namespace li {
 		type_true      = 8,
 		type_opaque    = 9,  // No type/definition, unique integer part.
 		type_number    = 10,
+
+		// GC aliases.
+		type_gc_free = type_none,
+		type_gc_private,
+		type_gc_uninit,
+		type_gc_last_traversable = type_function,
 	};
 	static constexpr const char*          type_names[] = {"table", "array", "string", "userdata", "function", "nfunction", "none", "bool", "bool", "opaque", "number"};
 	LI_INLINE static constexpr value_type to_canonical_type_name(value_type t) {
@@ -80,7 +86,7 @@ namespace li {
 
 	// Boxed object type, fixed 16-bytes.
 	//
-	struct any {
+	struct LI_TRIVIAL_ABI any {
 		uint64_t value;
 
 		// Literal construction.

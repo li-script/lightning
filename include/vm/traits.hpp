@@ -82,8 +82,8 @@ namespace li {
 
 	// Final tag.
 	//
-	template<typename T, value_type V>
-	struct with_traits : gc::node<T, V> {
+	template<typename T = std::monostate, value_type V = type_none>
+	struct traitful_node : gc::node<T, V> {
 		uint32_t     trait_freeze : 1        = 0;        // Allows constant optimizations and errors on value set.
 		uint32_t     trait_seal : 1          = 0;        // Allows constant optimizations and errors on trait set.
 		uint32_t     trait_hide : 1          = 0;        // Hides the metatable from getter.
@@ -153,12 +153,6 @@ namespace li {
 				}
 			}
 
-			// Propagate GC.
-			//
-			if (t == trait::gc) {
-				this->has_gc = v != none;
-			}
-
 			// Set value.
 			//
 			if (v != none) {
@@ -194,9 +188,15 @@ namespace li {
 
 		// GC callback.
 		//
-		void gc_destroy(vm* L) override {
+		void gc_destroy(vm* L) {
 			if (trait_mask & (1u << uint32_t(trait::gc))) {
-				L->scall(0, traits->list[uint32_t(trait::gc)].as_any(), any((T*) this));
+				any self;
+				if constexpr (std::is_same_v<T, std::monostate>) {
+					self = any(std::in_place, mix_value(((gc::header*)this)->gc_type, (uint64_t) this));
+				} else {
+					self = any((T*) this);
+				}
+				L->scall(0, traits->list[uint32_t(trait::gc)].as_any(), self);
 				L->pop_stack();
 			}
 		}

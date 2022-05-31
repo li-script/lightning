@@ -15,7 +15,7 @@ namespace li {
 	struct table_nodes : gc::leaf<table_nodes> {
 		table_entry entries[];
 	};
-	struct table : with_traits<table, type_table> {
+	struct table : traitful_node<table, type_table> {
 		static table* create(vm* L, size_t reserved_entry_count = 0);
 
 		table_nodes*  node_list = nullptr;
@@ -37,13 +37,8 @@ namespace li {
 		table* duplicate(vm* L) const {
 			table* tbl     = L->duplicate(this);
 			tbl->node_list = L->duplicate(tbl->node_list);
-			tbl->has_gc    = has_trait<trait::gc>();
 			return tbl;
 		}
-
-		// GC enumerator.
-		//
-		void gc_traverse(gc::stage_context s) override;
 
 		// Rehashing resize.
 		//

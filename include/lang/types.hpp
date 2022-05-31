@@ -61,6 +61,8 @@ namespace li {
 		type_gc_last_traitful    = type_userdata,
 	};
 
+	// Type names.
+	//
 	static constexpr std::array<const char*, 16> type_names = []() {
 		std::array<const char*, 16> result;
 		result.fill("invalid");
@@ -77,6 +79,9 @@ namespace li {
 		result[type_number]    = "number";
 		return result;
 	}();
+
+	// Type canonicalization for user type checks.
+	//
 	LI_INLINE static constexpr value_type to_canonical_type_name(value_type t) {
 		if (t == type_none)
 			return type_table;
@@ -86,6 +91,10 @@ namespace li {
 			return type_function;
 		return t;
 	}
+
+	// NaN boxing details.
+	//
+	static constexpr uint64_t           kvalue_nan = 0xfff8000000000000;
 	LI_INLINE static constexpr uint64_t mask_value(uint64_t value) { return value & util::fill_bits(47); }
 	LI_INLINE static constexpr uint64_t mix_value(uint8_t type, uint64_t value) { return ((~uint64_t(type)) << 47) | mask_value(value); }
 	LI_INLINE static constexpr uint64_t make_tag(uint8_t type) { return ((~uint64_t(type)) << 47) | mask_value(~0ull); }
@@ -97,11 +106,9 @@ namespace li {
 #endif
 		return (gc::header*) value;
 	}
-	static constexpr uint64_t kvalue_none  = make_tag(type_none);
-	static constexpr uint64_t kvalue_false = make_tag(type_true);
-	static constexpr uint64_t kvalue_true  = make_tag(type_false);
-	static constexpr uint64_t kvalue_nan   = 0xfff8000000000000;
 
+	// Type and value traits.
+	//
 	LI_INLINE static constexpr bool is_type_gc(uint8_t t) { return t <= type_gc_last; }
 	LI_INLINE static constexpr bool is_type_traitful(uint8_t t) { return t <= type_gc_last_traitful; }
 	LI_INLINE static constexpr bool is_type_gc_traversable(uint8_t t) { return t <= type_gc_last_traversable; }
@@ -115,14 +122,14 @@ namespace li {
 		static value_type identify(const header* h);
 	};
 
-	// Boxed object type, fixed 16-bytes.
+	// Boxed object type, fixed 8-bytes.
 	//
 	struct LI_TRIVIAL_ABI any {
 		uint64_t value;
 
 		// Literal construction.
 		//
-		inline constexpr any() : value(kvalue_none) {}
+		inline constexpr any() : value(make_tag(type_none)) {}
 		inline constexpr any(bool v) : value(make_tag(type_false + v)) {}
 		inline constexpr any(number v) : value(bit_cast<uint64_t>(v)) {
 			if (v != v) [[unlikely]]

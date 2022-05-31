@@ -21,9 +21,7 @@ namespace li::gc {
 
 	// Context for header::gc_tick and traverse.
 	//
-	struct stage_context {
-		uint32_t next_stage;
-	};
+	using stage_context = bool;
 	void traverse(stage_context s, array* o);
 	void traverse(stage_context s, table* o);
 	void traverse(stage_context s, function* o);
@@ -36,7 +34,7 @@ namespace li::gc {
 	static constexpr size_t   chunk_size         = 1ull << chunk_shift;
 	static constexpr uint32_t gc_interval        = 1 << 14;
 	static constexpr size_t   gc_min_debt        = 4096 / chunk_size;
-	static constexpr size_t   gc_max_debt        = (1 * 1024 * 1024) / chunk_size;
+	static constexpr size_t   gc_max_debt        = minimum_allocation / 4;
 
 	static constexpr size_t chunk_ceil(size_t v) { return (v + chunk_size - 1) & ~(chunk_size - 1); }
 	static constexpr size_t chunk_floor(size_t v) { return v & ~(chunk_size - 1); }
@@ -45,7 +43,6 @@ namespace li::gc {
 	//
 	static constexpr uint32_t size_classes[] = {
 		32 >> chunk_shift,
-		64 >> chunk_shift,
 		256 >> chunk_shift,
 		4096 >> chunk_shift,
 		65536 >> chunk_shift,
@@ -65,9 +62,9 @@ namespace li::gc {
 	struct page;
 
 	struct header {
-		uint32_t gc_type : 4      = type_gc_uninit; // bit size == chunk_shift :).
-		uint32_t num_chunks : 28 = 0;
-		uint32_t rsvd : 7;
+		uint32_t gc_type : 4      = type_gc_uninit;  // bit size == chunk_shift :).
+		uint32_t num_chunks : 28  = 0;
+		uint32_t rsvd : 7         = 0;
 		uint32_t page_offset : 24 = 0;  // in page units.
 		uint32_t stage : 1        = 0;
 
@@ -211,6 +208,10 @@ namespace li::gc {
 		//
 		std::array<header*, std::size(size_classes)> free_lists = {nullptr};
 
+		// Dynamic configuration.
+		//
+		bool greedy = true; // Holds onto pages even if there are no objects in them.
+
 		// Page enumerator.
 		//
 		template<typename F>
@@ -259,7 +260,7 @@ namespace li::gc {
 
 		// Immediately frees an object.
 		//
-		void free(vm* L, header* o);
+		void free(vm* L, header* o, bool within_gc = false);
 
 		// Allocates and creates an object.
 		//

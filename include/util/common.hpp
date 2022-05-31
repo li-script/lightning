@@ -45,6 +45,16 @@
 	#define LI_32 1
 #endif
 
+#if defined(_CPPRTTI)
+	#define LI_HAS_RTTI _CPPRTTI
+#elif defined(__GXX_RTTI)
+	#define LI_HAS_RTTI __GXX_RTTI
+#elif defined(__has_feature)
+	#define LI_HAS_RTTI __has_feature(cxx_rtti)
+#else
+	#define LI_HAS_RTTI 0
+#endif
+
 #define LI_STRINGIFY_I(x) #x
 #define LI_STRINGIFY(x)   LI_STRINGIFY_I(x)
 #define LI_STRCAT_I(x, y) x##y

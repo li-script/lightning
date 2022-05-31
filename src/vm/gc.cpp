@@ -4,18 +4,6 @@
 #include <vm/string.hpp>
 #include <span>
 
-#if defined(_CPPRTTI)
-	#define HAS_RTTI _CPPRTTI
-#elif defined(__GXX_RTTI)
-	#define HAS_RTTI __GXX_RTTI
-#elif defined(__has_feature)
-	#define HAS_RTTI __has_feature(cxx_rtti)
-#else
-	#define HAS_RTTI 0
-#endif
-#if HAS_RTTI
-	#include <typeinfo>
-#endif
 
 namespace li::gc {
 	void header::gc_init(page* p, vm* L, uint32_t clen, value_type t) {
@@ -25,21 +13,17 @@ namespace li::gc {
 		stage          = L ? L->stage : 0;
 	}
 	bool header::gc_tick(stage_context s, bool weak) {
-		// If dead, skip.
-		//
-		if (is_free()) [[unlikely]] {
-			return false;
-		}
+		LI_ASSERT(!is_free());
 
 		// If already iterated, skip.
 		//
-		if (stage == s.next_stage) [[likely]] {
+		if (stage == s) [[likely]] {
 			return true;
 		}
 
 		// Update stage, recurse.
 		//
-		stage = s.next_stage;
+		stage = s;
 		if (gc_type <= type_gc_last_traversable) {
 			if (gc_type == type_array)
 				traverse(s, (array*) this);
@@ -129,50 +113,54 @@ namespace li::gc {
 		debt += clen;
 		return {pg, pg->alloc_arena(clen)};
 	}
-	void state::free(vm* L, header* o) {
+	void state::free(vm* L, header* o, bool within_gc) {
 		LI_ASSERT_MSG("Double free", !o->is_free());
 
 		// Decrement counters.
 		//
 		auto* page = o->get_page();
-		page->alive_objects--;
+		if (!within_gc)
+			page->alive_objects--;
 		page->num_objects--;
 
-		// Set the object free.
+		// Run destructor if relevant.
 		//
 		if (o->gc_type == type_table) {
 			((traitful_node<>*) o)->gc_destroy(L);
 		}
-		o->gc_type   = type_gc_free;
-		o->set_next_free(nullptr);
 #if LI_DEBUG
-		memset(1 + (uintptr_t*) (o + 1), 0xCC, (size_t(o->num_chunks) << chunk_shift) - sizeof(header) - sizeof(uintptr_t));
+		memset(o + 1, 0xCC, o->object_bytes());
 #endif
 
-		// Insert into the free list.
+		// Insert into the free list or adjust arena.
 		//
-		auto& free_list = free_lists[size_class_of(o->num_chunks)];
-		o->set_next_free(free_list);
-		free_list = o;
+		if (o->next() != page->end()) {
+			auto& free_list = free_lists[size_class_of(o->num_chunks)];
+			o->gc_type      = type_gc_free;
+			o->set_next_free(free_list);
+			free_list = o;
+		} else {
+			page->next_chunk -= o->num_chunks;
+		}
 	}
 
-	static void traverse_live(vm* L, stage_context sweep) {
+	static void traverse_live(vm* L, stage_context s) {
 		// Stack.
 		//
 		for (auto& e : std::span{L->stack, (size_t) L->stack_top}) {
 			if (e.is_gc())
-				e.as_gc()->gc_tick(sweep);
+				e.as_gc()->gc_tick(s);
 		}
-		std::prev(((header*) L->stack))->gc_tick(sweep);
+		std::prev(((header*) L->stack))->gc_tick(s);
 
 		// Globals.
 		//
-		L->globals->gc_tick(sweep);
+		L->globals->gc_tick(s);
 
 		// Strings.
 		//
-		((header*) L->empty_string)->gc_tick(sweep);
-		((header*) L->strset)->gc_tick(sweep);
+		((header*) L->empty_string)->gc_tick(s);
+		((header*) L->strset)->gc_tick(s);
 	}
 
 	LI_COLD void state::collect(vm* L) {
@@ -190,7 +178,8 @@ namespace li::gc {
 
 		// Mark all alive objects.
 		//
-		stage_context ms{++L->stage};
+		L->stage ^= 1;
+		stage_context ms{bool(L->stage)};
 		traverse_live(L, ms);
 
 		// Free all dead objects.
@@ -199,13 +188,12 @@ namespace li::gc {
 		for_each([&](page* it) {
 			if (it->alive_objects != it->num_objects) {
 				it->for_each([&](header* obj) {
-					if (!obj->is_free() && obj->stage != ms.next_stage) {
-						free(L, obj);
+					if (!obj->is_free() && obj->stage != ms) {
+						free(L, obj, true);
 					}
 					return false;
 				});
-
-				if (!it->alive_objects) {
+				if (!it->alive_objects && !greedy) {
 					util::unlink(it);
 					if (!dead_page_list) {
 						it->next       = nullptr;

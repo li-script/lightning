@@ -2193,8 +2193,8 @@ namespace li {
 		// Handle UTF input.
 		//
 		std::string temp;
-		if (util::utf::utf_is_bom(source)) [[unlikely]] {
-			temp   = util::utf::utf_convert<char>(std::span((const uint8_t*) source.data(), source.size()));
+		if (util::utf_is_bom(source)) [[unlikely]] {
+			temp   = util::utf_convert<char>(std::span((const uint8_t*) source.data(), source.size()));
 			source = temp;
 		}
 

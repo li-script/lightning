@@ -205,9 +205,9 @@ namespace li::lex {
 
 					// Insert-inplace.
 					//
-					static_assert(util::utf::codepoint_cvt<char>::max_out <= 6, "can't write inplace");
+					static_assert(util::codepoint_cvt<char>::max_out <= 6, "can't write inplace");
 					auto it = &result[pos];
-					util::utf::codepoint_cvt<char>::encode(cp, it);
+					util::codepoint_cvt<char>::encode(cp, it);
 					auto len = it - &result[pos];
 
 					// Remove all after it.

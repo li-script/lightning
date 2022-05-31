@@ -4,7 +4,7 @@
 #include <string_view>
 #include <span>
 
-namespace li::util::utf {
+namespace li::util {
 	template<typename C, bool ForeignEndianness = false>
 	struct codepoint_cvt;
 

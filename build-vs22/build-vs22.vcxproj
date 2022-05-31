@@ -40,6 +40,7 @@
     <ClCompile Include="..\src\vm\state.cpp" />
     <ClCompile Include="..\src\vm\string.cpp" />
     <ClCompile Include="..\src\vm\table.cpp" />
+    <ClCompile Include="..\src\vm\userdata.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\jit\zydis.hpp" />

@@ -5,6 +5,7 @@
 #include <util/format.hpp>
 #include <util/llist.hpp>
 #include <util/platform.hpp>
+#include <vector>
 
 namespace li {
 	struct vm;
@@ -26,6 +27,7 @@ namespace li::gc {
 	void traverse(stage_context s, table* o);
 	void traverse(stage_context s, function* o);
 	void traverse(stage_context s, string_set* o);
+	void traverse(stage_context s, userdata* o);
 
 	// GC configuration.
 	//
@@ -142,6 +144,7 @@ namespace li::gc {
 		uint32_t num_objects   = 0;
 		uint32_t alive_objects = 0;
 		uint32_t next_chunk    = (uint32_t) chunk_ceil(sizeof(page));
+		uint32_t num_indeps    = 0;
 
 		// Default construction for head.
 		//
@@ -181,13 +184,13 @@ namespace li::gc {
 
 		// Allocates an uninitialized chunk, caller must have checked for space.
 		//
-		void* alloc_arena(uint32_t clen) {
+		header* alloc_arena(uint32_t clen) {
 			LI_ASSERT(check_space(clen));
 
 			void* p = get_chunk(next_chunk);
 			next_chunk += clen;
 			num_objects++;
-			return p;
+			return (header*) p;
 		}
 	};
 
@@ -249,7 +252,7 @@ namespace li::gc {
 
 		// Allocates an uninitialized chunk.
 		//
-		std::pair<page*, void*> allocate_uninit(vm* L, uint32_t clen);
+		std::pair<page*, header*> allocate_uninit(vm* L, uint32_t clen);
 
 		// Immediately frees an object.
 		//
@@ -280,6 +283,27 @@ namespace li::gc {
 		}
 	};
 
+	// Acquires/Releases a chunk of memory.
+	//
+	void mem_release(void* p);
+	void mem_acquire(void* p);
+
+	// Malloc/Free for private data.
+	//
+	void* mem_alloc(vm* L, size_t n, bool independent = true);
+	void  mem_free(vm* L, void* p);
+	void* mem_realloc(vm* L, void* p, size_t n, bool independent = true);
+
+	// Tick helper for private memory.
+	//
+	LI_INLINE inline void mem_tick(void* p, stage_context c) {
+		if (p) {
+			auto* h = std::prev((header*) p);
+			LI_ASSERT(h->gc_type == type_gc_private);
+			h->gc_tick(c);
+		}
+	}
+
 	// any[] helper.
 	//
 	LI_INLINE inline void traverse_n(stage_context s, any* begin, size_t count) {
@@ -288,4 +312,45 @@ namespace li::gc {
 				it->as_gc()->gc_tick(s);
 		}
 	}
+
+	// A standard allocator wrapping mem_ functions.
+	//
+	template<typename T, bool Independent = true>
+	struct allocator {
+		// Allocator traits.
+		//
+		using value_type =         T;
+		using pointer =            T*;
+		using const_pointer =      const T*;
+		using void_pointer =       void*;
+		using const_void_pointer = const void*;
+		using size_type =          size_t;
+		using difference_type =    int64_t;
+		using is_always_equal =    std::false_type;
+		template<typename U>
+		struct rebind { using other = allocator<U, Independent>; };
+
+		vm* L;
+		constexpr allocator(vm* L = nullptr) : L(L){};
+
+		template<typename T2>
+		constexpr allocator(const allocator<T2, Independent>& o) noexcept : L(o.L) {}
+
+		T*   allocate(size_t count) { return (T*) mem_alloc(L, count * sizeof(T), Independent); }
+		void deallocate(T* pointer, size_t) noexcept { mem_free(L, pointer); }
+
+		template<typename T2>
+		constexpr bool operator==(const allocator<T2, Independent>& o) {
+			return L == o.L;
+		}
+		template<typename T2>
+		constexpr bool operator!=(const allocator<T2, Independent>& o) {
+			return L == o.L;
+		}
+	};
+
+	// Wrap vector.
+	//
+	template<typename T>
+	using vector = std::vector<T, allocator<T>>;
 };

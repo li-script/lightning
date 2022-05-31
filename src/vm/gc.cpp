@@ -4,7 +4,6 @@
 #include <vm/string.hpp>
 #include <span>
 
-
 namespace li::gc {
 	void header::gc_init(page* p, vm* L, uint32_t clen, value_type t) {
 		gc_type        = t;
@@ -42,12 +41,12 @@ namespace li::gc {
 	
 	// Allocates an uninitialized chunk.
 	//
-	std::pair<page*, void*> state::allocate_uninit(vm* L, uint32_t clen) {
+	std::pair<page*, header*> state::allocate_uninit(vm* L, uint32_t clen) {
 		LI_ASSERT(clen != 0);
 
 		// Try allocating from a free list.
 		//
-		auto try_alloc_class = [&](size_t scl, bool excess) LI_INLINE -> std::pair<page*, void*> {
+		auto try_alloc_class = [&](size_t scl, bool excess) LI_INLINE -> std::pair<page*, header*> {
 			header* it   = free_lists[scl];
 			header* prev = nullptr;
 			while (it) {
@@ -125,7 +124,7 @@ namespace li::gc {
 
 		// Run destructor if relevant.
 		//
-		if (is_traitful(o->gc_type)) {
+		if (is_type_traitful(o->gc_type)) {
 			((traitful_node<>*) o)->gc_destroy(L);
 		}
 #if LI_DEBUG
@@ -194,9 +193,8 @@ namespace li::gc {
 
 		// Clear alive counter in all pages.
 		//
-		initial_page->alive_objects = 1; // vm
-		for (auto it = initial_page->next; it != initial_page; it = it->next) {
-			it->alive_objects = 0;
+		for (auto it = initial_page; it != initial_page; it = it->next) {
+			it->alive_objects = it->num_indeps;
 		}
 
 		// Mark all alive objects.
@@ -211,12 +209,12 @@ namespace li::gc {
 		for_each([&](page* it) {
 			if (it->alive_objects != it->num_objects) {
 				it->for_each([&](header* obj) {
-					if (!obj->is_free() && obj->stage != ms) {
+					if (!obj->is_free() && obj->stage != ms && obj->gc_type != type_gc_indep) {
 						free(L, obj, true);
 					}
 					return false;
 				});
-				if (!it->alive_objects && !greedy) {
+				if (!greedy && !it->alive_objects) {
 					util::unlink(it);
 					if (!dead_page_list) {
 						it->next       = nullptr;
@@ -243,6 +241,7 @@ namespace li::gc {
 				header** prev = &free_lists[i];
 				for (auto it = *prev; it;) {
 					auto* next = it->get_next_free();
+
 					if (!it->get_page()->alive_objects) {
 						*prev = it->get_next_free();
 					} else {
@@ -258,6 +257,56 @@ namespace li::gc {
 				auto i = std::exchange(dead_page_list, dead_page_list->next);
 				alloc_fn(alloc_ctx, i, i->num_pages, false);
 			}
+		}
+	}
+
+	// Implement mem_ functions.
+	//
+	void mem_release(void* p) {
+		auto* h    = std::prev((header*) p);
+		auto* page = h->get_page();
+		LI_ASSERT(h->gc_type == type_gc_private);
+		h->gc_type = type_gc_indep;
+		page->num_indeps++;
+		page->num_objects--;
+	}
+	void mem_acquire(vm* L, void* p) {
+		auto* h    = std::prev((header*) p);
+		auto* page = h->get_page();
+		LI_ASSERT(h->gc_type == type_gc_indep);
+		h->gc_type = type_gc_private;
+		h->stage   = L->stage;
+		page->num_indeps--;
+		page->num_objects++;
+	}
+	void* mem_alloc(vm* L, size_t n, bool independent) {
+		uint32_t length   = (uint32_t) (chunk_ceil(n + sizeof(header)) >> chunk_shift);
+		auto [page, base] = L->gc.allocate_uninit(L, length);
+		base->gc_init(page, L, length, independent ? type_gc_indep : type_gc_private);
+		if (independent) {
+			page->num_indeps++;
+			page->num_objects--;
+		}
+		return base + 1;
+	}
+	void mem_free(vm* L, void* p) {
+		if (p) {
+			L->gc.free(L, std::prev((header*) p));
+		}
+	}
+	void* mem_realloc(vm* L, void* p, size_t n, bool independent) {
+		if (!p) {
+			if (!n)
+				return nullptr;
+			return mem_alloc(L, n, independent);
+		} else {
+			auto* h = std::prev((header*) p);
+			if (h->object_bytes() >= n)
+				return p;
+			void* np = mem_alloc(L, n, independent);
+			memcpy(np, p, h->object_bytes());
+			mem_free(L, p);
+			return np;
 		}
 	}
 };

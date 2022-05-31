@@ -15,7 +15,7 @@
   </p>
 </p>
 
-Lightning Script is a work-in-progress scripting language with a modern syntax, uncompromising performance, zero dependencies, and first-class embedding support.
+Lightning Script is a work-in-progress scripting language with a modern syntax, uncompromising performance, and first-class embedding support.
 
 ## Building
 

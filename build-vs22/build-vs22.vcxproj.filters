@@ -38,6 +38,9 @@
       <Filter>Utility</Filter>
     </ClCompile>
     <ClCompile Include="..\repl.cpp" />
+    <ClCompile Include="..\src\vm\userdata.cpp">
+      <Filter>VM\Types</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Language">

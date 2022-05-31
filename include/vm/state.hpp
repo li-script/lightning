@@ -16,8 +16,8 @@ namespace li {
 	// Forward for string set.
 	//
 	struct string_set;
-	void init_string_intern(vm* L);
-	void traverse_string_set(vm* L, gc::stage_context s);
+	void strset_init(vm* L);
+	void strset_sweep(vm* L, gc::stage_context s);
 
 	// Pseudo-type for stack.
 	//
@@ -67,7 +67,7 @@ namespace li {
 		//
 		gc::state   gc             = {};                // Garbage collector.
 		fn_panic    panic_fn       = &default_panic;    // Panic function.
-		string_set* str_intern     = nullptr;           // String interning state
+		string_set* strset     = nullptr;           // String interning state
 		string*     empty_string   = nullptr;           // Constant "".
 		table*      globals        = nullptr;           // Globals.
 		uint64_t    prng_seed      = platform::srng();  // PRNG seed.

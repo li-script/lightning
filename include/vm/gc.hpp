@@ -32,7 +32,7 @@ namespace li::gc {
 	// GC configuration.
 	//
 	static constexpr size_t   minimum_allocation = 2 * 1024 * 1024;
-	static constexpr size_t   chunk_shift        = 4;
+	static constexpr size_t   chunk_shift        = 5;
 	static constexpr size_t   chunk_size         = 1ull << chunk_shift;
 	static constexpr uint32_t gc_interval        = 1 << 14;
 	static constexpr size_t   gc_min_debt        = 4096 / chunk_size;
@@ -46,10 +46,9 @@ namespace li::gc {
 	static constexpr uint32_t size_classes[] = {
 		32 >> chunk_shift,
 		64 >> chunk_shift,
-		128 >> chunk_shift,
 		256 >> chunk_shift,
-		1024 >> chunk_shift,
-		2048 >> chunk_shift,
+		4096 >> chunk_shift,
+		65536 >> chunk_shift,
 		UINT32_MAX
 	};
 	static constexpr size_t   size_class_of(uint32_t nchunks) {
@@ -66,17 +65,24 @@ namespace li::gc {
 	struct page;
 
 	struct header {
-		uint32_t gc_type : 4      = type_gc_uninit;
-		uint32_t num_chunks : 28  = 0;
+		uint32_t gc_type : 4      = type_gc_uninit; // bit size == chunk_shift :).
+		uint32_t num_chunks : 28 = 0;
+		uint32_t rsvd : 7;
 		uint32_t page_offset : 24 = 0;  // in page units.
-		uint32_t stage : 2        = 0;
-		intptr_t next_free        = 0;  // TODO: Compress
+		uint32_t stage : 1        = 0;
 
 		// Free header helpers.
 		//
 		bool    is_free() const { return gc_type == type_gc_free; }
-		void    set_next_free(header* h) { next_free = h ? intptr_t(h) : 0; }
-		header* get_next_free() { return (header*) (next_free); }
+		header*& ref_next_free() { return *(header**) (this + 1); }
+		void     set_next_free(header* h) {
+			LI_ASSERT(gc_type == type_gc_free);
+			ref_next_free() = h;
+		}
+		header* get_next_free() {
+			LI_ASSERT(gc_type == type_gc_free);
+			return ref_next_free();
+		}
 
 		// Object size helper.
 		// - Size ignoring the header.
@@ -100,7 +106,9 @@ namespace li::gc {
 		void               gc_init(page* p, vm* L, uint32_t qlen, value_type t);
 		bool               gc_tick(stage_context s, bool weak = false);
 	};
-	static_assert(sizeof(header) == (8 + sizeof(uintptr_t)), "Invalid GC header size.");
+	static_assert(sizeof(header) == 8, "Invalid GC header size.");
+	static_assert((sizeof(header) + sizeof(uintptr_t)) <= chunk_size, "Invalid GC header size.");
+
 	template<typename T>
 	struct tag : header {
 		// Returns the extra-space associated.
@@ -172,7 +180,7 @@ namespace li::gc {
 
 		// Allocates an uninitialized chunk, caller must have checked for space.
 		//
-		void* allocate_uninit(uint32_t clen) {
+		void* alloc_arena(uint32_t clen) {
 			LI_ASSERT(check_space(clen));
 
 			void* p = get_chunk(next_chunk);
@@ -251,7 +259,7 @@ namespace li::gc {
 
 		// Immediately frees an object.
 		//
-		void free(vm* L, header* o, bool internal = false);
+		void free(vm* L, header* o);
 
 		// Allocates and creates an object.
 		//

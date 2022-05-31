@@ -59,7 +59,7 @@ namespace li::gc {
 	// Allocates an uninitialized chunk.
 	//
 	std::pair<page*, void*> state::allocate_uninit(vm* L, uint32_t clen) {
-		//printf("allocating %llu\n", size_t(clen) << chunk_shift);
+		LI_ASSERT(clen != 0);
 
 		// Try allocating from a free list.
 		//
@@ -76,28 +76,23 @@ namespace li::gc {
 						free_lists[scl] = it->get_next_free();
 					}
 
-					// Get the page.
+					// Get the page and change the type.
 					//
-					auto* page = it->get_page();
+					auto* page  = it->get_page();
+					it->gc_type = type_gc_uninit;
+					page->num_objects++;
 
 					// If we didn't allocate all of the space, re-insert into the free-list.
 					//
 					if (uint32_t leftover = it->num_chunks - clen) {
 						it->num_chunks   = clen;
-						it->gc_type      = type_gc_uninit;
+						auto& free_list  = free_lists[size_class_of(leftover)];
 						auto* fh2        = it->next();
 						fh2->gc_type     = type_gc_free;
-						fh2->set_next_free(nullptr);
 						fh2->num_chunks  = leftover;
 						fh2->page_offset = (uintptr_t(fh2) - uintptr_t(page)) >> 12;
-
-						// Insert into the free list.
-						//
-						if (clen != 1) {
-							auto& free_list = free_lists[size_class_of(fh2->num_chunks)];
-							fh2->set_next_free(free_list);
-							free_list = fh2;
-						}
+						fh2->set_next_free(free_list);
+						free_list = fh2;
 					}
 
 					// Return the result.
@@ -132,16 +127,16 @@ namespace li::gc {
 		// Increment GC depth, return the result.
 		//
 		debt += clen;
-		return {pg, pg->allocate_uninit(clen)};
+		return {pg, pg->alloc_arena(clen)};
 	}
-	void state::free(vm* L, header* o, bool internal) {
+	void state::free(vm* L, header* o) {
 		LI_ASSERT_MSG("Double free", !o->is_free());
 
-		// If call was not made internally, decrement alive counter.
+		// Decrement counters.
 		//
-		if (!internal) {
-			o->get_page()->alive_objects--;
-		}
+		auto* page = o->get_page();
+		page->alive_objects--;
+		page->num_objects--;
 
 		// Set the object free.
 		//
@@ -151,7 +146,7 @@ namespace li::gc {
 		o->gc_type   = type_gc_free;
 		o->set_next_free(nullptr);
 #if LI_DEBUG
-		memset(o + 1, 0xCC, (size_t(o->num_chunks) << chunk_shift) - sizeof(header));
+		memset(1 + (uintptr_t*) (o + 1), 0xCC, (size_t(o->num_chunks) << chunk_shift) - sizeof(header) - sizeof(uintptr_t));
 #endif
 
 		// Insert into the free list.
@@ -161,7 +156,7 @@ namespace li::gc {
 		free_list = o;
 	}
 
-	static void traverse_live(vm* L, stage_context sweep, bool include_weak) {
+	static void traverse_live(vm* L, stage_context sweep) {
 		// Stack.
 		//
 		for (auto& e : std::span{L->stack, (size_t) L->stack_top}) {
@@ -177,8 +172,7 @@ namespace li::gc {
 		// Strings.
 		//
 		((header*) L->empty_string)->gc_tick(sweep);
-		if (!include_weak)
-			traverse_string_set(L, sweep);
+		((header*) L->strset)->gc_tick(sweep);
 	}
 
 	LI_COLD void state::collect(vm* L) {
@@ -194,52 +188,65 @@ namespace li::gc {
 			it->alive_objects = 0;
 		}
 
-		// TODO: Free excess pages, NYI because cba fixing free list.
-		//
-
 		// Mark all alive objects.
 		//
 		stage_context ms{++L->stage};
-		traverse_live(L, ms, false);
+		traverse_live(L, ms);
 
 		// Free all dead objects.
 		//
-		//page* free_list = nullptr;
+		page* dead_page_list = nullptr;
 		for_each([&](page* it) {
 			if (it->alive_objects != it->num_objects) {
 				it->for_each([&](header* obj) {
-					if (!obj->is_free() && obj->stage != ms.next_stage)
-						free(L, obj, true);
+					if (!obj->is_free() && obj->stage != ms.next_stage) {
+						free(L, obj);
+					}
 					return false;
 				});
 
-				//if (!it->alive_objects) {
-				//	util::unlink(it);
-				//	if (!free_list) {
-				//		it->next  = nullptr;
-				//		free_list = it;
-				//	} else {
-				//		it->next  = free_list;
-				//		free_list = it;
-				//	}
-				//}
-
-				it->alive_objects = 0; // Will be incremented again by next step.
+				if (!it->alive_objects) {
+					util::unlink(it);
+					if (!dead_page_list) {
+						it->next       = nullptr;
+						dead_page_list = it;
+					} else {
+						it->next       = dead_page_list;
+						dead_page_list = it;
+					}
+				}
 			}
 			return false;
 		});
 
 		// Sweep dead references.
 		//
-		stage_context ss{++L->stage};
-		traverse_live(L, ss, true);
+		strset_sweep(L, ms);
 
 		// If we can free any pages, do so.
 		//
-		//while (free_list) {
-		//	auto i = std::exchange(free_list, free_list->next);
-		//	alloc_fn(alloc_ctx, i, i->num_pages, false);
-		//}
-		// TODO: Table/array/stack/strset shrinking.
+		if (dead_page_list) [[unlikely]] {
+			// Fix free lists.
+			//
+			for (size_t i = 0; i != free_lists.size(); i++) {
+				header** prev = &free_lists[i];
+				for (auto it = *prev; it;) {
+					auto* next = it->get_next_free();
+					if (!it->get_page()->alive_objects) {
+						*prev = it->get_next_free();
+					} else {
+						prev = &it->ref_next_free();
+					}
+					it = next;
+				}
+			}
+
+			// Deallocate.
+			//
+			while (dead_page_list) {
+				auto i = std::exchange(dead_page_list, dead_page_list->next);
+				alloc_fn(alloc_ctx, i, i->num_pages, false);
+			}
+		}
 	}
 };

@@ -103,7 +103,7 @@ namespace li {
 
 			// Return if already exists.
 			//
-			for (auto& entry : L->str_intern->find(s->hash)) {
+			for (auto& entry : L->strset->find(s->hash)) {
 				if (entry && entry->view() == s->view()) {
 					L->gc.free(L, s);
 					return entry;
@@ -112,7 +112,7 @@ namespace li {
 
 			// Push and return.
 			//
-			L->str_intern = L->str_intern->push(L, s);
+			L->strset = L->strset->push(L, s);
 			return s;
 		}
 		static string* push(vm* L, std::string_view key) {
@@ -124,7 +124,7 @@ namespace li {
 
 			// Return if already exists.
 			//
-			for (auto& entry : L->str_intern->find(hash)) {
+			for (auto& entry : L->strset->find(hash)) {
 				if (entry && entry->view() == key)
 					return entry;
 			}
@@ -136,7 +136,7 @@ namespace li {
 			str->data[key.size()] = 0;
 			str->length           = (uint32_t) key.size();
 			str->hash             = hash;
-			L->str_intern         = L->str_intern->push(L, str);
+			L->strset         = L->strset->push(L, str);
 			return str;
 		}
 	};
@@ -153,9 +153,9 @@ namespace li {
 
 	// Internal string-set implementation.
 	//
-	void init_string_intern(vm* L) {
-		L->str_intern = L->alloc<string_set>(sizeof(string*) * string_set::min_size);
-		std::fill_n(L->str_intern->entries, string_set::min_size, nullptr);
+	void strset_init(vm* L) {
+		L->strset = L->alloc<string_set>(sizeof(string*) * string_set::min_size);
+		std::fill_n(L->strset->entries, string_set::min_size, nullptr);
 
 		string* str = L->alloc<string>(1);
 		str->data[0] = 0;
@@ -163,26 +163,12 @@ namespace li {
 		str->hash    = 0;
 		L->empty_string = str;
 	}
-	void traverse_string_set(vm* L, gc::stage_context s) {
-		auto* i = L->str_intern;
-		if (i->stage == s.next_stage) [[likely]] {
-			return;
-		}
-		i->stage = s.next_stage;
-
-		for (auto& k : *i) {
-			if (k) {
-				if (!k->is_free()) {
-					k = nullptr;
-					continue;
-				}
-				if (k->stage != s.next_stage) {
-					k->stage = s.next_stage;
-					k->get_page()->alive_objects++;
-				}
+	void strset_sweep(vm* L, gc::stage_context s) {
+		for (auto& k : *L->strset) {
+			if (k && k->is_free()) {
+				k = nullptr;
 			}
 		}
-		i->get_page()->alive_objects++;
 	}
 
 	// String creation.

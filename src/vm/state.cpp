@@ -33,7 +33,7 @@ namespace li {
 		// Initialize globals and string interning state.
 		//
 		L->globals = table::create(L, vm::reserved_global_length);
-		init_string_intern(L);
+		strset_init(L);
 		return L;
 	}
 

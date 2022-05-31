@@ -64,11 +64,19 @@ namespace li::gc {
 	struct page;
 
 	struct header {
-		uint32_t gc_type : 4      = type_gc_uninit;  // bit size == chunk_shift :).
-		uint32_t num_chunks : 28  = 0;
-		uint32_t rsvd : 7         = 0;
-		uint32_t page_offset : 24 = 0;  // in page units.
-		uint32_t stage : 1        = 0;
+		uint32_t gc_type : 4       = type_gc_uninit;  // Type, bit size == chunk_shift :).
+		uint32_t num_chunks : 28   = 0;               // Number of chunks in this block.
+		uint32_t rsvd : 6          = 0;               // Reserved.
+		uint32_t indep_or_free : 1 = 0;               // If not garbage collected, also set for free blocks.
+		uint32_t page_offset : 24  = 0;               // Offset to page in pages.
+		uint32_t stage : 1         = 0;               // Stage.
+
+		// Acquire changes an object from a garbage collected type to independent memory.
+		// Release changes an object from being independent to garbage collected.
+		//
+		void acquire();
+		void release(vm* L);
+		bool is_independent() const { return indep_or_free && !is_free(); }
 
 		// Free header helpers.
 		//
@@ -102,8 +110,8 @@ namespace li::gc {
 
 		// Internals.
 		//
-		void               gc_init(page* p, vm* L, uint32_t qlen, value_type t);
-		bool               gc_tick(stage_context s, bool weak = false);
+		void gc_init(page* p, vm* L, uint32_t qlen, value_type t);
+		bool gc_tick(stage_context s, bool weak = false);
 	};
 	static_assert(sizeof(header) == 8, "Invalid GC header size.");
 	static_assert((sizeof(header) + sizeof(uintptr_t)) <= chunk_size, "Invalid GC header size.");
@@ -285,7 +293,7 @@ namespace li::gc {
 
 	// Acquires/Releases a chunk of memory.
 	//
-	void mem_release(void* p);
+	void mem_release(vm* L, void* p);
 	void mem_acquire(void* p);
 
 	// Malloc/Free for private data.

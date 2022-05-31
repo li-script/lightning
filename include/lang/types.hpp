@@ -54,7 +54,6 @@ namespace li {
 		// GC aliases.
 		type_gc_free = type_none,
 		type_gc_private,
-		type_gc_indep,  // Not garbage collected.
 		type_gc_uninit,
 		type_gc_last             = 7,
 		type_gc_last_traversable = type_function,

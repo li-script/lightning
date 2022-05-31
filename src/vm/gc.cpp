@@ -8,6 +8,7 @@ namespace li::gc {
 	void header::gc_init(page* p, vm* L, uint32_t clen, value_type t) {
 		gc_type        = t;
 		num_chunks     = clen;
+		indep_or_free  = false;
 		page_offset    = (uintptr_t(this) - uintptr_t(p)) >> 12;
 		stage          = L ? L->stage : 0;
 	}
@@ -63,6 +64,7 @@ namespace li::gc {
 					//
 					auto* page  = it->get_page();
 					it->gc_type = type_gc_uninit;
+					it->indep_or_free = false;
 					page->num_objects++;
 
 					// If we didn't allocate all of the space, re-insert into the free-list.
@@ -72,6 +74,7 @@ namespace li::gc {
 						auto& free_list  = free_lists[size_class_of(leftover)];
 						auto* fh2        = it->next();
 						fh2->gc_type     = type_gc_free;
+						fh2->indep_or_free = true;
 						fh2->num_chunks  = leftover;
 						fh2->page_offset = (uintptr_t(fh2) - uintptr_t(page)) >> 12;
 						fh2->set_next_free(free_list);
@@ -136,6 +139,7 @@ namespace li::gc {
 		if (o->next() != page->end()) {
 			auto& free_list = free_lists[size_class_of(o->num_chunks)];
 			o->gc_type      = type_gc_free;
+			o->indep_or_free = true;
 			o->set_next_free(free_list);
 			free_list = o;
 		} else {
@@ -209,7 +213,7 @@ namespace li::gc {
 		for_each([&](page* it) {
 			if (it->alive_objects != it->num_objects) {
 				it->for_each([&](header* obj) {
-					if (!obj->is_free() && obj->stage != ms && obj->gc_type != type_gc_indep) {
+					if (!obj->indep_or_free && obj->stage != ms) {
 						free(L, obj, true);
 					}
 					return false;
@@ -260,32 +264,40 @@ namespace li::gc {
 		}
 	}
 
-	// Implement mem_ functions.
-	//
-	void mem_release(void* p) {
-		auto* h    = std::prev((header*) p);
-		auto* page = h->get_page();
-		LI_ASSERT(h->gc_type == type_gc_private);
-		h->gc_type = type_gc_indep;
+	void header::acquire() {
+		auto* page = get_page();
+		LI_ASSERT_MSG("Double acquire", !is_independent());
+		indep_or_free = true;
 		page->num_indeps++;
 		page->num_objects--;
 	}
-	void mem_acquire(vm* L, void* p) {
-		auto* h    = std::prev((header*) p);
-		auto* page = h->get_page();
-		LI_ASSERT(h->gc_type == type_gc_indep);
-		h->gc_type = type_gc_private;
-		h->stage   = L->stage;
+	void header::release(vm* L) {
+		auto* page = get_page();
+		LI_ASSERT_MSG("Double release", is_independent());
+		indep_or_free = false;
+		stage       = L->stage;
 		page->num_indeps--;
 		page->num_objects++;
+	}
+
+	// Implement mem_ functions.
+	//
+	void mem_release(vm* L, void* p) {
+		auto* h = std::prev((header*) p);
+		LI_ASSERT(h->gc_type == type_gc_private);
+		h->release(L);
+	}
+	void mem_acquire(void* p) {
+		auto* h    = std::prev((header*) p);
+		LI_ASSERT(h->gc_type == type_gc_private);
+		h->acquire();
 	}
 	void* mem_alloc(vm* L, size_t n, bool independent) {
 		uint32_t length   = (uint32_t) (chunk_ceil(n + sizeof(header)) >> chunk_shift);
 		auto [page, base] = L->gc.allocate_uninit(L, length);
-		base->gc_init(page, L, length, independent ? type_gc_indep : type_gc_private);
+		base->gc_init(page, L, length, type_gc_private);
 		if (independent) {
-			page->num_indeps++;
-			page->num_objects--;
+			base->acquire();
 		}
 		return base + 1;
 	}

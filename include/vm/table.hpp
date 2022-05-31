@@ -12,6 +12,9 @@ namespace li {
 		any key;
 		any value;
 	};
+	static constexpr uint32_t table_hash_shift = 4;
+	static_assert(sizeof(table_entry) == (1 << table_hash_shift), "Invalid constants.");
+
 	struct table_nodes : gc::leaf<table_nodes> {
 		table_entry entries[];
 	};
@@ -21,14 +24,14 @@ namespace li {
 		table_nodes*  node_list = nullptr;
 		table_entry   small_table[small_table_length + overflow_factor];
 		uint32_t      active_count = 0;
-		uint32_t      mask         = 0;
+		size_t        mask         = 0;
 
 		table_entry*           begin() { return node_list ? &node_list->entries[0] : &small_table[0]; }
 		table_entry*           end() { return begin() + size() + overflow_factor; }
 		size_t                 size() const { return node_list ? std::bit_floor((node_list->object_bytes() / sizeof(table_entry)) - overflow_factor) : small_table_length; }
-		size_t                 compute_mask() const { return size() - 1; }
+		size_t                 compute_mask() const { return (size() - 1) << table_hash_shift; }
 		std::span<table_entry> find(size_t hash) {
-			auto it = begin() + (hash & mask);
+			auto it = begin() + ((hash & mask) >> table_hash_shift);
 			return {it, it + overflow_factor};
 		}
 

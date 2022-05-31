@@ -20,7 +20,7 @@ namespace li::debug {
 	static void dump_table(table* t) {
 		for (auto& [k, v] : *t) {
 			if (k != none) {
-				printf("%s->%s [hash=%x]\n", k.to_string().c_str(), v.to_string().c_str(), k.hash());
+				printf("%s->%s [hash=%zx]\n", k.to_string().c_str(), v.to_string().c_str(), k.hash());
 			}
 		}
 	}

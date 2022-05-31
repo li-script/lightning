@@ -8,7 +8,7 @@ namespace li {
 		if (reserved_entry_count) {
 			tbl->resize(L, reserved_entry_count);
 		}
-		tbl->mask = (uint32_t) tbl->compute_mask();
+		tbl->mask = tbl->compute_mask();
 		return tbl;
 	}
 
@@ -36,7 +36,7 @@ namespace li {
 			auto*  old_entries  = begin();
 			size_t alloc_length = sizeof(table_entry) * (new_count + overflow_factor);
 			node_list           = L->alloc<table_nodes>(alloc_length);
-			mask                = (uint32_t) compute_mask();
+			mask                = compute_mask();
 			fill_none(node_list->entries, alloc_length / sizeof(any));
 
 			if (old_entries) {

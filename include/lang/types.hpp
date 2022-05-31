@@ -166,16 +166,16 @@ namespace li {
 
 		// Hasher.
 		//
-		inline uint32_t hash() const {
+		inline size_t hash() const {
 #if LI_32 || !LI_HAS_CRC
 			uint64_t x = value;
 			x ^= x >> 33;
 			x *= 0xff51afd7ed558ccdull;
 			x ^= x >> 33;
-			return (uint32_t)x;
+			return (size_t) x;
 #else
 			uint64_t h = value >> 8;
-			return uint32_t(_mm_crc32_u64(h, value));
+			return (size_t) _mm_crc32_u64(h, value);
 #endif
 		}
 	};

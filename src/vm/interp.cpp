@@ -565,10 +565,11 @@ namespace li {
 							auto idx = trait(c);
 							auto holder = REG(b);
 							auto& trait  = REG(a);
-							if (!holder.is_tbl()) {
+							if (!holder.is_traitful()) {
 								trait = none;
-							} else if (auto tbl = holder.as_tbl()) {
-								trait = tbl->trait_hide ? none : tbl->get_trait(idx);
+							} else {
+								auto* t = (traitful_node<>*) holder.as_gc();
+								trait = t->trait_hide ? none : t->get_trait(idx);
 							}
 							continue;
 						}
@@ -576,14 +577,15 @@ namespace li {
 							auto  idx    = trait(c);
 							auto& holder = REG(a);
 							auto  trait  = REG(b);
-							if (!holder.is_tbl()) [[unlikely]] {
+							if (!holder.is_traitful()) [[unlikely]] {
 								if (holder == none) {
 									holder = table::create(L);
 								} else {
-									VM_RET(string::create(L, "can't set traits on non-table"), true);
+									VM_RET(string::create(L, "can't set traits on non-traitful type"), true);
 								}
 							}
-							if (auto ex = holder.as_tbl()->set_trait(L, idx, trait)) [[unlikely]] {
+							auto* t = (traitful_node<>*) holder.as_gc();
+							if (auto ex = t->set_trait(L, idx, trait)) [[unlikely]] {
 								VM_RET(string::create(L, ex), true);
 							}
 							continue;

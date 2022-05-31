@@ -15,9 +15,7 @@ namespace li {
 		gc::state gc{};
 		gc.alloc_fn           = alloc;
 		gc.alloc_ctx          = allocu;
-		gc.initial_page       = new (ptr) gc::page(length);
-		gc.initial_page->next = gc.initial_page;
-		gc.initial_page->prev = gc.initial_page;
+		gc.initial_page       = new (ptr) gc::page(length, false);
 		gc.initial_page->num_indeps = 1; // VM itself is never enumerated.
 
 		// Create the VM.

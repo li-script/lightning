@@ -39,9 +39,6 @@ namespace li::gc {
 		return true;
 	}
 
-	
-	// Allocates an uninitialized chunk.
-	//
 	std::pair<page*, header*> state::allocate_uninit(vm* L, uint32_t clen) {
 		LI_ASSERT(clen != 0);
 
@@ -103,9 +100,70 @@ namespace li::gc {
 
 		// Find a page with enough size to fit our object or allocate one.
 		//
-		auto* pg = for_each([&](page* p) { return p->check_space(clen); });
+		auto* pg = for_each_rw([&](page* p, bool) { return p->check_space(clen); });
 		if (!pg) {
-			pg = add_page(L, size_t(clen) << chunk_shift, false);
+			pg = add_page<false>(L, size_t(clen) << chunk_shift);
+			if (!pg)
+				return {nullptr, nullptr};
+		}
+
+		// Increment GC depth, return the result.
+		//
+		debt += clen;
+		return {pg, pg->alloc_arena(clen)};
+	}
+	std::pair<page*, header*> state::allocate_uninit_ex(vm* L, uint32_t clen) {
+		LI_ASSERT(clen != 0);
+
+		// Try allocating from the free list.
+		//
+		header* it   = ex_free_list;
+		header* prev = nullptr;
+		while (it) {
+			if (it->num_chunks >= clen) {
+				// Unlink the entry.
+				//
+				if (prev) {
+					prev->set_next_free(it->get_next_free());
+				} else {
+					ex_free_list = it->get_next_free();
+				}
+
+				// Get the page and change the type.
+				//
+				auto* page        = it->get_page();
+				it->gc_type       = type_gc_uninit;
+				it->indep_or_free = false;
+				page->num_objects++;
+
+				// If we didn't allocate all of the space, re-insert into the free-list.
+				//
+				if (uint32_t leftover = it->num_chunks - clen) {
+					it->num_chunks     = clen;
+					auto& free_list    = ex_free_list;
+					auto* fh2          = it->next();
+					fh2->gc_type       = type_gc_free;
+					fh2->indep_or_free = true;
+					fh2->num_chunks    = leftover;
+					fh2->page_offset   = (uintptr_t(fh2) - uintptr_t(page)) >> 12;
+					fh2->set_next_free(free_list);
+					free_list = fh2;
+				}
+
+				// Return the result.
+				//
+				return {page, it};
+			} else {
+				prev = it;
+				it   = it->get_next_free();
+			}
+		}
+
+		// Find a page with enough size to fit our object or allocate one.
+		//
+		auto* pg = for_each_ex([&](page* p, bool exec) { return p->check_space(clen); });
+		if (!pg) {
+			pg = add_page<true>(L, size_t(clen) << chunk_shift);
 			if (!pg)
 				return {nullptr, nullptr};
 		}
@@ -137,7 +195,7 @@ namespace li::gc {
 		// Insert into the free list or adjust arena.
 		//
 		if (o->next() != page->end()) {
-			auto& free_list = free_lists[size_class_of(o->num_chunks)];
+			auto& free_list  = page->is_exec ? ex_free_list : free_lists[size_class_of(o->num_chunks)];
 			o->gc_type      = type_gc_free;
 			o->indep_or_free = true;
 			o->set_next_free(free_list);
@@ -180,7 +238,14 @@ namespace li::gc {
 		//
 		auto* alloc = alloc_fn;
 		void* actx  = alloc_ctx;
+		auto* exhead = initial_ex_page;
 		auto* head  = initial_page;
+		if (exhead) {
+			for (auto it = exhead->next; it != exhead;) {
+				auto p = std::exchange(it, it->next);
+				alloc(actx, p, p->num_pages, true);
+			}
+		}
 		for (auto it = head->next; it != head;) {
 			auto p = std::exchange(it, it->next);
 			alloc(actx, p, p->num_pages, false);
@@ -197,9 +262,10 @@ namespace li::gc {
 
 		// Clear alive counter in all pages.
 		//
-		for (auto it = initial_page; it != initial_page; it = it->next) {
-			it->alive_objects = it->num_indeps;
-		}
+		for_each([](page* p, bool x){
+			p->alive_objects = p->num_indeps;
+			return false;
+		});
 
 		// Mark all alive objects.
 		//
@@ -210,7 +276,7 @@ namespace li::gc {
 		// Free all dead objects.
 		//
 		page* dead_page_list = nullptr;
-		for_each([&](page* it) {
+		for_each([&](page* it, bool ex) {
 			if (it->alive_objects != it->num_objects) {
 				it->for_each([&](header* obj) {
 					if (!obj->indep_or_free && obj->stage != ms) {
@@ -218,15 +284,16 @@ namespace li::gc {
 					}
 					return false;
 				});
-				if (!greedy && !it->alive_objects) {
-					util::unlink(it);
-					if (!dead_page_list) {
-						it->next       = nullptr;
-						dead_page_list = it;
-					} else {
-						it->next       = dead_page_list;
-						dead_page_list = it;
-					}
+
+				if (it->alive_objects || greedy)
+					return false;
+				util::unlink(it);
+				if (!dead_page_list) {
+					it->next       = nullptr;
+					dead_page_list = it;
+				} else {
+					it->next       = dead_page_list;
+					dead_page_list = it;
 				}
 			}
 			return false;
@@ -259,7 +326,7 @@ namespace li::gc {
 			//
 			while (dead_page_list) {
 				auto i = std::exchange(dead_page_list, dead_page_list->next);
-				alloc_fn(alloc_ctx, i, i->num_pages, false);
+				alloc_fn(alloc_ctx, i, i->num_pages, i->is_exec);
 			}
 		}
 	}

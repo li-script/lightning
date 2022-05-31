@@ -76,6 +76,7 @@ list(APPEND libli_SOURCES
 	"src/vm/state.cpp"
 	"src/vm/string.cpp"
 	"src/vm/table.cpp"
+	"src/vm/userdata.cpp"
 	"include/jit/zydis.hpp"
 	"include/lang/lexer.hpp"
 	"include/lang/operator.hpp"
@@ -85,6 +86,7 @@ list(APPEND libli_SOURCES
 	"include/util/common.hpp"
 	"include/util/format.hpp"
 	"include/util/llist.hpp"
+	"include/util/ltti.hpp"
 	"include/util/platform.hpp"
 	"include/util/user.hpp"
 	"include/util/utf.hpp"
@@ -96,6 +98,7 @@ list(APPEND libli_SOURCES
 	"include/vm/string.hpp"
 	"include/vm/table.hpp"
 	"include/vm/traits.hpp"
+	"include/vm/userdata.hpp"
 )
 
 list(APPEND libli_SOURCES

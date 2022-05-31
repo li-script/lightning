@@ -31,12 +31,13 @@ namespace li::gc {
 
 	// GC configuration.
 	//
-	static constexpr size_t   minimum_allocation = 2 * 1024 * 1024;
-	static constexpr size_t   chunk_shift        = 5;
-	static constexpr size_t   chunk_size         = 1ull << chunk_shift;
-	static constexpr uint32_t gc_interval        = 1 << 14;
-	static constexpr size_t   gc_min_debt        = 4096 / chunk_size;
-	static constexpr size_t   gc_max_debt        = minimum_allocation / 4;
+	static constexpr size_t   minimum_allocation    = 512 * 1024;
+	static constexpr size_t   minimum_allocation_ex = 64  * 1024;
+	static constexpr size_t   chunk_shift           = 5;
+	static constexpr size_t   chunk_size            = 1ull << chunk_shift;
+	static constexpr uint32_t gc_interval           = 1 << 14;
+	static constexpr size_t   gc_min_debt           = 4096 / chunk_size;
+	static constexpr size_t   gc_max_debt           = minimum_allocation / 4;
 
 	static constexpr size_t chunk_ceil(size_t v) { return (v + chunk_size - 1) & ~(chunk_size - 1); }
 	static constexpr size_t chunk_floor(size_t v) { return v & ~(chunk_size - 1); }
@@ -135,32 +136,37 @@ namespace li::gc {
 	template<typename T, value_type V = type_gc_private>
 	struct leaf : tag<T> {
 		static constexpr value_type gc_type        = V;
-		static constexpr bool gc_traversable = false;
+		static constexpr bool       gc_executable  = false;
+		static constexpr bool       gc_traversable = false;
 	};
 	template<typename T, value_type V = type_gc_private>
 	struct node : tag<T> {
 		static constexpr value_type gc_type        = V;
-		static constexpr bool gc_traversable = true;
+		static constexpr bool       gc_executable  = false;
+		static constexpr bool       gc_traversable = true;
+	};
+	template<typename T, value_type V = type_gc_private>
+	struct exec_leaf : tag<T> {
+		static constexpr value_type gc_type        = V;
+		static constexpr bool       gc_executable  = true;
+		static constexpr bool       gc_traversable = false;
 	};
 
 	// GC page.
 	//
 	struct page {
-		page*    prev          = nullptr;
-		page*    next          = nullptr;
+		page*    prev          = this;
+		page*    next          = this;
 		uint32_t num_pages     = 0;
 		uint32_t num_objects   = 0;
 		uint32_t alive_objects = 0;
 		uint32_t next_chunk    = (uint32_t) chunk_ceil(sizeof(page));
 		uint32_t num_indeps    = 0;
-
-		// Default construction for head.
-		//
-		constexpr page() : prev(this), next(this) {}
+		uint32_t is_exec : 1   = false;
 
 		// Constructed with number of pages.
 		//
-		constexpr page(size_t num_pages) : num_pages((uint32_t) num_pages) {}
+		constexpr page(size_t num_pages, bool exec) : num_pages((uint32_t) num_pages), is_exec(exec) {}
 
 		// Checks if the page has space to allocate N chunks at the end.
 		//
@@ -212,7 +218,8 @@ namespace li::gc {
 
 		// Initial page entry.
 		//
-		page* initial_page = nullptr;
+		page* initial_page    = nullptr;
+		page* initial_ex_page = nullptr;
 
 		// Scheduling details.
 		//
@@ -221,7 +228,8 @@ namespace li::gc {
 
 		// Free lists.
 		//
-		std::array<header*, std::size(size_classes)> free_lists = {nullptr};
+		std::array<header*, std::size(size_classes)> free_lists   = {nullptr};
+		header*                                      ex_free_list = nullptr;
 
 		// Dynamic configuration.
 		//
@@ -230,14 +238,38 @@ namespace li::gc {
 		// Page enumerator.
 		//
 		template<typename F>
-		page* for_each(F&& fn) {
-			page* it = initial_page;
+		page* for_each_rw(F&& fn) {
+			page* head = initial_page;
+			page* it   = head;
 			do {
 				page* next = it->next;
-				if (fn(it))
+				if (fn(it, false))
 					return it;
 				it = next;
-			} while (it != initial_page);
+			} while (it != head);
+			return nullptr;
+		}
+		template<typename F>
+		page* for_each_ex(F&& fn) {
+			if (page* head = initial_ex_page) {
+				page* it = head->next;
+				while (true) {
+					page* next = it->next;
+					if (fn(it, true))
+						return it;
+					if (it == head)
+						break;
+					it = next;
+				}
+			}
+			return nullptr;
+		}
+		template<typename F>
+		page* for_each( F&& fn ) {
+			if (page* p = for_each_rw(fn))
+				return p;
+			if (page* p = for_each_ex(fn))
+				return p;
 			return nullptr;
 		}
 
@@ -261,6 +293,7 @@ namespace li::gc {
 		// Allocates an uninitialized chunk.
 		//
 		std::pair<page*, header*> allocate_uninit(vm* L, uint32_t clen);
+		std::pair<page*, header*> allocate_uninit_ex(vm* L, uint32_t clen);
 
 		// Immediately frees an object.
 		//
@@ -271,7 +304,7 @@ namespace li::gc {
 		template<typename T, typename... Tx>
 		T* create(vm* L, size_t extra_length = 0, Tx&&... args) {
 			uint32_t length   = (uint32_t) (chunk_ceil(extra_length + sizeof(T)) >> chunk_shift);
-			auto [page, base] = allocate_uninit(L, length);
+			auto [page, base] = T::gc_executable ? allocate_uninit_ex(L, length) : allocate_uninit(L, length);
 			T* result         = new (base) T(std::forward<Tx>(args)...);
 			result->gc_init(page, L, length, T::gc_type);
 			return result;
@@ -279,14 +312,24 @@ namespace li::gc {
 
 		// Page list management.
 		//
-		page* add_page(vm* L, size_t min_size, bool exec) {
-			min_size    = std::max(min_size, minimum_allocation);
+		template<bool Exec>
+		page* add_page(vm* L, size_t min_size) {
+			min_size    = std::max(min_size, Exec ? minimum_allocation_ex : minimum_allocation);
 			min_size    = (min_size + 0xFFF) >> 12;
-			void* alloc = alloc_fn(alloc_ctx, nullptr, min_size, exec);
+			void* alloc = alloc_fn(alloc_ctx, nullptr, min_size, Exec);
 			if (!alloc)
 				return nullptr;
-			auto* result = new (alloc) page(min_size);
-			util::link_after(initial_page, result);
+			auto* result = new (alloc) page(min_size, Exec);
+			if constexpr (!Exec) {
+				util::link_after(initial_page, result);
+			} else {
+				if (!initial_ex_page) {
+					result->num_indeps = 1; // Should never be free'd, just like the rw initial page.
+					initial_ex_page = result;
+				} else {
+					util::link_after(initial_ex_page, result);
+				}
+			}
 			return result;
 		}
 	};

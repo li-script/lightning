@@ -55,6 +55,12 @@
 	#define LI_HAS_RTTI 0
 #endif
 
+#ifndef LI_JIT
+	#if LI_ARCH_X86 && !LI_32
+		#define LI_JIT 1
+	#endif
+#endif
+
 #define LI_STRINGIFY_I(x) #x
 #define LI_STRINGIFY(x)   LI_STRINGIFY_I(x)
 #define LI_STRCAT_I(x, y) x##y

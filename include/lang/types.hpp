@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <bit>
 #include <string>
+#include <array>
 #include <util/common.hpp>
 
 #pragma pack(push, 1)
@@ -40,23 +41,39 @@ namespace li {
 		type_table     = 0,
 		type_array     = 1,
 		type_function  = 2, // Last traversable.
-		type_string    = 3,
-		type_userdata  = 4,
-		type_nfunction = 5,
+		type_nfunction = 3,
+		type_string    = 4,
+		type_userdata  = 5,
 		// last gc type
-		type_none      = 6,
-		type_false     = 7,
-		type_true      = 8,
-		type_opaque    = 9,  // No type/definition, unique integer part.
-		type_number    = 10,
+		type_none   = 8,
+		type_false  = 9,
+		type_true   = 10,
+		type_opaque = 11,  // No type/definition, unique integer part.
+		type_number = 12,
 
 		// GC aliases.
 		type_gc_free = type_none,
 		type_gc_private,
 		type_gc_uninit,
+		type_first_non_gc        = type_none,
 		type_gc_last_traversable = type_function,
 	};
-	static constexpr const char*          type_names[] = {"table", "array", "string", "userdata", "function", "nfunction", "none", "bool", "bool", "opaque", "number"};
+	static constexpr std::array<const char*, 16> type_names = []() {
+		std::array<const char*, 16> result;
+		result.fill("invalid");
+		result[type_table]     = "table";
+		result[type_array]     = "array";
+		result[type_function]  = "function";
+		result[type_nfunction] = "nfunction";
+		result[type_string]    = "string";
+		result[type_userdata]  = "userdata";
+		result[type_none]      = "none";
+		result[type_false]     = "bool";
+		result[type_true]      = "bool";
+		result[type_opaque]    = "opaque";
+		result[type_number]    = "number";
+		return result;
+	}();
 	LI_INLINE static constexpr value_type to_canonical_type_name(value_type t) {
 		if (t == type_none)
 			return type_table;
@@ -66,12 +83,11 @@ namespace li {
 			return type_function;
 		return t;
 	}
-
-	LI_INLINE static constexpr bool     is_gc_type(uint64_t type) { return type <= type_nfunction; }
 	LI_INLINE static constexpr uint64_t mask_value(uint64_t value) { return value & util::fill_bits(47); }
 	LI_INLINE static constexpr uint64_t mix_value(uint8_t type, uint64_t value) { return ((~uint64_t(type)) << 47) | mask_value(value); }
 	LI_INLINE static constexpr uint64_t make_tag(uint8_t type) { return ((~uint64_t(type)) << 47) | mask_value(~0ull); }
 	LI_INLINE static constexpr uint64_t get_type(uint64_t value) { return ((~value) >> 47); }
+	LI_INLINE static constexpr bool     is_gc_value(uint64_t value) { return value > (make_tag(type_first_non_gc) + 1); }
 	LI_INLINE static gc::header*        get_gc_value(uint64_t value) {
 		value = mask_value(value);
 #if _KERNEL_MODE
@@ -113,7 +129,7 @@ namespace li {
 		//
 		inline value_type type() const { return (value_type) std::min(get_type(value), (uint64_t) type_number); }
 		inline bool       is(uint8_t t) const { return t == type(); }
-		inline bool       is_gc() const { return is_gc_type(get_type(value)); }
+		inline bool       is_gc() const { return is_gc_value(value); }
 		inline bool       is_bool() const { return get_type(value) == type_false || get_type(value) == type_true; }
 		inline bool       is_num() const { return get_type(value) >= type_number; }
 		inline bool       is_arr() const { return get_type(value) == type_array; }

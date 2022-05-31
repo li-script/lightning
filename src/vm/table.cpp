@@ -8,22 +8,17 @@ namespace li {
 		if (reserved_entry_count) {
 			tbl->resize(L, reserved_entry_count);
 		}
-		tbl->mask = tbl->compute_mask();
 		return tbl;
 	}
 
 	// GC enumerator.
 	//
 	void gc::traverse(gc::stage_context s, table* o) {
-		if (o->node_list)
-			o->node_list->gc_tick(s);
-		o->trait_traverse(s);
-		for (auto& [k, v] : *o) {
-			if (k.is_gc())
-				k.as_gc()->gc_tick(s);
-			if (v.is_gc())
-				v.as_gc()->gc_tick(s);
+		if (auto* nl = o->node_list) {
+			nl->gc_tick(s);
 		}
+		o->trait_traverse(s);
+		traverse_n(s, (any*) o->begin(), 2 * o->realsize());
 	}
 
 	// Rehashing resize.
@@ -36,7 +31,7 @@ namespace li {
 			auto*  old_entries  = begin();
 			size_t alloc_length = sizeof(table_entry) * (new_count + overflow_factor);
 			node_list           = L->alloc<table_nodes>(alloc_length);
-			mask                = compute_mask();
+			mask                = compute_mask(new_count);
 			fill_none(node_list->entries, alloc_length / sizeof(any));
 
 			if (old_entries) {
@@ -57,8 +52,7 @@ namespace li {
 		if (value == none) {
 			for (auto& entry : t->find(hash)) {
 				if (entry.key == key) {
-					entry.key   = none;
-					entry.value = none;
+					entry = {none, none};
 					t->active_count--;
 					return true;
 				}

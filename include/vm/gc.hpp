@@ -66,14 +66,11 @@ namespace li::gc {
 	struct page;
 
 	struct header {
-		// [0..32]
-		uint32_t gc_type : 4     = type_gc_uninit;
-		uint32_t num_chunks : 28 = 0;
-		// [32..64]
+		uint32_t gc_type : 4      = type_gc_uninit;
+		uint32_t num_chunks : 28  = 0;
 		uint32_t page_offset : 24 = 0;  // in page units.
 		uint32_t stage : 2        = 0;
-		// [64..128]
-		intptr_t next_free = 0; // TODO: Compress
+		intptr_t next_free        = 0;  // TODO: Compress
 
 		// Free header helpers.
 		//
@@ -280,4 +277,13 @@ namespace li::gc {
 			return result;
 		}
 	};
+
+	// any[] helper.
+	//
+	LI_INLINE inline void traverse_n(stage_context s, any* begin, size_t count) {
+		for (auto it = begin; it != (begin + count); it++) {
+			if (it->is_gc())
+				it->as_gc()->gc_tick(s);
+		}
+	}
 };

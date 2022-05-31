@@ -126,7 +126,10 @@
     <ClInclude Include="..\include\vm\userdata.hpp">
       <Filter>VM\Types</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\util\ltti.hpp">
+    <ClInclude Include="..\include\util\typeinfo.hpp">
+      <Filter>Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\util\enuminfo.hpp">
       <Filter>Utility</Filter>
     </ClInclude>
   </ItemGroup>

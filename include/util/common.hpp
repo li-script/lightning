@@ -29,14 +29,26 @@
 	#error "Unknown target architecture."
 #endif
 
+#if defined(__GNUC__) || defined(__clang__)
+	#define LI_GNU 1
+#else
+	#define LI_GNU 0
+#endif
+#ifdef _MSC_VER
+	#define LI_MS_EXTS 1
+	#if !LI_GNU
+		#define LI_MSVC 1
+	#endif
+#endif
+
 #if LI_ARCH_X86
-	#if defined(__SSE4_2__) && (defined(__GNUC__) || defined(__clang__))
+	#if defined(__SSE4_2__) && LI_GNU
 		#define LI_HAS_CRC    1
 		#define _mm_crc32_u8  __builtin_ia32_crc32qi
 		#define _mm_crc32_u16 __builtin_ia32_crc32hi
 		#define _mm_crc32_u32 __builtin_ia32_crc32si
 		#define _mm_crc32_u64 __builtin_ia32_crc32di
-	#elif _MSC_VER
+	#elif LI_MSVC
 		#define LI_HAS_CRC    1
 		#include <intrin.h>
 	#endif
@@ -61,12 +73,26 @@
 	#endif
 #endif
 
+#ifndef _CONSTEVAL
+	#if defined(__cpp_consteval)
+		#define _CONSTEVAL consteval
+	#else // ^^^ supports consteval / no consteval vvv
+		#define _CONSTEVAL constexpr
+	#endif
+#endif
+
 #define LI_STRINGIFY_I(x) #x
 #define LI_STRINGIFY(x)   LI_STRINGIFY_I(x)
 #define LI_STRCAT_I(x, y) x##y
 #define LI_STRCAT(x, y)   LI_STRCAT_I(x, y)
 #define LI_NOOP(...)
 #define LI_IDENTITY(...)  __VA_ARGS__
+
+#if LI_MS_EXTS
+	#define FUNCTION_NAME __FUNCSIG__
+#else
+	#define FUNCTION_NAME __PRETTY_FUNCTION__
+#endif
 
 namespace li {
 	// Missing bit operations.
@@ -122,7 +148,7 @@ namespace li {
 
 	// Compiler specifics.
 	//
-#if defined(__GNUC__) || defined(__clang__) || defined(__EMSCRIPTEN__)
+#if LI_GNU
 	#define LI_PURE        __attribute__((pure))
 	#define LI_CONST       __attribute__((const))
 	#define LI_FLATTEN     __attribute__((flatten))
@@ -131,7 +157,7 @@ namespace li {
 	#define LI_NOINLINE    __attribute__((noinline))
 	#define LI_ALIGN(x)    __attribute__((aligned(x)))
 	#define LI_TRIVIAL_ABI __attribute__((trivial_abi))
-#elif _MSC_VER
+#elif LI_MSVC
 	#define LI_PURE
 	#define LI_CONST
 	#define LI_FLATTEN
@@ -144,14 +170,14 @@ namespace li {
 	LI_INLINE inline static void breakpoint() {
 #if __has_builtin(__builtin_debugtrap)
 		__builtin_debugtrap();
-#elif defined(_MSC_VER)
+#elif LI_MSVC
 		__debugbreak();
 #endif
 	}
 	LI_INLINE inline static constexpr void assume_that(bool condition) {
 #if __has_builtin(__builtin_assume)
 		__builtin_assume(condition);
-#elif defined(_MSC_VER)
+#elif LI_MSVC
 		__assume(condition);
 #endif
 	}

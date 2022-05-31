@@ -50,9 +50,10 @@
     <ClInclude Include="..\include\lang\types.hpp" />
     <ClInclude Include="..\include\lib\std.hpp" />
     <ClInclude Include="..\include\util\common.hpp" />
+    <ClInclude Include="..\include\util\enuminfo.hpp" />
     <ClInclude Include="..\include\util\format.hpp" />
     <ClInclude Include="..\include\util\llist.hpp" />
-    <ClInclude Include="..\include\util\ltti.hpp" />
+    <ClInclude Include="..\include\util\typeinfo.hpp" />
     <ClInclude Include="..\include\util\platform.hpp" />
     <ClInclude Include="..\include\util\user.hpp" />
     <ClInclude Include="..\include\util\utf.hpp" />

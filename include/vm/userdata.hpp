@@ -3,7 +3,7 @@
 #include <memory>
 #include <span>
 #include <type_traits>
-#include <util/ltti.hpp>
+#include <util/typeinfo.hpp>
 #include <vm/function.hpp>
 #include <vm/state.hpp>
 #include <vm/traits.hpp>
@@ -12,9 +12,9 @@ namespace li {
 	struct userdata : traitful_node<userdata, type_userdata> {
 		static userdata* allocate(vm* L, size_t n) { return L->alloc<userdata>(n); }
 
-		void*    self     = nullptr;
-		uint32_t type_tag = 0;
-		size_t   data[];
+		void*         self = nullptr;
+		util::type_id tid  = 0;
+		size_t        data[];
 
 		// Type-check helper for any.
 		//
@@ -32,7 +32,7 @@ namespace li {
 		static userdata* create(vm* L, Tx&&... args) {
 			userdata* result = allocate(L, sizeof(T));
 			result->self     = result->data;
-			result->type_tag = util::get_type_id<T>();
+			result->tid      = util::type_id_v<T>;
 			new (result->data) T(std::forward<Tx>(args)...);
 
 			if constexpr (!std::is_trivially_destructible_v<std::remove_cvref_t<T>>) {
@@ -45,8 +45,8 @@ namespace li {
 						return L->error("gc type mismatch");
 					}
 					std::destroy_at((std::remove_cvref_t<T>*) udt->self);
-					udt->self     = nullptr;
-					udt->type_tag = 0;
+					udt->self = nullptr;
+					udt->tid  = 0;
 					return true;
 				}));
 			}
@@ -59,7 +59,7 @@ namespace li {
 		static userdata* create(vm* L, T* ptr, size_t extra_data = 0) {
 			userdata* result = allocate(L, extra_data);
 			result->self     = (void*) ptr;
-			result->type_tag = util::get_type_id<T>();
+			result->tid      = util::type_id_v<T>;
 			return result;
 		}
 		template<typename T, typename Dx>
@@ -77,8 +77,8 @@ namespace li {
 				}
 
 				(*(Dx*) udt->data)((std::remove_cvref_t<T>*) udt->self);
-				udt->self     = nullptr;
-				udt->type_tag = 0;
+				udt->self = nullptr;
+				udt->tid  = 0;
 				return true;
 			}));
 			return result;
@@ -97,8 +97,8 @@ namespace li {
 					return L->error("gc type mismatch");
 				}
 				std::destroy_at((std::shared_ptr<T>*) udt->data);
-				udt->self     = nullptr;
-				udt->type_tag = 0;
+				udt->self = nullptr;
+				udt->tid  = 0;
 				return true;
 			}));
 			return result;
@@ -116,11 +116,11 @@ namespace li {
 		}
 		template<typename T>
 		bool is() const {
-			return util::check_type_id<T>(type_tag);
+			return util::check_type_id<T>(tid);
 		}
 		template<typename T>
 		bool is_no_cv() const {
-			return util::check_type_id_no_cv<T>(type_tag);
+			return util::check_type_id_no_cv<T>(tid);
 		}
 	};
 };

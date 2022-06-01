@@ -182,11 +182,6 @@ namespace li {
 							REG(a) = to_canonical_type_name(REG(b).type()) == c;
 							continue;
 						}
-						case bc::CMOV: {
-							if (REG(c).coerce_bool())
-								REG(a) = REG(b);
-							continue;
-						}
 						case bc::MOV: {
 							REG(a) = REG(b);
 							continue;

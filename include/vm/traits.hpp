@@ -24,13 +24,14 @@ namespace li {
 	
 	enum class trait : uint8_t {
 #define TRAIT_WRITE(a)  a,
-#define TRAIT_RET(name) return trait::name;
+#define TRAIT_RET(name) return ( uint8_t ) trait::name;
 		LIGHTNING_ENUM_TRAIT(TRAIT_WRITE, LI_NOOP)
 		LIGHTNING_ENUM_TRAIT(LI_NOOP, TRAIT_WRITE)
 		pseudo_max,
 		max = []() { LIGHTNING_ENUM_TRAIT(LI_NOOP, TRAIT_RET); }(),
 #undef TRAIT_RET
 #undef TRAIT_WRITE
+		none = 0xFF
 	};
 	static constexpr std::string_view trait_names[] = {
 #define TRAIT_NAME(name)  #name,

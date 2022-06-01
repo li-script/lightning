@@ -64,23 +64,22 @@ namespace li::util {
 			static _CONSTEVAL std::string_view __id__() {
 				auto [sig, begin, delta, end] = std::tuple {
 #if LI_GNU
-					std::string_view{__PRETTY_FUNCTION__}, std::string_view{"__id__"}, +3, "]"
+					std::string_view{__PRETTY_FUNCTION__}, std::string_view{"__id__"}, +3, ']'
 #else
-					std::string_view{__FUNCSIG__}, std::string_view{"__id__"}, +0, ">"
+					std::string_view{__FUNCSIG__}, std::string_view{"__id__"}, +0, '>'
 #endif
 				};
 
 				// Find the beginning of the name.
 				//
-				size_t f = sig.size();
-				while (sig.substr(--f, begin.size()).compare(begin) != 0)
-					if (f == 0)
-						return "";
+				size_t f = sig.rfind(begin);
+				if (f == std::string::npos)
+					return "";
 				f += begin.size() + delta;
 
 				// Find the end of the string.
 				//
-				auto l = sig.find_first_of(end, f);
+				auto l = sig.find(end, f);
 				if (l == std::string::npos)
 					return "";
 

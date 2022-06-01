@@ -14,12 +14,12 @@ namespace li::util {
 		template<typename T>
 		struct type_namer {
 			template<typename __id__ = T>
-			static _CONSTEVAL std::string_view __id__() {
+			static _CONSTEVAL std::string_view _id__() {
 				auto [sig, begin, delta, end] = std::tuple {
 #if LI_GNU
-					std::string_view{__PRETTY_FUNCTION__}, std::string_view{"__id__"}, +3, "]"
+					std::string_view{__PRETTY_FUNCTION__}, std::string_view{"_id__"}, +3, "]"
 #else
-					std::string_view{__FUNCSIG__}, std::string_view{"__id__"}, +1, ">"
+					std::string_view{__FUNCSIG__}, std::string_view{"_id__"}, +1, ">"
 #endif
 				};
 
@@ -50,7 +50,7 @@ namespace li::util {
 			}
 
 			static constexpr auto name = []() {
-				constexpr std::string_view          view = type_namer<T>::__id__<T>();
+				constexpr std::string_view          view = type_namer<T>::_id__<T>();
 				std::array<char, view.length() + 1> data = {};
 				std::copy(view.begin(), view.end(), data.data());
 				return data;
@@ -61,12 +61,12 @@ namespace li::util {
 		template<auto V>
 		struct value_namer {
 			template<auto __id__ = V>
-			static _CONSTEVAL std::string_view __id__() {
+			static _CONSTEVAL std::string_view _id__() {
 				auto [sig, begin, delta, end] = std::tuple {
 #if LI_GNU
-					std::string_view{__PRETTY_FUNCTION__}, std::string_view{"__id__"}, +3, ']'
+					std::string_view{__PRETTY_FUNCTION__}, std::string_view{"_id__"}, +3, ']'
 #else
-					std::string_view{__FUNCSIG__}, std::string_view{"__id__"}, +0, '>'
+					std::string_view{__FUNCSIG__}, std::string_view{"_id__"}, +0, '>'
 #endif
 				};
 
@@ -89,7 +89,7 @@ namespace li::util {
 			}
 
 			static constexpr auto name = []() {
-				constexpr std::string_view          view = value_namer<V>::__id__<V>();
+				constexpr std::string_view          view = value_namer<V>::_id__<V>();
 				std::array<char, view.length() + 1> data = {};
 				std::copy(view.begin(), view.end(), data.data());
 				return data;

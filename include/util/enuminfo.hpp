@@ -40,7 +40,7 @@ namespace li::util {
 		// String conversion.
 		//
 		static constexpr std::string_view name_enum(T v) {
-			int64_t index = (value_type(v) - min_value);
+			intptr_t index = (value_type(v) - min_value);
 			if (0 <= index && index < iteration_limit)
 				return linear_series[index];
 			else

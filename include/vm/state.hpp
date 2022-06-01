@@ -34,7 +34,7 @@ namespace li {
 	static constexpr slot_t   FRAME_CALLER   = -1;
 	static constexpr slot_t   FRAME_SIZE     = 3;
 	static constexpr uint64_t FRAME_C_FLAG   = (1ll << 17);
-	static constexpr slot_t   MAX_STACK_SIZE = util::fill_bits(23);
+	static constexpr slot_t   MAX_STACK_SIZE = (slot_t) util::fill_bits(23);
 	static constexpr slot_t   BC_MAX_IP      = FRAME_C_FLAG - 1;
 	struct call_frame {
 		// [locals of caller]

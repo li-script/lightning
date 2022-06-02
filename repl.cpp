@@ -68,19 +68,20 @@ static void handle_repl_io(vm* L, std::string_view input) {
 static bool ir_test(vm* L, any* args, slot_t n) {
 	auto proc = ir::lift_bc(L, args->as_vfn());
 	ir::opt::lift_phi(proc.get());
-	proc->print();
+	ir::opt::fold_identical(proc.get());
+	ir::opt::dce(proc.get());
+	ir::opt::cfg(proc.get());
+
 	proc->rename_registers();
+	proc->print();
 
-	// move loads out of loops
-
-	// identical value opt out
-	// proper multi-block DCE
+	// move stuff out of loops
+	// type inference
+	// trait inference
+	// constant folding
 	// escape analysis
 	// loop analysis
-	// type inference
-	// constant folding
-	// trait inference
-	// handling of frozen tables
+	// handling of frozen tables + add builtin tables
 
 	return true;
 }

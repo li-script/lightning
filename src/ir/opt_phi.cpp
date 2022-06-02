@@ -19,7 +19,7 @@ namespace li::ir::opt {
 				}
 			}
 
-			if (ins->op == opcode::store_local && ins->operands[0]->get<constant>()->i == r) {
+			if (ins->op == opcode::store_local && ins->operands[0]->get<constant>()->i32 == r) {
 				return ins->operands[1];
 			}
 		}
@@ -28,7 +28,7 @@ namespace li::ir::opt {
 	static value_ref reread_variable_local(bc::reg r, basic_block* b) {
 		for (auto it = b->instructions.rbegin(); it != b->instructions.rend(); ++it) {
 			auto& ins = *it;
-			if (ins->op == opcode::load_local && ins->operands[0]->get<constant>()->i == r) {
+			if (ins->op == opcode::load_local && ins->operands[0]->get<constant>()->i32 == r) {
 				return ins;
 			}
 		}
@@ -123,7 +123,6 @@ namespace li::ir::opt {
 		}
 	}
 
-	// Step #2:
 	// Lowers load/store of locals to PHI nodes and named registers.
 	//
 	void lift_phi(procedure* proc) {
@@ -134,7 +133,7 @@ namespace li::ir::opt {
 
 			std::erase_if(bb->instructions, [&](insn_ref& ins) {
 				if (ins->op == opcode::load_local) {
-					bc::reg r = ins->operands[0]->get<constant>()->i;
+					bc::reg r = ins->operands[0]->get<constant>()->i32;
 					bb->replace_all_uses(ins.get(), read_variable(r, bb.get(), ins.get()));
 					return true;
 				}
@@ -149,30 +148,12 @@ namespace li::ir::opt {
 		for (auto& bb : proc->basic_blocks) {
 			std::erase_if(bb->instructions, [&](insn_ref& ins) {
 				if (ins->op == opcode::store_local && !ins->is_volatile) {
-					bc::reg r = ins->operands[0]->get<constant>()->i;
-					if (r >= 0)
+					bc::reg r = ins->operands[0]->get<constant>()->i32;
+					if (r >= -FRAME_SIZE)
 						return true;
 				}
 				return false;
 			});
-		}
-
-		// v-- doesnt belong here
-
-		// Dead simple DCE.
-		//
-		while (true) {
-			size_t n = 0;
-			for (auto& bb : proc->basic_blocks) {
-				n += std::erase_if(bb->instructions, [&](insn_ref& ins) {
-					if (ins.use_count() == 1 && ins->vt != type::none && !ins->is_volatile) {
-						return true;
-					}
-					return false;
-				});
-			}
-			if (!n)
-				break;
 		}
 		proc->validate();
 	}

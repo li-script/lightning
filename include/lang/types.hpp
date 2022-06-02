@@ -135,6 +135,7 @@ namespace li {
 				value = kvalue_nan;
 		}
 		inline constexpr any(std::in_place_t, uint64_t value) : value(value) {}
+		inline constexpr any(opaque v) : value(mix_value(type_opaque, (uint64_t) v.bits)) {}
 
 		// GC types.
 		//
@@ -144,37 +145,36 @@ namespace li {
 		inline any(userdata* v) : value(mix_value(type_userdata, (uint64_t) v)) {}
 		inline any(function* v) : value(mix_value(type_function, (uint64_t) v)) {}
 		inline any(nfunction* v) : value(mix_value(type_nfunction, (uint64_t) v)) {}
-		inline any(opaque v) : value(mix_value(type_opaque, (uint64_t) v.bits)) {}
 		inline any(gc::header* v) : value(mix_value(gc::identify(v), (uint64_t) v)) {}
 
 		// Type check.
 		//
-		inline value_type type() const { return (value_type) std::min(get_type(value), (uint64_t) type_number); }
-		inline bool       is(uint8_t t) const { return t == type(); }
-		inline bool       is_bool() const { return get_type(value) == type_false || get_type(value) == type_true; }
-		inline bool       is_num() const { return get_type(value) >= type_number; }
-		inline bool       is_arr() const { return get_type(value) == type_array; }
-		inline bool       is_tbl() const { return get_type(value) == type_table; }
-		inline bool       is_str() const { return get_type(value) == type_string; }
-		inline bool       is_udt() const { return get_type(value) == type_userdata; }
-		inline bool       is_vfn() const { return get_type(value) == type_function; }
-		inline bool       is_nfn() const { return get_type(value) == type_nfunction; }
-		inline bool       is_opq() const { return get_type(value) == type_opaque; }
-		inline bool       is_gc() const { return is_gc_value(value); }
-		inline bool       is_traitful() const { return is_traitful_value(value); }
+		inline constexpr value_type type() const { return (value_type) std::min(get_type(value), (uint64_t) type_number); }
+		inline constexpr bool       is(uint8_t t) const { return t == type(); }
+		inline constexpr bool       is_bool() const { return get_type(value) == type_false || get_type(value) == type_true; }
+		inline constexpr bool       is_num() const { return get_type(value) >= type_number; }
+		inline constexpr bool       is_arr() const { return get_type(value) == type_array; }
+		inline constexpr bool       is_tbl() const { return get_type(value) == type_table; }
+		inline constexpr bool       is_str() const { return get_type(value) == type_string; }
+		inline constexpr bool       is_udt() const { return get_type(value) == type_userdata; }
+		inline constexpr bool       is_vfn() const { return get_type(value) == type_function; }
+		inline constexpr bool       is_nfn() const { return get_type(value) == type_nfunction; }
+		inline constexpr bool       is_opq() const { return get_type(value) == type_opaque; }
+		inline constexpr bool       is_gc() const { return is_gc_value(value); }
+		inline constexpr bool       is_traitful() const { return is_traitful_value(value); }
 
 		// Getters.
 		//
-		inline bool        as_bool() const { return get_type(value) == type_true; }
-		inline number      as_num() const { return bit_cast<number>(value); }
-		inline gc::header* as_gc() const { return get_gc_value(value); }
-		inline array*      as_arr() const { return (array*) as_gc(); }
-		inline table*      as_tbl() const { return (table*) as_gc(); }
-		inline string*     as_str() const { return (string*) as_gc(); }
-		inline userdata*   as_udt() const { return (userdata*) as_gc(); }
-		inline function*   as_vfn() const { return (function*) as_gc(); }
-		inline nfunction*  as_nfn() const { return (nfunction*) as_gc(); }
-		inline opaque      as_opq() const { return {.bits = mask_value(value)}; }
+		inline constexpr bool   as_bool() const { return get_type(value) == type_true; }
+		inline constexpr number as_num() const { return bit_cast<number>(value); }
+		inline constexpr opaque as_opq() const { return {.bits = mask_value(value)}; }
+		inline gc::header*      as_gc() const { return get_gc_value(value); }
+		inline array*           as_arr() const { return (array*) as_gc(); }
+		inline table*           as_tbl() const { return (table*) as_gc(); }
+		inline string*          as_str() const { return (string*) as_gc(); }
+		inline userdata*        as_udt() const { return (userdata*) as_gc(); }
+		inline function*        as_vfn() const { return (function*) as_gc(); }
+		inline nfunction*       as_nfn() const { return (nfunction*) as_gc(); }
 
 		// Bytewise equal comparsion.
 		//

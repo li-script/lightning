@@ -18,10 +18,6 @@ namespace li::ir {
 	enum class type : uint8_t {
 		none,
 
-		// Wrapped type.
-		//
-		unk,
-
 		// Integers.
 		//
 		i1,
@@ -34,6 +30,10 @@ namespace li::ir {
 		//
 		f32,
 		f64,
+
+		// Wrapped type.
+		//
+		unk,
 
 		// VM types.
 		//
@@ -126,6 +126,8 @@ namespace li::ir {
 	struct constant final : value_tag<constant> {
 		union {
 			uint64_t     u;
+			bool         i1;
+			int32_t      i32;
 			int64_t      i;
 			operation    vmopr;
 			trait        vmtrait;
@@ -165,12 +167,8 @@ namespace li::ir {
 		constexpr constant(value_type v) : vmtype(v) { vt = type::vmtype; }
 		constexpr constant(type v) : irtype(v) { vt = type::irtype; }
 
-		constant(any a) {
-			if (a.is_gc()) {
-				auto t = a.as_gc()->gc_type;
-				LI_ASSERT(type_table <= t && t <= type_string);
-				vt = type(uint8_t(t) + uint8_t(type::tbl) - type_table);
-			} else if (a.is_bool()) {
+		constexpr constant(any a) {
+			if (a.is_bool()) {
 				i  = a.as_bool();
 				vt = type::i1;
 			} else if (a.is_opq()) {
@@ -179,8 +177,19 @@ namespace li::ir {
 			} else if (a.is_num()) {
 				n  = a.as_num();
 				vt = type::f64;
+			} else if (a.is_gc()) {
+				auto t = a.as_gc()->gc_type;
+				LI_ASSERT(type_table <= t && t <= type_string);
+				vt = type(uint8_t(t) + uint8_t(type::tbl) - type_table);
+				gc = a.as_gc();
+			} else {
+				vt = type::none;
 			}
 		}
+
+		// Equality comparison.
+		//
+		constexpr bool operator==( const constant& other ) const { return i == other.i && vt == other.vt; }
 
 		// Implement printer.
 		//

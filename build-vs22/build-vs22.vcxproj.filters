@@ -53,6 +53,15 @@
     <ClCompile Include="..\src\ir\lifter.cpp">
       <Filter>IR\Core</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\ir\opt_id.cpp">
+      <Filter>IR\Optimizations</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ir\opt_dce.cpp">
+      <Filter>IR\Optimizations</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ir\opt_cfg.cpp">
+      <Filter>IR\Optimizations</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Language">

@@ -65,9 +65,12 @@ set(libli_SOURCES "")
 
 list(APPEND libli_SOURCES
 	"src/ir/analysis.cpp"
-	"src/ir/insn.cpp"
 	"src/ir/lifter.cpp"
+	"src/ir/opt_cfg.cpp"
+	"src/ir/opt_dce.cpp"
+	"src/ir/opt_id.cpp"
 	"src/ir/opt_phi.cpp"
+	"src/ir/value.cpp"
 	"src/lang/lexer.cpp"
 	"src/lang/operator.cpp"
 	"src/lang/parser.cpp"

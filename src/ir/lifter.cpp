@@ -13,7 +13,7 @@ namespace li::ir {
 		bc::reg local_shift = f->num_arguments + FRAME_SIZE;
 
 		auto get_kval = [&](bc::reg r) { return bld.blk->proc->f->kvals()[r]; };
-		auto set_reg = [&]<typename T>(bc::reg r, T&& v) { local_locals[r + local_shift] = insn::value_launder(std::forward<T>(v)); };
+		auto set_reg  = [&]<typename T>(bc::reg r, T&& v) { local_locals[r + local_shift] = launder_value(bld.blk->proc, std::forward<T>(v)); };
 		auto get_reg  = [&](bc::reg r) -> std::shared_ptr<value> {
          auto& x = local_locals[r + local_shift];
          if (!x) {
@@ -49,12 +49,9 @@ namespace li::ir {
 			switch (op) {
 				// Unop.
 				//
+				case bc::LNOT:
 				case bc::ANEG: {
 					set_reg(a, bld.emit<unop>(op, get_reg(b)));
-					continue;
-				}
-				case bc::LNOT: {
-					set_reg(a, bld.emit<lnot>(op, get_reg(b)));
 					continue;
 				}
 				case bc::VLEN: {
@@ -88,15 +85,18 @@ namespace li::ir {
 				// Logical ops.
 				//
 				case bc::LAND: {
-					set_reg(a, bld.emit<land>(op, get_reg(b), get_reg(c)));
+					auto br = get_reg(b);
+					bld.emit<select>(bld.emit<coerce_cast>(br, type::i1), get_reg(c), br);
 					continue;
 				}
 				case bc::LOR: {
-					set_reg(a, bld.emit<lor>(op, get_reg(b), get_reg(c)));
+					auto br = get_reg(b);
+					bld.emit<select>(bld.emit<coerce_cast>(br, type::i1), br, get_reg(c));
 					continue;
 				}
 				case bc::NCS: {
-					set_reg(a, bld.emit<null_coalesce>(op, get_reg(b), get_reg(c)));
+					auto br = get_reg(b);
+					bld.emit<select>(bld.emit<compare>(bc::CEQ, br, any(none)), get_reg(c), br);
 					continue;
 				}
 				case bc::CTY: {

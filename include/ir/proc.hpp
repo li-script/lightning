@@ -3,6 +3,7 @@
 #include <list>
 #include <string>
 #include <vector>
+#include <unordered_map>
 #include <vm/bc.hpp>
 #include <vm/function.hpp>
 
@@ -56,9 +57,18 @@ namespace li::ir {
 		//
 		void validate() {
 #if LI_DEBUG
+			size_t num_term = 0;
+			bool   phi_ok   = true;
 			for (auto it = instructions.begin(); it != instructions.end(); ++it) {
 				auto& i = *it;
-				i->update();
+
+				if (i->op != opcode::phi) {
+					phi_ok = false;
+				} else if (!phi_ok) {
+					util::abort("phi used after block header.");
+				}
+				num_term += i->is_terminator();
+
 				for (auto& op : i->operands) {
 					if (!op->is<insn>())
 						continue;
@@ -71,6 +81,14 @@ namespace li::ir {
 						util::abort("dangling reference found: %s", i->to_string(true).c_str());
 					}
 				}
+				i->update();
+			}
+
+			if (num_term == 0) {
+				util::abort("block is not terminated");
+			}
+			if (num_term > 1) {
+				util::abort("block has multiple terminators");
 			}
 #endif
 		}
@@ -104,36 +122,75 @@ namespace li::ir {
 		vm*       L = nullptr;  // Related VM and function.
 		function* f = nullptr;  //
 
+		// Constant pool.
+		//
+		struct const_hash {
+			size_t operator()(const constant& c) const {
+				return std::hash<int64_t>{}(c.i) ^ (size_t)c.vt;
+			}
+		};
+		std::unordered_map<constant, std::shared_ptr<constant>, const_hash> consts = {};
+
 		// Procedure state.
 		//
 		std::vector<std::unique_ptr<basic_block>> basic_blocks;        // List of basic blocks, first is entry point.
 		uint32_t                                  next_reg_name  = 0;  // Next register name.
 		uint32_t                                  next_block_uid = 0;  // Next block uid.
 
+		// Cached analysis flags.
+		//
+		uint32_t is_topologically_sorted : 1 = 0;
+
 		// Constructed by VM instance and the function we're translating.
 		//
 		procedure(vm* L, function* f) : L(L), f(f) {}
-
-		// Creates a new block.
-		//
-		basic_block* add_block() {
-			auto* blk = basic_blocks.emplace_back(std::make_unique<basic_block>(this)).get();
-			blk->uid  = next_block_uid++;
-			return blk;
-		}
 
 		// Gets the entry point.
 		//
 		basic_block* get_entry() { return basic_blocks.empty() ? nullptr : basic_blocks.front().get(); }
 
-		// Registers a jump.
+		// Creates a new block.
+		//
+		basic_block* add_block() {
+			is_topologically_sorted = false;
+			auto* blk = basic_blocks.emplace_back(std::make_unique<basic_block>(this)).get();
+			blk->uid  = next_block_uid++;
+			return blk;
+		}
+		auto del_block(basic_block* b) {
+			auto it = consts.find(constant(b));
+			LI_ASSERT(it->second.use_count() == 1);
+			consts.erase(it);
+			LI_ASSERT(b->predecesors.empty());
+			LI_ASSERT(b->successors.empty());
+			for (auto it = basic_blocks.begin();; ++it) {
+				LI_ASSERT(it != basic_blocks.end());
+				if (it->get() == b) {
+					return basic_blocks.erase(it);
+				}
+			}
+		}
+
+		// Adds or deletes a jump.
 		//
 		void add_jump(basic_block* from, basic_block* to) {
 			if (auto it = std::find(from->successors.begin(), from->successors.end(), to); it == from->successors.end()) {
 				from->successors.emplace_back(to);
+				is_topologically_sorted = false;
 			}
 			if (auto it = std::find(to->predecesors.begin(), to->predecesors.end(), from); it == to->predecesors.end()) {
 				to->predecesors.emplace_back(from);
+				is_topologically_sorted = false;
+			}
+		}
+		void del_jump(basic_block* from, basic_block* to) {
+			if (auto it = std::find(from->successors.begin(), from->successors.end(), to); it != from->successors.end()) {
+				from->successors.erase(it);
+				is_topologically_sorted = false;
+			}
+			if (auto it = std::find(to->predecesors.begin(), to->predecesors.end(), from); it != to->predecesors.end()) {
+				to->predecesors.erase(it);
+				is_topologically_sorted = false;
 			}
 		}
 
@@ -210,10 +267,13 @@ namespace li::ir {
 		// Topologically sorts the basic block list.
 		//
 		void toplogical_sort() {
+			if (is_topologically_sorted)
+				return;
 			uint32_t tmp = (uint32_t) basic_blocks.size();
 			dfs([&](basic_block* b) { b->uid = --tmp; });
 			LI_ASSERT(get_entry()->uid == 0);
 			std::sort(basic_blocks.begin(), basic_blocks.end(), [](auto& a, auto& b) { return a->uid < b->uid; });
+			is_topologically_sorted = true;
 		}
 
 		// Replace all uses of a value throughout the entire procedure.
@@ -249,6 +309,22 @@ namespace li::ir {
 		}
 	};
 
+	// Handles constants.
+	//
+	template<typename Tv>
+	static value_ref launder_value(procedure* proc, Tv&& v) {
+		if constexpr (!std::is_convertible_v<Tv, value_ref>) {
+			constant c{std::forward<Tv>(v)};
+			auto     it = proc->consts.find(c);
+			if (it == proc->consts.end()) {
+				it = proc->consts.emplace(c, std::make_shared<constant>(c)).first;
+			}
+			return it->second;
+		} else {
+			return value_ref(v);
+		}
+	}
+
 	// Builder context.
 	//
 	struct builder {
@@ -271,7 +347,7 @@ namespace li::ir {
 
 			// Add operands and update.
 			//
-			i->operands = std::vector<value_ref>{insn::value_launder(std::forward<Tx>(args))...};
+			i->operands = std::vector<value_ref>{launder_value(blk->proc, std::forward<Tx>(args))...};
 			i->update();
 			return i;
 		}
@@ -292,13 +368,6 @@ namespace li::ir {
 			}
 			blk->instructions.emplace_front(i);
 			return i;
-		}
-
-		// Operand creation from bytecode types.
-		//
-		std::shared_ptr<constant> kvl(bc::reg r) {
-			any a = blk->proc->f->kvals()[r];
-			return std::make_shared<constant>(a);
 		}
 	};
 };

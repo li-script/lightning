@@ -82,7 +82,7 @@ namespace li::ir {
 		//
 		template<typename T>
 		bool is() const {
-			return util::check_type_id_no_cv<T>(ti);
+			return util::test_type_id_no_cv<T>(ti);
 		}
 		template<typename T>
 		T* get() {

@@ -14,7 +14,7 @@ namespace li::ir {
 				return util::fmt(LI_GRN "%.*s" LI_DEF, t.size(), t.data());
 			}
 			case li::ir::type::irtype:
-				return util::fmt(LI_GRN "%s" LI_DEF, util::name_enum(vt).data());
+				return util::fmt(LI_GRN "%s" LI_DEF, util::name_enum(irtype).data());
 			case li::ir::type::vmtype:
 				return util::fmt(LI_GRN "%s" LI_DEF, type_names[(uint8_t) vmtype]);
 			case li::ir::type::vmopr:

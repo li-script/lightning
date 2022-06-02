@@ -116,11 +116,11 @@ namespace li {
 		}
 		template<typename T>
 		bool is() const {
-			return util::check_type_id<T>(tid);
+			return util::test_type_id<T>(tid);
 		}
 		template<typename T>
 		bool is_no_cv() const {
-			return util::check_type_id_no_cv<T>(tid);
+			return util::test_type_id_no_cv<T>(tid);
 		}
 	};
 };

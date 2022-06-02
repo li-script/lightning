@@ -156,7 +156,9 @@ namespace li::ir::opt {
 				return false;
 			});
 		}
-		
+
+		// v-- doesnt belong here
+
 		// Dead simple DCE.
 		//
 		while (true) {
@@ -171,10 +173,7 @@ namespace li::ir::opt {
 			}
 			if (!n)
 				break;
-		};
-
-		proc->rename_registers();
+		}
 		proc->validate();
-		proc->print();
 	}
 };

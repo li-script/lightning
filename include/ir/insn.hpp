@@ -15,47 +15,54 @@ namespace li::ir {
 	enum class opcode : uint8_t {
 		invalid,
 
-		// Used by initial codegen.
+		// Used by intermediate code.
 		//
 		load_local,
 		store_local,
 
-		// Used by intermediate code.
+		// Logical operators.
 		//
 		land,
 		lor,
 		lnot,
 		null_coalesce,
-		check_type,
-		check_trait,
-		trait_get,
-		trait_set,
-		array_new,
-		table_new,
+
+		// Complex types.
+		//
 		dup,
 		vlen,
 		vin,
 		vjoin,
-		uval_get,
-		uval_getx,
-		uval_set,
-		uval_setx,
+		trait_get,
+		trait_set,
+		array_new,
+		table_new,
 		field_get,
 		field_get_raw,
 		field_set,
 		field_set_raw,
+
+		// Arithmetic operators.
+		//
+		unop,
+		binop,
+
+		// Upvalue.
+		//
+		uval_get,
+		uval_set,
 
 		// Casts.
 		//
 		try_cast,
 		assume_cast,
 
-		// Used by all levels of codegen.
+		// Conditionals.
 		//
-		select,
-		unop,
-		binop,
+		test_type,
+		test_trait,
 		compare,
+		select,
 		phi,
 
 		// Block terminators.
@@ -197,16 +204,16 @@ namespace li::ir {
 			LI_ASSERT(operands[0]->is(type::i1));
 		}
 	};
-	// i1   check_type(unk, const vmtype)
-	struct check_type final : insn_tag<opcode::check_type> {
+	// i1   test_type(unk, const vmtype)
+	struct test_type final : insn_tag<opcode::test_type> {
 		void update() override {
 			vt = type::i1;
 			LI_ASSERT(operands.size() == 2);
 			LI_ASSERT(operands[1]->is<constant>() && operands[1]->is(type::vmtype));
 		}
 	};
-	// i1   check_trait(unk, const vmtrait)
-	struct check_trait final : insn_tag<opcode::check_trait> {
+	// i1   test_trait(unk, const vmtrait)
+	struct test_trait final : insn_tag<opcode::test_trait> {
 		void update() override {
 			vt = type::i1;
 			LI_ASSERT(operands.size() == 2);
@@ -251,30 +258,16 @@ namespace li::ir {
 			vt = operands[0]->vt;
 		}
 	};
-	// unk   uval_get(i32)
+	// unk   uval_get(vfn, i32)
 	struct uval_get final : insn_tag<opcode::uval_get> {
-		void update() override {
-			LI_ASSERT(operands.size() == 1);
-			LI_ASSERT(operands[0]->is(type::i32));
-		}
-	};
-	// none   uval_set(i32, unk)
-	struct uval_set final : insn_tag<opcode::uval_set> {
-		void update() override {
-			LI_ASSERT(operands.size() == 2);
-			LI_ASSERT(operands[0]->is(type::i32));
-		}
-	};
-	// unk   uval_getx(vfn, i32)
-	struct uval_getx final : insn_tag<opcode::uval_getx> {
 		void update() override {
 			LI_ASSERT(operands.size() == 2);
 			LI_ASSERT(operands[0]->is(type::vfn));
 			LI_ASSERT(operands[1]->is(type::i32));
 		}
 	};
-	// none   uval_setx(vfn, i32, unk)
-	struct uval_setx final : insn_tag<opcode::uval_setx> {
+	// none   uval_set(vfn, i32, unk)
+	struct uval_set final : insn_tag<opcode::uval_set> {
 		void update() override {
 			LI_ASSERT(operands.size() == 3);
 			LI_ASSERT(operands[0]->is(type::vfn));
@@ -308,7 +301,7 @@ namespace li::ir {
 		void update() override {
 			LI_ASSERT(operands.size() == 2);
 			LI_ASSERT(operands[1]->is<constant>() && operands[1]->is(type::irtype));
-			vt = operands[1]->get<constant>()->irtype;
+			vt        = operands[1]->get<constant>()->irtype;
 			may_throw = true;
 		}
 	};
@@ -360,7 +353,7 @@ namespace li::ir {
 					// TODO: Validate CFG.
 					LI_ASSERT(operands[i]->is<insn>());
 				}
-				vt = type::unk;  // calc common type.
+				vt = type::unk;  // TODO: calc common type.
 			} else {
 				vt = type::none;
 			}

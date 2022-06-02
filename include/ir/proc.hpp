@@ -59,6 +59,7 @@ namespace li::ir {
 		//
 		procedure* proc      = nullptr;  // Procedure it belongs to.
 		uint8_t    cold_hint = 0;        // Number specifying how cold this block is.
+		uint8_t    loop_depth = 0;       // TODO: Number of nested loops we're in.
 
 		// Bytecode ranges.
 		//
@@ -76,7 +77,7 @@ namespace li::ir {
 
 		// Temporary for search algorithms.
 		//
-		mutable bool visited = false;
+		mutable uintptr_t visited = 0;
 
 		// Container observers.
 		//
@@ -263,12 +264,31 @@ namespace li::ir {
 		//
 		procedure(vm* L, function* f) : L(L), f(f) {}
 
+		// Duplicates the procedure.
+		//
+		std::unique_ptr<procedure> duplicate();
+
 		// Container observers.
 		//
 		iterator begin() { return basic_blocks.begin(); }
 		iterator end() { return basic_blocks.end(); }
 		size_t   size() { return basic_blocks.size(); }
 		bool     empty() { return basic_blocks.empty(); }
+
+		// Clears visitor state.
+		//
+		void clear_block_visitor_state() const {
+			for (auto& b : basic_blocks) {
+				b->visited = 0;
+			}
+		}
+		void clear_all_visitor_state() const {
+			for (auto& b : basic_blocks) {
+				for (auto i : b->insns())
+					i->visited = 0;
+				b->visited = 0;
+			}
+		}
 
 		// Gets the entry point.
 		//
@@ -327,9 +347,7 @@ namespace li::ir {
 		//
 		template<typename F>
 		bool dfs(F&& fn, const basic_block* from = nullptr) const {
-			for (auto& b : basic_blocks) {
-				b->visited = false;
-			}
+			clear_block_visitor_state();
 			auto rec = [&](auto& self, const basic_block* b) -> bool {
 				b->visited = true;
 				for (auto& s : b->successors)
@@ -350,9 +368,7 @@ namespace li::ir {
 		}
 		template<typename F>
 		bool bfs(F&& fn, const basic_block* from = nullptr) const {
-			for (auto& b : basic_blocks) {
-				b->visited = false;
-			}
+			clear_block_visitor_state();
 			auto rec = [&](auto& self, const basic_block* b) -> bool {
 				b->visited = true;
 				if (fn((basic_block*) b))
@@ -375,9 +391,7 @@ namespace li::ir {
 		}
 		template<typename F>
 		bool rdfs(F&& fn, const basic_block* from) const {
-			for (auto& b : basic_blocks) {
-				b->visited = false;
-			}
+			clear_block_visitor_state();
 			auto rec = [&](auto& self, basic_block* b) -> bool {
 				b->visited = true;
 				for (auto& s : b->predecesors)
@@ -393,9 +407,7 @@ namespace li::ir {
 		}
 		template<typename F>
 		bool rbfs(F&& fn, const basic_block* from) const {
-			for (auto& b : basic_blocks) {
-				b->visited = false;
-			}
+			clear_block_visitor_state();
 			auto rec = [&](auto& self, basic_block* b) -> bool {
 				b->visited = true;
 				if (fn((basic_block*) b))

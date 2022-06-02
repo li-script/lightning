@@ -128,6 +128,14 @@ namespace li::ir {
 		//
 		std::vector<use<>> operands;
 
+		// Temporary for search algorithms.
+		//
+		mutable uintptr_t visited = 0;
+
+		// Default construct.
+		//
+		insn() = default;
+
 		// Erases the instruction.
 		//
 		void erase() {
@@ -199,23 +207,37 @@ namespace li::ir {
 			return std::is_same_v<std::decay_t<T>, value>;
 		}
 
-		// No copy, default construct.
-		//
-		insn()                       = default;
-		insn(const insn&)            = delete;
-		insn& operator=(const insn&) = delete;
-
 		// Updates the instruction details such as return type/side effects.
 		// Throws in debug mode if it's in an invalid state.
 		//
 		virtual void update() {}
+
+		// Duplicates the instruction.
+		//
+		virtual insn* duplicate() const { return nullptr; }
+
+		// Private copy for procedure.
+		//
+	  protected:
+		insn(const insn&)            = default;
+		insn& operator=(const insn&) = default;
 	};
 
 	// Instruction tag.
 	//
-	template<opcode O>
+	template<typename T, opcode O>
 	struct insn_tag : insn {
 		static constexpr opcode Opcode = O;
+
+		// Duplicates the instruction.
+		//
+		insn* duplicate() const override {
+			T* copy = new T(*(T*)this);
+			copy->parent = nullptr;
+			copy->prev   = copy;
+			copy->next   = copy;
+			return copy;
+		}
 	};
 	
 	// Individual instructions.
@@ -223,7 +245,7 @@ namespace li::ir {
 	// // Unpacking / Repacking.
 	//
 	// unk  unop(const op, unk rhs)
-	struct unop final : insn_tag<opcode::unop> {
+	struct unop final : insn_tag<unop, opcode::unop> {
 		void update() override {
 			LI_ASSERT(operands.size() == 2);
 			LI_ASSERT(operands[0]->is<constant>());
@@ -237,7 +259,7 @@ namespace li::ir {
 		}
 	};
 	// unk  binop(const op, unk lhs, unk rhs)
-	struct binop final : insn_tag<opcode::binop> {
+	struct binop final : insn_tag<binop, opcode::binop> {
 		void update() override {
 			LI_ASSERT(operands.size() == 3);
 			LI_ASSERT(operands[0]->is<constant>());
@@ -252,7 +274,7 @@ namespace li::ir {
 	};
 
 	// i1  compare(const op, unk lhs, unk rhs)
-	struct compare final : insn_tag<opcode::compare> {
+	struct compare final : insn_tag<compare, opcode::compare> {
 		void update() override {
 			vt = type::i1;
 			LI_ASSERT(operands.size() == 3);
@@ -263,7 +285,7 @@ namespace li::ir {
 		}
 	};
 	// unk  select(i1 cc, unk t, unk f)
-	struct select final : insn_tag<opcode::select> {
+	struct select final : insn_tag<select, opcode::select> {
 		void update() override {
 			is_const = true;
 			LI_ASSERT(operands.size() == 3);
@@ -274,7 +296,7 @@ namespace li::ir {
 		}
 	};
 	// i1   test_type(unk, const vmtype)
-	struct test_type final : insn_tag<opcode::test_type> {
+	struct test_type final : insn_tag<test_type, opcode::test_type> {
 		void update() override {
 			vt = type::i1;
 			is_const = true; // Type of boxed types cannot change so this stays valid.
@@ -283,7 +305,7 @@ namespace li::ir {
 		}
 	};
 	// i1   test_trait(unk, const vmtrait)
-	struct test_trait final : insn_tag<opcode::test_trait> {
+	struct test_trait final : insn_tag<test_trait, opcode::test_trait> {
 		void update() override {
 			vt      = type::i1;
 			LI_ASSERT(operands.size() == 2);
@@ -291,7 +313,7 @@ namespace li::ir {
 		}
 	};
 	// i1   test_traitful(unk)
-	struct test_traitful final : insn_tag<opcode::test_traitful> {
+	struct test_traitful final : insn_tag<test_traitful, opcode::test_traitful> {
 		void update() override {
 			is_const = true;
 			vt       = type::i1;
@@ -299,7 +321,7 @@ namespace li::ir {
 		}
 	};
 	// i1   test_gc(unk)
-	struct test_gc final : insn_tag<opcode::test_gc> {
+	struct test_gc final : insn_tag<test_gc, opcode::test_gc> {
 		void update() override {
 			is_const = true;
 			vt       = type::i1;
@@ -307,14 +329,14 @@ namespace li::ir {
 		}
 	};
 	// unk   trait_get(unk, const vmtrait)
-	struct trait_get final : insn_tag<opcode::trait_get> {
+	struct trait_get final : insn_tag<trait_get, opcode::trait_get> {
 		void update() override {
 			LI_ASSERT(operands.size() == 2);
 			LI_ASSERT(operands[1]->is<constant>() && operands[1]->is(type::vmtrait));
 		}
 	};
 	// none  trait_set(unk, const vmtrait, unk)
-	struct trait_set final : insn_tag<opcode::trait_set> {
+	struct trait_set final : insn_tag<trait_set, opcode::trait_set> {
 		void update() override {
 			is_pure   = false;
 			sideffect = true;
@@ -324,7 +346,7 @@ namespace li::ir {
 		}
 	};
 	// arr  array_new(i32)
-	struct array_new final : insn_tag<opcode::array_new> {
+	struct array_new final : insn_tag<array_new, opcode::array_new> {
 		void update() override {
 			is_pure = false;
 			vt = type::arr;
@@ -333,7 +355,7 @@ namespace li::ir {
 		}
 	};
 	// tbl  table_new(i32)
-	struct table_new final : insn_tag<opcode::table_new> {
+	struct table_new final : insn_tag<table_new, opcode::table_new> {
 		void update() override {
 			is_pure = false;
 			vt = type::tbl;
@@ -342,7 +364,7 @@ namespace li::ir {
 		}
 	};
 	// T     dup(T)
-	struct dup final : insn_tag<opcode::dup> {
+	struct dup final : insn_tag<dup, opcode::dup> {
 		void update() override {
 			is_pure = false;
 			LI_ASSERT(operands.size() == 1);
@@ -350,7 +372,7 @@ namespace li::ir {
 		}
 	};
 	// unk   uval_get(vfn, i32)
-	struct uval_get final : insn_tag<opcode::uval_get> {
+	struct uval_get final : insn_tag<uval_get, opcode::uval_get> {
 		void update() override {
 			LI_ASSERT(operands.size() == 2);
 			LI_ASSERT(operands[0]->is(type::vfn));
@@ -358,7 +380,7 @@ namespace li::ir {
 		}
 	};
 	// none   uval_set(vfn, i32, unk)
-	struct uval_set final : insn_tag<opcode::uval_set> {
+	struct uval_set final : insn_tag<uval_set, opcode::uval_set> {
 		void update() override {
 			is_pure   = false;
 			sideffect = true;
@@ -368,11 +390,11 @@ namespace li::ir {
 		}
 	};
 	// unk    field_get(unk obj, unk key)
-	struct field_get final : insn_tag<opcode::field_get> {
+	struct field_get final : insn_tag<field_get, opcode::field_get> {
 		void update() override { LI_ASSERT(operands.size() == 2); }
 	};
 	// none   field_set(unk obj, unk key, unk val)
-	struct field_set final : insn_tag<opcode::field_set> {
+	struct field_set final : insn_tag<field_set, opcode::field_set> {
 		void update() override {
 			is_pure   = false;
 			sideffect = true;
@@ -381,11 +403,11 @@ namespace li::ir {
 		}
 	};
 	// unk    field_get_raw(unk obj, unk key)
-	struct field_get_raw final : insn_tag<opcode::field_get_raw> {
+	struct field_get_raw final : insn_tag<field_get_raw, opcode::field_get_raw> {
 		void update() override { LI_ASSERT(operands.size() == 2); }
 	};
 	// none   field_set_raw(unk obj, unk key, unk val)
-	struct field_set_raw final : insn_tag<opcode::field_set_raw> {
+	struct field_set_raw final : insn_tag<field_set_raw, opcode::field_set_raw> {
 		void update() override {
 			is_pure   = false;
 			sideffect = true;
@@ -394,7 +416,7 @@ namespace li::ir {
 		}
 	};
 	// T      try_cast(unk, const irtype T)
-	struct try_cast final : insn_tag<opcode::try_cast> {
+	struct try_cast final : insn_tag<try_cast, opcode::try_cast> {
 		void update() override {
 			alias    = true;
 			is_const = true;
@@ -404,7 +426,7 @@ namespace li::ir {
 		}
 	};
 	// T      assume_cast(unk, const irtype T)
-	struct assume_cast final : insn_tag<opcode::assume_cast> {
+	struct assume_cast final : insn_tag<assume_cast, opcode::assume_cast> {
 		void update() override {
 			alias    = true;
 			is_const = true;
@@ -414,7 +436,7 @@ namespace li::ir {
 		}
 	};
 	// T      coerce_cast(unk, const irtype T)
-	struct coerce_cast final : insn_tag<opcode::coerce_cast> {
+	struct coerce_cast final : insn_tag<coerce_cast, opcode::coerce_cast> {
 		void update() override {
 			is_const = true;
 			LI_ASSERT(operands.size() == 2);
@@ -424,7 +446,7 @@ namespace li::ir {
 		}
 	};
 	// none   ret(unk val)
-	struct ret final : insn_tag<opcode::ret> {
+	struct ret final : insn_tag<ret, opcode::ret> {
 		void update() override {
 			sideffect = true;
 			vt = type::none;
@@ -432,7 +454,7 @@ namespace li::ir {
 		}
 	};
 	// none   thrw(unk val)
-	struct thrw final : insn_tag<opcode::thrw> {
+	struct thrw final : insn_tag<thrw, opcode::thrw> {
 		void update() override {
 			sideffect = true;
 			vt = type::none;
@@ -440,7 +462,7 @@ namespace li::ir {
 		}
 	};
 	// none   jmp(const bb)
-	struct jmp final : insn_tag<opcode::jmp> {
+	struct jmp final : insn_tag<jmp, opcode::jmp> {
 		void update() override {
 			vt = type::none;
 			LI_ASSERT(operands.size() == 1);
@@ -448,7 +470,7 @@ namespace li::ir {
 		}
 	};
 	// none   jcc(i1 c, const bb t, const bb f)
-	struct jcc final : insn_tag<opcode::jcc> {
+	struct jcc final : insn_tag<jcc, opcode::jcc> {
 		void update() override {
 			is_pure = false;
 			vt = type::none;
@@ -459,7 +481,7 @@ namespace li::ir {
 		}
 	};
 	// unk   phi(unk...)
-	struct phi final : insn_tag<opcode::phi> {
+	struct phi final : insn_tag<phi, opcode::phi> {
 		void update() override {
 			alias    = true;
 			is_const = true;
@@ -477,18 +499,18 @@ namespace li::ir {
 		}
 	};
 	// unk  vlen(unk obj)
-	struct vlen final : insn_tag<opcode::vlen> {
+	struct vlen final : insn_tag<vlen, opcode::vlen> {
 		void update() override { LI_ASSERT(operands.size() == 1); }
 	};
 	// i1   vin(unk obj, unk collection)
-	struct vin final : insn_tag<opcode::vin> {
+	struct vin final : insn_tag<vin, opcode::vin> {
 		void update() override {
 			vt = type::i1;
 			LI_ASSERT(operands.size() == 2);
 		}
 	};
 	// unk  vjoin(unk a, unk b)
-	struct vjoin final : insn_tag<opcode::vjoin> {
+	struct vjoin final : insn_tag<vjoin, opcode::vjoin> {
 		void update() override {
 			LI_ASSERT(operands.size() == 2);
 			if (operands[0]->is(type::unk)) {
@@ -503,7 +525,7 @@ namespace li::ir {
 		}
 	};
 	// unk  load_local(const i32)
-	struct load_local final : insn_tag<opcode::load_local> {
+	struct load_local final : insn_tag<load_local, opcode::load_local> {
 		void update() override {
 			is_pure = true;
 			vt = type::unk;
@@ -512,7 +534,7 @@ namespace li::ir {
 		}
 	};
 	// T    move(T x)
-	struct move final : insn_tag<opcode::move> {
+	struct move final : insn_tag<move, opcode::move> {
 		void update() override {
 			is_const  = true;
 			LI_ASSERT(operands.size() == 1);
@@ -520,7 +542,7 @@ namespace li::ir {
 		}
 	};
 	// none store_local(const i32, unk)
-	struct store_local final : insn_tag<opcode::store_local> {
+	struct store_local final : insn_tag<store_local, opcode::store_local> {
 		void update() override {
 			is_pure   = false;
 			sideffect = true;
@@ -530,7 +552,7 @@ namespace li::ir {
 		}
 	};
 	// T ccall(irtype rettype, ptr target, ...)
-	struct ccall final : insn_tag<opcode::ccall> {
+	struct ccall final : insn_tag<ccall, opcode::ccall> {
 		void update() override {
 			is_pure   = false;
 			sideffect = true;
@@ -557,7 +579,7 @@ namespace li::ir {
 		}
 	};
 	// any vcall(const i32 fixedargs)
-	struct vcall final : insn_tag<opcode::vcall> {
+	struct vcall final : insn_tag<vcall, opcode::vcall> {
 		void update() override {
 			is_pure   = false;
 			sideffect = true;
@@ -568,7 +590,7 @@ namespace li::ir {
 		}
 	};
 	// none mark_used(unk...)
-	struct mark_used final : insn_tag<opcode::mark_used> {
+	struct mark_used final : insn_tag<mark_used, opcode::mark_used> {
 		void update() override {
 			is_pure   = false;
 			sideffect = true;

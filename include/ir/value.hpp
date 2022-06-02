@@ -10,6 +10,7 @@
 
 namespace li::ir {
 	struct insn;
+	struct constant;
 	struct basic_block;
 	struct procedure;
 
@@ -62,7 +63,6 @@ namespace li::ir {
 		ptr = i64,
 	};
 	using operation = bc::opcode;
-	struct insn;
 
 	// Central value type.
 	//
@@ -83,6 +83,15 @@ namespace li::ir {
 		// Constructed by type id.
 		//
 		constexpr value(util::type_id ti) : ti(ti) {}
+
+		// Copy, ignores ref-counter.
+		//
+		constexpr value(const value& other) : ti(other.ti), vt(other.vt) {}
+		constexpr value& operator=(const value& other) {
+			ti = other.ti;
+			vt = other.vt;
+			return *this;
+		}
 
 		// Dynamic cast.
 		//
@@ -283,7 +292,18 @@ namespace li::ir {
 			basic_block* bb;
 		};
 
-		constexpr constant() { vt = type::none; }
+		// Default construction and copy.
+		//
+		constexpr constant() : i(0) { vt = type::none; }
+		constexpr constant(const constant& o) : i(o.i) { vt = o.vt; }
+		constexpr constant& operator=(const constant& o) {
+			i  = o.i;
+			vt = o.vt;
+			return *this;
+		}
+
+		// Construction by immediate.
+		//
 		constexpr constant(bool v) : i(v ? 1 : 0) { vt = type::i1; }
 		constexpr constant(int8_t v) : i(v) { vt = type::i8; }
 		constexpr constant(int16_t v) : i(v) { vt = type::i16; }
@@ -303,7 +323,6 @@ namespace li::ir {
 		constexpr constant(trait v) : vmtrait(v) { vt = type::vmtrait; }
 		constexpr constant(value_type v) : vmtype(v) { vt = type::vmtype; }
 		constexpr constant(type v) : irtype(v) { vt = type::irtype; }
-
 		constexpr constant(any a) {
 			if (a.is_bool()) {
 				i  = a.as_bool();

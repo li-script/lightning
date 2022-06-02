@@ -110,15 +110,17 @@ namespace li::ir::opt {
 	void lift_phi(procedure* proc) {
 		// Generate PHIs to replace load_local in every block except the entry point.
 		//
-		for (auto& bb : view::reverse(proc->basic_blocks | view::drop(1))) {
-			bb->erase_if([&](insn* ins) {
-				if (ins->is<load_local>()) {
-					bc::reg r = ins->operands[0]->as<constant>()->i32;
-					ins->replace_all_uses(read_variable(r, bb.get(), ins));
-					return true;
-				}
-				return false;
-			});
+		for (auto& bb : view::reverse(proc->basic_blocks)) {
+			if (bb.get() != proc->get_entry()) {
+				bb->erase_if([&](insn* ins) {
+					if (ins->is<load_local>()) {
+						bc::reg r = ins->operands[0]->as<constant>()->i32;
+						ins->replace_all_uses(read_variable(r, bb.get(), ins));
+						return true;
+					}
+					return false;
+				});
+			}
 		}
 
 		// TODO: Determine writes to arguments and push them until the end.

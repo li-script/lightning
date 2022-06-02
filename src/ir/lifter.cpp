@@ -328,7 +328,7 @@ namespace li::ir {
 
 		// Topologically sort and return the procedure.
 		//
-		proc->toplogical_sort();
+		proc->topological_sort();
 		return proc;
 	}
 };

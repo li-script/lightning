@@ -2,6 +2,7 @@
 #include "common.hpp"
 #include <string>
 #include <stdarg.h>
+#include <util/utf.hpp>
 
 namespace li::util {
 	#define LI_BRG  "\x1B[1;37m"
@@ -12,6 +13,26 @@ namespace li::util {
 	#define LI_GRN  "\x1B[1;32m"
 	#define LI_BLU  "\x1B[1;34m"
 	#define LI_DEF  "\x1B[0m"
+
+	// Length of string without the ANSI escapes.
+	//
+	inline static size_t display_length(std::string_view s) {
+		size_t result = 0;
+		while (true) {
+			auto p = s.find("\x1B[");
+			result += utf_length(s.substr(0, p));
+			if (p == std::string::npos) {
+				break;
+			}
+			s.remove_prefix(p+2);
+			size_t n = 0;
+			if (!s.empty()) {
+				n = s[0] == '1' ? 5 : 2; 
+			}
+			s.remove_prefix(std::min(s.size(), n));
+		}
+		return result;
+	}
 
 	// Formats as std::string.
 	//

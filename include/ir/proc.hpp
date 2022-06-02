@@ -180,7 +180,11 @@ namespace li::ir {
 		// Printer.
 		//
 		void print() const {
-			printf("--- Block %u %s\n", uid, cold_hint ? "[COLD]" : "");
+			printf("-- Block $%u", uid);
+			if (cold_hint)
+				printf(LI_CYN " [COLD %u]" LI_DEF, (uint32_t) cold_hint);
+			putchar('\n');
+
 			for (auto i : *this) {
 				printf(LI_GRN "#%-5x" LI_DEF " %s\n", i->source_bc, i->to_string(true).c_str());
 			}
@@ -267,27 +271,31 @@ namespace li::ir {
 			}
 		}
 
+		// Dirties all block analysis.
+		//
+		void mark_blocks_dirty() {
+			is_topologically_sorted = false;
+		}
+
 		// Adds or deletes a jump.
 		//
 		void add_jump(basic_block* from, basic_block* to) {
-			if (auto it = std::find(from->successors.begin(), from->successors.end(), to); it == from->successors.end()) {
-				from->successors.emplace_back(to);
-				is_topologically_sorted = false;
-			}
-			if (auto it = std::find(to->predecesors.begin(), to->predecesors.end(), from); it == to->predecesors.end()) {
-				to->predecesors.emplace_back(from);
-				is_topologically_sorted = false;
-			}
+			auto sit = std::find(from->successors.begin(), from->successors.end(), to);
+			auto pit = std::find(to->predecesors.begin(), to->predecesors.end(), from);
+			LI_ASSERT(sit == from->successors.end());
+			LI_ASSERT(pit == to->predecesors.end());
+			from->successors.emplace_back(to);
+			to->predecesors.emplace_back(from);
+			mark_blocks_dirty();
 		}
 		void del_jump(basic_block* from, basic_block* to) {
-			if (auto it = std::find(from->successors.begin(), from->successors.end(), to); it != from->successors.end()) {
-				from->successors.erase(it);
-				is_topologically_sorted = false;
-			}
-			if (auto it = std::find(to->predecesors.begin(), to->predecesors.end(), from); it != to->predecesors.end()) {
-				to->predecesors.erase(it);
-				is_topologically_sorted = false;
-			}
+			auto sit = std::find(from->successors.begin(), from->successors.end(), to);
+			auto pit = std::find(to->predecesors.begin(), to->predecesors.end(), from);
+			LI_ASSERT(sit != from->successors.end());
+			LI_ASSERT(pit != to->predecesors.end());
+			from->successors.erase(sit);
+			to->predecesors.erase(pit);
+			mark_blocks_dirty();
 		}
 
 		// Templated DFS/BFS helper.
@@ -305,7 +313,15 @@ namespace li::ir {
 							return true;
 				return fn((basic_block*) b);
 			};
-			return rec(rec, from ? from : get_entry());
+
+			if (from) {
+				for (auto& s : from->successors)
+					if (rec(rec, s))
+						return true;
+				return false;
+			} else {
+				return rec(rec, get_entry());
+			}
 		}
 		template<typename F>
 		bool bfs(F&& fn, const basic_block* from = nullptr) const {
@@ -322,7 +338,15 @@ namespace li::ir {
 							return true;
 				return false;
 			};
-			return rec(rec, from ? from : get_entry());
+
+			if (from) {
+				for (auto& s : from->successors)
+					if (rec(rec, s))
+						return true;
+				return false;
+			} else {
+				return rec(rec, get_entry());
+			}
 		}
 		template<typename F>
 		bool rdfs(F&& fn, const basic_block* from) const {
@@ -337,7 +361,10 @@ namespace li::ir {
 							return true;
 				return fn((basic_block*) b);
 			};
-			return rec(rec, from);
+			for (auto& s : from->predecesors)
+				if (rec(rec, s))
+					return true;
+			return false;
 		}
 		template<typename F>
 		bool rbfs(F&& fn, const basic_block* from) const {
@@ -354,12 +381,15 @@ namespace li::ir {
 							return true;
 				return false;
 			};
-			return rec(rec, from);
+			for (auto& s : from->predecesors)
+				if (rec(rec, s))
+					return true;
+			return false;
 		}
 
 		// Topologically sorts the basic block list.
 		//
-		void toplogical_sort() {
+		void topological_sort() {
 			if (is_topologically_sorted)
 				return;
 			uint32_t tmp = (uint32_t) basic_blocks.size();
@@ -375,7 +405,7 @@ namespace li::ir {
 		// Renames all registers and blocks after topologically sorting.
 		//
 		void reset_names() {
-			toplogical_sort();
+			topological_sort();
 			next_reg_name = 0;
 			for (auto& bb : basic_blocks) {
 				for (auto i : *bb) {

@@ -1,14 +1,14 @@
 #pragma once
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <string>
-#include <array>
 #include <util/common.hpp>
 
 #pragma pack(push, 1)
 namespace li {
 	struct vm;
-	using  slot_t = intptr_t;
+	using slot_t = intptr_t;
 
 	// Integral types.
 	//
@@ -39,17 +39,16 @@ namespace li {
 	enum value_type : uint8_t /*:4*/ {
 		// - first gc type
 		type_table     = 0,
-		type_userdata  = 1, // Last traitful.
+		type_userdata  = 1,  // Last traitful.
 		type_array     = 2,
-		type_function  = 3, // Last traversable.
+		type_function  = 3,  // Last traversable.
 		type_nfunction = 4,
 		type_string    = 5,
-		// last gc type
-		type_none   = 8,
-		type_false  = 9,
-		type_true   = 10,
-		type_opaque = 11,  // No type/definition, unique integer part.
-		type_number = 12,
+		type_none      = 8,  // First non-GC type.
+		type_false     = 9,
+		type_true      = 10,
+		type_opaque    = 11,  // No type/definition, unique integer part.
+		type_number    = 12,
 
 		// GC aliases.
 		type_gc_free = type_none,
@@ -178,8 +177,7 @@ namespace li {
 
 		// Bytewise equal comparsion.
 		//
-		inline constexpr bool equals(const any& other) const
-		{
+		inline constexpr bool equals(const any& other) const {
 #if !LI_FAST_MATH
 			uint64_t x = value ^ other.value;
 			if (!(value << 1)) {

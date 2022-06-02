@@ -72,16 +72,24 @@ namespace li::ir {
 		}
 		
 		if (operands.empty()) {
-			return s + "()";
+			s += "()";
+		} else {
+			for (size_t i = 0; i != operands.size(); i++) {
+				if (opc == opcode::phi)
+					s += util::fmt(LI_PRP "$%u" LI_DEF "->", parent->predecesors[i]->uid);
+				s += operands[i]->to_string();
+				s += ", ";
+			}
+			s.pop_back();
+			s.pop_back();
 		}
-		for (size_t i = 0; i != operands.size(); i++) {
-			if (opc == opcode::phi)
-				s += util::fmt(LI_PRP "$%u" LI_DEF "->", parent->predecesors[i]->uid);
-			s += operands[i]->to_string();
-			s += ", ";
+
+		// Pad to 50 characters.
+		//
+		size_t n = util::display_length(s);
+		if (n < 50) {
+			s.resize(s.size() + (50 - n), ' ');
 		}
-		s.pop_back();
-		s.pop_back();
 		return s;
 	}
 };

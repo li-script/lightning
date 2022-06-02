@@ -211,6 +211,19 @@ namespace li::util {
 		return result;
 	}
 
+	// Given a string-view, calculates the length in codepoints.
+	//
+	template<typename C>
+	inline static size_t utf_length(std::basic_string_view<C> data) {
+		size_t result = 0;
+		while (!data.empty()) {
+			size_t n = codepoint_cvt<C>::rlength(data.front());
+			data.remove_prefix(std::min(n, data.size()));
+			result++;
+		}
+		return result;
+	}
+
 	// Given a string-view, strips UTF-8 byte order mark if included, otherwise, returns true if it includes UTF-16/32 marks. 
 	//
 	inline static bool utf_is_bom(std::string_view& data) {

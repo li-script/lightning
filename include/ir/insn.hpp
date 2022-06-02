@@ -13,10 +13,14 @@ namespace li::ir {
 	enum class opcode : uint8_t {
 		invalid,
 
-		// Used by intermediate code.
+		// Used to represent function context and initially locals.
 		//
 		load_local,
 		store_local,
+
+		// Wraps a constant value for phi nodes.
+		//
+		load_constant,
 
 		// Complex types.
 		//
@@ -33,10 +37,11 @@ namespace li::ir {
 		field_set,
 		field_set_raw,
 
-		// Arithmetic operators.
+		// Operators.
 		//
 		unop,
 		binop,
+		binary_binop,
 
 		// Upvalue.
 		//
@@ -53,6 +58,8 @@ namespace li::ir {
 		//
 		test_type,
 		test_trait,
+		test_gc,
+		test_traitful,
 		compare,
 		select,
 		phi,
@@ -284,6 +291,22 @@ namespace li::ir {
 			LI_ASSERT(operands[1]->is<constant>() && operands[1]->is(type::vmtrait));
 		}
 	};
+	// i1   test_traitful(unk)
+	struct test_traitful final : insn_tag<opcode::test_traitful> {
+		void update() override {
+			is_const = true;
+			vt       = type::i1;
+			LI_ASSERT(operands.size() == 1);
+		}
+	};
+	// i1   test_gc(unk)
+	struct test_gc final : insn_tag<opcode::test_gc> {
+		void update() override {
+			is_const = true;
+			vt       = type::i1;
+			LI_ASSERT(operands.size() == 1);
+		}
+	};
 	// unk   trait_get(unk, const vmtrait)
 	struct trait_get final : insn_tag<opcode::trait_get> {
 		void update() override {
@@ -487,6 +510,15 @@ namespace li::ir {
 			vt = type::unk;
 			LI_ASSERT(operands.size() == 1);
 			LI_ASSERT(operands[0]->is<constant>() && operands[0]->is(type::i32));
+		}
+	};
+	// T    load_constant(T x)
+	struct load_constant final : insn_tag<opcode::load_constant> {
+		void update() override {
+			is_const  = true;
+			LI_ASSERT(operands.size() == 1);
+			LI_ASSERT(operands[0]->is<constant>());
+			vt = operands[0]->vt;
 		}
 	};
 	// none store_local(const i32, unk)

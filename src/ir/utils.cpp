@@ -109,7 +109,7 @@ namespace li::ir {
 			}
 		}
 
-		// Dirty the block analysis.
+		// Dirty the toplogical sorting.
 		//
 		proc->is_topologically_sorted = false;
 		return blk;

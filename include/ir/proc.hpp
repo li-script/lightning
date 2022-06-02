@@ -2,11 +2,11 @@
 #include <ir/insn.hpp>
 #include <list>
 #include <string>
-#include <vector>
 #include <unordered_map>
+#include <util/llist.hpp>
+#include <vector>
 #include <vm/bc.hpp>
 #include <vm/function.hpp>
-#include <util/llist.hpp>
 
 namespace li::ir {
 	struct instruction_iterator {
@@ -19,8 +19,8 @@ namespace li::ir {
 		insn* at;
 		instruction_iterator(insn* at) : at(at) {}
 
-		reference operator*() const { return at; }
-		pointer   operator->() { return at; }
+		reference             operator*() const { return at; }
+		pointer               operator->() { return at; }
 		instruction_iterator& operator++() {
 			at = at->next;
 			return *this;
@@ -65,13 +65,13 @@ namespace li::ir {
 		std::vector<basic_block*> successors  = {};
 		std::vector<basic_block*> predecesors = {};
 
-		// Temporary for search algorithms.
-		//
-		bool visited = false;
-
 		// Instruction list.
 		//
 		mutable insn insn_list_head = {};
+
+		// Temporary for search algorithms.
+		//
+		mutable bool visited = false;
 
 		// Container observers.
 		//
@@ -93,7 +93,7 @@ namespace li::ir {
 		}
 		instruction_iterator push_front(ref<insn> v) { return insert(begin(), std::move(v)); }
 		instruction_iterator push_back(ref<insn> v) { return insert(end(), std::move(v)); }
-		
+
 		// Erase wrapper.
 		//
 		instruction_iterator erase(instruction_iterator it) {
@@ -119,6 +119,10 @@ namespace li::ir {
 			}
 			return n;
 		}
+
+		// Splits the basic block at instruction boundary and adds a jump to the next block after it.
+		//
+		basic_block* split_at(const insn* at);
 
 		// Validates the basic block.
 		//
@@ -153,6 +157,9 @@ namespace li::ir {
 					}
 				}
 				num_term += i->is_terminator();
+				if (i->is_proc_terminator()) {
+					LI_ASSERT(successors.empty());
+				}
 
 				i->update();
 			}
@@ -181,8 +188,12 @@ namespace li::ir {
 
 		// Domination check.
 		//
-		bool dom(basic_block* n);
-		bool postdom(basic_block* n);
+		bool dom(const basic_block* n) const;
+		bool postdom(const basic_block* n) const;
+
+		// Returns true if this block can reach the block.
+		//
+		bool check_path(const basic_block* to) const;
 
 		// No copy, construction with procedure reference.
 		//
@@ -212,9 +223,7 @@ namespace li::ir {
 		// Constant pool.
 		//
 		struct const_hash {
-			size_t operator()(const constant& c) const {
-				return std::hash<int64_t>{}(c.i) ^ (size_t)c.vt;
-			}
+			size_t operator()(const constant& c) const { return std::hash<int64_t>{}(c.i) ^ (size_t) c.vt; }
 		};
 		std::unordered_map<constant, ref<constant>, const_hash> consts = {};
 
@@ -234,14 +243,14 @@ namespace li::ir {
 
 		// Gets the entry point.
 		//
-		basic_block* get_entry() { return basic_blocks.empty() ? nullptr : basic_blocks.front().get(); }
+		basic_block* get_entry() const { return basic_blocks.empty() ? nullptr : basic_blocks.front().get(); }
 
 		// Creates a new block.
 		//
 		basic_block* add_block() {
 			is_topologically_sorted = false;
-			auto* blk = basic_blocks.emplace_back(std::make_unique<basic_block>(this)).get();
-			blk->uid  = next_block_uid++;
+			auto* blk               = basic_blocks.emplace_back(std::make_unique<basic_block>(this)).get();
+			blk->uid                = next_block_uid++;
 			return blk;
 		}
 		auto del_block(basic_block* b) {
@@ -284,60 +293,68 @@ namespace li::ir {
 		// Templated DFS/BFS helper.
 		//
 		template<typename F>
-		void dfs(F&& fn, basic_block* from = nullptr) {
+		bool dfs(F&& fn, const basic_block* from = nullptr) const {
 			for (auto& b : basic_blocks) {
 				b->visited = false;
 			}
-			auto rec = [&](auto& self, basic_block* b) -> void {
-            b->visited = true;
-            for (auto& s : b->successors)
-               if (!s->visited)
-                  self(self, s);
-				fn(b);
-			};
-			rec(rec, from ? from : get_entry());
-		}
-		template<typename F>
-		void bfs(F&& fn, basic_block* from = nullptr) {
-			for (auto& b : basic_blocks) {
-				b->visited = false;
-			}
-			auto rec = [&](auto& self, basic_block* b) -> void {
+			auto rec = [&](auto& self, const basic_block* b) -> bool {
 				b->visited = true;
-				fn(b);
 				for (auto& s : b->successors)
 					if (!s->visited)
-						self(self, s);
+						if (self(self, s))
+							return true;
+				return fn((basic_block*) b);
 			};
-			rec(rec, from ? from : get_entry());
+			return rec(rec, from ? from : get_entry());
 		}
 		template<typename F>
-		void rdfs(F&& fn, basic_block* from) {
+		bool bfs(F&& fn, const basic_block* from = nullptr) const {
 			for (auto& b : basic_blocks) {
 				b->visited = false;
 			}
-			auto rec = [&](auto& self, basic_block* b) -> void {
+			auto rec = [&](auto& self, const basic_block* b) -> bool {
 				b->visited = true;
-				for (auto& s : b->predecesors)
+				if (fn((basic_block*) b))
+					return true;
+				for (auto& s : b->successors)
 					if (!s->visited)
-						self(self, s);
-				fn(b);
+						if (self(self, s))
+							return true;
+				return false;
 			};
-			rec(rec, from);
+			return rec(rec, from ? from : get_entry());
 		}
 		template<typename F>
-		void rbfs(F&& fn, basic_block* from) {
+		bool rdfs(F&& fn, const basic_block* from) const {
 			for (auto& b : basic_blocks) {
 				b->visited = false;
 			}
-			auto rec = [&](auto& self, basic_block* b) -> void {
+			auto rec = [&](auto& self, basic_block* b) -> bool {
 				b->visited = true;
-				fn(b);
 				for (auto& s : b->predecesors)
 					if (!s->visited)
-						self(self, s);
+						if (self(self, s))
+							return true;
+				return fn((basic_block*) b);
 			};
-			rec(rec, from);
+			return rec(rec, from);
+		}
+		template<typename F>
+		bool rbfs(F&& fn, const basic_block* from) const {
+			for (auto& b : basic_blocks) {
+				b->visited = false;
+			}
+			auto rec = [&](auto& self, basic_block* b) -> bool {
+				b->visited = true;
+				if (fn((basic_block*) b))
+					return true;
+				for (auto& s : b->predecesors)
+					if (!s->visited)
+						if (self(self, s))
+							return true;
+				return false;
+			};
+			return rec(rec, from);
 		}
 
 		// Topologically sorts the basic block list.
@@ -346,7 +363,10 @@ namespace li::ir {
 			if (is_topologically_sorted)
 				return;
 			uint32_t tmp = (uint32_t) basic_blocks.size();
-			dfs([&](basic_block* b) { b->uid = --tmp; });
+			dfs([&](basic_block* b) {
+				b->uid = --tmp;
+				return false;
+			});
 			LI_ASSERT(get_entry()->uid == 0);
 			std::sort(basic_blocks.begin(), basic_blocks.end(), [](auto& a, auto& b) { return a->uid < b->uid; });
 			is_topologically_sorted = true;
@@ -368,8 +388,20 @@ namespace li::ir {
 		//
 		void validate() {
 			LI_ASSERT(get_entry() != nullptr);
-			for (auto& i : basic_blocks)
+			for ( auto& i : basic_blocks ) {
 				i->validate();
+#if LI_DEBUG
+				if (i->predecesors.empty()) {
+					LI_ASSERT(i.get() == get_entry());
+				}
+				for (auto& succ : i->successors) {
+					LI_ASSERT(std::find(succ->predecesors.begin(), succ->predecesors.end(), i.get()) != succ->predecesors.end());
+				}
+				for (auto& pred : i->predecesors) {
+					LI_ASSERT(std::find(pred->successors.begin(), pred->successors.end(), i.get()) != pred->successors.end());
+				}
+#endif
+			}
 		}
 
 		// Printer.
@@ -411,11 +443,11 @@ namespace li::ir {
 		ref<T> create(Tx&&... args) {
 			// Set basic details.
 			//
-			ref<T> i             = make_value<T>();
-			i->name              = blk->proc->next_reg_name++;
-			i->source_bc         = current_bc;
-			i->opc               = T::Opcode;
-			i->vt                = type::unk;
+			ref<T> i     = make_value<T>();
+			i->name      = blk->proc->next_reg_name++;
+			i->source_bc = current_bc;
+			i->opc       = T::Opcode;
+			i->vt        = type::unk;
 
 			// Add operands and update.
 			//
@@ -425,9 +457,8 @@ namespace li::ir {
 		template<typename T, typename... Tx>
 		ref<insn> emit(Tx&&... args) {
 			auto i = create<T, Tx...>(std::forward<Tx>(args)...);
-			if (i->source_bc == bc::no_pos) {
+			if (!i->has_debug_info())
 				i->source_bc = blk->bc_end;
-			}
 			blk->push_back(i);
 			i->update();
 			return i;
@@ -435,9 +466,8 @@ namespace li::ir {
 		template<typename T, typename... Tx>
 		ref<insn> emit_front(Tx&&... args) {
 			auto i = create<T, Tx...>(std::forward<Tx>(args)...);
-			if (i->source_bc == bc::no_pos) {
+			if (!i->has_debug_info())
 				i->source_bc = blk->bc_end;
-			}
 			blk->push_front(i);
 			i->update();
 			return i;
@@ -446,8 +476,8 @@ namespace li::ir {
 		ref<insn> emit_after(insn* at, Tx&&... args) {
 			auto i = create<T, Tx...>(std::forward<Tx>(args)...);
 			at->parent->insert(instruction_iterator(at->next), i);
-			if (current_bc == bc::no_pos)
-				at->copy_debug_info(i);
+			if (!i->has_debug_info())
+				at->copy_debug_info_to(i);
 			i->update();
 			return i;
 		}
@@ -455,8 +485,8 @@ namespace li::ir {
 		ref<insn> emit_before(insn* at, Tx&&... args) {
 			auto i = create<T, Tx...>(std::forward<Tx>(args)...);
 			at->parent->insert(instruction_iterator(at), i);
-			if (current_bc == bc::no_pos)
-				at->copy_debug_info(i);
+			if (!i->has_debug_info())
+				at->copy_debug_info_to(i);
 			i->update();
 			return i;
 		}

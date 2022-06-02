@@ -62,6 +62,9 @@
     <ClCompile Include="..\src\ir\opt_cfg.cpp">
       <Filter>IR\Optimizations</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\ir\utils.cpp">
+      <Filter>IR\Core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Language">

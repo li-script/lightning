@@ -169,7 +169,8 @@ namespace li::ir {
 
 		// Copies debug info to another instance.
 		//
-		void copy_debug_info(insn* o) { o->source_bc = source_bc; }
+		void copy_debug_info_to(insn* o) { o->source_bc = source_bc; }
+		bool has_debug_info() const { return source_bc != bc::no_pos; }
 
 		// Basic traits.
 		//

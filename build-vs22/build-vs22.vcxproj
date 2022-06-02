@@ -32,6 +32,7 @@
     <ClCompile Include="..\src\ir\opt_cfg.cpp" />
     <ClCompile Include="..\src\ir\opt_dce.cpp" />
     <ClCompile Include="..\src\ir\opt_id.cpp" />
+    <ClCompile Include="..\src\ir\utils.cpp" />
     <ClCompile Include="..\src\ir\value.cpp" />
     <ClCompile Include="..\src\ir\lifter.cpp" />
     <ClCompile Include="..\src\ir\opt_phi.cpp" />

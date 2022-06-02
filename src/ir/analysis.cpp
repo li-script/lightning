@@ -3,11 +3,11 @@
 namespace li::ir {
 	// TODO: Cache with a dominance tree, switch to less expensive algorithm.
 	//
-	bool basic_block::dom(basic_block* n) {
+	bool basic_block::dom(const basic_block* n) const {
 		for (auto& b : this->proc->basic_blocks) {
 			b->visited = false;
 		}
-		auto nodom = [this](auto& self, basic_block* n) -> bool {
+		auto nodom = [this](auto& self, const basic_block* n) -> bool {
 			if (n->predecesors.empty())
 				return true;
 			n->visited = true;
@@ -21,11 +21,11 @@ namespace li::ir {
 		};
 		return this == n || !nodom(nodom, n);
 	}
-	bool basic_block::postdom( basic_block* n ) {
+	bool basic_block::postdom(const basic_block* n) const {
 		for (auto& b : this->proc->basic_blocks) {
 			b->visited = false;
 		}
-		auto nodom = [this](auto& self, basic_block* n) -> bool {
+		auto nodom = [this](auto& self, const basic_block* n) -> bool {
 			if (n->successors.empty())
 				return true;
 			n->visited = true;
@@ -38,5 +38,11 @@ namespace li::ir {
 			return false;
 		};
 		return this == n || !nodom(nodom, n);
+	}
+
+	// Returns true if this block can reach the block.
+	//
+	bool basic_block::check_path(const basic_block* to) const {
+		return proc->bfs([&](const basic_block* b) { return b == to; }, this);
 	}
 };

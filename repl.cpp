@@ -78,6 +78,8 @@ static bool ir_test(vm* L, any* args, slot_t n) {
 	proc->reset_names();
 	proc->print();
 
+
+	// hoist table fields even if it escapes
 	// move stuff out of loops
 	// type inference
 	// trait inference

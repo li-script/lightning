@@ -3,41 +3,6 @@
 #include <util/enuminfo.hpp>
 
 namespace li::ir {
-	// Replace implementation.
-	//
-	size_t insn::replace_all_uses(value* with) const {
-		LI_ASSERT(parent);
-		size_t n = 0;
-		for (auto& b : parent->proc->basic_blocks) {
-			n += replace_all_uses_in_block(with, b.get());
-		}
-		return n;
-	}
-	size_t insn::replace_all_uses_in_block(value* with, basic_block* bb) const {
-		LI_ASSERT(parent);
-		size_t n = 0;
-		for (auto i : *bb) {
-			if (i == with)
-				continue;
-			for (auto& op : i->operands) {
-				if (op.get() == this) {
-					op.reset(with);
-					n++;
-				}
-			}
-		}
-		return n;
-	}
-	size_t insn::replace_all_uses_outside_block(value* with) const {
-		LI_ASSERT(parent);
-		size_t n = 0;
-		for (auto& b : parent->proc->basic_blocks) {
-			if (b.get() != parent)
-				n += replace_all_uses_in_block(with, b.get());
-		}
-		return n;
-	}
-
 	// String conversion.
 	//
 	std::string constant::to_string(bool) const {

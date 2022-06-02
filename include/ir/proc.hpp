@@ -196,6 +196,17 @@ namespace li::ir {
 			rec(rec, from);
 		}
 
+		// Renames all registers.
+		//
+		void rename_registers() {
+			next_reg_name = 0;
+			for (auto& bb : basic_blocks) {
+				for (auto& i : bb->instructions) {
+					i->name = next_reg_name++;
+				}
+			}
+		}
+
 		// Topologically sorts the basic block list.
 		//
 		void toplogical_sort() {

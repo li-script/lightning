@@ -173,17 +173,7 @@ namespace li::ir::opt {
 				break;
 		};
 
-
-		{
-			proc->toplogical_sort();
-			proc->next_reg_name = 0;
-			for (auto& bb : proc->basic_blocks) {
-				for (auto& i : bb->instructions) {
-					i->name = proc->next_reg_name++;
-				}
-			}
-		}
-
+		proc->rename_registers();
 		proc->validate();
 		proc->print();
 	}

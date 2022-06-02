@@ -54,6 +54,7 @@ namespace li::ir {
 		vmopr,
 		vmtrait,
 		vmtype,
+		irtype,
 
 		// Aliases.
 		//
@@ -129,6 +130,7 @@ namespace li::ir {
 			operation    vmopr;
 			trait        vmtrait;
 			value_type   vmtype;
+			type         irtype;
 			double       n;
 			gc::header*  gc;
 			table*       tbl;
@@ -161,6 +163,7 @@ namespace li::ir {
 		constexpr constant(operation v) : vmopr(v) { vt = type::vmopr; }
 		constexpr constant(trait v) : vmtrait(v) { vt = type::vmtrait; }
 		constexpr constant(value_type v) : vmtype(v) { vt = type::vmtype; }
+		constexpr constant(type v) : irtype(v) { vt = type::irtype; }
 
 		constant(any a) {
 			if (a.is_gc()) {
@@ -181,53 +184,6 @@ namespace li::ir {
 
 		// Implement printer.
 		//
-		std::string to_string(bool = false) const override {
-			switch (vt) {
-				case li::ir::type::none:
-					return "void";
-				case li::ir::type::unk:
-					return LI_RED "ERROR!" LI_DEF;
-				case li::ir::type::vmtrait: {
-					auto t = trait_names[(uint8_t) vmtrait];
-					return util::fmt(LI_GRN "%.*s" LI_DEF, t.size(), t.data());
-				}
-				case li::ir::type::vmtype:
-					return util::fmt(LI_GRN "%s" LI_DEF, type_names[(uint8_t) vmtype]);
-				case li::ir::type::vmopr:
-					return util::fmt(LI_GRN "%s" LI_DEF, bc::opcode_details(vmopr).name);
-				case li::ir::type::i1:
-					return util::fmt(LI_BLU "i1:  %s" LI_DEF, u ? "true" : "false");
-				case li::ir::type::i8:
-					return util::fmt(LI_BLU "i8:  %llu" LI_DEF, u);
-				case li::ir::type::i16:
-					return util::fmt(LI_BLU "i16: %llu" LI_DEF, u);
-				case li::ir::type::i32:
-					return util::fmt(LI_CYN "i32: %lld" LI_DEF, i);
-				case li::ir::type::i64:
-					return util::fmt(LI_BLU "i64: %llu" LI_DEF, u);
-				case li::ir::type::f32:
-					return util::fmt(LI_BLU "f32: %lf" LI_DEF, n);
-				case li::ir::type::f64:
-					return util::fmt(LI_BLU "f64: %lf" LI_DEF, n);
-				case li::ir::type::opq:
-					return util::fmt(LI_BLU "opq: %llu" LI_DEF, u);
-				case li::ir::type::tbl:
-					return util::fmt(LI_BLU "tbl: %p" LI_DEF, gc);
-				case li::ir::type::udt:
-					return util::fmt(LI_BLU "udt: %p" LI_DEF, gc);
-				case li::ir::type::arr:
-					return util::fmt(LI_BLU "arr: %p" LI_DEF, gc);
-				case li::ir::type::vfn:
-					return util::fmt(LI_BLU "vfn: %p" LI_DEF, gc);
-				case li::ir::type::nfn:
-					return util::fmt(LI_BLU "nfn: %p" LI_DEF, gc);
-				case li::ir::type::str:
-					return util::fmt(LI_BLU "str: %s" LI_DEF, str->c_str());
-				case li::ir::type::bb:
-					return ir::to_string(bb);
-				default:
-					assume_unreachable();
-			}
-		}
+		std::string to_string(bool = false) const override;
 	};
 };

@@ -45,6 +45,11 @@ namespace li::ir {
 		field_set,
 		field_set_raw,
 
+		// Casts.
+		//
+		try_cast,
+		assume_cast,
+
 		// Used by all levels of codegen.
 		//
 		select,
@@ -296,6 +301,23 @@ namespace li::ir {
 		void update() override {
 			vt = type::none;
 			LI_ASSERT(operands.size() == 3);
+		}
+	};
+	// T      try_cast(unk, const irtype T)
+	struct try_cast final : insn_tag<opcode::try_cast> {
+		void update() override {
+			LI_ASSERT(operands.size() == 2);
+			LI_ASSERT(operands[1]->is<constant>() && operands[1]->is(type::irtype));
+			vt = operands[1]->get<constant>()->irtype;
+			may_throw = true;
+		}
+	};
+	// T      assume_cast(unk, const irtype T)
+	struct assume_cast final : insn_tag<opcode::assume_cast> {
+		void update() override {
+			LI_ASSERT(operands.size() == 2);
+			LI_ASSERT(operands[1]->is<constant>() && operands[1]->is(type::irtype));
+			vt        = operands[1]->get<constant>()->irtype;
 		}
 	};
 	// none   ret(unk val)

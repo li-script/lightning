@@ -101,6 +101,7 @@ namespace li::lib {
 	void register_std(vm* L) {
 		// Math library.
 		//
+		util::export_as(L, "math.fast", bool(LI_FAST_MATH));
 		util::export_as(L, "math.random", math_random);
 		util::export_as(L, "math.srandom", math_srandom);
 		util::export_as(L, "math.eps", std::numeric_limits<double>::epsilon());

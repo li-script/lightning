@@ -41,17 +41,17 @@
     <ClCompile Include="..\src\vm\userdata.cpp">
       <Filter>VM\Types</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\ir\lifter.cpp">
-      <Filter>IR</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\ir\opt_phi.cpp">
-      <Filter>IR\Opt</Filter>
+      <Filter>IR\Optimizations</Filter>
     </ClCompile>
     <ClCompile Include="..\src\ir\analysis.cpp">
-      <Filter>IR</Filter>
+      <Filter>IR\Algorithm</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\ir\insn.cpp">
-      <Filter>IR</Filter>
+    <ClCompile Include="..\src\ir\value.cpp">
+      <Filter>IR\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ir\lifter.cpp">
+      <Filter>IR\Core</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -76,8 +76,14 @@
     <Filter Include="IR">
       <UniqueIdentifier>{6937ce40-997f-467c-8e02-df4d1f1a3a62}</UniqueIdentifier>
     </Filter>
-    <Filter Include="IR\Opt">
+    <Filter Include="IR\Algorithm">
+      <UniqueIdentifier>{00feb2c3-4dd2-48c6-8cf9-bf395690f75e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="IR\Optimizations">
       <UniqueIdentifier>{8b506929-e789-4fcd-b050-0ff94e5c4a00}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="IR\Core">
+      <UniqueIdentifier>{cb731b20-7d80-4098-b7e3-94b1f8868930}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -150,20 +156,20 @@
     <ClInclude Include="..\include\util\enuminfo.hpp">
       <Filter>Utility</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\ir\opt.hpp">
+      <Filter>IR\Optimizations</Filter>
+    </ClInclude>
     <ClInclude Include="..\include\ir\insn.hpp">
-      <Filter>IR</Filter>
+      <Filter>IR\Core</Filter>
     </ClInclude>
     <ClInclude Include="..\include\ir\lifter.hpp">
-      <Filter>IR</Filter>
+      <Filter>IR\Core</Filter>
     </ClInclude>
     <ClInclude Include="..\include\ir\proc.hpp">
-      <Filter>IR</Filter>
+      <Filter>IR\Core</Filter>
     </ClInclude>
     <ClInclude Include="..\include\ir\value.hpp">
-      <Filter>IR</Filter>
-    </ClInclude>
-    <ClInclude Include="..\include\ir\opt.hpp">
-      <Filter>IR</Filter>
+      <Filter>IR\Core</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

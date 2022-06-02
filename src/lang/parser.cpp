@@ -760,7 +760,7 @@ namespace li {
 				}
 
 				expression id{any(number(nexpr++))};
-				scope.emit(bc::TSET, id.to_anyreg(scope), value.to_anyreg(scope), result.reg);
+				scope.emit(bc::TSETR, id.to_anyreg(scope), value.to_anyreg(scope), result.reg);
 
 				if (scope.lex().opt(']'))
 					break;

@@ -50,11 +50,16 @@ jobs:
       uses: mymindstorm/setup-emsdk@v11
 
     - name: Set up GCC
-      if: ${{ matrix.target == 'ubuntu' || matrix.target == 'macos' }}
+      if: ${{ matrix.target == 'ubuntu' }}
       uses: egor-tensin/setup-gcc@v1
       with:
         version: latest
-
+    - name: Install LLVM and Clang
+      if: ${{ matrix.target == 'macos' }}
+      uses: KyleMayes/install-llvm-action@v1
+      with:
+        version: "14.0"
+        
     - name: Build
       run: |
         cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=${{ matrix.build-type }} ${{ matrix.extra-cmake-flags }}

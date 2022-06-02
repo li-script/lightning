@@ -35,7 +35,8 @@ namespace li {
 	struct local_state {
 		string* id       = nullptr;  // Local name.
 		bool    is_const = false;    // Set if declared as const.
-		bc::reg reg      = 0;        // Register mapping to it.
+		bc::reg reg      = -1;       // Register mapping to it if any.
+		any     cxpr     = none;     // Constant expression if any.
 	};
 
 	// Label magic flag.
@@ -126,29 +127,11 @@ namespace li {
 			return fn.lex;
 		}
 
-		// Looks up a variable.
-		//
-		std::optional<std::pair<bc::reg, bool>> lookup_local(string* name) {
-			for (auto it = this; it; it = it->prev) {
-				for (auto lit = it->locals.rbegin(); lit != it->locals.rend(); ++lit) {
-					if (lit->id == name) {
-						return std::pair<bc::reg, bool>{lit->reg, lit->is_const};
-					}
-				}
-			}
-			return std::nullopt;
-		}
-		std::optional<std::pair<bc::reg, bool>> lookup_uval(string* name) {
-			for (size_t i = 0; i != fn.uvalues.size(); i++) {
-				if (fn.uvalues[i].id == name) {
-					return std::pair<bc::reg, bool>{(bc::reg) i, fn.uvalues[i].is_const};
-				}
-			}
-			return std::nullopt;
-		}
-
 		// Inserts a new local variable.
 		//
+		void add_local_cxpr(string* name, any val) {
+			locals.push_back({name, true, -1, val});
+		}
 		bc::reg add_local(string* name, bool is_const) {
 			auto r = alloc_reg();
 			locals.push_back({name, is_const, r});
@@ -313,10 +296,8 @@ namespace li {
 
 		// Constructed by value.
 		//
-		expression(bc::reg l) : kind(expr::reg), reg(l) {}
-		expression(std::pair<bc::reg, bool> l) : kind(expr::reg), freeze(l.second), reg(l.first) {}
-		expression(upvalue_t, bc::reg u) : kind(expr::uvl), reg(u) {}
-		expression(upvalue_t, std::pair<bc::reg, bool> u) : kind(expr::uvl), freeze(u.second), reg(u.first) {}
+		expression(bc::reg u, bool freeze = false) : kind(expr::reg), freeze(freeze), reg(u) {}
+		expression(upvalue_t, bc::reg u, bool freeze = false) : kind(expr::uvl), freeze(freeze), reg(u) {}
 
 		expression(any k) : kind(expr::imm), imm(k) {}
 		expression(string* g) : kind(expr::glb), glb(g) {}
@@ -687,19 +668,26 @@ namespace li {
 		// Handle special names.
 		//
 		if (name->view() == "self") {
-			return expression(std::pair{(int32_t) FRAME_SELF, true});
+			return expression((int32_t) FRAME_SELF, true);
 		} else if (name->view() == "$F") {
-			return expression(std::pair{(int32_t) FRAME_TARGET, true});
+			return expression((int32_t) FRAME_TARGET, true);
 		} else if (name->view() == "$E") {
-			return expression(upvalue_t{}, std::pair<bc::reg, bool>{bc::uval_env, true});
+			return expression(upvalue_t{}, bc::uval_env, true);
 		} else if (name->view() == "$G") {
-			return expression(upvalue_t{}, std::pair<bc::reg, bool>{bc::uval_glb, true});
+			return expression(upvalue_t{}, bc::uval_glb, true);
 		}
 
 		// Try using existing local variable.
 		//
-		if (auto local = scope.lookup_local(name)) {
-			return *local;  // local / arg
+		for (auto it = &scope; it; it = it->prev) {
+			for (auto lit = it->locals.rbegin(); lit != it->locals.rend(); ++lit) {
+				if (lit->id == name) {
+					if (lit->reg == -1)
+						return lit->cxpr;
+					else
+						return expression(lit->reg, lit->is_const);
+				}
+			}
 		}
 
 		// Try finding an argument.
@@ -713,13 +701,15 @@ namespace li {
 		// Try self-reference.
 		//
 		if (scope.fn.decl_name && name == scope.fn.decl_name) {
-			return expression(std::pair{(int32_t) FRAME_TARGET, true});
+			return expression((int32_t) FRAME_TARGET, true);
 		}
 
 		// Try using existing upvalue.
 		//
-		if (auto uv = scope.lookup_uval(name)) {
-			return expression(upvalue_t{}, *uv);  // uvalue
+		for (bc::reg i = 0; i != scope.fn.uvalues.size(); i++) {
+			if (scope.fn.uvalues[i].id == name) {
+				return expression(upvalue_t{}, (bc::reg) i, scope.fn.uvalues[i].is_const);  // uvalue
+			}
 		}
 
 		// Try borrowing a value by creating an upvalue.
@@ -727,10 +717,12 @@ namespace li {
 		if (scope.fn.enclosing) {
 			expression ex = expr_var(*scope.fn.enclosing, name);
 			if (ex.kind != expr::glb) {
+				if (ex.kind == expr::imm)
+					return ex;
 				bool    is_const = ex.freeze != 0;
 				bc::reg next_reg = (bc::reg) scope.fn.uvalues.size();
 				scope.fn.uvalues.push_back({name, is_const, next_reg});
-				return expression{upvalue_t{}, {next_reg, is_const}};
+				return expression{upvalue_t{}, next_reg, is_const};
 			}
 		}
 
@@ -1027,9 +1019,18 @@ namespace li {
 			if (fn.kind == expr::err) {
 				return {};
 			}
-			bc::reg reg = scope.add_local(name.str_val, is_const);
-			fn.to_reg(scope, reg);
-			if (is_export) expression(name.str_val).assign(scope, reg);
+
+			expression result;
+			if (is_const && fn.kind == expr::imm) {
+				scope.add_local_cxpr(name.str_val, fn.imm);
+				result = fn.imm;
+			} else {
+				bc::reg reg = scope.add_local(name.str_val, is_const);
+				fn.to_reg(scope, reg);
+				result = reg;
+			}
+			if (is_export)
+				expression(name.str_val).assign(scope, result);
 			return true;
 		}
 
@@ -1171,13 +1172,20 @@ namespace li {
 
 			// Push a new local and write it.
 			//
-			auto reg = scope.add_local(var.str_val, is_const);
-			ex.to_reg(scope, reg);
+			expression result;
+			if (ex.kind == expr::imm && is_const) {
+				scope.add_local_cxpr(var.str_val, ex.imm);
+				result = ex;
+			} else {
+				auto reg = scope.add_local(var.str_val, is_const);
+				ex.to_reg(scope, reg);
+				result = reg;
+			}
 
-			// If export set global as well as locals.
+			// If export set global as well.
 			//
 			if (is_export)
-				expression(var.str_val).assign(scope, reg);
+				expression(var.str_val).assign(scope, result);
 		}
 		// Otherwise:
 		//
@@ -2166,10 +2174,8 @@ namespace li {
 		//
 		scope.emit(bc::TNEW, space, 0);
 		scope.emit(bc::UGET, space + 1, bc::uval_env);
+		scope.emit(bc::TRSET, space, space + 1, (int)trait::get); // TODO: Buggy if recursive?
 		scope.emit(bc::USET, bc::uval_env, space);
-
-		// TODO: Should still index the current env, fix when you have metatables.
-		//
 
 		// Parse a block and discard the result.
 		//

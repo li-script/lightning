@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <cstring>
 #include <type_traits>
+#include <ranges>
 
 // Compiler details.
 //
@@ -108,6 +109,9 @@
 #endif
 
 namespace li {
+	namespace range = std::ranges;
+	namespace view  = std::views;
+
 	// Missing bit operations.
 	//
 	namespace util {

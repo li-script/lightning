@@ -46,7 +46,7 @@ namespace li::ir {
 
 	// Basic block type.
 	//
-	struct basic_block : std::ranges::view_base {
+	struct basic_block : range::view_base {
 		// Range traits.
 		//
 		using iterator   = instruction_iterator;
@@ -90,6 +90,7 @@ namespace li::ir {
 		instruction_iterator end_phi() const {
 			return std::find_if(begin(), end(), [](insn* i) { return !i->is<phi>(); });
 		}
+		auto phis() const { return range::subrange(begin(), end_phi()); }
 
 		// Insertion.
 		//
@@ -226,7 +227,7 @@ namespace li::ir {
 
 	// Procedure type.
 	//
-	struct procedure : std::ranges::view_base {
+	struct procedure : range::view_base {
 		// Range traits.
 		//
 		using container = std::vector<std::unique_ptr<basic_block>>;

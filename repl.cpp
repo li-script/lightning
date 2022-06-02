@@ -68,11 +68,14 @@ static void handle_repl_io(vm* L, std::string_view input) {
 // TODO: Builtin markers for tables.
 
 static bool ir_test(vm* L, any* args, slot_t n) {
-	auto proc = ir::lift_bc(L, args->as_vfn());
-	ir::opt::lift_phi(proc.get());
-	ir::opt::fold_identical(proc.get());
-	ir::opt::dce(proc.get());
-	ir::opt::cfg(proc.get());
+	using namespace ir;
+
+	auto proc = lift_bc(L, args->as_vfn());
+	opt::lift_phi(proc.get());
+	opt::fold_identical(proc.get());
+	opt::dce(proc.get());
+	opt::cfg(proc.get());
+
 	proc->reset_names();
 	proc->print();
 

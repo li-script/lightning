@@ -61,6 +61,7 @@ namespace li::ir {
 		ptr = i64,
 	};
 	using operation = bc::opcode;
+	struct insn;
 
 	// Central value type.
 	//
@@ -82,6 +83,9 @@ namespace li::ir {
 		//
 		template<typename T>
 		bool is() const {
+			if constexpr (std::is_base_of_v<insn, T> && !std::is_same_v<insn, T>) {
+				return util::test_type_id_no_cv<insn>(ti) && ((T*) this)->op == T::Opcode;
+			}
 			return util::test_type_id_no_cv<T>(ti);
 		}
 		template<typename T>
@@ -161,7 +165,6 @@ namespace li::ir {
 		constexpr constant(nfunction* v) : nfn(v) { vt = type::nfn; }
 		constexpr constant(opaque v) : opq(v) { vt = type::opq; }
 		constexpr constant(basic_block* v) : bb(v) { vt = type::bb; }
-
 		constexpr constant(operation v) : vmopr(v) { vt = type::vmopr; }
 		constexpr constant(trait v) : vmtrait(v) { vt = type::vmtrait; }
 		constexpr constant(value_type v) : vmtype(v) { vt = type::vmtype; }

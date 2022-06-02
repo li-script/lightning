@@ -43,6 +43,8 @@ namespace li::ir {
 		size_t replace_all_uses(value* of, const std::shared_ptr<value>& with) {
 			size_t n = 0;
 			for (auto& i : instructions) {
+				if (i == with)
+					continue;
 				for (auto& op : i->operands) {
 					if (op.get() == of) {
 						op = with;
@@ -331,7 +333,7 @@ namespace li::ir {
 	struct builder {
 		basic_block* blk        = nullptr;
 		bc::pos      current_bc = bc::no_pos;
-		builder(basic_block* b) : blk(b) {}
+		builder(basic_block* b = nullptr) : blk(b) {}
 
 		// Instruction emitting.
 		//
@@ -359,6 +361,16 @@ namespace li::ir {
 				i->source_bc = blk->bc_end;
 			}
 			blk->instructions.emplace_back(i);
+			return i;
+		}
+		template<typename T, typename... Tx>
+		insn_ref emit_after(const insn_ref& at, Tx&&... args) {
+			blk    = at->parent;
+			if (current_bc == bc::no_pos)
+				current_bc = at->source_bc;
+			auto i = create<T, Tx...>(std::forward<Tx>(args)...);
+			auto it = std::find(blk->instructions.begin(), blk->instructions.end(), at);
+			blk->instructions.emplace(std::next(it), i);
 			return i;
 		}
 		template<typename T, typename... Tx>

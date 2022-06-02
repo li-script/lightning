@@ -1,6 +1,5 @@
 
 #include <lang/parser.hpp>
-#include <vector>
 #include <vm/function.hpp>
 #include <vm/string.hpp>
 #include <vm/table.hpp>

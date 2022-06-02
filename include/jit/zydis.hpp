@@ -3,18 +3,23 @@
 #if !LI_ARCH_X86 || LI_32
 	#error "JIT mode is only available for x86-64."
 #endif
-
-#include <Zycore/API/Memory.h>
-#include <Zycore/LibC.h>
-#include <Zydis/Zydis.h>
 #include <span>
 #include <vector>
 #include <string>
 #include <optional>
 
+#if _WIN32
+	#define NOMINMAX // athre0z y u include windows :(
+	#define WIN32_LEAN_AND_MEAN
+#endif
+#include <Zycore/API/Memory.h>
+#include <Zycore/LibC.h>
+#include <Zydis/Zydis.h>
+
 namespace li::zy {
 	// Rename registers.
 	//
+	using reg = ZydisRegister;
 	static constexpr auto NO_REG = ZYDIS_REGISTER_NONE;
 	static constexpr auto AL     = ZYDIS_REGISTER_AL;
 	static constexpr auto CL     = ZYDIS_REGISTER_CL;
@@ -129,8 +134,8 @@ namespace li::zy {
 	//
 	struct mem {
 		uint16_t      size  = 0;
-		ZydisRegister base  = NO_REG;
-		ZydisRegister index = NO_REG;
+		reg           base  = NO_REG;
+		reg           index = NO_REG;
 		uint8_t       scale = 0;
 		int64_t       disp  = 0;
 	};
@@ -148,7 +153,7 @@ namespace li::zy {
 		} else if constexpr (std::is_pointer_v<T>) {
 			res.type  = ZYDIS_OPERAND_TYPE_IMMEDIATE;
 			res.imm.u = (uintptr_t) op;
-		} else if constexpr (std::is_same_v<T, ZydisRegister>) {
+		} else if constexpr (std::is_same_v<T, reg>) {
 			res.type      = ZYDIS_OPERAND_TYPE_REGISTER;
 			res.reg.value = op;
 		} else if constexpr (std::is_same_v<T, mem>) {

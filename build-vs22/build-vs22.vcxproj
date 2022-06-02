@@ -50,6 +50,7 @@
     <ClCompile Include="..\src\vm\userdata.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\include\ir\arch.hpp" />
     <ClInclude Include="..\include\ir\insn.hpp" />
     <ClInclude Include="..\include\ir\lifter.hpp" />
     <ClInclude Include="..\include\ir\opt.hpp" />

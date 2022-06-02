@@ -180,6 +180,9 @@
     <ClInclude Include="..\include\ir\value.hpp">
       <Filter>IR\Core</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\ir\arch.hpp">
+      <Filter>IR\Core</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\.clang-format" />

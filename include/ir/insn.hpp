@@ -2,6 +2,7 @@
 #include <vector>
 #include <string>
 #include <ir/value.hpp>
+#include <ir/arch.hpp>
 
 /*
 _(get) _(set)
@@ -64,6 +65,11 @@ namespace li::ir {
 		jmp,
 		jcc,
 
+		// Call types.
+		//
+		ccall,
+		vcall,
+
 		// Procedure terminators.
 		//
 		ret,
@@ -101,6 +107,17 @@ namespace li::ir {
 		uint32_t is_const : 1    = 0;  // On top of being pure, also doesn't break the constraints on sideffect.
 		uint32_t sideffect : 1   = 0;  // Has side effects and should not be discarded if not used.
 		uint32_t is_volatile : 1 = 0;  // Same as side-effect, but user specified and cannot be ignored by instruction-specific optimizers.
+		uint32_t spill_gc : 1    = 0;  // Spills all locals that are GC'd.
+		uint32_t spill_vol : 1   = 0;  // Spills volatile registers.
+
+		// Spilled registers.
+		//
+		std::vector<arch::reg> spilled_regs = {};
+
+		// Forced register ids.
+		//
+		arch::reg force_result_reg = 0;
+		std::vector<arch::reg> force_operand_regs = {};
 
 		// Operands.
 		//
@@ -134,11 +151,8 @@ namespace li::ir {
 	};
 	
 	// Individual instructions.
-	//   Missing: push,load,reset,call
-	//
-	//	// Call to C.
+	//   Missing: push,load,reset
 	// // Unpacking / Repacking.
-	//	ccall,  //      T    ccall(const ptr target, ...)
 	//
 	// unk  unop(const op, unk rhs)
 	struct unop final : insn_tag<opcode::unop> {
@@ -149,8 +163,8 @@ namespace li::ir {
 			LI_ASSERT(c->is(type::vmopr));
 			LI_ASSERT(c->vmopr == operation::ANEG || c->vmopr == operation::LNOT);
 
-			if (operands[0]->vt <= type::f64) {
-				vt = operands[0]->vt;
+			if (operands[1]->vt <= type::f64) {
+				vt = operands[1]->vt;
 			}
 		}
 	};
@@ -163,8 +177,8 @@ namespace li::ir {
 			LI_ASSERT(c->is(type::vmopr));
 			LI_ASSERT(operation::AADD <= c->vmopr && c->vmopr <= operation::APOW);
 
-			if (operands[0]->vt <= type::f64 && operands[1]->vt <= type::f64) {
-				vt = std::max(operands[0]->vt, operands[1]->vt);
+			if (operands[1]->vt <= type::f64 && operands[2]->vt <= type::f64) {
+				vt = std::max(operands[1]->vt, operands[2]->vt);
 			}
 		}
 	};
@@ -421,7 +435,45 @@ namespace li::ir {
 		void update() override {
 			is_pure   = false;
 			sideffect = true;
-			vt = type::none;
+			vt        = type::none;
+			LI_ASSERT(operands.size() == 2);
+			LI_ASSERT(operands[0]->is<constant>() && operands[0]->is(type::i32));
+		}
+	};
+	// T ccall(irtype rettype, ptr target, ...)
+	struct ccall final : insn_tag<opcode::ccall> {
+		void update() override {
+			is_pure   = false;
+			sideffect = true;
+			spill_vol = true;
+			LI_ASSERT(operands.size() >= 2);
+			LI_ASSERT(operands[0]->is<constant>() && operands[0]->is(type::irtype));
+			LI_ASSERT(operands[1]->is(type::ptr));
+			vt = operands[0]->get<constant>()->irtype;
+			if (vt == type::f32 || vt == type::f64) {
+				force_result_reg = arch::fp_retval;
+			}
+
+			force_operand_regs.clear();
+			force_operand_regs.reserve(operands.size());
+			size_t num_fp = 0;
+			size_t num_gp = 0;
+			for (auto& op : operands) {
+				bool is_fp = op->vt == type::f32 || op->vt == type::f64;
+				auto reg = arch::map_argument(num_gp, num_fp, is_fp);
+				if (!reg)
+					break;
+				force_operand_regs.emplace_back(reg);
+			}
+		}
+	};
+	// any vcall(const i32 fixedargs)
+	struct vcall final : insn_tag<opcode::vcall> {
+		void update() override {
+			is_pure   = false;
+			sideffect = true;
+			spill_gc  = true;
+			spill_vol = true;
 			LI_ASSERT(operands.size() == 2);
 			LI_ASSERT(operands[0]->is<constant>() && operands[0]->is(type::i32));
 		}

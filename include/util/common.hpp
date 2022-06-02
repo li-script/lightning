@@ -3,6 +3,15 @@
 #include <cstring>
 #include <type_traits>
 
+// Compiler details.
+//
+#ifndef _CONSTEVAL
+	#if defined(__cpp_consteval)
+		#define _CONSTEVAL consteval
+	#else  // ^^^ supports consteval / no consteval vvv
+		#define _CONSTEVAL constexpr
+	#endif
+#endif
 #ifndef __has_builtin
 	#define __has_builtin(...) 0
 #endif
@@ -19,6 +28,8 @@
 	#define __has_include(...) 0
 #endif
 
+// Detect architecture.
+//
 #if defined(__amd64__) || defined(__amd64) || defined(__x86_64__) || defined(__x86_64) || defined(__AMD_64) || defined(_M_AMD64) || defined(_M_IX86) || defined(__i386)
 	#define LI_ARCH_X86  1
 #elif defined(__aarch64__) || defined(_M_ARM64)
@@ -28,7 +39,12 @@
 #else
 	#error "Unknown target architecture."
 #endif
+#if UINTPTR_MAX == 0xFFFFFFFF
+	#define LI_32 1
+#endif
 
+// Detect compiler.
+//
 #if defined(__GNUC__) || defined(__clang__)
 	#define LI_GNU 1
 #else
@@ -41,6 +57,8 @@
 	#endif
 #endif
 
+// Add intrinsics
+//
 #if LI_ARCH_X86
 	#if defined(__SSE4_2__) && LI_GNU
 		#define LI_HAS_CRC    1
@@ -53,45 +71,36 @@
 		#include <intrin.h>
 	#endif
 #endif
-#if UINTPTR_MAX == 0xFFFFFFFF
-	#define LI_32 1
+
+// Detect ABI.
+//
+#if LI_ARCH_X86 && !LI_32
+	#if _WIN32
+		#define LI_ABI_MS64 1
+	#else
+		#define LI_ABI_SYSV64 1
+	#endif
 #endif
 
-#if defined(_CPPRTTI)
-	#define LI_HAS_RTTI _CPPRTTI
-#elif defined(__GXX_RTTI)
-	#define LI_HAS_RTTI __GXX_RTTI
-#elif defined(__has_feature)
-	#define LI_HAS_RTTI __has_feature(cxx_rtti)
-#else
-	#define LI_HAS_RTTI 0
-#endif
-
+// Options and JIT capability.
+//
 #ifndef LI_FAST_MATH
 	#define LI_FAST_MATH 1
 #endif
-
 #ifndef LI_JIT
 	#if LI_ARCH_X86 && !LI_32
 		#define LI_JIT 1
 	#endif
 #endif
 
-#ifndef _CONSTEVAL
-	#if defined(__cpp_consteval)
-		#define _CONSTEVAL consteval
-	#else // ^^^ supports consteval / no consteval vvv
-		#define _CONSTEVAL constexpr
-	#endif
-#endif
-
+// Common macros.
+//
 #define LI_STRINGIFY_I(x) #x
 #define LI_STRINGIFY(x)   LI_STRINGIFY_I(x)
 #define LI_STRCAT_I(x, y) x##y
 #define LI_STRCAT(x, y)   LI_STRCAT_I(x, y)
 #define LI_NOOP(...)
 #define LI_IDENTITY(...)  __VA_ARGS__
-
 #if LI_MS_EXTS
 	#define FUNCTION_NAME __FUNCSIG__
 #else

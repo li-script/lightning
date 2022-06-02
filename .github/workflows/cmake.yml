@@ -15,7 +15,6 @@ jobs:
           - ubuntu
           - emscripten
           - windows
-          - macos
         include:
           - target: ubuntu
             os: ubuntu-latest
@@ -28,10 +27,6 @@ jobs:
           - target: windows
             os: windows-latest
             build-type: Release
-          - target: macos
-            os: macOS-latest
-            build-type: Release
-            extra-cmake-flags: '-DCMAKE_C_COMPILER="$LLVM_PATH/bin/clang" -DCMAKE_CXX_COMPILER="$LLVM_PATH/bin/clang++" -DCMAKE_CXX_FLAGS="-flto -Wno-attributes -msse4.2"'
     steps:
     - name: Checkout
       uses: actions/checkout@v2
@@ -54,12 +49,6 @@ jobs:
       uses: egor-tensin/setup-gcc@v1
       with:
         version: 11
-        
-    - name: Install LLVM and Clang
-      if: ${{ matrix.target == 'macos' }}
-      uses: KyleMayes/install-llvm-action@v1
-      with:
-        version: "14.0.4"
         
     - name: Build
       run: |

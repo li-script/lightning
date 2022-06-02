@@ -7,14 +7,14 @@ namespace li::ir {
 	static void lift_basic_block(builder bld, const std::vector<basic_block*>& bc_to_bb) {
 		// Local cache.
 		//
-		function*                           f = bld.blk->proc->f;
-		std::vector<std::shared_ptr<value>> local_locals;
+		function*               f = bld.blk->proc->f;
+		std::vector<ref<value>> local_locals;
 		local_locals.resize(f->num_locals + f->num_arguments + FRAME_SIZE);
 		bc::reg local_shift = f->num_arguments + FRAME_SIZE;
 
 		auto get_kval = [&](bc::reg r) { return bld.blk->proc->f->kvals()[r]; };
 		auto set_reg  = [&]<typename T>(bc::reg r, T&& v) { local_locals[r + local_shift] = launder_value(bld.blk->proc, std::forward<T>(v)); };
-		auto get_reg  = [&](bc::reg r) -> std::shared_ptr<value> {
+		auto get_reg  = [&](bc::reg r) -> ref<value> {
          auto& x = local_locals[r + local_shift];
          if (!x) {
 				x = bld.emit<load_local>(r);
@@ -30,8 +30,8 @@ namespace li::ir {
 				if (!x)
 					continue;
 				if (x->is<insn>()) {
-					auto* i = x->get<insn>();
-					if (i->op == opcode::load_local && i->operands[0]->get<constant>()->i == (r - local_shift))
+					auto* i = x->as<insn>();
+					if (i->is<load_local>() && i->operands[0]->as<constant>()->i == (r - local_shift))
 						continue;
 				}
 				bld.emit<store_local>(r - local_shift, x);

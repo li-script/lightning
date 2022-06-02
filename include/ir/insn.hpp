@@ -3,13 +3,14 @@
 #include <string>
 #include <ir/value.hpp>
 #include <ir/arch.hpp>
+#include <util/format.hpp>
+#include <util/llist.hpp>
 
 /*
 _(get) _(set)
 _(call) _(str) _(gc)
 TODO: Consider __(seal) __(freeze) __(hide)
 */
-
 namespace li::ir {
 	// Instruction opcodes.
 	//
@@ -83,10 +84,11 @@ namespace li::ir {
 	// Instruction type.
 	//
 	struct insn : value_tag<insn> {
-
-		// Parent block.
+		// Parent block and linked list.
 		//
 		basic_block* parent = nullptr;
+		insn*        prev   = this;
+		insn*        next   = this;
 
 		// Numbered name of the instruction value.
 		//
@@ -94,7 +96,7 @@ namespace li::ir {
 
 		// Opcode.
 		//
-		opcode op = opcode::invalid;
+		opcode opc = opcode::invalid;
 
 		// Source/Line information.
 		//
@@ -121,7 +123,45 @@ namespace li::ir {
 
 		// Operands.
 		//
-		std::vector<value_ref> operands;
+		std::vector<use<>> operands;
+
+		// Erases the instruction.
+		//
+		void erase() {
+			LI_ASSERT(parent);
+			parent    = nullptr;
+			util::unlink(this);
+			dec_ref(false); // Parent's reference.
+		}
+
+		// Use replacement.
+		//
+		size_t replace_all_uses(value* with) const;
+		size_t replace_all_uses_in_block(value* with, basic_block* bb = nullptr) const;
+		size_t replace_all_uses_outside_block(value* with) const;
+
+		// Order check.
+		//
+		bool before(insn* with) const {
+			if (with == this)
+				return false;
+			LI_ASSERT(parent && parent == with->parent);
+			for (auto it = prev; it->parent; it = it->prev) {
+				if (it == with)
+					return true;
+			}
+			return false;
+		}
+		bool after(insn* with) const {
+			if (with == this)
+				return false;
+			LI_ASSERT(parent && parent == with->parent);
+			for (auto it = next; it->parent; it = it->next) {
+				if (it == with)
+					return true;
+			}
+			return false;
+		}
 
 		// Implement printer.
 		//
@@ -133,15 +173,33 @@ namespace li::ir {
 
 		// Basic traits.
 		//
-		bool is_terminator() const { return op >= opcode::jmp; }
-		bool is_proc_terminator() const { return op >= opcode::ret; }
+		bool is_terminator() const { return opc >= opcode::jmp; }
+		bool is_proc_terminator() const { return opc >= opcode::ret; }
+		bool is_orphan() const { return !parent; }
+
+		template<typename T>
+		bool is() const {
+			if constexpr (std::is_base_of_v<insn, T>) {
+				if constexpr (std::is_same_v<insn, T>) {
+					return true;
+				} else {
+					return opc == T::Opcode;
+				}
+			}
+			return std::is_same_v<std::decay_t<T>, value>;
+		}
+
+		// No copy, default construct.
+		//
+		insn()                       = default;
+		insn(const insn&)            = delete;
+		insn& operator=(const insn&) = delete;
 
 		// Updates the instruction details such as return type/side effects.
 		// Throws in debug mode if it's in an invalid state.
 		//
 		virtual void update() {}
 	};
-	using insn_ref = std::shared_ptr<insn>;
 
 	// Instruction tag.
 	//
@@ -159,7 +217,7 @@ namespace li::ir {
 		void update() override {
 			LI_ASSERT(operands.size() == 2);
 			LI_ASSERT(operands[0]->is<constant>());
-			auto* c = operands[0]->get<constant>();
+			auto* c = operands[0]->as<constant>();
 			LI_ASSERT(c->is(type::vmopr));
 			LI_ASSERT(c->vmopr == operation::ANEG || c->vmopr == operation::LNOT);
 
@@ -173,7 +231,7 @@ namespace li::ir {
 		void update() override {
 			LI_ASSERT(operands.size() == 3);
 			LI_ASSERT(operands[0]->is<constant>());
-			auto* c = operands[0]->get<constant>();
+			auto* c = operands[0]->as<constant>();
 			LI_ASSERT(c->is(type::vmopr));
 			LI_ASSERT(operation::AADD <= c->vmopr && c->vmopr <= operation::APOW);
 
@@ -189,7 +247,7 @@ namespace li::ir {
 			vt = type::i1;
 			LI_ASSERT(operands.size() == 3);
 			LI_ASSERT(operands[0]->is<constant>());
-			auto* c = operands[0]->get<constant>();
+			auto* c = operands[0]->as<constant>();
 			LI_ASSERT(c->is(type::vmopr));
 			LI_ASSERT(operation::CEQ <= c->vmopr && c->vmopr <= operation::CGE);
 		}
@@ -317,7 +375,7 @@ namespace li::ir {
 			is_const = true;
 			LI_ASSERT(operands.size() == 2);
 			LI_ASSERT(operands[1]->is<constant>() && operands[1]->is(type::irtype));
-			vt        = operands[1]->get<constant>()->irtype;
+			vt        = operands[1]->as<constant>()->irtype;
 		}
 	};
 	// T      assume_cast(unk, const irtype T)
@@ -327,7 +385,7 @@ namespace li::ir {
 			is_const = true;
 			LI_ASSERT(operands.size() == 2);
 			LI_ASSERT(operands[1]->is<constant>() && operands[1]->is(type::irtype));
-			vt        = operands[1]->get<constant>()->irtype;
+			vt        = operands[1]->as<constant>()->irtype;
 		}
 	};
 	// T      coerce_cast(unk, const irtype T)
@@ -336,7 +394,7 @@ namespace li::ir {
 			is_const = true;
 			LI_ASSERT(operands.size() == 2);
 			LI_ASSERT(operands[1]->is<constant>() && operands[1]->is(type::irtype));
-			vt = operands[1]->get<constant>()->irtype;
+			vt = operands[1]->as<constant>()->irtype;
 			alias = operands[0]->vt == vt;
 		}
 	};
@@ -447,7 +505,7 @@ namespace li::ir {
 			LI_ASSERT(operands.size() >= 2);
 			LI_ASSERT(operands[0]->is<constant>() && operands[0]->is(type::irtype));
 			LI_ASSERT(operands[1]->is(type::ptr));
-			vt = operands[0]->get<constant>()->irtype;
+			vt = operands[0]->as<constant>()->irtype;
 			if (vt == type::f32 || vt == type::f64) {
 				force_result_reg = arch::fp_retval;
 			}

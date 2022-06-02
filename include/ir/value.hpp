@@ -1,10 +1,10 @@
 #pragma once
-#include <vector>
-#include <string>
+#include <lang/types.hpp>
 #include <memory>
+#include <string>
 #include <util/format.hpp>
 #include <util/typeinfo.hpp>
-#include <lang/types.hpp>
+#include <vector>
 #include <vm/bc.hpp>
 #include <vm/string.hpp>
 
@@ -38,7 +38,7 @@ namespace li::ir {
 		// VM types.
 		//
 		opq,
-		tbl, // same order as gc types
+		tbl,  // same order as gc types
 		udt,
 		arr,
 		vfn,
@@ -65,8 +65,12 @@ namespace li::ir {
 
 	// Central value type.
 	//
-	struct value
-	{
+	struct value {
+		// Reference counter.
+		//
+		mutable uint32_t ref_counter = 1;
+		mutable uint32_t use_counter = 0;
+
 		// Type id of this.
 		//
 		util::type_id ti;
@@ -84,22 +88,48 @@ namespace li::ir {
 		template<typename T>
 		bool is() const {
 			if constexpr (std::is_base_of_v<insn, T> && !std::is_same_v<insn, T>) {
-				return util::test_type_id_no_cv<insn>(ti) && ((T*) this)->op == T::Opcode;
+				return util::test_type_id_no_cv<insn>(ti) && ((T*) this)->opc == T::Opcode;
 			}
 			return util::test_type_id_no_cv<T>(ti);
 		}
 		template<typename T>
-		T* get() {
-			return (T*) (is<T>() ? (void*) this : nullptr);
+		T* as() {
+			LI_ASSERT(is<T>());
+			return (T*) this;
 		}
 		template<typename T>
-		const T* get() const {
-			return (const T*) (is<T>() ? (void*) this : nullptr);
+		const T* as() const {
+			LI_ASSERT(is<T>());
+			return (const T*) this;
 		}
 
 		// Value type check.
 		//
 		bool is(type t) const { return vt == t; }
+
+		// Reference helpers.
+		//
+		uint32_t use_count() const { return use_counter; }
+		uint32_t ref_count() const { return ref_counter; }
+
+		void add_ref(bool use) const {
+			LI_ASSERT(ref_counter++ > 0);
+			if (use)
+				LI_ASSERT(use_counter++ >= 0);
+		}
+		void dec_ref(bool use) const {
+			if (use)
+				LI_ASSERT(--use_counter >= 0);
+			uint32_t new_ref = --ref_counter;
+			LI_ASSERT(new_ref >= 0);
+			if (!new_ref) {
+				LI_ASSERT(use_counter == 0);
+				delete (value*) this;
+			}
+		}
+
+		virtual void add_user(insn* a) const {}
+		virtual void del_user(insn* a) const {}
 
 		// Printer.
 		//
@@ -110,9 +140,112 @@ namespace li::ir {
 		virtual ~value() = default;
 	};
 
-	// Reference to value type.
+	// Reference counter for value types.
 	//
-	using value_ref = std::shared_ptr<value>;
+	template<typename T, bool Use>
+	struct LI_TRIVIAL_ABI basic_value_ref {
+		T* at = nullptr;
+
+		// Raw construction.
+		//
+		constexpr basic_value_ref() = default;
+		constexpr basic_value_ref(std::nullptr_t) {}
+		constexpr basic_value_ref(std::in_place_t, T* v) : at(v) {}
+		constexpr basic_value_ref(const basic_value_ref& o) { reset(o.at); }
+		constexpr basic_value_ref& operator=(const basic_value_ref& o) {
+			reset(o.at);
+			return *this;
+		}
+		constexpr basic_value_ref(basic_value_ref&& o) noexcept : at(std::exchange(o.at, nullptr)) {}
+		constexpr basic_value_ref& operator=(basic_value_ref&& o) noexcept {
+			std::swap(at, o.at);
+			return *this;
+		}
+
+		// Copy and move.
+		//
+		template<typename Ty, bool UseY>
+		constexpr basic_value_ref(const basic_value_ref<Ty, UseY>& o) {
+			reset((T*) o.at);
+		}
+		template<typename Ty, bool UseY>
+		constexpr basic_value_ref& operator=(const basic_value_ref<Ty, UseY>& o) {
+			reset((T*) o.at);
+			return *this;
+		}
+		template<typename Ty, bool UseY>
+		constexpr basic_value_ref(basic_value_ref<Ty, UseY>&& o) noexcept {
+			if constexpr (UseY != Use) {
+				if (o) {
+					if constexpr (Use)
+						LI_ASSERT(o.at->use_counter++ >= 0);
+					else
+						LI_ASSERT(--o.at->use_counter >= 0);
+				}
+			}
+			at = (T*) o.release();
+		}
+		template<typename Ty, bool UseY>
+		constexpr basic_value_ref& operator=(basic_value_ref<Ty, UseY>&& o) noexcept {
+			if constexpr (UseY != Use) {
+				if (o) {
+					if constexpr (Use)
+						LI_ASSERT(o.at->use_counter++ >= 0);
+					else
+						LI_ASSERT(--o.at->use_counter >= 0);
+				}
+			}
+			if (T* prev = std::exchange(at, (T*) o.release()))
+				prev->dec_ref(Use);
+			return *this;
+		}
+
+		// Observers
+		//
+		constexpr T*       get() const { return at; }
+		constexpr T*       operator->() const { return at; }
+		constexpr          operator T*() const { return at; }
+		constexpr T&       operator*() const { return *at; }
+		constexpr uint32_t use_count() const { return at->use_counter; }
+		constexpr uint32_t ref_count() const { return at->ref_counter; }
+		constexpr explicit operator bool() const { return at != nullptr; }
+
+		// Reset and release.
+		//
+		constexpr void reset(T* o = nullptr) {
+			if (o != at) {
+				if (o)
+					o->add_ref(Use);
+				if (at)
+					at->dec_ref(Use);
+				at = o;
+			}
+		}
+		constexpr T* release() { return std::exchange(at, nullptr); }
+
+		// Reset on destruction.
+		//
+		constexpr ~basic_value_ref() { reset(); }
+	};
+	template<typename T = value>
+	using ref = basic_value_ref<T, false>;
+	template<typename T = value>
+	using use = basic_value_ref<T, true>;
+
+	template<typename T, typename... Tx>
+	inline static ref<T> make_value(Tx&&... args) {
+		return ref<T>(std::in_place, new T(std::forward<Tx>(args)...));
+	}
+	template<typename T>
+	inline static ref<T> make_ref(T* o) {
+		o->add_ref(false);
+		return ref<T>(std::in_place, o);
+	}
+	template<typename T>
+	inline static use<T> make_use(T* o) {
+		o->add_ref(true);
+		return use<T>(std::in_place, o);
+	}
 
 	// Default constructed tag for automatically setting ti.
 	//
@@ -192,7 +325,7 @@ namespace li::ir {
 
 		// Equality comparison.
 		//
-		constexpr bool operator==( const constant& other ) const { return i == other.i && vt == other.vt; }
+		constexpr bool operator==(const constant& other) const { return i == other.i && vt == other.vt; }
 
 		// Implement printer.
 		//

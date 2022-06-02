@@ -5,12 +5,12 @@
 
 namespace li::ir::opt {
 
-	static value_ref read_variable_local(bc::reg r, basic_block* b, insn* until = nullptr) {
-		for (auto it = b->instructions.rbegin(); it != b->instructions.rend(); ++it) {
-			auto& ins = *it;
+	static ref<> read_variable_local(bc::reg r, basic_block* b, insn* until = nullptr) {
+		for (auto it = b->rbegin(); it != b->rend(); ++it) {
+			auto ins = *it;
 
 			if (until) {
-				if (ins.get() != until) {
+				if (ins != until) {
 					continue;
 				}
 				else {
@@ -18,18 +18,17 @@ namespace li::ir::opt {
 					continue;
 				}
 			}
-
-			if (ins->op == opcode::store_local && ins->operands[0]->get<constant>()->i32 == r) {
+			if (ins->is<store_local>() && ins->operands[0]->as<constant>()->i32 == r) {
 				return ins->operands[1];
 			}
 		}
 		return nullptr;
 	}
-	static value_ref reread_variable_local(bc::reg r, basic_block* b) {
-		for (auto it = b->instructions.rbegin(); it != b->instructions.rend(); ++it) {
-			auto& ins = *it;
-			if (ins->op == opcode::load_local && ins->operands[0]->get<constant>()->i32 == r) {
-				return ins;
+	static ref<> reread_variable_local(bc::reg r, basic_block* b) {
+		for (auto it = b->rbegin(); it != b->rend(); ++it) {
+			auto ins = *it;
+			if (ins->is<load_local>() && ins->operands[0]->as<constant>()->i32 == r) {
+				return make_ref(ins);
 			}
 		}
 		return nullptr;
@@ -37,8 +36,8 @@ namespace li::ir::opt {
 
 	// Braun11CC
 	//
-	static value_ref read_variable_recursive(bc::reg r, basic_block* b);
-	static value_ref read_variable(bc::reg r, basic_block* b, insn* until = nullptr) {
+	static ref<> read_variable_recursive(bc::reg r, basic_block* b);
+	static ref<> read_variable(bc::reg r, basic_block* b, insn* until = nullptr) {
 		auto v = read_variable_local(r, b, until);
 		if (!v)
 			v = read_variable_recursive(r, b);
@@ -47,9 +46,9 @@ namespace li::ir::opt {
 
 	// TODO: tryRemoveTrivialPhi
 
-	static value_ref try_remove_trivial_phi(value_ref phi) {
-		value_ref same = {};
-		for (auto& op : phi->get<insn>()->operands) {
+	static ref<> try_remove_trivial_phi(ref<phi> phi) {
+		ref<> same = {};
+		for (auto& op : phi->operands) {
 			if (op == same || op == phi)
 				continue;
 			if (same)
@@ -57,16 +56,16 @@ namespace li::ir::opt {
 			same = op;
 		}
 		// users = phi.users.remove(phi)
-		auto blk = phi->get<insn>()->parent;
-		blk->proc->replace_all_uses(phi.get(), same);
-		blk->erase(std::reinterpret_pointer_cast<insn>(std::move(phi)));
+		auto blk = phi->parent;
+		phi->replace_all_uses(same);
+		phi->erase();
 		// for use in users:
 		//  if use is phi:
 		//   tryremovetrivialbla
 		return same;
 	}
 
-	static value_ref read_variable_recursive(bc::reg r, basic_block* b) {
+	static ref<> read_variable_recursive(bc::reg r, basic_block* b) {
 		// Actually load the value if it does not exist.
 		//
 		if (b->predecesors.empty()) {
@@ -92,11 +91,11 @@ namespace li::ir::opt {
 			// Create an empty phi.
 			//
 			builder bd{b};
-			insn_ref p = bd.emit_front<phi>();
+			ref<insn> p = bd.emit_front<phi>();
 
 			// Create a temporary store to break cycles if necessary
 			//
-			insn_ref tmp;
+			ref<insn> tmp;
 			if (!read_variable_local(r, b)) {
 				tmp = bd.emit<store_local>(r, p);
 			}
@@ -128,10 +127,10 @@ namespace li::ir::opt {
 		for (auto it = proc->basic_blocks.rbegin(); it != std::prev(proc->basic_blocks.rend()); ++it) {
 			auto& bb = *it;
 
-			bb->erase_if([&](insn_ref& ins) {
-				if (ins->op == opcode::load_local) {
-					bc::reg r = ins->operands[0]->get<constant>()->i32;
-					proc->replace_all_uses(ins.get(), read_variable(r, bb.get(), ins.get()));
+			bb->erase_if([&](insn* ins) {
+				if (ins->is<load_local>()) {
+					bc::reg r = ins->operands[0]->as<constant>()->i32;
+					ins->replace_all_uses(read_variable(r, bb.get(), ins));
 					return true;
 				}
 				return false;
@@ -143,9 +142,9 @@ namespace li::ir::opt {
 		// Remove stores to internal variables.
 		//
 		for (auto& bb : proc->basic_blocks) {
-			bb->erase_if([&](insn_ref& ins) {
-				if (ins->op == opcode::store_local && !ins->is_volatile) {
-					bc::reg r = ins->operands[0]->get<constant>()->i32;
+			bb->erase_if([&](insn* ins) {
+				if (ins->is<store_local>() && !ins->is_volatile) {
+					bc::reg r = ins->operands[0]->as<constant>()->i32;
 					if (r >= -FRAME_SIZE)
 						return true;
 				}

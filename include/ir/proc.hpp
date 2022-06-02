@@ -6,8 +6,43 @@
 #include <unordered_map>
 #include <vm/bc.hpp>
 #include <vm/function.hpp>
+#include <util/llist.hpp>
 
 namespace li::ir {
+	struct instruction_iterator {
+		using iterator_category = std::bidirectional_iterator_tag;
+		using difference_type   = ptrdiff_t;
+		using value_type        = insn*;
+		using pointer           = insn*;
+		using reference         = insn*;
+
+		insn* at;
+		instruction_iterator(insn* at) : at(at) {}
+
+		reference operator*() const { return at; }
+		pointer   operator->() { return at; }
+		instruction_iterator& operator++() {
+			at = at->next;
+			return *this;
+		}
+		instruction_iterator& operator--() {
+			at = at->prev;
+			return *this;
+		}
+		instruction_iterator operator++(int) {
+			instruction_iterator tmp = *this;
+			++*this;
+			return tmp;
+		}
+		instruction_iterator operator--(int) {
+			instruction_iterator tmp = *this;
+			++*this;
+			return tmp;
+		}
+		bool operator==(const instruction_iterator& o) const { return at == o.at; };
+		bool operator!=(const instruction_iterator& o) const { return at != o.at; };
+	};
+
 	// Basic block type.
 	//
 	struct basic_block {
@@ -30,49 +65,56 @@ namespace li::ir {
 		std::vector<basic_block*> successors  = {};
 		std::vector<basic_block*> predecesors = {};
 
-		// Instruction list.
-		//
-		std::list<insn_ref> instructions = {};  // TODO: lame
-
 		// Temporary for search algorithms.
 		//
 		bool visited = false;
 
+		// Instruction list.
+		//
+		mutable insn insn_list_head = {};
+
+		// Container observers.
+		//
+		instruction_iterator begin() const { return {insn_list_head.next}; }
+		instruction_iterator end() const { return {&insn_list_head}; }
+		auto                 rbegin() const { return std::reverse_iterator(end()); }
+		auto                 rend() const { return std::reverse_iterator(begin()); }
+		bool                 empty() const { return insn_list_head.next == &insn_list_head; }
+		ref<insn>            front() const { return (!empty()) ? make_ref(insn_list_head.next) : nullptr; }
+		ref<insn>            back() const { return (!empty()) ? make_ref(insn_list_head.prev) : nullptr; }
+
+		// Insertion.
+		//
+		instruction_iterator insert(instruction_iterator position, ref<insn> v) {
+			LI_ASSERT(!v->parent);
+			v->parent = this;
+			util::link_before(position.at, v.get());
+			return {v.release()};
+		}
+		instruction_iterator push_front(ref<insn> v) { return insert(begin(), std::move(v)); }
+		instruction_iterator push_back(ref<insn> v) { return insert(end(), std::move(v)); }
+		
 		// Erase wrapper.
 		//
-		bool erase(const insn_ref&a) {
-			for (auto it = instructions.begin(); it != instructions.end(); ++it) {
-				if (*it == a) {
-					a->parent = nullptr;
-					instructions.erase(it);
-					return true;
-				}
-			}
-			return false;
+		instruction_iterator erase(instruction_iterator it) {
+			auto next = it->next;
+			it->erase();
+			return next;
+		}
+		instruction_iterator erase(ref<insn> it) {
+			auto r = erase(instruction_iterator(it.get()));
+			it.reset();
+			return r;
 		}
 		template<typename F>
 		size_t erase_if(F&& f) {
-			return std::erase_if(instructions, [&](auto& i) {
-				if (f(i)) {
-					i->parent = nullptr;
-					return true;
-				}
-				return false;
-			});
-		}
-
-		// Replace all uses of a value in this block.
-		//
-		size_t replace_all_uses(value* of, const std::shared_ptr<value>& with) {
 			size_t n = 0;
-			for (auto& i : instructions) {
-				if (i == with)
-					continue;
-				for (auto& op : i->operands) {
-					if (op.get() == of) {
-						op = with;
-						n++;
-					}
+			for (auto it = begin(); it != end();) {
+				if (f(it.at)) {
+					n++;
+					it = erase(it);
+				} else {
+					++it;
 				}
 			}
 			return n;
@@ -84,23 +126,21 @@ namespace li::ir {
 #if LI_DEBUG
 			size_t num_term = 0;
 			bool   phi_ok   = true;
-			for (auto it = instructions.begin(); it != instructions.end(); ++it) {
-				auto& i = *it;
-
+			for (auto i : *this) {
 				for (auto& op : i->operands) {
 					if (!op->is<insn>())
 						continue;
-					if (op->get<insn>()->parent == this) {
-						auto it2 = std::find(instructions.begin(), it, op);
-						if (it2 == it) {
+					if (op->as<insn>()->parent == this) {
+						auto it2 = std::find(begin(), instruction_iterator(i), op);
+						if (it2 == instruction_iterator(i)) {
 							util::abort("cyclic reference found: %s", i->to_string(true).c_str());
 						}
-					} else if (!op->get<insn>()->parent) {
+					} else if (!op->as<insn>()->parent) {
 						util::abort("dangling reference found: %s", i->to_string(true).c_str());
 					}
 				}
 
-				if (i->op != opcode::phi) {
+				if (!i->is<phi>()) {
 					phi_ok = false;
 				} else if (!phi_ok) {
 					util::abort("phi used after block header.");
@@ -108,7 +148,7 @@ namespace li::ir {
 					LI_ASSERT(i->operands.size() == predecesors.size());
 					for (size_t j = 0; j != i->operands.size(); j++) {
 						if (i->operands[j]->is<insn>()) {
-							LI_ASSERT(i->operands[j]->get<insn>()->parent->dom(predecesors[j]));
+							LI_ASSERT(i->operands[j]->as<insn>()->parent->dom(predecesors[j]));
 						}
 					}
 				}
@@ -130,6 +170,15 @@ namespace li::ir {
 #endif
 		}
 
+		// Printer.
+		//
+		void print() const {
+			printf("--- Block %u %s\n", uid, cold_hint ? "[COLD]" : "");
+			for (auto i : *this) {
+				printf(LI_GRN "#%-5x" LI_DEF " %s\n", i->source_bc, i->to_string(true).c_str());
+			}
+		}
+
 		// Domination check.
 		//
 		bool dom(basic_block* n);
@@ -141,11 +190,12 @@ namespace li::ir {
 		basic_block(const basic_block&)            = delete;
 		basic_block& operator=(const basic_block&) = delete;
 
-		// Kill parent reference of all instructions on destruction.
+		// Erase all instructions on destruction.
 		//
 		~basic_block() {
-			for (auto& i : instructions) {
-				i->parent = nullptr;
+			auto it = begin();
+			while (it != end()) {
+				it = erase(it);
 			}
 		}
 	};
@@ -166,7 +216,7 @@ namespace li::ir {
 				return std::hash<int64_t>{}(c.i) ^ (size_t)c.vt;
 			}
 		};
-		std::unordered_map<constant, std::shared_ptr<constant>, const_hash> consts = {};
+		std::unordered_map<constant, ref<constant>, const_hash> consts = {};
 
 		// Procedure state.
 		//
@@ -196,13 +246,10 @@ namespace li::ir {
 		}
 		auto del_block(basic_block* b) {
 			auto it = consts.find(constant(b));
-			LI_ASSERT(it->second.use_count() == 1);
+			LI_ASSERT(!it->second.use_count());
 			consts.erase(it);
 			LI_ASSERT(b->predecesors.empty());
 			LI_ASSERT(b->successors.empty());
-			for (auto& i : b->instructions) {
-				i->parent = nullptr;
-			}
 			for (auto it = basic_blocks.begin();; ++it) {
 				LI_ASSERT(it != basic_blocks.end());
 				if (it->get() == b) {
@@ -311,20 +358,10 @@ namespace li::ir {
 			toplogical_sort();
 			next_reg_name = 0;
 			for (auto& bb : basic_blocks) {
-				for (auto& i : bb->instructions) {
+				for (auto i : *bb) {
 					i->name = next_reg_name++;
 				}
 			}
-		}
-
-		// Replace all uses of a value throughout the entire procedure.
-		//
-		size_t replace_all_uses(value* of, const std::shared_ptr<value>& with) {
-			size_t n = 0;
-			for (auto& b : basic_blocks) {
-				n += b->replace_all_uses(of, with);
-			}
-			return n;
 		}
 
 		// Validates all basic blocks.
@@ -340,10 +377,7 @@ namespace li::ir {
 		void print() {
 			printf("---------------------------------\n");
 			for (auto& bb : basic_blocks) {
-				printf("--- Block %u %s\n", bb->uid, bb->cold_hint ? "[COLD]" : "");
-				for (auto& i : bb->instructions) {
-					printf(LI_GRN "#%-5x" LI_DEF " %s\n", i->source_bc, i->to_string(true).c_str());
-				}
+				bb->print();
 			}
 		}
 	};
@@ -351,16 +385,16 @@ namespace li::ir {
 	// Handles constants.
 	//
 	template<typename Tv>
-	static value_ref launder_value(procedure* proc, Tv&& v) {
-		if constexpr (!std::is_convertible_v<Tv, value_ref>) {
+	static ref<> launder_value(procedure* proc, Tv&& v) {
+		if constexpr (!std::is_convertible_v<Tv, ref<>>) {
 			constant c{std::forward<Tv>(v)};
 			auto     it = proc->consts.find(c);
 			if (it == proc->consts.end()) {
-				it = proc->consts.emplace(c, std::make_shared<constant>(c)).first;
+				it = proc->consts.emplace(c, make_value<constant>(c)).first;
 			}
 			return it->second;
 		} else {
-			return value_ref(v);
+			return ref<>(v);
 		}
 	}
 
@@ -374,48 +408,56 @@ namespace li::ir {
 		// Instruction emitting.
 		//
 		template<typename T, typename... Tx>
-		insn_ref create(Tx&&... args) {
+		ref<T> create(Tx&&... args) {
 			// Set basic details.
 			//
-			std::shared_ptr<T> i = std::make_shared<T>();
-			i->parent            = blk;
+			ref<T> i             = make_value<T>();
 			i->name              = blk->proc->next_reg_name++;
 			i->source_bc         = current_bc;
-			i->op                = T::Opcode;
+			i->opc               = T::Opcode;
 			i->vt                = type::unk;
 
 			// Add operands and update.
 			//
-			i->operands = std::vector<value_ref>{launder_value(blk->proc, std::forward<Tx>(args))...};
-			i->update();
+			i->operands = std::vector<use<>>{launder_value(blk->proc, std::forward<Tx>(args))...};
 			return i;
 		}
 		template<typename T, typename... Tx>
-		insn_ref emit(Tx&&... args) {
+		ref<insn> emit(Tx&&... args) {
 			auto i = create<T, Tx...>(std::forward<Tx>(args)...);
 			if (i->source_bc == bc::no_pos) {
 				i->source_bc = blk->bc_end;
 			}
-			blk->instructions.emplace_back(i);
+			blk->push_back(i);
+			i->update();
 			return i;
 		}
 		template<typename T, typename... Tx>
-		insn_ref emit_after(const insn_ref& at, Tx&&... args) {
-			blk    = at->parent;
-			if (current_bc == bc::no_pos)
-				current_bc = at->source_bc;
-			auto i = create<T, Tx...>(std::forward<Tx>(args)...);
-			auto it = std::find(blk->instructions.begin(), blk->instructions.end(), at);
-			blk->instructions.emplace(std::next(it), i);
-			return i;
-		}
-		template<typename T, typename... Tx>
-		insn_ref emit_front(Tx&&... args) {
+		ref<insn> emit_front(Tx&&... args) {
 			auto i = create<T, Tx...>(std::forward<Tx>(args)...);
 			if (i->source_bc == bc::no_pos) {
-				i->source_bc = blk->bc_begin;
+				i->source_bc = blk->bc_end;
 			}
-			blk->instructions.emplace_front(i);
+			blk->push_front(i);
+			i->update();
+			return i;
+		}
+		template<typename T, typename... Tx>
+		ref<insn> emit_after(insn* at, Tx&&... args) {
+			auto i = create<T, Tx...>(std::forward<Tx>(args)...);
+			at->parent->insert(instruction_iterator(at->next), i);
+			if (current_bc == bc::no_pos)
+				at->copy_debug_info(i);
+			i->update();
+			return i;
+		}
+		template<typename T, typename... Tx>
+		ref<insn> emit_before(insn* at, Tx&&... args) {
+			auto i = create<T, Tx...>(std::forward<Tx>(args)...);
+			at->parent->insert(instruction_iterator(at), i);
+			if (current_bc == bc::no_pos)
+				at->copy_debug_info(i);
+			i->update();
 			return i;
 		}
 	};

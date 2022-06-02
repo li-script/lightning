@@ -3,6 +3,43 @@
 #include <util/enuminfo.hpp>
 
 namespace li::ir {
+	// Replace implementation.
+	//
+	size_t insn::replace_all_uses(value* with) const {
+		LI_ASSERT(parent);
+		size_t n = 0;
+		for (auto& b : parent->proc->basic_blocks) {
+			n += replace_all_uses_in_block(with, b.get());
+		}
+		return n;
+	}
+	size_t insn::replace_all_uses_in_block(value* with, basic_block* bb) const {
+		LI_ASSERT(parent);
+		size_t n = 0;
+		for (auto i : *bb) {
+			if (i == with)
+				continue;
+			for (auto& op : i->operands) {
+				if (op.get() == this) {
+					op.reset(with);
+					n++;
+				}
+			}
+		}
+		return n;
+	}
+	size_t insn::replace_all_uses_outside_block(value* with) const {
+		LI_ASSERT(parent);
+		size_t n = 0;
+		for (auto& b : parent->proc->basic_blocks) {
+			if (b.get() != parent)
+				n += replace_all_uses_in_block(with, b.get());
+		}
+		return n;
+	}
+
+	// String conversion.
+	//
 	std::string constant::to_string(bool) const {
 		switch (vt) {
 			case li::ir::type::none:
@@ -53,21 +90,20 @@ namespace li::ir {
 				assume_unreachable();
 		}
 	}
-
 	std::string insn::to_string(bool expand) const {
 		const char* ret = vt == type::unk ? "?" : util::name_enum(vt).data();
 
 		if (!expand) {
 			return util::fmt(LI_YLW "%%%u" LI_DEF ":%s" LI_DEF, name, ret);
 		}
-		const char* opc = util::name_enum(op).data();
+		const char* opcode_name = util::name_enum(opc).data();
 
 		std::string s;
 		const char* op_pfx = is_volatile ? LI_PRP "volatile " : "";
 		if (vt == type::none) {
-			s = util::fmt("%s" LI_RED "%s " LI_DEF, op_pfx, opc);
+			s = util::fmt("%s" LI_RED "%s " LI_DEF, op_pfx, opcode_name);
 		} else {
-			s = util::fmt(LI_YLW "%%%u" LI_DEF ":%s = " LI_RED "%s%s " LI_DEF, name, ret, op_pfx, opc);
+			s = util::fmt(LI_YLW "%%%u" LI_DEF ":%s = " LI_RED "%s%s " LI_DEF, name, ret, op_pfx, opcode_name);
 		}
 		
 		if (operands.empty()) {

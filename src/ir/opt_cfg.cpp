@@ -12,26 +12,24 @@ namespace li::ir::opt {
 
 			// Optimize JCCs.
 			//
-			if (bb->instructions.size() != 1) {
-				auto& jcc = bb->instructions.back();
-				if (jcc->op == opcode::jcc) {
-					value_ref opt = nullptr;
+			if (bb->front() != bb->back()) {
+				auto jc = bb->back();
+				if (jc->is<jcc>()) {
+					ref<> opt = nullptr;
 
-					if (jcc->operands[1] == jcc->operands[2]) {
-						opt = jcc->operands[1];
-					} else if (jcc->operands[0]->is<constant>()) {
-						auto cc = jcc->operands[0]->get<constant>();
-						opt = jcc->operands[cc->i1 ? 1 : 2];
+					if (jc->operands[1] == jc->operands[2]) {
+						opt = jc->operands[1];
+					} else if (jc->operands[0]->is<constant>()) {
+						auto cc = jc->operands[0]->as<constant>();
+						opt     = jc->operands[cc->i1 ? 1 : 2];
 
-						auto& opt_out = jcc->operands[cc->i1 ? 2 : 1];
-						proc->del_jump(bb.get(), opt_out->get<constant>()->bb);
+						auto& opt_out = jc->operands[cc->i1 ? 2 : 1];
+						proc->del_jump(bb.get(), opt_out->as<constant>()->bb);
 					}
 
 					if (opt) {
-						builder b{bb.get()};
-						auto new_ins = b.emit<jmp>(opt);
-						jcc->copy_debug_info(new_ins.get());
-						jcc = new_ins;
+						builder{}.emit_after<jmp>(jc, opt);
+						bb->erase(jc.get());
 					}
 				}
 
@@ -41,18 +39,18 @@ namespace li::ir::opt {
 
 			// Delete useless blocks.
 			//
-			auto& term = bb->instructions.back();
-			if (term->op == opcode::jmp) {
+			auto term = bb->back();
+			if (term->is<jmp>()) {
 				for (auto& pred : bb->predecesors) {
-					auto& t2 = pred->instructions.back();
+					auto t2 = pred->back();
 					for (auto& op : t2->operands) {
-						if (op->is<constant>() && op->get<constant>()->bb == bb.get()) {
+						if (op->is<constant>() && op->as<constant>()->bb == bb.get()) {
 							op = term->operands[0];
 						}
 					}
 					proc->del_jump(pred, bb.get());
-					proc->del_jump(bb.get(), term->operands[0]->get<constant>()->bb);
-					proc->add_jump(pred, term->operands[0]->get<constant>()->bb);
+					proc->del_jump(bb.get(), term->operands[0]->as<constant>()->bb);
+					proc->add_jump(pred, term->operands[0]->as<constant>()->bb);
 				}
 			}
 			it = proc->del_block(bb.get());

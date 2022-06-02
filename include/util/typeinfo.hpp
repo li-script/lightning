@@ -198,13 +198,16 @@ namespace li::util {
 	template<typename T>
 	static constexpr type_id type_id_v = detail::type_id<T>::value;
 
+	LI_INLINE inline bool test_type_id(type_id a, type_id b) noexcept { return a == (b | (a & 1)); }  // For conversion to A.
+	LI_INLINE inline bool test_type_id_no_cv(type_id a, type_id b) noexcept { return (a ^ b) <= 1; }
+
 	template<typename T>
 	LI_INLINE inline bool test_type_id_no_cv(type_id i) noexcept {
-		return (type_id_v<T> ^ i) <= 1;
+		return test_type_id_no_cv(type_id_v<T>, i);
 	}
 	template<typename T>
 	LI_INLINE inline bool test_type_id(type_id i) noexcept {
-		return type_id_v<T> == (i | std::is_const_v<T>);
+		return test_type_id(type_id_v<T>, i);
 	}
 	LI_INLINE inline constexpr bool is_type_id_const(type_id i) noexcept { return i & 1; }
 };

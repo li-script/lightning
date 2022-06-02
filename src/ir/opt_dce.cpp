@@ -12,7 +12,7 @@ namespace li::ir::opt {
 	void dce(procedure* proc, bool local) {
 		proc->toplogical_sort();
 		for (auto& bb : proc->basic_blocks) {
-			bb->erase_if([&](insn_ref& ins) { return ins.use_count() == 1 && !ins->is_volatile && !ins->sideffect && !ins->is_terminator(); });
+			bb->erase_if([&](insn* ins) { return !ins->use_count() && !ins->is_volatile && !ins->sideffect && !ins->is_terminator(); });
 		}
 		proc->validate();
 	}

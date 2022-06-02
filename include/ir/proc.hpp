@@ -179,8 +179,8 @@ namespace li::ir {
 				util::abort("block has multiple terminators");
 			}
 #else
-			for (auto it = instructions.begin(); it != instructions.end(); ++it) {
-				it->get()->update();
+			for (auto it = begin(); it != end(); ++it) {
+				it->update();
 			}
 #endif
 		}

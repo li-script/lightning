@@ -75,7 +75,6 @@ static bool ir_test(vm* L, any* args, slot_t n) {
 	opt::fold_identical(proc.get());
 	opt::dce(proc.get());
 	opt::cfg(proc.get());
-
 	proc->reset_names();
 	proc->print();
 

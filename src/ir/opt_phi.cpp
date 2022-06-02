@@ -59,7 +59,7 @@ namespace li::ir::opt {
 		// users = phi.users.remove(phi)
 		auto blk = phi->get<insn>()->parent;
 		blk->proc->replace_all_uses(phi.get(), same);
-		std::erase(blk->instructions, phi);
+		blk->erase(std::reinterpret_pointer_cast<insn>(std::move(phi)));
 		// for use in users:
 		//  if use is phi:
 		//   tryremovetrivialbla
@@ -114,12 +114,9 @@ namespace li::ir::opt {
 			// Delete the temporary.
 			//
 			if (tmp) {
-				if (b->instructions.back() == tmp)
-					b->instructions.pop_back();
-				else
-					std::erase(b->instructions, tmp);
+				b->erase(std::move(tmp));
 			}
-			return try_remove_trivial_phi(p);
+			return try_remove_trivial_phi(std::move(p));
 		}
 	}
 
@@ -131,10 +128,10 @@ namespace li::ir::opt {
 		for (auto it = proc->basic_blocks.rbegin(); it != std::prev(proc->basic_blocks.rend()); ++it) {
 			auto& bb = *it;
 
-			std::erase_if(bb->instructions, [&](insn_ref& ins) {
+			bb->erase_if([&](insn_ref& ins) {
 				if (ins->op == opcode::load_local) {
 					bc::reg r = ins->operands[0]->get<constant>()->i32;
-					bb->replace_all_uses(ins.get(), read_variable(r, bb.get(), ins.get()));
+					proc->replace_all_uses(ins.get(), read_variable(r, bb.get(), ins.get()));
 					return true;
 				}
 				return false;
@@ -146,7 +143,7 @@ namespace li::ir::opt {
 		// Remove stores to internal variables.
 		//
 		for (auto& bb : proc->basic_blocks) {
-			std::erase_if(bb->instructions, [&](insn_ref& ins) {
+			bb->erase_if([&](insn_ref& ins) {
 				if (ins->op == opcode::store_local && !ins->is_volatile) {
 					bc::reg r = ins->operands[0]->get<constant>()->i32;
 					if (r >= -FRAME_SIZE)

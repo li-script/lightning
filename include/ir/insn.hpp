@@ -384,7 +384,6 @@ namespace li::ir {
 			if (size_t n = operands.size()) {
 				vt = operands[0]->vt;
 				for (size_t i = 0; i != n; i++) {
-					// TODO: Validate CFG.
 					if (vt != operands[i]->vt) {
 						vt = type::unk;
 					}

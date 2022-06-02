@@ -38,6 +38,29 @@ namespace li::ir {
 		//
 		bool visited = false;
 
+		// Erase wrapper.
+		//
+		bool erase(const insn_ref&a) {
+			for (auto it = instructions.begin(); it != instructions.end(); ++it) {
+				if (*it == a) {
+					a->parent = nullptr;
+					instructions.erase(it);
+					return true;
+				}
+			}
+			return false;
+		}
+		template<typename F>
+		size_t erase_if(F&& f) {
+			return std::erase_if(instructions, [&](auto& i) {
+				if (f(i)) {
+					i->parent = nullptr;
+					return true;
+				}
+				return false;
+			});
+		}
+
 		// Replace all uses of a value in this block.
 		//
 		size_t replace_all_uses(value* of, const std::shared_ptr<value>& with) {
@@ -64,15 +87,6 @@ namespace li::ir {
 			for (auto it = instructions.begin(); it != instructions.end(); ++it) {
 				auto& i = *it;
 
-				if (i->op != opcode::phi) {
-					phi_ok = false;
-				} else if (!phi_ok) {
-					util::abort("phi used after block header.");
-				} else {
-					LI_ASSERT(i->operands.size() == predecesors.size());
-				}
-				num_term += i->is_terminator();
-
 				for (auto& op : i->operands) {
 					if (!op->is<insn>())
 						continue;
@@ -85,6 +99,21 @@ namespace li::ir {
 						util::abort("dangling reference found: %s", i->to_string(true).c_str());
 					}
 				}
+
+				if (i->op != opcode::phi) {
+					phi_ok = false;
+				} else if (!phi_ok) {
+					util::abort("phi used after block header.");
+				} else {
+					LI_ASSERT(i->operands.size() == predecesors.size());
+					for (size_t j = 0; j != i->operands.size(); j++) {
+						if (i->operands[j]->is<insn>()) {
+							LI_ASSERT(i->operands[j]->get<insn>()->parent->dom(predecesors[j]));
+						}
+					}
+				}
+				num_term += i->is_terminator();
+
 				i->update();
 			}
 
@@ -171,6 +200,9 @@ namespace li::ir {
 			consts.erase(it);
 			LI_ASSERT(b->predecesors.empty());
 			LI_ASSERT(b->successors.empty());
+			for (auto& i : b->instructions) {
+				i->parent = nullptr;
+			}
 			for (auto it = basic_blocks.begin();; ++it) {
 				LI_ASSERT(it != basic_blocks.end());
 				if (it->get() == b) {

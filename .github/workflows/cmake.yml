@@ -31,7 +31,7 @@ jobs:
           - target: macos
             os: macOS-latest
             build-type: Release
-            extra-cmake-flags: "-D CMAKE_C_COMPILER=${{ runner.temp }}/llvm/bin/clang -D CMAKE_CXX_COMPILER=${{ runner.temp }}/llvm/bin/clang++ -DCMAKE_CXX_FLAGS=\"-flto -Wno-attributes -msse4.2\""
+            extra-cmake-flags: '-D CMAKE_C_COMPILER=${{ runner.temp }}/llvm/bin/clang -D CMAKE_CXX_COMPILER=${{ runner.temp }}/llvm/bin/clang++ -DCMAKE_CXX_FLAGS=\"-flto -Wno-attributes -msse4.2\"'
     steps:
     - name: Checkout
       uses: actions/checkout@v2

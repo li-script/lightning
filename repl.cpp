@@ -64,6 +64,87 @@ static void handle_repl_io(vm* L, std::string_view input) {
 #include <ir/lifter.hpp>
 #include <ir/opt.hpp>
 
+#include <ranges>
+
+namespace li::ir::opt {
+
+
+	struct interval_info {
+		std::vector<bool> live;
+		uint32_t          max_live = 0;
+	};
+
+	// Fills the interval information.
+	//
+	static void fill_intervals(procedure* proc, interval_info* i) {
+		for (auto& bb : proc->basic_blocks) {
+			for (auto ins : *bb) {
+				for (auto& op : ins->operands) {
+					if (op->is<insn>()) {
+						auto n              = op->as<insn>()->name;
+						i[n].live[ins->name] = true;
+						i[n].max_live        = ins->name;
+					}
+				}
+				if (ins->vt != type::none) {
+					i[ins->name].live[ins->name] = true;
+				}
+			}
+
+			// Extend the intervals for block length.
+			//
+			for (uint32_t j = 0; j != proc->next_reg_name; j++) {
+				for (auto n = bb->back()->name; n != bb->front()->name; n--) {
+					i[j].live[n - 1] = i[j].live[n - 1] || i[j].live[n];
+				}
+			}
+		}
+	}
+
+	static void alloc_regs(procedure* proc) {
+		// Topologically sort the procedure and rename every register.
+		//
+		proc->reset_names();
+
+		// Fixup PHIs.
+		//
+		for (auto& bb : proc->basic_blocks) {
+
+			for (auto phi : std::ranges::subrange(bb->begin(), bb->end_phi())) {
+			}
+		}
+
+
+		// Create and fill interval information.
+		//
+		std::vector<interval_info> i{proc->next_reg_name};
+		for (uint32_t j = 0; j != proc->next_reg_name; j++) {
+			i[j].live.resize(proc->next_reg_name);
+		}
+		fill_intervals(proc, i.data());
+
+		// Print zhe intervals.
+		//
+		proc->print();
+
+		for (uint32_t j = 0; j != proc->next_reg_name; j++) {
+			printf(LI_RED "%-3u" LI_DEF "", j);
+			for (uint32_t k = 0; k != proc->next_reg_name; k++) {
+				if (i[j].live[k])
+					printf(LI_GRN "|——");
+				else if (j <= k && i[j].max_live >= k)
+					printf(LI_BLU "|——");
+				else
+					printf(LI_DEF "|  ");
+			}
+			printf("|\n");
+		}
+
+		// proc->next_reg_name
+	}
+};
+
+
 // TODO: Builtin markers for tables.
 
 static bool ir_test(vm* L, any* args, slot_t n) {
@@ -74,10 +155,13 @@ static bool ir_test(vm* L, any* args, slot_t n) {
 	opt::fold_identical(proc.get());
 	opt::dce(proc.get());
 	opt::cfg(proc.get());
-	proc->reset_names();
-	proc->print();
 
-	proc->basic_blocks.front()->front()->for_each_user([](insn* i, size_t j) { return false; });
+	opt::alloc_regs(proc.get());
+
+	//
+	//
+	
+
 
 
 	// hoist table fields even if it escapes

@@ -7,6 +7,7 @@
 #include <vector>
 #include <vm/bc.hpp>
 #include <vm/function.hpp>
+#include <ranges>
 
 namespace li::ir {
 	struct instruction_iterator {
@@ -17,10 +18,10 @@ namespace li::ir {
 		using reference         = insn*;
 
 		insn* at;
-		instruction_iterator(insn* at) : at(at) {}
+		instruction_iterator(insn* at = nullptr) : at(at) {}
 
 		reference             operator*() const { return at; }
-		pointer               operator->() { return at; }
+		pointer               operator->() const { return at; }
 		instruction_iterator& operator++() {
 			at = at->next;
 			return *this;
@@ -45,7 +46,11 @@ namespace li::ir {
 
 	// Basic block type.
 	//
-	struct basic_block {
+	struct basic_block : std::ranges::view_base {
+		// Range traits.
+		//
+		using iterator   = instruction_iterator;
+
 		// Unique identifier, note that this may change on sort.
 		//
 		uint32_t uid = 0;
@@ -82,6 +87,9 @@ namespace li::ir {
 		bool                 empty() const { return insn_list_head.next == &insn_list_head; }
 		ref<insn>            front() const { return (!empty()) ? make_ref(insn_list_head.next) : nullptr; }
 		ref<insn>            back() const { return (!empty()) ? make_ref(insn_list_head.prev) : nullptr; }
+		instruction_iterator end_phi() const {
+			return std::find_if(begin(), end(), [](insn* i) { return !i->is<phi>(); });
+		}
 
 		// Insertion.
 		//
@@ -218,7 +226,12 @@ namespace li::ir {
 
 	// Procedure type.
 	//
-	struct procedure {
+	struct procedure : std::ranges::view_base {
+		// Range traits.
+		//
+		using container = std::vector<std::unique_ptr<basic_block>>;
+		using iterator  = typename container::iterator;
+
 		// Source information.
 		//
 		vm*       L = nullptr;  // Related VM and function.
@@ -233,9 +246,9 @@ namespace li::ir {
 
 		// Procedure state.
 		//
-		std::vector<std::unique_ptr<basic_block>> basic_blocks;        // List of basic blocks, first is entry point.
-		uint32_t                                  next_reg_name  = 0;  // Next register name.
-		uint32_t                                  next_block_uid = 0;  // Next block uid.
+		container basic_blocks;        // List of basic blocks, first is entry point.
+		uint32_t  next_reg_name  = 0;  // Next register name.
+		uint32_t  next_block_uid = 0;  // Next block uid.
 
 		// Cached analysis flags.
 		//
@@ -244,6 +257,13 @@ namespace li::ir {
 		// Constructed by VM instance and the function we're translating.
 		//
 		procedure(vm* L, function* f) : L(L), f(f) {}
+
+		// Container observers.
+		//
+		iterator begin() { return basic_blocks.begin(); }
+		iterator end() { return basic_blocks.end(); }
+		size_t   size() { return basic_blocks.size(); }
+		bool     empty() { return basic_blocks.empty(); }
 
 		// Gets the entry point.
 		//

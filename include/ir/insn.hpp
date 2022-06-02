@@ -18,10 +18,6 @@ namespace li::ir {
 		load_local,
 		store_local,
 
-		// Wraps a constant value for phi nodes.
-		//
-		load_constant,
-
 		// Complex types.
 		//
 		dup,
@@ -53,6 +49,10 @@ namespace li::ir {
 		try_cast,
 		assume_cast,
 		coerce_cast,
+
+		// Machine IR.
+		//
+		move,
 
 		// Conditionals.
 		//
@@ -512,12 +512,11 @@ namespace li::ir {
 			LI_ASSERT(operands[0]->is<constant>() && operands[0]->is(type::i32));
 		}
 	};
-	// T    load_constant(T x)
-	struct load_constant final : insn_tag<opcode::load_constant> {
+	// T    move(T x)
+	struct move final : insn_tag<opcode::move> {
 		void update() override {
 			is_const  = true;
 			LI_ASSERT(operands.size() == 1);
-			LI_ASSERT(operands[0]->is<constant>());
 			vt = operands[0]->vt;
 		}
 	};

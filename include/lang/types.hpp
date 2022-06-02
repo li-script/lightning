@@ -180,11 +180,15 @@ namespace li {
 		//
 		inline constexpr bool equals(const any& other) const
 		{
+#if !LI_FAST_MATH
 			uint64_t x = value ^ other.value;
 			if (!(value << 1)) {
 				x <<= 1;
 			}
-			return x == 0;
+			return x == 0 && value != kvalue_nan;
+#else
+			return value == other.value;
+#endif
 		}
 		inline constexpr void copy_from(const any& other) { value = other.value; }
 

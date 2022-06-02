@@ -68,75 +68,340 @@ static void handle_repl_io(vm* L, std::string_view input) {
 namespace li::ir::opt {
 
 
-	struct interval_info {
+	struct register_state {
+		// Live interval and cached min-max.
+		//
 		std::vector<bool> live;
 		uint32_t          max_live = 0;
+		uint32_t          min_live = 0;
+
+		// Current register and spill slot.
+		//
+		arch::reg phys_reg = 0;
+		int32_t   spill_slot = -1;
+	};
+
+	struct reg_allocator {
+		procedure*                  proc;
+		std::vector<register_state> vreg;
+		uint64_t                    allocated_gp_regs = 0;
+		uint64_t                    allocated_fp_regs = 0;
+		std::vector<int32_t>        spill_stack       = {};
+
+		// Initializes a state to be filled by linear allocator.
+		//
+		reg_allocator(procedure* proc) : proc(proc) {
+			// Initiliaze the register array.
+			//
+			uint32_t n = proc->next_reg_name;
+			vreg.resize(n);
+			for (uint32_t j = 0; j != n; j++) {
+				vreg[j].live.resize(n);
+			}
+		}
+
+		// Merges two names.
+		//
+		void merge(uint32_t dst, uint32_t src) {
+			for (size_t n = 0; n != vreg.size(); n++) {
+				vreg[src].live[n] = vreg[dst].live[n] || vreg[src].live[n];
+			}
+			vreg[src].max_live = std::max(vreg[src].max_live, vreg[dst].max_live);
+			vreg[src].min_live = std::min(vreg[src].min_live, vreg[dst].min_live);
+			vreg[dst].min_live = 0;
+			vreg[dst].max_live = 0;
+			vreg[dst].live.clear();
+			vreg[dst].live.resize(vreg.size(), false);
+		}
+
+		// Prints interval graph.
+		//
+		void print_intervals() const {
+			printf("   ");
+			for (uint32_t j = 0; j != vreg.size(); j++) {
+				printf("|%02x",j);
+			}
+			printf("|\n");
+			for (uint32_t j = 0; j != vreg.size(); j++) {
+				if (vreg[j].max_live == 0)
+					continue;
+				printf(LI_RED "%-3u" LI_DEF "", j);
+				for (uint32_t k = 0; k != vreg.size(); k++) {
+					if (vreg[j].live[k])
+						printf(LI_BLU "|++");
+					else if (vreg[j].min_live <= k && k <= vreg[j].max_live)
+						printf(LI_DEF "|——");
+					else
+						printf(LI_DEF "|  ");
+				}
+				printf("|\n" LI_DEF);
+			}
+		}
+
+		// Gets the currently associated reg with the name if there is one.
+		//
+		arch::reg check_reg(uint32_t name) const { return vreg[name].phys_reg; }
+
+		// TODO: Will be callback to codegen context.
+		//
+		void store(arch::reg r, uint32_t slot) {
+			printf("store(%s -> stack[%u])\n", arch::name_native(arch::to_native(r)), slot);
+		}
+		void load(arch::reg r, uint32_t slot) {
+			printf("load(%s <- stack[%u])\n", arch::name_native(arch::to_native(r)), slot);
+		}
+		void move(arch::reg dst, arch::reg src) {
+			printf("move(%s <- %s)\n", arch::name_native(arch::to_native(dst)), arch::name_native(arch::to_native(src)));
+		}
+
+		// Marks a register allocated/freed.
+		//
+		void mark_alloc(arch::reg r) {
+			if (r > 0)
+				allocated_gp_regs |= 1ull << (r - 1);
+			else if (r < 0)
+				allocated_fp_regs |= 1ull << (-(r - 1));
+			else
+				util::abort("allocating null register.");
+		}
+		void mark_free(arch::reg r) {
+			if (r > 0)
+				allocated_gp_regs &= ~(1ull << (r - 1));
+			else if (r < 0)
+				allocated_fp_regs &= ~(1ull << (-(r - 1)));
+		}
+		bool is_free(arch::reg r) {
+			if (r > 0)
+				return allocated_gp_regs & (1ull << (r - 1));
+			else if (r < 0)
+				return allocated_fp_regs & (1ull << (-(r - 1)));
+			else
+				util::abort("testing null register.");
+		}
+
+		// Spills a register.
+		//
+		void spill(uint32_t ip, uint32_t owner, bool noreg = false) {
+			// If register is dead after this, ignore.
+			//
+			auto& r = vreg[owner];
+			if (r.max_live <= ip) {
+				mark_free(std::exchange(r.phys_reg, 0));
+				return;
+			}
+
+			// Otherwise if register is still alive in the scope, allocate a register for the spiller,
+			// and use it instead, effectively swapping use.
+			//
+			if (!noreg && ip < (1 + r.live.size()) && r.live[ip + 1]) {
+				auto new_reg = get_anyreg(ip, owner, r.phys_reg > 0);
+				move(new_reg, r.phys_reg);
+				mark_free(std::exchange(r.phys_reg, 0));
+				return;
+			}
+
+			// Spill to stack.
+			//
+			uint32_t spill_slot = 0;
+			while (true) {
+				if (spill_stack.size() == spill_slot) {
+					spill_stack.emplace_back(owner);
+					spill_slot = uint32_t(spill_stack.size() - 1);
+					break;
+				}
+				if (spill_stack[spill_slot] < 0) {
+					spill_stack[spill_slot] = owner;
+					break;
+				}
+				++spill_slot;
+			}
+			r.spill_slot = spill_slot;
+			store(r.phys_reg, spill_slot);
+			mark_free(std::exchange(r.phys_reg, 0));
+		}
+
+		// Tries to allocate n'th scratch register for the caller.
+		// Index is required as we do not save the attempts.
+		//
+		arch::reg alloc_next(uint32_t ip, bool gp, size_t index = 0, bool must_be_vol = false) {
+			uint64_t  mask = gp ? allocated_gp_regs : allocated_fp_regs;
+			size_t   limit;
+			if (must_be_vol) {
+				limit = gp ? std::size(arch::gp_volatile) : std::size(arch::fp_volatile);
+			} else {
+				limit = gp ? arch::num_gp_reg : arch::num_fp_reg;
+			}
+
+			arch::reg r    = 0;
+			while (true) {
+				r = std::countr_one(mask);
+				if (r >= limit) {
+					return 0;
+				}
+				if (!index--) {
+					return gp ? r + 1 : -(r + 1);
+				}
+				mask &= ~(1ull << r);
+			}
+		}
+
+		// Requests a specific register for the name.
+		//
+		bool get_reg(uint32_t ip, uint32_t name, arch::reg r) {
+			// If the register is already allocated, we first have to spill the previous owner.
+			//
+			if (!is_free(r)) {
+				for (uint32_t n = 0; n != vreg.size(); n++) {
+					if (vreg[n].phys_reg == r) {
+						spill(ip, n);
+						break;
+					}
+				}
+			}
+
+			// Mark the register allocated.
+			//
+			mark_alloc(r);
+
+			// If there was another register allocated:
+			//
+			auto& vr = vreg[name];
+			if (vr.phys_reg) {
+				// Move from it and then free it.
+				//
+				move(r, vr.phys_reg);
+				mark_free(vr.phys_reg);
+			}
+			// Othewrise, if there is a spill slot:
+			//
+			else {
+				// Load from the spill slot and free the slot.
+				//
+				if (vr.spill_slot >= 0) {
+					load(r, vr.spill_slot);
+					spill_stack[vr.spill_slot] = -1;
+					vr.spill_slot              = -1;
+				}
+			}
+
+			// Assign the final register and return.
+			//
+			vr.phys_reg = r;
+			return r;
+		}
+
+		// Requests a register of given kind for the name.
+		//
+		arch::reg get_anyreg(uint32_t ip, uint32_t name, bool gp) {
+			// Return if we already have a matching register for this.
+			//
+			auto& vr = vreg[name];
+			if (vr.phys_reg != 0) {
+				if ((vr.phys_reg > 0) == gp) {
+					return vr.phys_reg;
+				}
+			}
+
+			// Free expired registers.
+			//
+			for (auto& r : vreg) {
+				if (r.max_live < ip) {
+					mark_free(r.phys_reg);
+					r.phys_reg = 0;
+				}
+			}
+
+			// Try allocating the requested register kind.
+			//
+			auto r = alloc_next(ip, gp, 0, true);
+			if (!r) {
+				// We have to spill a register.
+				//
+				auto spill_cost = [&](register_state& reg) {
+					return -(int32_t)reg.max_live;
+				};
+
+				uint32_t spilling        = UINT32_MAX;
+				int32_t last_spill_cost = INT32_MAX;
+				for (uint32_t n = 0; n != vreg.size(); n++) {
+					// If same kind and dead:
+					//
+					if ((vreg[n].phys_reg > 0) == gp && !vreg[n].live[name]) {
+						// Set to spill if cost is being minimized or its our only match so far.
+						//
+						int32_t cost = spill_cost(vreg[n]);
+						if (spilling == UINT32_MAX || last_spill_cost > cost) {
+							spilling = n;
+							last_spill_cost = cost;
+						}
+					}
+				}
+
+				// Unless something horrible happens:!
+				//
+				if (spilling != UINT32_MAX) {
+					// Spill to stack and try again.
+					//
+					spill(ip, spilling, true);
+					r = alloc_next(ip, gp);
+				}
+
+				// How could this happen.
+				//
+				if (!r)
+					return 0;
+			}
+
+			// Forward to exact allocator.
+			//
+			return get_reg(ip, name, r) ? r : 0;
+		}
 	};
 
 	// Fills the interval information.
 	//
-	static void fill_intervals(procedure* proc, interval_info* i) {
-		for (auto& bb : proc->basic_blocks) {
+	static void fill_intervals(reg_allocator& r) {
+		for (auto& bb : r.proc->basic_blocks) {
 			for (auto ins : *bb) {
 				for (auto& op : ins->operands) {
 					if (op->is<insn>()) {
-						auto n              = op->as<insn>()->name;
-						i[n].live[ins->name] = true;
-						i[n].max_live        = ins->name;
+						auto n                    = op->as<insn>()->name;
+						r.vreg[n].live[ins->name] = true;
+						r.vreg[n].max_live        = ins->name;
 					}
 				}
 				if (ins->vt != type::none) {
-					i[ins->name].live[ins->name] = true;
+					r.vreg[ins->name].live[ins->name] = true;
+					r.vreg[ins->name].min_live        = ins->name;
 				}
 			}
 
 			// Extend the intervals for block length.
 			//
-			for (uint32_t j = 0; j != proc->next_reg_name; j++) {
-				for (auto n = bb->back()->name; n != bb->front()->name; n--) {
-					i[j].live[n - 1] = i[j].live[n - 1] || i[j].live[n];
+			for (uint32_t j = 0; j != r.vreg.size(); j++) {
+				auto beg = bb->front()->name;
+				auto end = bb->back()->name;
+				while (beg != end && !r.vreg[j].live[beg])
+					++beg;
+				while (end != beg && !r.vreg[j].live[end])
+					--end;
+				for (size_t k = beg; k != end; k++) {
+					r.vreg[j].live[k] = true;
 				}
 			}
 		}
 	}
 
-	static void alloc_regs(procedure* proc) {
-		// Topologically sort the procedure and rename every register.
-		//
-		proc->reset_names();
-
-		// Fixup PHIs.
-		//
-		for (auto& bb : proc->basic_blocks) {
-			for (auto phi : bb->phis()) {
-				for (size_t i = 0; i != phi->operands.size(); i++) {
-					if (phi->operands[i]->is<constant>()) {
-						phi->operands[i] = builder{}.emit_before<move>(bb->predecesors[i]->back(), phi->operands[i]);
-					}
-				}
-			}
-		}
-
-		// Create and fill interval information.
-		//
-		std::vector<interval_info> i{proc->next_reg_name};
-		for (uint32_t j = 0; j != proc->next_reg_name; j++) {
-			i[j].live.resize(proc->next_reg_name);
-		}
-		fill_intervals(proc, i.data());
-
+	// Aliases casts and phi nodes.
+	//
+	static void alias_intervals(reg_allocator& r) {
 		// Alias certain register names.
 		//
-		for (auto& bb : proc->basic_blocks) {
+		for (auto& bb : r.proc->basic_blocks) {
 			for (auto ins : bb->insns()) {
 				if (ins->alias) {
 					auto alias_as = [&](insn* dst, insn* src) {
-						for (size_t n = 0; n != proc->next_reg_name; n++) {
-							i[dst->name].live[n] = i[dst->name].live[n] || i[src->name].live[n];
-						}
-						i[src->name].max_live = 0;
-						i[src->name].live.clear();
-						i[src->name].live.resize(proc->next_reg_name, false);
+						r.merge(dst->name, src->name);
 						dst->name = src->name;
 					};
 
@@ -171,23 +436,74 @@ namespace li::ir::opt {
 				}
 			}
 		}
+	}
+
+	static void alloc_regs(procedure* proc) {
+		// Fixup PHIs.
+		//
+		for (auto& bb : proc->basic_blocks) {
+			for (auto phi : bb->phis()) {
+				for (size_t i = 0; i != phi->operands.size(); i++) {
+					if (phi->operands[i]->is<constant>()) {
+						phi->operands[i] = builder{}.emit_before<move>(bb->predecesors[i]->back(), phi->operands[i]);
+					}
+				}
+			}
+		}
+
+		// Topologically sort the procedure and rename every register.
+		//
+		proc->reset_names();
+
+		// Create and fill interval information.
+		//
+		reg_allocator r{proc};
+		fill_intervals(r);
+		alias_intervals(r);
 
 		// Print the intervals.
 		//
-		proc->print();
-		for (uint32_t j = 0; j != proc->next_reg_name; j++) {
-			if (i[j].max_live == 0)
-				continue;
-			printf(LI_RED "%-3u" LI_DEF "", j);
-			for (uint32_t k = 0; k != proc->next_reg_name; k++) {
-				if (i[j].live[k])
-					printf(LI_BLU "|——");
-				else if (j <= k && i[j].max_live >= k)
-					printf(LI_DEF "|——");
+		r.print_intervals();
+
+		// Demo.
+		//
+		printf("\n");
+		uint32_t index = 0;
+		for (auto& bb : proc->basic_blocks) {
+			printf("-- Block $%u", bb->uid);
+			if (bb->cold_hint)
+				printf(LI_CYN " [COLD %u]" LI_DEF, (uint32_t) bb->cold_hint);
+			putchar('\n');
+
+			for (auto i : *bb) {
+				arch::reg result_reg = -999;
+				if (i->vt != type::none) {
+					result_reg = r.get_anyreg(index, i->name, true);
+				}
+
+				std::vector<arch::reg> arg_regs = {};
+				if (!i->is<compare>()) {
+					for (auto& op : i->operands) {
+						if (!op->is<constant>()) {
+							arg_regs.emplace_back(r.get_anyreg(index, op->as<insn>()->name, true));
+						} else {
+							arg_regs.emplace_back(-999);
+						}
+					}
+				}
+				printf(LI_GRN "#%-5x" LI_DEF " %s {%02x}", i->source_bc, i->to_string(true).c_str(), index);
+				if (result_reg != -999)
+					printf(" # => R%s", arch::name_native(arch::to_native(result_reg)));
 				else
-					printf(LI_DEF "|  ");
+					printf(" # => none");
+				for (size_t k = 0; k != arg_regs.size(); k++) {
+					if (arg_regs[k] != -999) {
+						printf(" - R%s", arch::name_native(arch::to_native(arg_regs[k])));
+					}
+				}
+				putchar('\n');
+				++index;
 			}
-			printf("|\n");
 		}
 	}
 };

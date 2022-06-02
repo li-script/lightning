@@ -265,7 +265,6 @@ namespace li::ir {
 	// unk  select(i1 cc, unk t, unk f)
 	struct select final : insn_tag<opcode::select> {
 		void update() override {
-			alias = true;
 			is_const = true;
 			LI_ASSERT(operands.size() == 3);
 			LI_ASSERT(operands[0]->is(type::i1));

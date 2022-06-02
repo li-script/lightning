@@ -74,8 +74,10 @@ namespace li::ir {
 		if (operands.empty()) {
 			return s + "()";
 		}
-		for (auto& opr : operands) {
-			s += opr->to_string();
+		for (size_t i = 0; i != operands.size(); i++) {
+			if (opc == opcode::phi)
+				s += util::fmt(LI_PRP "$%u" LI_DEF "->", parent->predecesors[i]->uid);
+			s += operands[i]->to_string();
 			s += ", ";
 		}
 		s.pop_back();

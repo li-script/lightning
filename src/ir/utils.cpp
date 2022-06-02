@@ -16,7 +16,7 @@ namespace li::ir {
 	size_t insn::replace_all_uses_in_block(value* with, basic_block* bb) const {
 		LI_ASSERT(parent);
 		size_t n = 0;
-		for (auto i : *bb) {
+		for (auto i : *(bb ? bb : parent)) {
 			if (i == with)
 				continue;
 			for (auto& op : i->operands) {
@@ -38,6 +38,38 @@ namespace li::ir {
 		return n;
 	}
 
+	// User enumeration.
+	//
+	bool insn::for_each_user(util::function_view<bool(insn*, size_t)> cb) const {
+		LI_ASSERT(parent);
+		for (auto& b : parent->proc->basic_blocks) {
+			if (for_each_user_in_block(cb, b.get()))
+				return true;
+		}
+		return false;
+	}
+	bool insn::for_each_user_in_block(util::function_view<bool(insn*, size_t)> cb, basic_block* bb) const {
+		LI_ASSERT(parent);
+		for (auto i : *(bb ? bb : parent)) {
+			for (size_t j = 0; j != i->operands.size(); j++) {
+				if (i->operands[j].get() == this) {
+					if (cb(i, j))
+						return true;
+				}
+			}
+		}
+		return false;
+	}
+	bool insn::for_each_user_outside_block(util::function_view<bool(insn*, size_t)> cb) const {
+		LI_ASSERT(parent);
+		for (auto& b : parent->proc->basic_blocks) {
+			if (b.get() != parent)
+				if (for_each_user_in_block(cb, b.get()))
+					return true;
+		}
+		return false;
+	}
+
 	// Splits the basic block at instruction boundary and adds a jump to the next block after it.
 	//
 	basic_block* basic_block::split_at(const insn* at) {
@@ -47,8 +79,8 @@ namespace li::ir {
 		// Split and move the instruction stream
 		//
 		if (at->next != end()) {
-			auto nb = at->next;
-			auto ne = std::prev(end()).at;
+			auto nb                  = at->next;
+			auto ne                  = std::prev(end()).at;
 			blk->insn_list_head.next = nb;
 			blk->insn_list_head.prev = ne;
 			ne->next                 = &blk->insn_list_head;

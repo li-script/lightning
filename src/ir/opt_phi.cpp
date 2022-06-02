@@ -4,7 +4,6 @@
 #include <ir/value.hpp>
 
 namespace li::ir::opt {
-
 	static ref<> read_variable_local(bc::reg r, basic_block* b, insn* until = nullptr) {
 		for (auto it = b->rbegin(); it != b->rend(); ++it) {
 			auto ins = *it;

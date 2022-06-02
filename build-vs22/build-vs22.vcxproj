@@ -66,6 +66,7 @@
     <ClInclude Include="..\include\util\common.hpp" />
     <ClInclude Include="..\include\util\enuminfo.hpp" />
     <ClInclude Include="..\include\util\format.hpp" />
+    <ClInclude Include="..\include\util\func.hpp" />
     <ClInclude Include="..\include\util\llist.hpp" />
     <ClInclude Include="..\include\util\typeinfo.hpp" />
     <ClInclude Include="..\include\util\platform.hpp" />

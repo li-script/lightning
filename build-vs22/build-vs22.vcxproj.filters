@@ -186,6 +186,9 @@
     <ClInclude Include="..\include\ir\arch.hpp">
       <Filter>IR\Core</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\util\func.hpp">
+      <Filter>Utility</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\.clang-format" />

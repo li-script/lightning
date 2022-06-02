@@ -78,6 +78,8 @@ static bool ir_test(vm* L, any* args, slot_t n) {
 	proc->reset_names();
 	proc->print();
 
+	proc->basic_blocks.front()->front()->for_each_user([](insn* i, size_t j) { return false; });
+
 
 	// hoist table fields even if it escapes
 	// move stuff out of loops

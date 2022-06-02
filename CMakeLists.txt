@@ -100,6 +100,7 @@ list(APPEND libli_SOURCES
 	"include/util/common.hpp"
 	"include/util/enuminfo.hpp"
 	"include/util/format.hpp"
+	"include/util/func.hpp"
 	"include/util/llist.hpp"
 	"include/util/platform.hpp"
 	"include/util/typeinfo.hpp"

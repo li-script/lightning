@@ -5,12 +5,8 @@
 #include <ir/arch.hpp>
 #include <util/format.hpp>
 #include <util/llist.hpp>
+#include <util/func.hpp>
 
-/*
-_(get) _(set)
-_(call) _(str) _(gc)
-TODO: Consider __(seal) __(freeze) __(hide)
-*/
 namespace li::ir {
 	// Instruction opcodes.
 	//
@@ -139,6 +135,12 @@ namespace li::ir {
 		size_t replace_all_uses(value* with) const;
 		size_t replace_all_uses_in_block(value* with, basic_block* bb = nullptr) const;
 		size_t replace_all_uses_outside_block(value* with) const;
+
+		// User enumeration.
+		//
+		bool for_each_user(util::function_view<bool(insn*, size_t)> cb) const;
+		bool for_each_user_in_block(util::function_view<bool(insn*, size_t)> cb, basic_block* bb = nullptr) const;
+		bool for_each_user_outside_block(util::function_view<bool(insn*, size_t)> cb) const;
 
 		// Order check.
 		//

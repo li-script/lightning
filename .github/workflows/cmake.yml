@@ -28,7 +28,6 @@ jobs:
           - target: windows
             os: windows-latest
             build-type: Release
-            extra-cmake-flags:
           - target: macos
             os: macOS-latest
             build-type: Release
@@ -51,10 +50,10 @@ jobs:
       uses: mymindstorm/setup-emsdk@v11
 
     - name: Set up GCC
-      if: ${{ runner.os == 'Linux' }}
+      if: ${{ matrix.target == 'ubuntu' || matrix.target == 'macos' }}
       uses: egor-tensin/setup-gcc@v1
       with:
-        version: 11
+        version: latest
 
     - name: Build
       run: |

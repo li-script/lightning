@@ -37,6 +37,7 @@ namespace li::ir {
 
 		// VM types.
 		//
+		nil,
 		opq,
 		tbl,  // same order as gc types
 		udt,
@@ -319,7 +320,7 @@ namespace li::ir {
 				vt = type(uint8_t(t) + uint8_t(type::tbl) - type_table);
 				gc = a.as_gc();
 			} else {
-				vt = type::none;
+				vt = type::nil;
 			}
 		}
 

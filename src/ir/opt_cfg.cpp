@@ -29,7 +29,7 @@ namespace li::ir::opt {
 
 					if (opt) {
 						builder{}.emit_after<jmp>(jc, opt);
-						bb->erase(jc.get());
+						jc->erase();
 					}
 				}
 

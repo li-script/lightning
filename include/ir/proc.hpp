@@ -85,12 +85,15 @@ namespace li::ir {
 		auto                 rbegin() const { return std::reverse_iterator(end()); }
 		auto                 rend() const { return std::reverse_iterator(begin()); }
 		bool                 empty() const { return insn_list_head.next == &insn_list_head; }
-		ref<insn>            front() const { return (!empty()) ? make_ref(insn_list_head.next) : nullptr; }
-		ref<insn>            back() const { return (!empty()) ? make_ref(insn_list_head.prev) : nullptr; }
+		insn*                front() const { return (!empty()) ? make_ref(insn_list_head.next) : nullptr; }
+		insn*                back() const { return (!empty()) ? make_ref(insn_list_head.prev) : nullptr; }
 		instruction_iterator end_phi() const {
 			return std::find_if(begin(), end(), [](insn* i) { return !i->is<phi>(); });
 		}
 		auto phis() const { return range::subrange(begin(), end_phi()); }
+		auto insns() const { return range::subrange(begin(), end()); }
+		auto after(insn* i) const { return range::subrange(i ? instruction_iterator(i->next) : begin(), end()); }
+		auto before(insn* i) const { return range::subrange(begin(), i ? instruction_iterator(i) : end()); }
 
 		// Insertion.
 		//
@@ -149,6 +152,7 @@ namespace li::ir {
 							util::abort("cyclic reference found: %s", i->to_string(true).c_str());
 						}
 					} else if (!op->as<insn>()->parent) {
+						this->print();
 						util::abort("dangling reference found: %s", i->to_string(true).c_str());
 					}
 				}
@@ -491,23 +495,23 @@ namespace li::ir {
 		// Instruction emitting.
 		//
 		template<typename T, typename... Tx>
-		ref<T> create(Tx&&... args) {
+		ref<T> create(procedure* p, Tx&&... args) {
 			// Set basic details.
 			//
 			ref<T> i     = make_value<T>();
-			i->name      = blk->proc->next_reg_name++;
+			i->name      = p->next_reg_name++;
 			i->source_bc = current_bc;
 			i->opc       = T::Opcode;
 			i->vt        = type::unk;
 
 			// Add operands and update.
 			//
-			i->operands = std::vector<use<>>{launder_value(blk->proc, std::forward<Tx>(args))...};
+			i->operands = std::vector<use<>>{launder_value(p, std::forward<Tx>(args))...};
 			return i;
 		}
 		template<typename T, typename... Tx>
 		ref<insn> emit(Tx&&... args) {
-			auto i = create<T, Tx...>(std::forward<Tx>(args)...);
+			auto i = create<T, Tx...>(blk->proc, std::forward<Tx>(args)...);
 			if (!i->has_debug_info())
 				i->source_bc = blk->bc_end;
 			blk->push_back(i);
@@ -516,7 +520,7 @@ namespace li::ir {
 		}
 		template<typename T, typename... Tx>
 		ref<insn> emit_front(Tx&&... args) {
-			auto i = create<T, Tx...>(std::forward<Tx>(args)...);
+			auto i = create<T, Tx...>(blk->proc, std::forward<Tx>(args)...);
 			if (!i->has_debug_info())
 				i->source_bc = blk->bc_end;
 			blk->push_front(i);
@@ -525,7 +529,7 @@ namespace li::ir {
 		}
 		template<typename T, typename... Tx>
 		ref<insn> emit_after(insn* at, Tx&&... args) {
-			auto i = create<T, Tx...>(std::forward<Tx>(args)...);
+			auto i = create<T, Tx...>(at->parent->proc, std::forward<Tx>(args)...);
 			at->parent->insert(instruction_iterator(at->next), i);
 			if (!i->has_debug_info())
 				at->copy_debug_info_to(i);
@@ -534,7 +538,7 @@ namespace li::ir {
 		}
 		template<typename T, typename... Tx>
 		ref<insn> emit_before(insn* at, Tx&&... args) {
-			auto i = create<T, Tx...>(std::forward<Tx>(args)...);
+			auto i = create<T, Tx...>(at->parent->proc, std::forward<Tx>(args)...);
 			at->parent->insert(instruction_iterator(at), i);
 			if (!i->has_debug_info())
 				at->copy_debug_info_to(i);

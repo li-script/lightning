@@ -23,6 +23,8 @@ namespace li::ir {
 				return util::fmt(LI_GRN "%s" LI_DEF, bc::opcode_details(vmopr).name);
 			case li::ir::type::i1:
 				return util::fmt(LI_BLU "i1:  %s" LI_DEF, u ? "true" : "false");
+			case li::ir::type::nil:
+				return util::fmt(LI_BLU "nil" LI_DEF);
 			case li::ir::type::i8:
 				return util::fmt(LI_BLU "i8:  %llu" LI_DEF, u);
 			case li::ir::type::i16:

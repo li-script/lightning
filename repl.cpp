@@ -64,7 +64,6 @@ static void handle_repl_io(vm* L, std::string_view input) {
 #include <ir/lifter.hpp>
 #include <ir/opt.hpp>
 
-#include <ranges>
 
 namespace li::ir::opt {
 
@@ -109,11 +108,14 @@ namespace li::ir::opt {
 		// Fixup PHIs.
 		//
 		for (auto& bb : proc->basic_blocks) {
-
-			for (auto phi : std::ranges::subrange(bb->begin(), bb->end_phi())) {
+			for (auto phi : bb->phis()) {
+				for (size_t i = 0; i != phi->operands.size(); i++) {
+					if (phi->operands[i]->is<constant>()) {
+						phi->operands[i] = builder{}.emit_before<move>(bb->predecesors[i]->back(), phi->operands[i]);
+					}
+				}
 			}
 		}
-
 
 		// Create and fill interval information.
 		//
@@ -123,24 +125,70 @@ namespace li::ir::opt {
 		}
 		fill_intervals(proc, i.data());
 
-		// Print zhe intervals.
+		// Alias certain register names.
+		//
+		for (auto& bb : proc->basic_blocks) {
+			for (auto ins : bb->insns()) {
+				if (ins->alias) {
+					auto alias_as = [&](insn* dst, insn* src) {
+						for (size_t n = 0; n != proc->next_reg_name; n++) {
+							i[dst->name].live[n] = i[dst->name].live[n] || i[src->name].live[n];
+						}
+						i[src->name].max_live = 0;
+						i[src->name].live.clear();
+						i[src->name].live.resize(proc->next_reg_name, false);
+						dst->name = src->name;
+					};
+
+					// Use the name of the first insn.
+					//
+					alias_as(ins, ins->operands[0]->as<insn>());
+
+					// For each other operand:
+					//
+					for (size_t i = 1; i != ins->operands.size(); i++) {
+						if (ins->operands[i]->is<insn>()) {
+							auto* s = ins->operands[i]->as<insn>()->parent;
+
+							bool unique_src = true;
+							for (size_t j = 0; j != ins->operands.size(); j++) {
+								if (i != j && ins->operands[j]->is<insn>()) {
+									auto* s2 = ins->operands[j]->as<insn>()->parent;
+									if (s2 == s) {
+										unique_src = false;
+										break;
+									}
+								}
+							}
+
+							// If unique reference, rename them as well.
+							//
+							if (unique_src) {
+								alias_as(ins->operands[i]->as<insn>(), ins);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// Print the intervals.
 		//
 		proc->print();
-
 		for (uint32_t j = 0; j != proc->next_reg_name; j++) {
+			if (i[j].max_live == 0)
+				continue;
 			printf(LI_RED "%-3u" LI_DEF "", j);
 			for (uint32_t k = 0; k != proc->next_reg_name; k++) {
 				if (i[j].live[k])
-					printf(LI_GRN "|——");
-				else if (j <= k && i[j].max_live >= k)
 					printf(LI_BLU "|——");
+				else if (j <= k && i[j].max_live >= k)
+					printf(LI_DEF "|——");
 				else
 					printf(LI_DEF "|  ");
 			}
 			printf("|\n");
 		}
-
-		// proc->next_reg_name
 	}
 };
 

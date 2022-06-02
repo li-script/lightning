@@ -5,18 +5,7 @@
 
 namespace li::ir::opt {
 	static ref<> read_variable_local(bc::reg r, basic_block* b, insn* until = nullptr) {
-		for (auto it = b->rbegin(); it != b->rend(); ++it) {
-			auto ins = *it;
-
-			if (until) {
-				if (ins != until) {
-					continue;
-				}
-				else {
-					until = nullptr;
-					continue;
-				}
-			}
+		for (insn* ins : view::reverse(b->before(until))) {
 			if (ins->is<store_local>() && ins->operands[0]->as<constant>()->i32 == r) {
 				return ins->operands[1];
 			}
@@ -24,8 +13,7 @@ namespace li::ir::opt {
 		return nullptr;
 	}
 	static ref<> reread_variable_local(bc::reg r, basic_block* b) {
-		for (auto it = b->rbegin(); it != b->rend(); ++it) {
-			auto ins = *it;
+		for (insn* ins : view::reverse(b->insns())) {
 			if (ins->is<load_local>() && ins->operands[0]->as<constant>()->i32 == r) {
 				return make_ref(ins);
 			}
@@ -111,9 +99,8 @@ namespace li::ir::opt {
 
 			// Delete the temporary.
 			//
-			if (tmp) {
-				b->erase(std::move(tmp));
-			}
+			if (tmp)
+				tmp->erase();
 			return try_remove_trivial_phi(std::move(p));
 		}
 	}
@@ -123,9 +110,7 @@ namespace li::ir::opt {
 	void lift_phi(procedure* proc) {
 		// Generate PHIs to replace load_local in every block except the entry point.
 		//
-		for (auto it = proc->basic_blocks.rbegin(); it != std::prev(proc->basic_blocks.rend()); ++it) {
-			auto& bb = *it;
-
+		for (auto& bb : view::reverse(proc->basic_blocks | view::drop(1))) {
 			bb->erase_if([&](insn* ins) {
 				if (ins->is<load_local>()) {
 					bc::reg r = ins->operands[0]->as<constant>()->i32;

@@ -27,12 +27,11 @@ namespace li::ir::opt {
 	//
 	void fold_identical(procedure* proc, bool local) {
 		for (auto& bb : proc->basic_blocks) {
-			for (auto it = bb->rbegin(); it != bb->rend(); ++it) {
-				auto ins = *it;
+			for (insn* ins : view::reverse(bb->insns())) {
 				if (ins->is_pure && !ins->sideffect && !ins->is_volatile) {
 					insn* found = nullptr;
-					for (auto it2 = std::next(it); it2 != bb->rend(); ++it2) {
-						auto ins2 = *it2;
+
+					for (insn* ins2 : bb->before(ins)) {
 						if (ins2->opc == ins->opc && ins2->operands.size() == ins->operands.size()) {
 							if (std::equal(ins->operands.begin(), ins->operands.end(), ins2->operands.begin(), is_identical)) {
 								found = ins2;

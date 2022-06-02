@@ -14,3 +14,4 @@ build-vs22/enc_temp_folder/
 *.li
 !/tests/*.li
 Lightning-VTune/
+tests/.vscode/

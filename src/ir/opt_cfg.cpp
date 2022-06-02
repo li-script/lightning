@@ -56,6 +56,14 @@ namespace li::ir::opt {
 				}
 			}
 			it = proc->del_block(bb.get());
+
+			// ^ todo:
+			// z:
+			//  jmp a
+			// a: <-- only successor is z
+			//  <stuff> 
+			//  jmp b
 		}
+		proc->validate();
 	}
 };

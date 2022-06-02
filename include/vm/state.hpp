@@ -4,6 +4,8 @@
 #include <util/platform.hpp>
 #include <vm/gc.hpp>
 #include <algorithm>
+#include <span>
+#include <optional>
 
 namespace li {
 	struct vm;
@@ -55,6 +57,12 @@ namespace li {
 	};
 	static_assert(sizeof(call_frame) == sizeof(opaque), "Invalid call frame size.");
 
+	// Builtin handler callback.
+	//
+	struct func_scope;
+	struct expression;
+	using fn_parse_builtin = std::optional<expression>(*)(func_scope& scope, std::string_view name, const expression& self, std::span<std::pair<expression, bool>> params);
+
 	// VM state.
 	//
 	struct vm : gc::leaf<vm> {
@@ -65,16 +73,17 @@ namespace li {
 
 		// VM state.
 		//
-		gc::state   gc             = {};                // Garbage collector.
-		fn_panic    panic_fn       = &default_panic;    // Panic function.
-		string_set* strset     = nullptr;           // String interning state
-		string*     empty_string   = nullptr;           // Constant "".
-		table*      globals        = nullptr;           // Globals.
-		uint64_t    prng_seed      = platform::srng();  // PRNG seed.
-		any*        stack          = nullptr;           // Stack base.
-		slot_t      stack_top      = 0;                 // Top of the stack. TODO: Make size_t, unnecessary zx.
-		slot_t      stack_len      = 0;                 // Maximum length of the stack.
-		call_frame  last_vm_caller = {};                // Last valid VM frame that called into C.
+		gc::state        gc             = {};                // Garbage collector.
+		fn_panic         panic_fn       = &default_panic;    // Panic function.
+		string_set*      strset         = nullptr;           // String interning state
+		string*          empty_string   = nullptr;           // Constant "".
+		table*           globals        = nullptr;           // Globals.
+		uint64_t         prng_seed      = platform::srng();  // PRNG seed.
+		any*             stack          = nullptr;           // Stack base.
+		slot_t           stack_top      = 0;                 // Top of the stack. TODO: Make size_t, unnecessary zx.
+		slot_t           stack_len      = 0;                 // Maximum length of the stack.
+		call_frame       last_vm_caller = {};                // Last valid VM frame that called into C.
+		fn_parse_builtin builtin_parser = nullptr;           // Parser callback to emit bytecode for builtins.
 
 		// Closes the VM state.
 		//

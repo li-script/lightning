@@ -253,17 +253,6 @@ namespace li::ir {
 			rec(rec, from);
 		}
 
-		// Renames all registers.
-		//
-		void rename_registers() {
-			next_reg_name = 0;
-			for (auto& bb : basic_blocks) {
-				for (auto& i : bb->instructions) {
-					i->name = next_reg_name++;
-				}
-			}
-		}
-
 		// Topologically sorts the basic block list.
 		//
 		void toplogical_sort() {
@@ -274,6 +263,18 @@ namespace li::ir {
 			LI_ASSERT(get_entry()->uid == 0);
 			std::sort(basic_blocks.begin(), basic_blocks.end(), [](auto& a, auto& b) { return a->uid < b->uid; });
 			is_topologically_sorted = true;
+		}
+
+		// Renames all registers and blocks after topologically sorting.
+		//
+		void reset_names() {
+			toplogical_sort();
+			next_reg_name = 0;
+			for (auto& bb : basic_blocks) {
+				for (auto& i : bb->instructions) {
+					i->name = next_reg_name++;
+				}
+			}
 		}
 
 		// Replace all uses of a value throughout the entire procedure.

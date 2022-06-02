@@ -84,7 +84,7 @@ namespace li {
 					dirty_stack();
 					goto vret;
 				} else if (!vf.is_vfn()) [[unlikely]] {
-					stack[L->stack_top + FRAME_RET] = string::create(L, "invoking non-function");
+					stack[L->stack_top + FRAME_RET] = string::format(L, "invoking non-function");
 					state                           = vm_exception;
 					goto vret;
 				}
@@ -153,6 +153,10 @@ namespace li {
 					const auto& insn   = f->opcode_array[ip++];
 					auto [op, a, b, c] = insn;
 					switch (op) {
+						UNOP_HANDLE(bc::TOSTR)
+						UNOP_HANDLE(bc::TONUM)
+						UNOP_HANDLE(bc::TOINT)
+						UNOP_HANDLE(bc::TOBOOL)
 						UNOP_HANDLE(bc::LNOT)
 						UNOP_HANDLE(bc::ANEG)
 						UNOP_HANDLE(bc::VLEN)
@@ -343,8 +347,16 @@ namespace li {
 							if (key == none) [[unlikely]] {
 								VM_RET(string::create(L, "indexing with null key"), true);
 							}
+
 							if (tbl.is_tbl()) {
 								REG(a) = tbl.as_tbl()->get(L, REG(b));
+							} else if (tbl.is_arr()) {
+								if (!key.is_num() || key.as_num() < 0) [[unlikely]] {
+									VM_RET(string::create(L, "indexing array with non-integer or negative key"), true);
+								}
+								REG(a) = tbl.as_arr()->get(L, size_t(key.as_num()));
+							} else if (tbl == none) {
+								REG(a) = none;
 							} else {
 								VM_RET(string::create(L, "indexing non-table"), true);
 							}
@@ -357,20 +369,25 @@ namespace li {
 
 							if (key == none) [[unlikely]] {
 								VM_RET(string::create(L, "indexing with null key"), true);
-							}
-							if (!tbl.is_tbl()) [[unlikely]] {
-								if (tbl == none) {
-									tbl = any{table::create(L)};
-								} else [[unlikely]] {
-									VM_RET(string::create(L, "indexing non-table"), true);
-								}
-							}
-							if (tbl.as_tbl()->trait_freeze) [[unlikely]] {
-								VM_RET(string::create(L, "modifying frozen table."), true);
+							} else if (tbl == none) [[unlikely]] {
+								tbl = any{table::create(L)};
 							}
 
-							tbl.as_tbl()->set(L, key, val);
-							L->gc.tick(L);
+							if (tbl.is_tbl()) {
+								if (tbl.as_tbl()->trait_freeze) [[unlikely]] {
+									VM_RET(string::create(L, "modifying frozen table."), true);
+								}
+								tbl.as_tbl()->set(L, key, val);
+								L->gc.tick(L);
+							}
+							else if (tbl.is_arr()) {
+								if (!key.is_num() || key.as_num() < 0) [[unlikely]] {
+									VM_RET(string::create(L, "indexing array with non-integer or negative key"), true);
+								}
+								tbl.as_arr()->set(L, size_t(key.as_num()), val);
+							} else [[unlikely]] {
+								VM_RET(string::create(L, "indexing non-table"), true);
+							}
 							continue;
 						}
 						case bc::TGET: {

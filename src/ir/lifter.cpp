@@ -139,6 +139,25 @@ namespace li::ir {
 				}
 				// case bc::CCAT: // A=CONCAT(A..A+B)
 
+				// Casts:
+				//
+				case bc::TOSTR: {
+					set_reg(a, bld.emit<coerce_cast>(get_reg(b), type::str));
+					continue;
+				}
+				case bc::TONUM: {
+					set_reg(a, bld.emit<coerce_cast>(get_reg(b), type::f64));
+					continue;
+				}
+				case bc::TOINT: {
+					set_reg(a, bld.emit<coerce_cast>(get_reg(b), type::i32));
+					continue;
+				}
+				case bc::TOBOOL: {
+					set_reg(a, bld.emit<coerce_cast>(get_reg(b), type::i1));
+					continue;
+				}
+
 				// Traits:
 				//
 				case bc::TRGET: {
@@ -258,8 +277,7 @@ namespace li::ir {
 		bld.blk->proc->add_jump(bld.blk, tt);
 	}
 
-	// Step #1:
-	// Generates crude bytecode using load_local and store_local.
+	// Generates crude bytecode.
 	//
 	std::unique_ptr<procedure> lift_bc(vm* L, function* f) {
 		auto proc = std::make_unique<procedure>(L, f);

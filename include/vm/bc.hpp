@@ -74,6 +74,12 @@ namespace li::bc {
 	_(SLOAD, reg, sp, ___, none)  /* A = STACK[TOP-B] */                                  \
 	_(SRST, ___, ___, ___, none)  /* Resets the stack pos */                              \
                                                                                          \
+	/* Type coercion. */                                                                  \
+	_(TOSTR, reg, reg, ___, none) /* A = str(B) */                                        \
+	_(TONUM, reg, reg, ___, none) /* A = num(B) */                                        \
+	_(TOINT, reg, reg, ___, none) /* A = int(B) */                                        \
+	_(TOBOOL, reg, reg, ___, none) /* A = bool(B) */                                      \
+                                                                                         \
 	/* Control flow. */                                                                   \
 	_(CALL, imm, ___, ___, none) /* A = Arg count */                                      \
 	_(RET, reg, ___, ___, none)  /* RETURN A */                                           \

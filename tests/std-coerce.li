@@ -1,3 +1,4 @@
 assert(10::str() == "10")
 assert("0xA"::num() == 10)
 assert("+5"::num() == 5)
+assert("+5.5"::int() == 5)

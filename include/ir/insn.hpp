@@ -319,11 +319,11 @@ namespace li::ir {
 	// T      coerce_cast(unk, const irtype T)
 	struct coerce_cast final : insn_tag<opcode::coerce_cast> {
 		void update() override {
-			alias    = true;
 			is_const = true;
 			LI_ASSERT(operands.size() == 2);
 			LI_ASSERT(operands[1]->is<constant>() && operands[1]->is(type::irtype));
 			vt = operands[1]->get<constant>()->irtype;
+			alias = operands[0]->vt == vt;
 		}
 	};
 	// none   ret(unk val)

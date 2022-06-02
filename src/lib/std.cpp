@@ -284,16 +284,6 @@ namespace li::lib {
 			printf("\n");
 			return true;
 		});
-		util::export_as(L, "str", [](vm* L, any* args, slot_t n) {
-			OPTIONAL_SELF();
-			L->push_stack(args->coerce_str(L));
-			return true;
-		});
-		util::export_as(L, "num", [](vm* L, any* args, slot_t n) {
-			OPTIONAL_SELF();
-			L->push_stack(args->coerce_num());
-			return true;
-		});
 		util::export_as(L, "loadstring", [](vm* L, any* args, slot_t n) {
 			if (n != 1 || !args->is_str()) {
 				return L->error("expected string");

@@ -44,9 +44,16 @@ namespace li {
 	//
 	LI_INLINE std::pair<any, bool> apply_unary(vm* L, any a, bc::opcode op) {
 		switch (op) {
-			case bc::LNOT: {
+			case bc::TOSTR:
+				return {any(a.coerce_str(L)), true};
+			case bc::TONUM:
+				return {any(a.coerce_num()), true};
+			case bc::TOINT:
+				return {any(trunc(a.coerce_num())), true};
+			case bc::TOBOOL:
+				return {any(a.coerce_bool()), true};
+			case bc::LNOT:
 				return {any(!a.coerce_bool()), true};
-			}
 			case bc::ANEG: {
 				UNARY_APPLY_TRAIT(trait::neg);
 				TYPE_ASSERT(a, type_number);

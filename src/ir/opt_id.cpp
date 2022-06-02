@@ -18,6 +18,7 @@ namespace li::ir::opt {
 			//
 			//}
 			// TODO: Trace until common dominator to ensure no side effects, compare by value.
+			// ^ once this is done, can also be used for PHI nodes.
 		}
 		return false;
 	}
@@ -47,5 +48,6 @@ namespace li::ir::opt {
 				}
 			}
 		}
+		proc->validate();
 	}
 };

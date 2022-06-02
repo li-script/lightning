@@ -41,6 +41,18 @@
     <ClCompile Include="..\src\vm\userdata.cpp">
       <Filter>VM\Types</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\ir\lifter.cpp">
+      <Filter>IR</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ir\opt_phi.cpp">
+      <Filter>IR\Opt</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ir\analysis.cpp">
+      <Filter>IR</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ir\insn.cpp">
+      <Filter>IR</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Language">
@@ -60,6 +72,12 @@
     </Filter>
     <Filter Include="JIT">
       <UniqueIdentifier>{c978084a-5145-47d5-ac84-0a05a56eba6c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="IR">
+      <UniqueIdentifier>{6937ce40-997f-467c-8e02-df4d1f1a3a62}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="IR\Opt">
+      <UniqueIdentifier>{8b506929-e789-4fcd-b050-0ff94e5c4a00}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -131,6 +149,21 @@
     </ClInclude>
     <ClInclude Include="..\include\util\enuminfo.hpp">
       <Filter>Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\ir\insn.hpp">
+      <Filter>IR</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\ir\lifter.hpp">
+      <Filter>IR</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\ir\proc.hpp">
+      <Filter>IR</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\ir\value.hpp">
+      <Filter>IR</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\ir\opt.hpp">
+      <Filter>IR</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

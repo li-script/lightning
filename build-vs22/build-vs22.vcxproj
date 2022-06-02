@@ -28,6 +28,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\repl.cpp" />
+    <ClCompile Include="..\src\ir\analysis.cpp" />
+    <ClCompile Include="..\src\ir\insn.cpp" />
+    <ClCompile Include="..\src\ir\lifter.cpp" />
+    <ClCompile Include="..\src\ir\opt_phi.cpp" />
     <ClCompile Include="..\src\lang\lexer.cpp" />
     <ClCompile Include="..\src\lang\operator.cpp" />
     <ClCompile Include="..\src\lang\parser.cpp" />
@@ -43,6 +47,11 @@
     <ClCompile Include="..\src\vm\userdata.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\include\ir\insn.hpp" />
+    <ClInclude Include="..\include\ir\lifter.hpp" />
+    <ClInclude Include="..\include\ir\opt.hpp" />
+    <ClInclude Include="..\include\ir\proc.hpp" />
+    <ClInclude Include="..\include\ir\value.hpp" />
     <ClInclude Include="..\include\jit\zydis.hpp" />
     <ClInclude Include="..\include\lang\lexer.hpp" />
     <ClInclude Include="..\include\lang\operator.hpp" />
@@ -94,7 +103,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release-LLVM|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>ClangCL</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -223,6 +232,10 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <AdditionalOptions>-flto /D "_CRT_SECURE_NO_WARNINGS" %(AdditionalOptions)</AdditionalOptions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <FloatingPointModel>Fast</FloatingPointModel>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

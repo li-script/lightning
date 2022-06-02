@@ -64,6 +64,10 @@ set(CMKR_TARGET libli)
 set(libli_SOURCES "")
 
 list(APPEND libli_SOURCES
+	"src/ir/analysis.cpp"
+	"src/ir/insn.cpp"
+	"src/ir/lifter.cpp"
+	"src/ir/opt_phi.cpp"
 	"src/lang/lexer.cpp"
 	"src/lang/operator.cpp"
 	"src/lang/parser.cpp"
@@ -77,6 +81,11 @@ list(APPEND libli_SOURCES
 	"src/vm/string.cpp"
 	"src/vm/table.cpp"
 	"src/vm/userdata.cpp"
+	"include/ir/insn.hpp"
+	"include/ir/lifter.hpp"
+	"include/ir/opt.hpp"
+	"include/ir/proc.hpp"
+	"include/ir/value.hpp"
 	"include/jit/zydis.hpp"
 	"include/lang/lexer.hpp"
 	"include/lang/operator.hpp"

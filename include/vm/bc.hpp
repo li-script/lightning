@@ -56,7 +56,7 @@ namespace li::bc {
 	_(GSET, reg, reg, ___, none) /* G[A]=B */                                             \
                                                                                          \
 	/* Table/Array operators. */                                                          \
-	_(ANEW, reg, imm, ___, none)  /* A=ARRAY{Reserved=B} */                               \
+	_(ANEW, reg, imm, ___, none)  /* A=ARRAY{Size=B} */                                   \
 	_(TNEW, reg, imm, ___, none)  /* A=TABLE{Reserved=B} */                               \
 	_(ADUP, reg, kvl, ___, none)  /* A=Duplicate(KVAL[B]) */                              \
 	_(TDUP, reg, kvl, ___, none)  /* A=Duplicate(KVAL[B]) */                              \

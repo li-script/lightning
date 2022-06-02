@@ -1,11 +1,11 @@
 #include <vm/array.hpp>
 
 namespace li {
-	array* array::create(vm* L, size_t reserved_entry_count) {
+	array* array::create(vm* L, size_t length, size_t rsvd) {
 		array* arr = L->alloc<array>();
-		if (reserved_entry_count) {
-			arr->reserve(L, reserved_entry_count);
-		}
+		arr->storage = L->alloc<array_store>(std::bit_ceil(length + rsvd) * sizeof(any));
+		arr->length  = length;
+		fill_none(arr->begin(), length);
 		return arr;
 	}
 
@@ -21,7 +21,7 @@ namespace li {
 	//
 	void array::reserve(vm* L, size_t n) {
 		if (!storage) {
-			storage = L->alloc<array_store>(n);
+			storage = L->alloc<array_store>(n * sizeof(any));
 		} else if (size_t c = capacity(); n > c) {
 			size_t new_capacity = std::max(n, c + (c >> 1));
 			auto*  old_list     = storage;

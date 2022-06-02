@@ -8,7 +8,7 @@ namespace li {
 		any entries[];
 	};
 	struct array : gc::node<array, type_array> {
-		static array* create(vm* L, size_t reserved_entry_count = 0);
+		static array* create(vm* L, size_t length = 0, size_t rsvd = 0);
 
 		array_store* storage = nullptr;
 		size_t       length  = 0;

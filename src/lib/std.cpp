@@ -159,7 +159,7 @@ namespace li::lib {
 		// Debug.
 		//
 		util::export_as(L, "debug.stacktrace", [](vm* L, any* args, slot_t n) {
-			auto result = array::create(L, 10);
+			auto result = array::create(L, 0, 10);
 			auto cstr   = string::create(L, "C");
 			auto lstr   = string::create(L, "line");
 			auto fstr   = string::create(L, "func");

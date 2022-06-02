@@ -178,18 +178,25 @@ namespace li {
 
 		// Bytewise equal comparsion.
 		//
-		inline bool equals(const any& other) const { return value == other.value; }
-		inline void copy_from(const any& other) { value = other.value; }
+		inline constexpr bool equals(const any& other) const
+		{
+			uint64_t x = value ^ other.value;
+			if (!(value << 1)) {
+				x <<= 1;
+			}
+			return x == 0;
+		}
+		inline constexpr void copy_from(const any& other) { value = other.value; }
 
 		// Define copy and comparison operators.
 		//
-		inline any(const any& other) { copy_from(other); }
-		inline any& operator=(const any& other) {
+		inline constexpr any(const any& other) { copy_from(other); }
+		inline constexpr any& operator=(const any& other) {
 			copy_from(other);
 			return *this;
 		}
-		inline bool operator==(const any& other) const { return equals(other); }
-		inline bool operator!=(const any& other) const { return !equals(other); }
+		inline constexpr bool operator==(const any& other) const { return equals(other); }
+		inline constexpr bool operator!=(const any& other) const { return !equals(other); }
 
 		// String conversion.
 		//

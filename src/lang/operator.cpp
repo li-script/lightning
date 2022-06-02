@@ -142,16 +142,12 @@ namespace li {
 				TYPE_ASSERT(b, type_number);
 				return {any(pow(a.as_num(), b.as_num())), true};
 			case bc::CEQ:
-				if (a.is_num() && b.is_num())
-					return {a.as_num() == b.as_num(), true};
-				else if (a == b)
+				if (a == b)
 					return {true, true};
 				BINARY_APPLY_TRAIT(trait::eq);
 				return {false, true};
 			case bc::CNE:
-				if (a.is_num() && b.is_num())
-					return {a.as_num() != b.as_num(), true};
-				else if (a == b)
+				if (a == b)
 					return {false, true};
 				#define NEGATE(res, ok) ok?any(!res.as_bool()):res, ok
 				BINARY_APPLY_TRAIT_AND(trait::eq, NEGATE);

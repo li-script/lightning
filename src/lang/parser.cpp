@@ -60,7 +60,7 @@ namespace li {
 		string*                  decl_name       = nullptr;  // Name.
 		std::vector<line_info>   line_table      = {};       // Record for each time a line changed.
 		uint32_t                 last_line       = 0;        //
-		uint32_t                 last_lexed_line;
+		uint32_t                 last_lexed_line;            //
 
 		// Labels.
 		//
@@ -758,8 +758,9 @@ namespace li {
 				if (value.kind == expr::err) {
 					return {};
 				}
-				nexpr++;
-				scope.emit(bc::AADD, result.reg, result.reg, value.to_anyreg(scope));
+
+				expression id{any(number(nexpr++))};
+				scope.emit(bc::TSET, id.to_anyreg(scope), value.to_anyreg(scope), result.reg);
 
 				if (scope.lex().opt(']'))
 					break;
@@ -770,7 +771,7 @@ namespace li {
 				}
 			}
 		}
-		scope.fn.pc[allocp].c = nexpr;
+		scope.fn.pc[allocp].b = nexpr;
 		return result;
 	}
 
@@ -821,7 +822,7 @@ namespace li {
 				}
 			}
 		}
-		scope.fn.pc[allocp].c = nexpr;
+		scope.fn.pc[allocp].b = nexpr;
 		return result;
 	}
 

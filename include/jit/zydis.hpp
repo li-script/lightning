@@ -7,12 +7,6 @@
 #include <vector>
 #include <string>
 #include <optional>
-
-#if _WIN32
-	#define NOMINMAX // athre0z y u include windows :(
-	#define WIN32_LEAN_AND_MEAN
-#endif
-#include <Zycore/API/Memory.h>
 #include <Zycore/LibC.h>
 #include <Zydis/Zydis.h>
 

@@ -385,7 +385,6 @@ namespace li::ir {
 				vt = operands[0]->vt;
 				for (size_t i = 0; i != n; i++) {
 					// TODO: Validate CFG.
-					LI_ASSERT(operands[i]->is<insn>());
 					if (vt != operands[i]->vt) {
 						vt = type::unk;
 					}

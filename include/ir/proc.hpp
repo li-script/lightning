@@ -68,6 +68,8 @@ namespace li::ir {
 					phi_ok = false;
 				} else if (!phi_ok) {
 					util::abort("phi used after block header.");
+				} else {
+					LI_ASSERT(i->operands.size() == predecesors.size());
 				}
 				num_term += i->is_terminator();
 
@@ -91,6 +93,10 @@ namespace li::ir {
 			}
 			if (num_term > 1) {
 				util::abort("block has multiple terminators");
+			}
+#else
+			for (auto it = instructions.begin(); it != instructions.end(); ++it) {
+				it->get()->update();
 			}
 #endif
 		}
@@ -292,11 +298,9 @@ namespace li::ir {
 		// Validates all basic blocks.
 		//
 		void validate() {
-#if LI_DEBUG
 			LI_ASSERT(get_entry() != nullptr);
 			for (auto& i : basic_blocks)
 				i->validate();
-#endif
 		}
 
 		// Printer.

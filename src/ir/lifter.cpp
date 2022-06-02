@@ -236,7 +236,10 @@ namespace li::ir {
 					if (op == bc::JNS)
 						std::swap(tt, tf);
 					spill();
-					bld.emit<jcc>(get_reg(b), tt, tf);
+					auto cnd = get_reg(b);
+					if (!cnd->is(type::i1))
+						cnd = bld.emit<coerce_cast>(cnd, type::i1);
+					bld.emit<jcc>(cnd, tt, tf);
 					bld.blk->proc->add_jump(bld.blk, tt);
 					bld.blk->proc->add_jump(bld.blk, tf);
 					return;

@@ -73,7 +73,7 @@ namespace li::ir::arch {
 	static constexpr native_reg bp2              = zy::RBX; // vm*
 	static constexpr native_reg invalid          = zy::NO_REG;
 
-	static constexpr int32_t shadow_stack         = 0x20;
+	static constexpr int32_t home_size            = 0x20;
 	static constexpr bool    combined_arg_counter = true;
 #elif LI_ABI_SYSV64
 	static constexpr native_reg gp_nonvolatile[] = {zy::R12, zy::R13, zy::R14, zy::R15};
@@ -89,7 +89,7 @@ namespace li::ir::arch {
 	static constexpr native_reg bp2              = zy::RBX;  // vm*
 	static constexpr native_reg invalid          = zy::NO_REG;
 
-	static constexpr int32_t shadow_stack         = 0x20;
+	static constexpr int32_t home_size            = 0x20;
 	static constexpr bool    combined_arg_counter = false;
 #else
 	using native_reg                           = int32_t;
@@ -106,8 +106,8 @@ namespace li::ir::arch {
 	static constexpr native_reg bp2            = 0;
 	static constexpr native_reg invalid        = 0;
 
-	static constexpr int32_t shadow_stack         = 0;
-	static constexpr bool    combined_arg_counter = false;
+	static constexpr int32_t     home_size            = 0;
+	static constexpr bool        combined_arg_counter = false;
 	static constexpr const char* name_native(native_reg r) { return "?"; }
 #endif
 

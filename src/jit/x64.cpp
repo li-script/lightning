@@ -11,6 +11,16 @@
 #include <jit/regalloc.hpp>
 #include <jit/zydis.hpp>
 
+#if __AVX__
+	static constexpr int  vector_reg_size = 0x20;
+	static constexpr auto vector_move     = ZYDIS_MNEMONIC_VMOVUPS;
+	static constexpr auto vector_full     = ZYDIS_REGISTER_YMM0;
+#else
+	static constexpr int  vector_reg_size = 0x10;
+	static constexpr auto vector_move     = ZYDIS_MNEMONIC_MOVUPS;
+	static constexpr auto vector_full     = ZYDIS_REGISTER_XMM0;
+#endif
+
 namespace li::ir::jit {
 	// Wrapper to handle automatic reg->ZydisReg conversion.
 	//
@@ -90,25 +100,25 @@ namespace li::ir::jit {
 		//
 		std::vector<std::pair<bc::pos, size_t>> bc_to_ip = {};
 
-		// Relocation requests.
-		// - [offset, block id]
-		//
-		std::vector<std::pair<size_t, uint32_t>> relocs;
-
 		// Data relocations for constants.
 		// - [offset of insn start (not rel!), data id]
 		//
 		std::vector<uint64_t>                  data;
 		std::vector<std::pair<size_t, size_t>> data_relocs;
 
-		// Pending epilogue/prologue flags.
+		// Pending epilogue flag.
 		//
-		uint8_t pending_prologue : 1 = 0;
 		uint8_t pending_epilogue : 1 = 0;
 
 		// Hotness.
 		//
 		int32_t hot = 0;
+
+		// Jump condition.
+		//
+		ZydisMnemonic jcc       = ZYDIS_MNEMONIC_INVALID;
+		uint32_t      jmp_true  = 0;
+		uint32_t      jmp_false = 0;
 
 		// Adds an instruction.
 		//
@@ -211,6 +221,7 @@ namespace li::ir::jit {
 			blk.mproc = this;
 			blk.ibb   = bb;
 			blk.label = bb ? bb->uid : next_label++;
+			blk.hot   = bb->loop_depth - bb->cold_hint;
 			return blk;
 		}
 	};
@@ -318,9 +329,7 @@ namespace li::ir::jit {
 						lhs_r = to_reg(lhs, true);
 						rhs_r = load_const(rhs->as<constant>());
 					} else {
-						auto lhs_i = lhs->as<insn>();
-						auto rhs_i = rhs->as<insn>();
-						lhs_r = reg.check_reg(lhs_i->name);
+						lhs_r = reg.check_reg(lhs->as<insn>()->name);
 						if (!lhs_r) {
 							rhs_r = to_reg(rhs, std::nullopt);
 							lhs_r = to_reg(lhs, arch::is_gp(rhs_r));
@@ -429,12 +438,14 @@ namespace li::ir::jit {
 					mnemonic = ZYDIS_MNEMONIC_JNZ;
 				}
 
-				mc(mnemonic, i->operands[1]->as<constant>()->bb->uid);
-				mc(ZYDIS_MNEMONIC_JMP, i->operands[2]->as<constant>()->bb->uid); // TODO: Very dumb.
+				mc.jcc       = mnemonic;
+				mc.jmp_true  = i->operands[1]->as<constant>()->bb->uid;
+				mc.jmp_false = i->operands[2]->as<constant>()->bb->uid;
 				return nullptr;
 			}
 			case opcode::jmp:
-				mc(ZYDIS_MNEMONIC_JMP, i->operands[0]->as<constant>()->bb->uid);
+				mc.jcc      = ZYDIS_MNEMONIC_JMP;
+				mc.jmp_true = mc.jmp_false = i->operands[0]->as<constant>()->bb->uid;
 				return nullptr;
 
 			case opcode::coerce_cast: {
@@ -618,8 +629,8 @@ namespace li::ir::jit {
 		//
 		mc_procedure mproc{.next_label = proc->next_block_uid};
 
-		auto store_cb = [&](arch::reg reg, uint32_t slot) { mproc.blocks.back().move(zy::mem{.base = arch::sp, .disp = arch::shadow_stack + slot * 8}, reg); };
-		auto load_cb  = [&](arch::reg reg, uint32_t slot) { mproc.blocks.back().move(reg, zy::mem{.base = arch::sp, .disp = arch::shadow_stack + slot * 8}); };
+		auto store_cb = [&](arch::reg reg, uint32_t slot) { mproc.blocks.back().move(zy::mem{.base = arch::bp, .disp = slot * 8}, reg); };  // TODO: Save in vm stack instead.
+		auto load_cb  = [&](arch::reg reg, uint32_t slot) { mproc.blocks.back().move(reg, zy::mem{.base = arch::bp, .disp = slot * 8}); };
 		auto move_cb  = [&](arch::reg dst, arch::reg src) { mproc.blocks.back().move(dst, src); };
 		r.store       = store_cb;
 		r.load        = load_cb;
@@ -631,7 +642,8 @@ namespace li::ir::jit {
 		for (auto& bb : proc->basic_blocks) {
 			auto& mblk = mproc.add_block(bb.get());
 			for (auto i : *bb) {
-				//puts(i->to_string(true).c_str());
+				puts(i->to_string(true).c_str());
+
 				// If there is debug info, and it is not equal to the last entry, push.
 				//
 				if (i->source_bc != bc::no_pos) {
@@ -654,44 +666,97 @@ namespace li::ir::jit {
 			}
 		}
 
-		// Demo.
+		// Generate the epilogue and prologue.
 		//
-		//printf("\n");
-		//uint32_t index = 0;
-		//for (auto& bb : proc->basic_blocks) {
-		//	printf("-- Block $%u", bb->uid);
-		//	if (bb->cold_hint)
-		//		printf(LI_CYN " [COLD %u]" LI_DEF, (uint32_t) bb->cold_hint);
-		//	putchar('\n');
+		std::vector<uint8_t> prologue;
+		std::vector<uint8_t> epilogue;
+		{
+			auto used_gp_mask = r.cumilative_gp_reg_history;
+			auto used_fp_mask = r.cumilative_fp_reg_history;
+
+			// Push frame.
+			//
+			LI_ASSERT(zy::encode(prologue, ZYDIS_MNEMONIC_PUSH, arch::bp));
+			LI_ASSERT(zy::encode(prologue, ZYDIS_MNEMONIC_PUSH, arch::bp2));
+
+			// Push non-vol GPs.
+			//
+			size_t push_count = 2;
+			for (int i = std::size(arch::gp_volatile); i != arch::num_gp_reg; i++) {
+				if ((used_gp_mask >> i) & 1) {
+					push_count++;
+					LI_ASSERT(zy::encode(prologue, ZYDIS_MNEMONIC_PUSH, arch::to_native(arch::reg(i+1))));
+				}
+			}
+
+			// Allocate space and align stack.
+			//
+			int  num_fp_used = std::popcount(used_fp_mask >> std::size(arch::fp_volatile));
+			auto alloc_bytes = (push_count & 1 ? 0 : 8) + (arch::home_size + num_fp_used * vector_reg_size);
+			LI_ASSERT(zy::encode(prologue, ZYDIS_MNEMONIC_SUB, arch::sp, alloc_bytes));
+
+			// Save vector registers.
+			//
+			zy::mem vsave_it{.size = vector_reg_size, .base = arch::sp, .disp = arch::home_size};
+			for (int i = std::size(arch::fp_volatile); i != arch::num_fp_reg; i++) {
+				if ((used_fp_mask >> i) & 1) {
+					LI_ASSERT(zy::encode(prologue, vector_move, vsave_it, zy::reg(vector_full + i)));
+					vsave_it.disp += vector_reg_size;
+				}
+			}
+
+			// Load fixed registers.
+			//
+			LI_ASSERT(zy::encode(prologue, ZYDIS_MNEMONIC_MOV, arch::bp2, arch::gp_argument[0]));
+			LI_ASSERT(zy::encode(prologue, ZYDIS_MNEMONIC_MOV, arch::bp, arch::gp_argument[1]));
+
+			//
+			// TODO: Allocate local space.
+			//
+
+
+			// Load vector registers.
+			//
+			for (int i = std::size(arch::fp_volatile); i != arch::num_fp_reg; i++) {
+				if ((used_fp_mask >> i) & 1) {
+					vsave_it.disp -= vector_reg_size;
+					LI_ASSERT(zy::encode(epilogue, vector_move, vsave_it, zy::reg(vector_full + i)));
+				}
+			}
+
+			// Restore stack pointer.
+			//
+			LI_ASSERT(zy::encode(epilogue, ZYDIS_MNEMONIC_ADD, arch::sp, alloc_bytes));
+
+			// Pop non-vol GPs.
+			//
+			for (int i = arch::num_gp_reg - 1; i >= std::size(arch::gp_volatile); i--) {
+				if ((used_gp_mask >> i) & 1) {
+					LI_ASSERT(zy::encode(epilogue, ZYDIS_MNEMONIC_POP, arch::to_native(arch::reg(i + 1))));
+				}
+			}
+
+			// Pop frame.
+			//
+			LI_ASSERT(zy::encode(epilogue, ZYDIS_MNEMONIC_POP, arch::bp2));
+			LI_ASSERT(zy::encode(epilogue, ZYDIS_MNEMONIC_POP, arch::bp));
+			epilogue.emplace_back(0xC3); // RETN
+		}
+
+		// Insert as needed and shift the data.
 		//
-		//	for (auto i : *bb) {
-		//		arch::reg result_reg = -999;
-		//		if (i->vt != type::none && !i->is<compare>() /*lolz*/) {
-		//			result_reg = r.get_anyreg(index, i->name, true);
-		//		}
-		//
-		//		std::vector<arch::reg> arg_regs = {};
-		//		for (auto& op : i->operands) {
-		//			if (!op->is<constant>()) {
-		//				arg_regs.emplace_back(r.get_anyreg(index, op->as<insn>()->name, true));
-		//			} else {
-		//				arg_regs.emplace_back(-999);
-		//			}
-		//		}
-		//		printf(LI_GRN "#%-5x" LI_DEF " %s {%02x}", i->source_bc, i->to_string(true).c_str(), index);
-		//		if (result_reg != -999)
-		//			printf(" # => %s", arch::name_native(arch::to_native(result_reg)));
-		//		else
-		//			printf(" # => NULL");
-		//		for (size_t k = 0; k != arg_regs.size(); k++) {
-		//			if (arg_regs[k] != -999) {
-		//				printf(" - %s", arch::name_native(arch::to_native(arg_regs[k])));
-		//			}
-		//		}
-		//		putchar('\n');
-		//		++index;
-		//	}
-		//}
+		for (auto& b : mproc.blocks) {
+			if (&b == &mproc.blocks.front()) {
+				b.code.insert(b.code.begin(), prologue.begin(), prologue.end());
+				for (auto& [_, ip] : b.bc_to_ip)
+					ip += prologue.size();
+				for (auto& [ip, _] : b.data_relocs)
+					ip += prologue.size();
+			}
+			if (b.pending_epilogue) {
+				b.code.insert(b.code.end(), epilogue.begin(), epilogue.end());
+			}
+		}
 		return string::create(proc_proto->L, "unknown JIT error");
 	}
 };

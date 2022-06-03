@@ -197,6 +197,8 @@ namespace li::ir {
 			printf("-- Block $%u", uid);
 			if (cold_hint)
 				printf(LI_CYN " [COLD %u]" LI_DEF, (uint32_t) cold_hint);
+			if (loop_depth)
+				printf(LI_RED " [LOOP %u]" LI_DEF, (uint32_t) loop_depth);
 			putchar('\n');
 
 			for (auto i : *this) {

@@ -43,7 +43,7 @@ namespace li::ir::opt {
 			same = op;
 		}
 		// users = phi.users.remove(phi)
-		auto blk = phi->parent;
+		//auto blk = phi->parent;
 		phi->replace_all_uses(same);
 		phi->erase();
 		// for use in users:

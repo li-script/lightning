@@ -43,8 +43,10 @@ namespace li::ir::jit {
 
 		// Mask of register allocations.
 		//
-		uint64_t                    allocated_gp_regs = 0;
-		uint64_t                    allocated_fp_regs = 0;
+		uint64_t active_gp_regs            = 0;
+		uint64_t active_fp_regs            = 0;
+		uint64_t cumilative_gp_reg_history = 0;
+		uint64_t cumilative_fp_reg_history = 0;
 
 		// Stack for spilled values.
 		//
@@ -96,23 +98,26 @@ namespace li::ir::jit {
 		//
 		void mark_alloc(arch::reg r) {
 			if (r > 0)
-				allocated_gp_regs |= 1ull << (r - 1);
+				active_gp_regs |= 1ull << (r - 1);
 			else if (r < 0)
-				allocated_fp_regs |= 1ull << (-(r + 1));
+				active_fp_regs |= 1ull << (-(r + 1));
 			else
 				util::abort("allocating null register.");
+
+			cumilative_gp_reg_history |= active_gp_regs;
+			cumilative_fp_reg_history |= active_fp_regs;
 		}
 		void mark_free(arch::reg r) {
 			if (r > 0)
-				allocated_gp_regs &= ~(1ull << (r - 1));
+				active_gp_regs &= ~(1ull << (r - 1));
 			else if (r < 0)
-				allocated_fp_regs &= ~(1ull << (-(r + 1)));
+				active_fp_regs &= ~(1ull << (-(r + 1)));
 		}
 		bool is_free(arch::reg r) const {
 			if (r > 0)
-				return allocated_gp_regs & (1ull << (r - 1));
+				return active_gp_regs & (1ull << (r - 1));
 			else if (r < 0)
-				return allocated_fp_regs & (1ull << (-(r + 1)));
+				return active_fp_regs & (1ull << (-(r + 1)));
 			else
 				util::abort("testing null register.");
 		}
@@ -175,7 +180,7 @@ namespace li::ir::jit {
 		// save information about each attempt.
 		//
 		arch::reg alloc_next(uint32_t ip, bool gp, size_t index = 0, bool must_be_vol = false) {
-			uint64_t mask = gp ? allocated_gp_regs : allocated_fp_regs;
+			uint64_t mask = gp ? active_gp_regs : active_fp_regs;
 			size_t   limit;
 			if (must_be_vol) {
 				limit = gp ? std::size(arch::gp_volatile) : std::size(arch::fp_volatile);
@@ -190,6 +195,9 @@ namespace li::ir::jit {
 					return arch::reg_none;
 				}
 				if (!index--) {
+					if (gp) cumilative_gp_reg_history |= 1ull << r;
+					else    cumilative_fp_reg_history |= 1ull << r;
+
 					return gp ? arch::reg(r + 1) : arch::reg(-(r + 1));
 				}
 				mask &= ~(1ull << r);
@@ -320,13 +328,13 @@ namespace li::ir::jit {
 
 			// Otherwise pick based on most volatile regs available.
 			//
-			auto num_gp_available = std::popcount(~allocated_gp_regs & util::fill_bits((int) std::size(arch::gp_volatile)));
-			auto num_fp_available = std::popcount(~allocated_fp_regs & util::fill_bits((int) std::size(arch::fp_volatile)));
+			auto num_gp_available = std::popcount(~active_gp_regs & util::fill_bits((int) std::size(arch::gp_volatile)));
+			auto num_fp_available = std::popcount(~active_fp_regs & util::fill_bits((int) std::size(arch::fp_volatile)));
 			if (num_gp_available != num_fp_available) {
 				return num_gp_available > num_fp_available;
 			}
-			num_gp_available = std::popcount(~allocated_gp_regs & util::fill_bits(arch::num_gp_reg));
-			num_fp_available = std::popcount(~allocated_fp_regs & util::fill_bits(arch::num_fp_reg));
+			num_gp_available = std::popcount(~active_gp_regs & util::fill_bits(arch::num_gp_reg));
+			num_fp_available = std::popcount(~active_fp_regs & util::fill_bits(arch::num_fp_reg));
 			if (num_gp_available != num_fp_available) {
 				return num_gp_available > num_fp_available;
 			}

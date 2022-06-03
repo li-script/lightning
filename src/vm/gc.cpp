@@ -208,11 +208,10 @@ namespace li::gc {
 	static void traverse_live(vm* L, stage_context s) {
 		// Stack.
 		//
-		for (auto& e : std::span{L->stack, (size_t) L->stack_top}) {
+		for (auto& e : std::span{L->stack, L->stack_top}) {
 			if (e.is_gc())
 				e.as_gc()->gc_tick(s);
 		}
-		std::prev(((header*) L->stack))->gc_tick(s);
 
 		// Globals.
 		//
@@ -227,7 +226,7 @@ namespace li::gc {
 	void state::close(vm* L) {
 		// Clear stack and globals.
 		//
-		L->stack_top = 0;
+		L->stack_top = L->stack;
 		fill_none(L->globals->begin(), L->globals->realsize() * 2);
 
 		// GC.

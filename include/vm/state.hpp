@@ -7,6 +7,13 @@
 #include <span>
 #include <optional>
 
+#ifndef LI_STACK_SIZE
+	#define LI_STACK_SIZE (4*1024*1024)
+#endif
+#ifndef LI_SAFE_STACK
+	#define LI_SAFE_STACK 0
+#endif
+
 namespace li {
 	struct vm;
 
@@ -21,12 +28,6 @@ namespace li {
 	void strset_init(vm* L);
 	void strset_sweep(vm* L, gc::stage_context s);
 
-	// Pseudo-type for stack.
-	//
-	struct vm_stack : gc::leaf<vm_stack> {
-		any list[];
-	};
-
 	// Call frame as a linked list of caller records.
 	//
 	static constexpr uint32_t MAX_ARGS       = 32;
@@ -36,8 +37,10 @@ namespace li {
 	static constexpr slot_t   FRAME_CALLER   = -1;
 	static constexpr slot_t   FRAME_SIZE     = 3;
 	static constexpr uint64_t FRAME_C_FLAG   = (1ll << 17);
-	static constexpr slot_t   MAX_STACK_SIZE = (slot_t) util::fill_bits(23);
+	static constexpr slot_t   STACK_LENGTH   = LI_STACK_SIZE / sizeof(any);
 	static constexpr slot_t   BC_MAX_IP      = FRAME_C_FLAG - 1;
+	static_assert(STACK_LENGTH <= util::fill_bits(23), "Stack configured too large.");
+
 	struct call_frame {
 		// [locals of caller]
 		// argn>
@@ -67,8 +70,6 @@ namespace li {
 	//
 	struct vm : gc::leaf<vm> {
 		static vm* create(fn_alloc alloc = &platform::page_alloc, void* allocu = nullptr, size_t context_space = 0);
-
-		static constexpr size_t initial_stack_length   = 32;
 		static constexpr size_t reserved_global_length = 32;
 
 		// VM state.
@@ -80,8 +81,7 @@ namespace li {
 		table*           globals        = nullptr;           // Globals.
 		uint64_t         prng_seed      = platform::srng();  // PRNG seed.
 		any*             stack          = nullptr;           // Stack base.
-		slot_t           stack_top      = 0;                 // Top of the stack. TODO: Make size_t, unnecessary zx.
-		slot_t           stack_len      = 0;                 // Maximum length of the stack.
+		any*             stack_top      = nullptr;           // Top of the stack.
 		call_frame       last_vm_caller = {};                // Last valid VM frame that called into C.
 		fn_parse_builtin builtin_parser = nullptr;           // Parser callback to emit bytecode for builtins.
 
@@ -89,46 +89,40 @@ namespace li {
 		//
 		void close();
 
-		// Grows the stack range by n.
-		//
-		LI_COLD void grow_stack(slot_t n = 0) {
-			n     = std::max(n, stack_len);
-			if ((stack_len + n) > MAX_STACK_SIZE) [[unlikely]] {
-				panic("stack too large.");
-			}
-			auto* new_stack = alloc<vm_stack>((stack_len + n) * sizeof(any));
-			memcpy(new_stack->list, stack, stack_top * sizeof(any));
-			stack_len = slot_t(new_stack->extra_bytes() / sizeof(any));
-			gc.free(this, std::prev((gc::header*) stack));
-			stack = new_stack->list;
-		}
-
 		// Pushes to or pops from the stack.
 		//
 		LI_INLINE void push_stack(any x) {
-			if (stack_top == stack_len) [[unlikely]] {
-				grow_stack(0);
+#if LI_SAFE_STACK
+			if (stack_top >= (stack+STACK_LENGTH)) [[unlikely]] {
+				panic("stack too large.");
 			}
-			stack[stack_top++] = x;
+#endif
+			*stack_top++ = x;
 		}
-		LI_INLINE slot_t alloc_stack(slot_t n) {
-			if ((stack_top + n) >= stack_len) [[unlikely]] {
-				grow_stack(n);
-			}
-			slot_t s = stack_top;
+		LI_INLINE any* alloc_stack(slot_t n) {
+			any* s = stack_top;
 			stack_top += n;
+#if LI_SAFE_STACK
+			if (stack_top >= (stack + STACK_LENGTH)) [[unlikely]] {
+				panic("stack too large.");
+			}
+#endif
 			return s;
 		}
 		LI_INLINE void pop_stack_n(slot_t n) {
-			stack_top = std::max(stack_top, n) - n;
+#if LI_SAFE_STACK
+			n = std::min<slot_t>(n, stack_top - stack);
+#endif
+			stack_top -= n;
 		}
-		LI_INLINE any peek_stack() { return stack[stack_top - 1]; }
+		LI_INLINE any  peek_stack() { return stack_top[-1]; }
 		LI_INLINE any pop_stack() {
-			if (stack_top == 0) {
-				return any{};
-			} else {
-				return stack[--stack_top];
-			}
+#if LI_SAFE_STACK
+			 if (stack_top == stack) {
+				 return any{};
+			 }
+#endif
+			return *--stack_top;
 		}
 
 		// Error helper.
@@ -162,12 +156,12 @@ namespace li {
 		// Simple version of call() for user-invocation that pops all arguments and the function/self from ToS.
 		//
 		bool scall(slot_t n_args, any fn, any self = none) {
-			slot_t req_slot = stack_top - n_args;
+			any* req_slot = stack_top - n_args;
 			push_stack(self);
 			push_stack(fn);
-			bool ok         = call(n_args, last_vm_caller.stack_pos, uint32_t(last_vm_caller.caller_pc | FRAME_C_FLAG));
-			stack[req_slot] = stack[stack_top + FRAME_RET];
-			stack_top       = req_slot + 1;
+			bool ok   = call(n_args, last_vm_caller.stack_pos, uint32_t(last_vm_caller.caller_pc | FRAME_C_FLAG));
+			*req_slot = stack_top[FRAME_RET];
+			stack_top = req_slot + 1;
 			return ok;
 		}
 

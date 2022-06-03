@@ -25,9 +25,12 @@ namespace li {
 
 		// Initialize stack.
 		//
-		auto* stack  = L->alloc<vm_stack>(vm::initial_stack_length * sizeof(any));
-		L->stack_len = slot_t(stack->extra_bytes() / sizeof(any));
-		L->stack     = stack->list;
+		L->stack    = (any*) alloc(allocu, 0, (STACK_LENGTH * sizeof(any)) >> 12, false);
+		L->stack_top = L->stack;
+		if (!L->stack) [[unlikely]] {
+			alloc(allocu, ptr, length, false);
+			return nullptr;
+		}
 
 		// Initialize globals and string interning state.
 		//
@@ -38,5 +41,9 @@ namespace li {
 
 	// Closes the VM state.
 	//
-	void vm::close() { gc.close(this); }
+	void vm::close()
+	{
+		gc.alloc_fn(gc.alloc_ctx, stack, (STACK_LENGTH * sizeof(any)) >> 12, false);
+		gc.close(this);
+	}
 };

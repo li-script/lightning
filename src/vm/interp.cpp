@@ -20,7 +20,6 @@ namespace li {
 		auto [r, ok] = apply_unary(L, REG(b), K);             \
 		if (!ok) [[unlikely]]                                 \
 			VM_RET(r, true);                                   \
-		dirty_stack(); /*TODO: not really unless metacalled*/ \
 		REG(a) = r;                                           \
 		continue;                                             \
 	}
@@ -29,36 +28,29 @@ namespace li {
 		auto [r, ok] = apply_binary(L, REG(b), REG(c), K);    \
 		if (!ok) [[unlikely]]                                 \
 			VM_RET(r, true);                                   \
-		dirty_stack(); /*TODO: not really unless metacalled*/ \
 		REG(a) = r;                                           \
 		continue;                                             \
 	}
-#define VM_RET(value, ex)                                          \
-	{                                                               \
-		stack[locals_begin + FRAME_RET] = value;                     \
-		state                           = ex ? vm_exception : vm_ok; \
-		goto vret;                                                   \
+#define VM_RET(value, ex)                                  \
+	{                                                       \
+		locals_begin[FRAME_RET] = value;                     \
+		state                   = ex ? vm_exception : vm_ok; \
+		goto vret;                                           \
 	}
 #if !LI_DEBUG
-	#define REG(...)  stack[locals_begin + (__VA_ARGS__)]
+	#define REG(...)  locals_begin[(__VA_ARGS__)]
 	#define UVAL(...) f->uvals()[(__VA_ARGS__)]
 	#define KVAL(...) f->kvals()[(__VA_ARGS__)]
 #endif
 
 	LI_NOINLINE static bool vm_loop(vm* __restrict L, call_frame frame, vm_state state) {
-		// Cache stack locally, we will update the reference if we call into anything with side-effects.
-		//
-		any* __restrict stack = nullptr;
-		auto dirty_stack      = [&]() LI_INLINE { stack = L->stack; };
-		dirty_stack();
-
 		// VM loop:
 		//
 		while (true) {
 			// If function entry:
 			//
 			function* f = nullptr;
-			slot_t    locals_begin;
+			any* __restrict locals_begin;
 			slot_t    n_args = 0;
 			int64_t   ip     = 0;
 			if (state == vm_begin) {
@@ -69,23 +61,21 @@ namespace li {
 				uint32_t caller_frame = caller.stack_pos;
 				uint32_t caller_pc    = caller.caller_pc;
 				L->push_stack(bit_cast<opaque>(caller));
-				dirty_stack();
 				locals_begin = L->stack_top;
 
 				// Validate function.
 				//
-				auto& vf = stack[L->stack_top + FRAME_TARGET];
+				auto& vf = locals_begin[FRAME_TARGET];
 				if (vf.is_traitful() && ((traitful_node<>*) vf.as_gc())->has_trait<trait::call>()) {
-					stack[L->stack_top + FRAME_SELF] = vf;
-					vf                               = vf.as_tbl()->get_trait<trait::call>();
+					locals_begin[FRAME_SELF] = vf;
+					vf                       = vf.as_tbl()->get_trait<trait::call>();
 				}
 				if (vf.is_nfn()) {
 					state = vf.as_nfn()->call(L, n_args, caller_frame, caller_pc) ? vm_ok : vm_exception;
-					dirty_stack();
 					goto vret;
 				} else if (!vf.is_vfn()) [[unlikely]] {
-					stack[L->stack_top + FRAME_RET] = string::format(L, "invoking non-function");
-					state                           = vm_exception;
+					locals_begin[FRAME_RET] = string::format(L, "invoking non-function");
+					state                   = vm_exception;
 					goto vret;
 				}
 
@@ -93,16 +83,14 @@ namespace li {
 				//
 				f = vf.as_vfn();
 				if (f->num_arguments > n_args) [[unlikely]] {
-					stack[L->stack_top + FRAME_RET] = string::format(L, "expected at least %u arguments, got %u", f->num_arguments, n_args);
-					state                           = vm_exception;
+					locals_begin[FRAME_RET] = string::format(L, "expected at least %u arguments, got %u", f->num_arguments, n_args);
+					state                   = vm_exception;
 					goto vret;
 				}
 				// Allocate locals and call.
 				//
 				else {
-					L->alloc_stack(f->num_locals + MAX_ARGS);
-					L->pop_stack_n(MAX_ARGS);
-					dirty_stack();
+					L->alloc_stack(f->num_locals);
 				}
 			}
 			// If returning:
@@ -116,13 +104,13 @@ namespace li {
 
 				// Unpack VM state.
 				//
-				locals_begin = frame.stack_pos;
+				locals_begin = &L->stack[frame.stack_pos];
 				ip           = (int64_t) frame.caller_pc;
-				any vf       = stack[locals_begin + FRAME_TARGET];
+				any vf       = locals_begin[FRAME_TARGET];
 				LI_ASSERT(vf.is_vfn());
 				f = vf.as_vfn();
 #if LI_DEBUG
-				n_args = bit_cast<call_frame>(stack[locals_begin + FRAME_CALLER].as_opq()).n_args;
+				n_args = bit_cast<call_frame>(locals_begin[FRAME_CALLER].as_opq()).n_args;
 #endif
 			}
 
@@ -138,7 +126,7 @@ namespace li {
 					} else {
 						LI_ASSERT(f->num_locals > (uint32_t) r);
 					}
-					return stack[locals_begin + r];
+					return locals_begin[r];
 				};
 				auto UVAL = [&](bc::reg r) LI_INLINE -> any& {
 					LI_ASSERT(f->num_uval > (uint32_t) r);
@@ -179,7 +167,6 @@ namespace li {
 
 						case bc::CCAT: {
 							REG(a) = string::concat(L, &REG(a), b);
-							dirty_stack();  // meta
 							continue;
 						}
 						case bc::CTY: {
@@ -402,7 +389,6 @@ namespace li {
 								if (!ok) [[unlikely]] {
 									VM_RET(r, true);
 								}
-								dirty_stack();
 								REG(a) = r;
 							} else if (tbl.is_arr()) {
 								if (!key.is_num() || key.as_num() < 0) [[unlikely]] {
@@ -451,7 +437,6 @@ namespace li {
 							if (!ok) [[unlikely]] {
 								VM_RET(r, true);
 							}
-							dirty_stack();
 							L->gc.tick(L);
 							continue;
 						}
@@ -460,7 +445,6 @@ namespace li {
 								VM_RET(string::create(L, "indexing with null key"), true);
 							}
 							REG(a) = f->environment->get(L, REG(b));
-							dirty_stack();  // meta
 							continue;
 						}
 						case bc::GSET: {
@@ -468,7 +452,6 @@ namespace li {
 								VM_RET(string::create(L, "indexing with null key"), true);
 							}
 							f->environment->set(L, REG(a), REG(b));
-							dirty_stack();  // meta
 							L->gc.tick(L);
 							continue;
 						}
@@ -604,23 +587,23 @@ namespace li {
 							continue;
 						}
 						case bc::CALL: {
-							frame = {.stack_pos = locals_begin, .caller_pc = (uint32_t) ip, .n_args = a};
+							frame = {.stack_pos = locals_begin - L->stack, .caller_pc = (uint32_t) ip, .n_args = a};
 							goto vcall;
 						}
 						// Size availability guaranteed by +MAX_ARGUMENTS over-allocation.
 						case bc::PUSHR:
-							stack[L->stack_top++] = REG(a);
+							L->push_stack(REG(a));
 							continue;
 						case bc::PUSHI:
-							stack[L->stack_top++] = any(std::in_place, insn.xmm());
+							L->push_stack(any(std::in_place, insn.xmm()));
 							continue;
 						case bc::SLOAD:
-							REG(a) = stack[L->stack_top - b];
+							REG(a) = L->stack_top[-b];
 							continue;
 						case bc::SRST:
 							// TODO: Hakc!
 							if (state == vm_exception) {
-								VM_RET(stack[L->stack_top + FRAME_RET], true);
+								VM_RET(L->stack_top[FRAME_RET], true);
 							}
 							L->stack_top = locals_begin + f->num_locals;
 							continue;
@@ -640,13 +623,11 @@ namespace li {
 			// Calling another function?
 			//
 		vcall:
-			LI_ASSERT(stack == L->stack);
 			state = vm_begin;
 			continue;
 
 		vret:
 			LI_ASSERT(state != vm_begin);
-			LI_ASSERT(stack == L->stack);
 
 			// Reset stack.
 			//
@@ -654,7 +635,7 @@ namespace li {
 
 			// If not returning to C, recurse.
 			//
-			frame = bit_cast<call_frame>(stack[locals_begin + FRAME_CALLER].as_opq());
+			frame = bit_cast<call_frame>(locals_begin[FRAME_CALLER].as_opq());
 			if (frame.multiplexed_by_c()) {
 				return state == vm_ok;
 			}

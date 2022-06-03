@@ -50,15 +50,15 @@ namespace li {
 
 		// Invoke callback.
 		//
-		slot_t lim = L->stack_top;
-		bool   ok  = callback(L, &L->stack[L->stack_top - 1 - FRAME_SIZE], n_args);
+		auto lim = L->stack_top;
+		bool ok  = callback(L, &lim[-1 - FRAME_SIZE], n_args);
 
 		// If anything pushed, move to result slot, else set sensable defaults.
 		//
 		if (L->stack_top > lim) {
-			L->stack[lim + FRAME_RET] = L->stack[L->stack_top - 1];
+			lim[FRAME_RET] = L->stack_top[-1];
 		} else {
-			L->stack[lim + FRAME_RET] = ok ? any() : L->empty_string;
+			lim[FRAME_RET] = ok ? any() : L->empty_string;
 		}
 
 		// Restore c-frame and stack position, return.

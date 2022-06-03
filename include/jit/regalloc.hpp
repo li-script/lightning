@@ -26,7 +26,7 @@ namespace li::ir::jit {
 
 		// Current register and spill slot.
 		//
-		arch::reg phys_reg   = 0;
+		arch::reg phys_reg   = arch::reg_none;
 		int32_t   spill_slot = -1;
 	};
 
@@ -98,7 +98,7 @@ namespace li::ir::jit {
 			if (r > 0)
 				allocated_gp_regs |= 1ull << (r - 1);
 			else if (r < 0)
-				allocated_fp_regs |= 1ull << (-(r - 1));
+				allocated_fp_regs |= 1ull << (-(r + 1));
 			else
 				util::abort("allocating null register.");
 		}
@@ -106,13 +106,13 @@ namespace li::ir::jit {
 			if (r > 0)
 				allocated_gp_regs &= ~(1ull << (r - 1));
 			else if (r < 0)
-				allocated_fp_regs &= ~(1ull << (-(r - 1)));
+				allocated_fp_regs &= ~(1ull << (-(r + 1)));
 		}
 		bool is_free(arch::reg r) const {
 			if (r > 0)
 				return allocated_gp_regs & (1ull << (r - 1));
 			else if (r < 0)
-				return allocated_fp_regs & (1ull << (-(r - 1)));
+				return allocated_fp_regs & (1ull << (-(r + 1)));
 			else
 				util::abort("testing null register.");
 		}
@@ -124,7 +124,7 @@ namespace li::ir::jit {
 			//
 			auto& r = vreg[owner];
 			if (r.max_live <= ip) {
-				mark_free(std::exchange(r.phys_reg, 0));
+				mark_free(std::exchange(r.phys_reg, arch::reg_none));
 				return;
 			}
 
@@ -134,7 +134,7 @@ namespace li::ir::jit {
 			if (!noreg && ip < (1 + r.live.size()) && r.live[ip + 1]) {
 				auto new_reg = get_anyreg(ip, owner, r.phys_reg > 0);
 				move(new_reg, r.phys_reg);
-				mark_free(std::exchange(r.phys_reg, 0));
+				mark_free(std::exchange(r.phys_reg, arch::reg_none));
 				return;
 			}
 
@@ -155,7 +155,7 @@ namespace li::ir::jit {
 			}
 			r.spill_slot = spill_slot;
 			store(r.phys_reg, spill_slot);
-			mark_free(std::exchange(r.phys_reg, 0));
+			mark_free(std::exchange(r.phys_reg, arch::reg_none));
 		}
 
 		// Spills a physical register on demand.
@@ -183,14 +183,14 @@ namespace li::ir::jit {
 				limit = gp ? arch::num_gp_reg : arch::num_fp_reg;
 			}
 
-			arch::reg r = 0;
+			arch::reg r = arch::reg_none;
 			while (true) {
-				r = std::countr_one(mask);
+				r = (arch::reg)std::countr_one(mask);
 				if (r >= limit) {
-					return 0;
+					return arch::reg_none;
 				}
 				if (!index--) {
-					return gp ? r + 1 : -(r + 1);
+					return gp ? arch::reg(r + 1) : arch::reg(-(r + 1));
 				}
 				mask &= ~(1ull << r);
 			}
@@ -260,7 +260,7 @@ namespace li::ir::jit {
 			for (auto& r : vreg) {
 				if (r.max_live < ip) {
 					mark_free(r.phys_reg);
-					r.phys_reg = 0;
+					r.phys_reg = arch::reg_none;
 				}
 			}
 
@@ -300,12 +300,12 @@ namespace li::ir::jit {
 				// How could this happen.
 				//
 				if (!r)
-					return 0;
+					return arch::reg_none;
 			}
 
 			// Forward to exact allocator.
 			//
-			return get_reg(ip, name, r, discard_value) ? r : 0;
+			return get_reg(ip, name, r, discard_value) ? r : arch::reg_none;
 		}
 
 		// If caller does not care about the register type, it should call this function to

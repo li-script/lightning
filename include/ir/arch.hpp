@@ -117,24 +117,26 @@ namespace li::ir::arch {
 	// Internal type.
 	// - fpnonvol, fpvol < 0 none < +gpvol, gpnonvol.
 	//
-	using reg = int32_t;
+	enum reg : int32_t { reg_none = 0 };
 	static constexpr bool is_volatile(reg r) {
 		reg lim = (reg) std::size(gp_volatile);
 		if (r < 0) {
 			lim = (reg) std::size(fp_volatile);
-			r   = -r;
+			r   = (reg) -r;
 		}
 		return r <= lim;
 	}
+	static constexpr bool is_gp(reg r) { return r > 0; }
+	static constexpr bool is_fp(reg r) { return r < 0; }
 
 	// Translation between each.
 	//
 	static constexpr std::array<native_reg, num_fp_reg + 1 + num_gp_reg> virtual_to_native_map = []() {
 		std::array<native_reg, num_fp_reg + 1 + num_gp_reg> res = {};
 		size_t                                              it  = 0;
-		for (native_reg r : fp_nonvolatile)
+		for (native_reg r : view::reverse(fp_nonvolatile))
 			res[it++] = r;
-		for (native_reg r : fp_volatile)
+		for (native_reg r : view::reverse(fp_volatile))
 			res[it++] = r;
 		res[it++] = invalid;
 		for (native_reg r : gp_volatile)
@@ -144,18 +146,18 @@ namespace li::ir::arch {
 		return res;
 	}();
 	static constexpr native_reg to_native(reg i) {
-		i += num_fp_reg;
+		i = reg(i + num_fp_reg);
 		if (0 <= i && i < std::size(virtual_to_native_map)) {
 			return virtual_to_native_map[i];
 		}
 		return invalid;
 	}
 	static constexpr reg from_native(native_reg n) {
-		for (reg r = 0; r != virtual_to_native_map.size(); r++) {
+		for (reg r = reg_none; r != virtual_to_native_map.size(); r = reg(r + 1)) {
 			if (virtual_to_native_map[r] == n)
-				return r - num_fp_reg;
+				return reg(r - num_fp_reg);
 		}
-		return 0;
+		return reg(0);
 	}
 
 	// Argument resolver.
@@ -169,5 +171,5 @@ namespace li::ir::arch {
 			return std::size(fp_argument) < idx ? fp_argument[idx] : invalid;
 		}
 	}
-	static constexpr reg map_argument(size_t gp_arg_index, size_t fp_arg_index, bool fp) { return to_native(map_argument_native(gp_arg_index, fp_arg_index, fp)); };
+	static constexpr reg map_argument(size_t gp_arg_index, size_t fp_arg_index, bool fp) { return from_native(map_argument_native(gp_arg_index, fp_arg_index, fp)); };
 };

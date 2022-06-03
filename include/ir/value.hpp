@@ -343,6 +343,36 @@ namespace li::ir {
 			}
 		}
 
+		// Conversion to any.
+		//
+		any to_any() const {
+			if (vt == type::i1) {
+				return any(i1);
+			} else if (type::i8 <= vt && vt <= type::i64) {
+				return any(number(i));
+			} else if (type::f32 <= vt && vt <= type::f64) {
+				return any(n);
+			} else if (vt == type::nil) {
+				return any(none);
+			} else if (vt == type::opq) {
+				return any(opq);
+			} else if (vt == type::tbl) {
+				return any(tbl);
+			} else if (vt == type::udt) {
+				return any(udt);
+			} else if (vt == type::arr) {
+				return any(arr);
+			} else if (vt == type::vfn) {
+				return any(vfn);
+			} else if (vt == type::nfn) {
+				return any(nfn);
+			} else if (vt == type::str) {
+				return any(str);
+			} else {
+				util::abort("cannot coerce %s to any", to_string().c_str());
+			}
+		}
+
 		// Equality comparison.
 		//
 		constexpr bool operator==(const constant& other) const { return i == other.i && vt == other.vt; }

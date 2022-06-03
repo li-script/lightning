@@ -68,6 +68,9 @@
     <ClCompile Include="..\src\ir\proc.cpp">
       <Filter>IR\Core</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\jit\x64.cpp">
+      <Filter>JIT</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Language">
@@ -193,6 +196,9 @@
       <Filter>Utility</Filter>
     </ClInclude>
     <ClInclude Include="..\include\jit\regalloc.hpp">
+      <Filter>JIT</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\jit\target.hpp">
       <Filter>JIT</Filter>
     </ClInclude>
   </ItemGroup>

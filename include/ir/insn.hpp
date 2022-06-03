@@ -37,7 +37,6 @@ namespace li::ir {
 		//
 		unop,
 		binop,
-		binary_binop,
 
 		// Upvalue.
 		//
@@ -121,7 +120,7 @@ namespace li::ir {
 
 		// Forced register ids.
 		//
-		arch::reg force_result_reg = 0;
+		arch::reg              force_result_reg   = arch::reg_none;
 		std::vector<arch::reg> force_operand_regs = {};
 
 		// Operands.
@@ -562,7 +561,7 @@ namespace li::ir {
 			LI_ASSERT(operands[1]->is(type::ptr));
 			vt = operands[0]->as<constant>()->irtype;
 			if (vt == type::f32 || vt == type::f64) {
-				force_result_reg = arch::fp_retval;
+				force_result_reg = arch::from_native(arch::fp_retval);
 			}
 
 			force_operand_regs.clear();

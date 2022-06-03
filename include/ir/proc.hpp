@@ -474,7 +474,6 @@ namespace li::ir {
 		// Printer.
 		//
 		void print() {
-			printf("---------------------------------\n");
 			for (auto& bb : basic_blocks) {
 				bb->print();
 			}

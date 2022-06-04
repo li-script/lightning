@@ -138,11 +138,15 @@ namespace li {
 				TYPE_ASSERT(a, type_number);
 				TYPE_ASSERT(b, type_number);
 				return {any(a.as_num() / b.as_num()), true};
-			case bc::AMOD:
+			case bc::AMOD: {
 				BINARY_APPLY_TRAIT(trait::mod);
 				TYPE_ASSERT(a, type_number);
 				TYPE_ASSERT(b, type_number);
-				return {any(fmod(a.as_num(), b.as_num())), true};
+
+				double x = a.as_num();
+				double y = b.as_num();
+				return {any(x - trunc(x / y) * y), true};
+			}
 			case bc::APOW:
 				BINARY_APPLY_TRAIT(trait::pow);
 				TYPE_ASSERT(a, type_number);

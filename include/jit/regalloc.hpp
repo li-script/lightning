@@ -23,6 +23,7 @@ namespace li::ir::jit {
 		std::vector<bool> live;
 		uint32_t          max_live = 0;
 		uint32_t          min_live = 0;
+		bool              is_fp    = false;
 
 		// Current register and spill slot.
 		//
@@ -355,8 +356,14 @@ namespace li::ir::jit {
 					continue;
 				printf(LI_RED "%-3u" LI_DEF "", j);
 				for (uint32_t k = 0; k != vreg.size(); k++) {
-					if (vreg[j].live[k])
-						printf(LI_BLU "|++");
+					if (vreg[j].live[k]) {
+						if (vreg[j].min_live > k)
+							printf(LI_RED "|**");
+						else if (vreg[j].is_fp)
+							printf(LI_PRP "|++");
+						else
+							printf(LI_BLU "|++");
+					}
 					else if (vreg[j].min_live <= k && k <= vreg[j].max_live)
 						printf(LI_DEF "|——");
 					else
@@ -375,7 +382,10 @@ namespace li::ir::jit {
 		for (auto& bb : proc->basic_blocks) {
 			for (auto phi : bb->phis()) {
 				for (size_t i = 0; i != phi->operands.size(); i++) {
-					phi->operands[i] = builder{}.emit_before<move>(bb->predecessors[i]->back(), phi->operands[i]);
+					if (phi->vt == type::unk && phi->operands[i]->vt != type::unk)
+						phi->operands[i] = builder{}.emit_before<erase_type>(bb->predecessors[i]->back(), phi->operands[i]);
+					else
+						phi->operands[i] = builder{}.emit_before<move>(bb->predecessors[i]->back(), phi->operands[i]);
 				}
 			}
 		}
@@ -422,6 +432,7 @@ namespace li::ir::jit {
 				if (ins->vt != type::none) {
 					r.vreg[ins->name].live[ins->name] = true;
 					r.vreg[ins->name].min_live        = ins->name;
+					r.vreg[ins->name].is_fp           = ins->vt == type::f64 || ins->vt == type::f32;
 				}
 			}
 

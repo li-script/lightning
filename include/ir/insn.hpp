@@ -49,9 +49,10 @@ namespace li::ir {
 		assume_cast,
 		coerce_cast,
 
-		// Machine IR.
+		// Low level IR.
 		//
 		move,
+		erase_type,
 
 		// Conditionals.
 		//
@@ -589,6 +590,15 @@ namespace li::ir {
 		}
 		bool rec_type_check(type x) override {
 			return operands[0]->type_try_settle(x);
+		}
+	};
+	// unk  erase_type(T x)
+	struct erase_type final : insn_tag<erase_type, opcode::erase_type> {
+		void update() override {
+			is_const = true;
+			alias    = true;
+			LI_ASSERT(operands.size() == 1);
+			vt = type::unk;
 		}
 	};
 	// none store_local(const i32, unk)

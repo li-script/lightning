@@ -34,9 +34,23 @@ namespace li::ir::opt {
 				if (term->is<jcc>()) {
 					ref<> opt = nullptr;
 
+					// Swap destination if chained to LNOT.
+					//
+					if (term->operands[0]->is<unop>()) {
+						auto* ins = term->operands[0]->as<unop>();
+						LI_ASSERT(ins->operands[0]->as<constant>()->vmopr == bc::LNOT);
+						term->operands[0] = ins->operands[1];
+						std::swap(term->operands[1], term->operands[2]);
+					}
+
+					// Same destination.
+					//
 					if (term->operands[1] == term->operands[2]) {
 						opt = term->operands[1];
-					} else if (term->operands[0]->is<constant>()) {
+					}
+					// Constant test.
+					//
+					else if (term->operands[0]->is<constant>()) {
 						auto cc = term->operands[0]->as<constant>();
 						opt     = term->operands[cc->i1 ? 1 : 2];
 

@@ -55,7 +55,7 @@ namespace li::ir::opt {
 	static ref<> read_variable_recursive(bc::reg r, basic_block* b) {
 		// Actually load the value if it does not exist.
 		//
-		if (b->predecesors.empty()) {
+		if (b->predecessors.empty()) {
 			LI_ASSERT(r < 0);
 			auto v = read_variable_local(r, b);
 			if (!v) {
@@ -69,8 +69,8 @@ namespace li::ir::opt {
 		}
 		// No PHI needed.
 		//
-		else if (b->predecesors.size() == 1) {
-			return read_variable(r, b->predecesors.front());
+		else if (b->predecessors.size() == 1) {
+			return read_variable(r, b->predecessors.front());
 		}
 		// Create a PHI recursively.
 		//
@@ -89,7 +89,7 @@ namespace li::ir::opt {
 
 			// For each predecessor, append a PHI node.
 			//
-			for (auto& pred : b->predecesors) {
+			for (auto& pred : b->predecessors) {
 				p->operands.emplace_back(read_variable(r, pred));
 			}
 

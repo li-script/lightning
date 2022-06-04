@@ -377,7 +377,7 @@ namespace li::ir::jit {
 			for (auto phi : bb->phis()) {
 				for (size_t i = 0; i != phi->operands.size(); i++) {
 					if (phi->operands[i]->is<constant>()) {
-						phi->operands[i] = builder{}.emit_before<move>(bb->predecesors[i]->back(), phi->operands[i]);
+						phi->operands[i] = builder{}.emit_before<move>(bb->predecessors[i]->back(), phi->operands[i]);
 					}
 				}
 			}
@@ -385,6 +385,7 @@ namespace li::ir::jit {
 
 		// Topologically sort the procedure and rename every register.
 		//
+		proc->topological_sort();
 		proc->reset_names();
 	}
 
@@ -433,35 +434,34 @@ namespace li::ir::jit {
 		}
 	}
 
-	// Aliases casts and phi nodes.
+	// Coalesces casts and phi nodes.
 	//
-	static void alias_intervals(reg_allocator& r) {
-		// Alias certain register names.
+	static void coalesce_intervals(reg_allocator& r) {
+		// Coalesce certain register names.
 		//
 		for (auto& bb : r.proc->basic_blocks) {
 			for (auto ins : bb->insns()) {
 				if (ins->alias) {
-					auto alias_as = [&](insn* dst, insn* src) {
+					auto coalesce_as = [&](insn* dst, insn* src) {
 						printf("merge %u <= %u [%s]\n", dst->name, src->name, dst->name <= src->name ? "BAD" : "");
-						// idk whats goin on here
-						//
 						//if (dst->name <= src->name)
 						//	return;
-
 						r.merge(dst->name, src->name);
 						dst->name = src->name;
 					};
-
-					// If you cannot merge, insert mov?
-
-					// Use the name of the first insn.
-					//
-					alias_as(ins, ins->operands[0]->as<insn>());
-
-					// For each other operand:
-					//
-					for (size_t i = 1; i != ins->operands.size(); i++) {
-						alias_as(ins->operands[i]->as<insn>(), ins);
+		
+					if (ins->is<phi>()) {
+						coalesce_as(ins, ins->operands[0]->as<insn>());
+						for (size_t i = 1; i != ins->operands.size(); i++) {
+							coalesce_as(ins->operands[i]->as<insn>(), ins);
+						}
+					} else {
+						for (size_t i = 0; i != ins->operands.size(); i++) {
+							if (ins->operands[i]->is<insn>()) {
+								coalesce_as(ins, ins->operands[i]->as<insn>());
+								break;
+							}
+						}
 					}
 				}
 			}
@@ -474,7 +474,7 @@ namespace li::ir::jit {
 		pre_alloc_cleanup(proc);
 		reg_allocator r{proc};
 		fill_intervals(r);
-		alias_intervals(r);
+		coalesce_intervals(r);
 		return r;
 	}
 };

@@ -98,10 +98,10 @@ namespace li::ir {
 		// Fixup the successor / predecessor list.
 		//
 		blk->successors  = std::move(successors);
-		blk->predecesors = {blk};
+		blk->predecessors = {blk};
 		successors       = {blk};
 		for (auto& suc : blk->successors) {
-			for (auto& pred : suc->predecesors) {
+			for (auto& pred : suc->predecessors) {
 				if (pred == this) {
 					pred = blk;
 					break;

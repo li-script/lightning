@@ -4,13 +4,13 @@ namespace li::ir {
 	// TODO: Cache with a dominance tree, switch to less expensive algorithm.
 	//
 	bool basic_block::dom(const basic_block* n) const {
-		proc->clear_block_visitor_state();
-		auto nodom = [this](auto& self, const basic_block* n) -> bool {
-			if (n->predecesors.empty())
+		auto mark  = ++n->proc->next_visited_mark;
+		auto nodom = [this, mark](auto& self, const basic_block* n) -> bool {
+			if (n->predecessors.empty())
 				return true;
-			n->visited = true;
-			for (auto& s : n->predecesors) {
-				if (!s->visited && s != this) {
+			n->visited = mark;
+			for (auto& s : n->predecessors) {
+				if (s->visited != mark && s != this) {
 					if (self(self, s))
 						return true;
 				}
@@ -20,13 +20,13 @@ namespace li::ir {
 		return this == n || !nodom(nodom, n);
 	}
 	bool basic_block::postdom(const basic_block* n) const {
-		proc->clear_block_visitor_state();
-		auto nodom = [this](auto& self, const basic_block* n) -> bool {
+		auto mark  = ++n->proc->next_visited_mark;
+		auto nodom = [this, mark](auto& self, const basic_block* n) -> bool {
 			if (n->successors.empty())
 				return true;
-			n->visited = true;
+			n->visited = mark;
 			for (auto& s : n->successors) {
-				if (!s->visited && s != this) {
+				if (s->visited != mark && s != this) {
 					if (self(self, s))
 						return true;
 				}

@@ -69,7 +69,7 @@ namespace li::ir {
 		// Successor and predecesor list.
 		//
 		std::vector<basic_block*> successors  = {};
-		std::vector<basic_block*> predecesors = {};
+		std::vector<basic_block*> predecessors = {};
 
 		// Instruction list.
 		//
@@ -77,7 +77,7 @@ namespace li::ir {
 
 		// Temporary for search algorithms.
 		//
-		mutable uintptr_t visited = 0;
+		mutable uint64_t visited = 0;
 
 		// Container observers.
 		//
@@ -163,11 +163,10 @@ namespace li::ir {
 				} else if (!phi_ok) {
 					util::abort("phi used after block header.");
 				} else {
-					LI_ASSERT(i->operands.size() == predecesors.size());
+					LI_ASSERT(i->operands.size() == predecessors.size());
 					for (size_t j = 0; j != i->operands.size(); j++) {
-						if (i->operands[j]->is<insn>()) {
-							LI_ASSERT(i->operands[j]->as<insn>()->parent->dom(predecesors[j]));
-						}
+						if (i->operands[j]->is<insn>())
+							LI_ASSERT(i->operands[j]->as<insn>()->parent->dom(predecessors[j]));
 					}
 				}
 				num_term += i->is_terminator();
@@ -258,9 +257,10 @@ namespace li::ir {
 		uint32_t  next_reg_name  = 0;  // Next register name.
 		uint32_t  next_block_uid = 0;  // Next block uid.
 
-		// Cached analysis flags.
+		// Analysis data.
 		//
-		uint32_t is_topologically_sorted : 1 = 0;
+		uint32_t         is_topologically_sorted : 1 = 0;
+		mutable uint64_t next_visited_mark           = 0x50eaeb7446b52b12;
 
 		// Constructed by VM instance and the function we're translating.
 		//
@@ -308,7 +308,7 @@ namespace li::ir {
 			auto it = consts.find(constant(b));
 			LI_ASSERT(!it->second.use_count());
 			consts.erase(it);
-			LI_ASSERT(b->predecesors.empty());
+			LI_ASSERT(b->predecessors.empty());
 			LI_ASSERT(b->successors.empty());
 			for (auto it = basic_blocks.begin();; ++it) {
 				LI_ASSERT(it != basic_blocks.end());
@@ -328,20 +328,20 @@ namespace li::ir {
 		//
 		void add_jump(basic_block* from, basic_block* to) {
 			auto sit = std::find(from->successors.begin(), from->successors.end(), to);
-			auto pit = std::find(to->predecesors.begin(), to->predecesors.end(), from);
+			auto pit = std::find(to->predecessors.begin(), to->predecessors.end(), from);
 			LI_ASSERT(sit == from->successors.end());
-			LI_ASSERT(pit == to->predecesors.end());
+			LI_ASSERT(pit == to->predecessors.end());
 			from->successors.emplace_back(to);
-			to->predecesors.emplace_back(from);
+			to->predecessors.emplace_back(from);
 			mark_blocks_dirty();
 		}
 		void del_jump(basic_block* from, basic_block* to) {
 			auto sit = std::find(from->successors.begin(), from->successors.end(), to);
-			auto pit = std::find(to->predecesors.begin(), to->predecesors.end(), from);
+			auto pit = std::find(to->predecessors.begin(), to->predecessors.end(), from);
 			LI_ASSERT(sit != from->successors.end());
-			LI_ASSERT(pit != to->predecesors.end());
+			LI_ASSERT(pit != to->predecessors.end());
 			from->successors.erase(sit);
-			to->predecesors.erase(pit);
+			to->predecessors.erase(pit);
 			mark_blocks_dirty();
 		}
 
@@ -349,11 +349,11 @@ namespace li::ir {
 		//
 		template<typename F>
 		bool dfs(F&& fn, const basic_block* from = nullptr) const {
-			clear_block_visitor_state();
+			auto mark = ++next_visited_mark;
 			auto rec = [&](auto& self, const basic_block* b) -> bool {
-				b->visited = true;
+            b->visited = mark;
 				for (auto& s : b->successors)
-					if (!s->visited)
+					if (s->visited != mark)
 						if (self(self, s))
 							return true;
 				return fn((basic_block*) b);
@@ -370,13 +370,13 @@ namespace li::ir {
 		}
 		template<typename F>
 		bool bfs(F&& fn, const basic_block* from = nullptr) const {
-			clear_block_visitor_state();
+			auto mark = ++next_visited_mark;
 			auto rec = [&](auto& self, const basic_block* b) -> bool {
-				b->visited = true;
+				b->visited = mark;
 				if (fn((basic_block*) b))
 					return true;
 				for (auto& s : b->successors)
-					if (!s->visited)
+               if (s->visited != mark)
 						if (self(self, s))
 							return true;
 				return false;
@@ -390,40 +390,6 @@ namespace li::ir {
 			} else {
 				return rec(rec, get_entry());
 			}
-		}
-		template<typename F>
-		bool rdfs(F&& fn, const basic_block* from) const {
-			clear_block_visitor_state();
-			auto rec = [&](auto& self, basic_block* b) -> bool {
-				b->visited = true;
-				for (auto& s : b->predecesors)
-					if (!s->visited)
-						if (self(self, s))
-							return true;
-				return fn((basic_block*) b);
-			};
-			for (auto& s : from->predecesors)
-				if (rec(rec, s))
-					return true;
-			return false;
-		}
-		template<typename F>
-		bool rbfs(F&& fn, const basic_block* from) const {
-			clear_block_visitor_state();
-			auto rec = [&](auto& self, basic_block* b) -> bool {
-				b->visited = true;
-				if (fn((basic_block*) b))
-					return true;
-				for (auto& s : b->predecesors)
-					if (!s->visited)
-						if (self(self, s))
-							return true;
-				return false;
-			};
-			for (auto& s : from->predecesors)
-				if (rec(rec, s))
-					return true;
-			return false;
 		}
 
 		// Topologically sorts the basic block list.
@@ -441,10 +407,9 @@ namespace li::ir {
 			is_topologically_sorted = true;
 		}
 
-		// Renames all registers and blocks after topologically sorting.
+		// Renames all registers and blocks.
 		//
 		void reset_names() {
-			topological_sort();
 			next_reg_name = 0;
 			for (auto& bb : basic_blocks) {
 				for (auto i : *bb) {
@@ -460,13 +425,13 @@ namespace li::ir {
 			for ( auto& i : basic_blocks ) {
 				i->validate();
 #if LI_DEBUG
-				if (i->predecesors.empty()) {
+				if (i->predecessors.empty()) {
 					LI_ASSERT(i.get() == get_entry());
 				}
 				for (auto& succ : i->successors) {
-					LI_ASSERT(std::find(succ->predecesors.begin(), succ->predecesors.end(), i.get()) != succ->predecesors.end());
+					LI_ASSERT(std::find(succ->predecessors.begin(), succ->predecessors.end(), i.get()) != succ->predecessors.end());
 				}
-				for (auto& pred : i->predecesors) {
+				for (auto& pred : i->predecessors) {
 					LI_ASSERT(std::find(pred->successors.begin(), pred->successors.end(), i.get()) != pred->successors.end());
 				}
 #endif

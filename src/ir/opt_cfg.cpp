@@ -37,11 +37,17 @@ namespace li::ir::opt {
 				continue;
 			}
 
+			/*
+			-- Block $4
+			#1e    %14:? = phi $1->%6:nil, $3->%11:?
+			#1d    jmp $7
+			*/
+
 			// Delete useless blocks.
 			//
 			auto term = bb->back();
 			if (term->is<jmp>()) {
-				for (auto& pred : bb->predecesors) {
+				for (auto& pred : bb->predecessors) {
 					auto t2 = pred->back();
 					for (auto& op : t2->operands) {
 						if (op->is<constant>() && op->as<constant>()->bb == bb.get()) {

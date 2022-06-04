@@ -12,7 +12,7 @@ SpaceAfterCStyleCast: 'true'
 BreakBeforeBraces: Attach
 FixNamespaceComments: false
 IncludeBlocks: Preserve
-AllowShortFunctionsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: false
 AllowShortBlocksOnASingleLine: false
 AllowShortLoopsOnASingleLine: false
 AllowShortLambdasOnASingleLine: true

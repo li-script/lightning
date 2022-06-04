@@ -129,7 +129,7 @@ namespace li::ir {
 
 		// Temporary for search algorithms.
 		//
-		mutable uintptr_t visited = 0;
+		mutable uint64_t visited = 0;
 
 		// Default construct.
 		//
@@ -536,6 +536,7 @@ namespace li::ir {
 	struct move final : insn_tag<move, opcode::move> {
 		void update() override {
 			is_const  = true;
+			alias    = true;
 			LI_ASSERT(operands.size() == 1);
 			vt = operands[0]->vt;
 		}

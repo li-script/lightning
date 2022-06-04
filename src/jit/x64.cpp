@@ -351,19 +351,13 @@ namespace li::ir::jit {
 					if (arch::is_gp(lhs_r)) {
 						mc(ZYDIS_MNEMONIC_CMP, lhs_r, rhs_r);
 					}
-					// If FP, emit VPXOR + VPTEST.
+					// If FP, emit UCOMISD. (Behavior doesn't match in fast math!)
 					//
 					else {
-						auto tmp = reg.alloc_next(ip, false);
-						if (!tmp)
-							return string::create(mc.ibb->proc->L, "register allocation failed.");
 	#if __AVX__
-						mc(ZYDIS_MNEMONIC_VPXOR, tmp, lhs_r, rhs_r);
-						mc(ZYDIS_MNEMONIC_VPTEST, tmp, tmp);
+						mc(ZYDIS_MNEMONIC_VUCOMISD, lhs_r, rhs_r);
 	#else
-						mc(ZYDIS_MNEMONIC_MOVSD, tmp, lhs_r);
-						mc(ZYDIS_MNEMONIC_PXOR, tmp, rhs_r);
-						mc(ZYDIS_MNEMONIC_PTEST, tmp, reg);
+						mc(ZYDIS_MNEMONIC_UCOMISD, lhs_r, rhs_r);
 	#endif
 					}
 					i->visited = cc == bc::CNE ? ZYDIS_MNEMONIC_JNZ : ZYDIS_MNEMONIC_JZ;
@@ -687,7 +681,7 @@ namespace li::ir::jit {
 			// Push non-vol GPs.
 			//
 			size_t push_count = 2;
-			for (int i = std::size(arch::gp_volatile); i != arch::num_gp_reg; i++) {
+			for (size_t i = std::size(arch::gp_volatile); i != arch::num_gp_reg; i++) {
 				if ((used_gp_mask >> i) & 1) {
 					push_count++;
 					LI_ASSERT(zy::encode(prologue, ZYDIS_MNEMONIC_PUSH, arch::to_native(arch::reg(i+1))));
@@ -703,7 +697,7 @@ namespace li::ir::jit {
 			// Save vector registers.
 			//
 			zy::mem vsave_it{.size = 0x10, .base = arch::sp, .disp = arch::home_size};
-			for (int i = std::size(arch::fp_volatile); i != arch::num_fp_reg; i++) {
+			for (size_t i = std::size(arch::fp_volatile); i != arch::num_fp_reg; i++) {
 				if ((used_fp_mask >> i) & 1) {
 					LI_ASSERT(zy::encode(prologue, vector_move, vsave_it, arch::fp_nonvolatile[i - std::size(arch::fp_volatile)]));
 					vsave_it.disp += 0x10;
@@ -725,7 +719,7 @@ namespace li::ir::jit {
 
 			// Load vector registers.
 			//
-			for (int i = std::size(arch::fp_volatile); i != arch::num_fp_reg; i++) {
+			for (size_t i = std::size(arch::fp_volatile); i != arch::num_fp_reg; i++) {
 				if ((used_fp_mask >> i) & 1) {
 					vsave_it.disp -= 0x10;
 					LI_ASSERT(zy::encode(prologue, vector_move, arch::fp_nonvolatile[i - std::size(arch::fp_volatile)], vsave_it));
@@ -738,7 +732,7 @@ namespace li::ir::jit {
 
 			// Pop non-vol GPs.
 			//
-			for (int i = arch::num_gp_reg - 1; i >= std::size(arch::gp_volatile); i--) {
+			for (size_t i = arch::num_gp_reg - 1; i >= std::size(arch::gp_volatile); i--) {
 				if ((used_gp_mask >> i) & 1) {
 					LI_ASSERT(zy::encode(epilogue, ZYDIS_MNEMONIC_POP, arch::to_native(arch::reg(i + 1))));
 				}

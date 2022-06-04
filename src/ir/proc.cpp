@@ -72,8 +72,8 @@ namespace li::ir {
 			bb->bc_end     = bf->bc_end;
 			for (auto& suc : bf->successors)
 				bb->successors.emplace_back((basic_block*) suc->visited);
-			for (auto& pred : bf->predecesors)
-				bb->predecesors.emplace_back((basic_block*) pred->visited);
+			for (auto& pred : bf->predecessors)
+				bb->predecessors.emplace_back((basic_block*) pred->visited);
 
 			// Copy instructions.
 			//

@@ -229,7 +229,6 @@ namespace li::ir::jit {
 		}
 	};
 
-
 	// Lowers a single instruction, returns non-nullptr on error.
 	//
 	static string* lower(mc_block& mc, reg_allocator& reg, insn* i, uint32_t ip) {
@@ -628,8 +627,8 @@ namespace li::ir::jit {
 		//
 		mc_procedure mproc{.next_label = proc->next_block_uid};
 
-		auto store_cb = [&](arch::reg reg, uint32_t slot) { mproc.blocks.back().move(zy::mem{.base = arch::bp, .disp = slot * 8}, reg); };  // TODO: Save in vm stack instead.
-		auto load_cb  = [&](arch::reg reg, uint32_t slot) { mproc.blocks.back().move(reg, zy::mem{.base = arch::bp, .disp = slot * 8}); };
+		auto store_cb = [&](arch::reg reg, uint32_t slot) { mproc.blocks.back().move(zy::mem{.size = 8, .base = arch::bp, .disp = slot * 8}, reg); };  // TODO: Save in vm stack instead.
+		auto load_cb  = [&](arch::reg reg, uint32_t slot) { mproc.blocks.back().move(reg, zy::mem{.size = 8, .base = arch::bp, .disp = slot * 8}); };
 		auto move_cb  = [&](arch::reg dst, arch::reg src) { mproc.blocks.back().move(dst, src); };
 		r.store       = store_cb;
 		r.load        = load_cb;

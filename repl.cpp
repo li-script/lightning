@@ -79,6 +79,87 @@ static bool ir_test(vm* L, any* args, slot_t n) {
 	opt::dce(proc.get());
 	opt::cfg(proc.get());
 
+	auto get_unreachable_block = [&proc, unreachable_block = (basic_block*) nullptr]() mutable {
+		if (unreachable_block)
+         return unreachable_block;
+      auto* b = proc->add_block();
+      builder{b}.emit_front<unreachable>();
+		unreachable_block = b;
+      return b;
+	};
+
+	proc->bfs([&](basic_block* bb) {
+		// Find the first operation with an unknown type.
+		//
+		auto i = range::find_if(bb->insns(), [](insn* i) { return (i->is<binop>() || i->is<compare>()) && (i->operands[1]->vt == type::unk || i->operands[2]->vt == type::unk); });
+		if (i == bb->end()) {
+			return false;
+		}
+
+		// Insert an is number check before.
+		//
+		builder b{i.at};
+		auto op = i->operands[1]->vt == type::unk ? 1 : 2; 
+		auto cc = b.emit_before<test_type>(i.at, i->operands[op], type_number);
+
+		// Split the block after the check, add the jcc.
+		//
+		auto cont_blk = bb->split_at(cc);
+		auto num_blk    = proc->add_block();
+		auto nonnum_blk = get_unreachable_block();  // proc->add_block();
+		b.emit<jcc>(cc, num_blk, nonnum_blk);
+		proc->add_jump(bb, num_blk);
+		proc->add_jump(bb, nonnum_blk);
+
+		// Unlink the actual operation and move it to another block.
+		//
+		b.blk           = num_blk;
+		i->operands[op] = b.emit<assume_cast>(i->operands[op], type::f64);
+		auto v1         = num_blk->push_back(i->erase());
+		v1->update();
+		b.emit<jmp>(cont_blk);
+		proc->add_jump(num_blk, cont_blk);
+
+		// Replace uses.
+		//
+		cont_blk->validate();
+		i->for_each_user_outside_block([&](insn* i, size_t op) {
+			i->operands[op].reset(v1.at);
+			i->parent->validate();
+			return false;
+		});
+
+		// TODO: Trait stuff.
+		//b.blk           = nonnum_blk;
+		//auto v2 = i->is<compare>() ? b.emit<move>(false) : b.emit<move>(0);
+		//b.emit<jmp>(cont_blk);
+		//proc->add_jump(nonnum_blk, cont_blk);
+		//
+		//// Create a PHI at the destination.
+		////
+		//b.blk = cont_blk;
+		//auto x = b.emit_front<phi>(v1.at, v2.at);
+		//
+		//// Replace uses.
+		////
+		//cont_blk->validate();
+		//i->for_each_user_outside_block([&](insn* i, size_t op) {
+		//	if (i!=x)
+		//		i->operands[op].reset(x);
+		//	i->parent->validate();
+		//	return false;
+		//});
+		return false;
+	});
+	opt::fold_identical(proc.get());
+	opt::dce(proc.get());
+	opt::cfg(proc.get());
+
+	proc->topological_sort();
+
+	proc->validate();
+	proc->print();
+
 	nfunction* res = 0;
 	auto err = jit::generate_code(proc.get(), &res);
 	if (err) {

@@ -133,7 +133,7 @@ namespace li::ir {
 			return n;
 		}
 
-		// Splits the basic block at instruction boundary and adds a jump to the next block after it.
+		// Splits the basic block at instruction boundary returns the new block. User must add the new terminator.
 		//
 		basic_block* split_at(const insn* at);
 
@@ -299,15 +299,17 @@ namespace li::ir {
 		// Creates a new block.
 		//
 		basic_block* add_block() {
-			is_topologically_sorted = false;
-			auto* blk               = basic_blocks.emplace_back(std::make_unique<basic_block>(this)).get();
-			blk->uid                = next_block_uid++;
+			auto* blk = basic_blocks.emplace_back(std::make_unique<basic_block>(this)).get();
+			blk->uid  = next_block_uid++;
+			mark_blocks_dirty();
 			return blk;
 		}
 		auto del_block(basic_block* b) {
 			auto it = consts.find(constant(b));
-			LI_ASSERT(!it->second.use_count());
-			consts.erase(it);
+			if (it != consts.end()) {
+				LI_ASSERT(!it->second.use_count());
+				consts.erase(it);
+			}
 			LI_ASSERT(b->predecessors.empty());
 			LI_ASSERT(b->successors.empty());
 			for (auto it = basic_blocks.begin();; ++it) {
@@ -327,19 +329,24 @@ namespace li::ir {
 		// Adds or deletes a jump.
 		//
 		void add_jump(basic_block* from, basic_block* to) {
-			auto sit = std::find(from->successors.begin(), from->successors.end(), to);
-			auto pit = std::find(to->predecessors.begin(), to->predecessors.end(), from);
+			auto sit = range::find(from->successors, to);
+			auto pit = range::find(to->predecessors, from);
 			LI_ASSERT(sit == from->successors.end());
 			LI_ASSERT(pit == to->predecessors.end());
 			from->successors.emplace_back(to);
 			to->predecessors.emplace_back(from);
 			mark_blocks_dirty();
 		}
-		void del_jump(basic_block* from, basic_block* to) {
-			auto sit = std::find(from->successors.begin(), from->successors.end(), to);
-			auto pit = std::find(to->predecessors.begin(), to->predecessors.end(), from);
+		void del_jump(basic_block* from, basic_block* to, bool fix_phi = true) {
+			auto sit = range::find(from->successors, to);
+			auto pit = range::find(to->predecessors, from);
 			LI_ASSERT(sit != from->successors.end());
 			LI_ASSERT(pit != to->predecessors.end());
+			if (fix_phi) {
+				size_t n = pit - to->predecessors.begin();
+				for (auto phi : to->phis())
+					phi->operands.erase(phi->operands.begin() + n);
+			}
 			from->successors.erase(sit);
 			to->predecessors.erase(pit);
 			mark_blocks_dirty();
@@ -422,7 +429,7 @@ namespace li::ir {
 		//
 		void validate() {
 			LI_ASSERT(get_entry() != nullptr);
-			for ( auto& i : basic_blocks ) {
+			for (auto& i : basic_blocks) {
 				i->validate();
 #if LI_DEBUG
 				if (i->predecessors.empty()) {
@@ -451,7 +458,9 @@ namespace li::ir {
 	//
 	template<typename Tv>
 	static ref<> launder_value(procedure* proc, Tv&& v) {
-		if constexpr (!std::is_convertible_v<Tv, ref<>>) {
+		if constexpr (std::is_convertible_v<Tv, const insn*>) {
+			return make_ref((insn*)v);
+		} else if constexpr (!std::is_convertible_v<Tv, ref<>>) {
 			constant c{std::forward<Tv>(v)};
 			auto     it = proc->consts.find(c);
 			if (it == proc->consts.end()) {
@@ -469,6 +478,7 @@ namespace li::ir {
 		basic_block* blk        = nullptr;
 		bc::pos      current_bc = bc::no_pos;
 		builder(basic_block* b = nullptr) : blk(b) {}
+		builder(insn* i) : blk(i->parent), current_bc(i->source_bc) {}
 
 		// Instruction emitting.
 		//

@@ -70,7 +70,7 @@ namespace li::ir {
 		return false;
 	}
 
-	// Splits the basic block at instruction boundary and adds a jump to the next block after it.
+	// Splits the basic block at instruction boundary returns the new block. User must add the new terminator.
 	//
 	basic_block* basic_block::split_at(const insn* at) {
 		LI_ASSERT(at->parent == this);
@@ -78,29 +78,20 @@ namespace li::ir {
 
 		// Split and move the instruction stream
 		//
-		if (at->next != end()) {
-			auto nb                  = at->next;
-			auto ne                  = std::prev(end()).at;
-			blk->insn_list_head.next = nb;
-			blk->insn_list_head.prev = ne;
-			ne->next                 = &blk->insn_list_head;
-			nb->prev                 = &blk->insn_list_head;
-			for (auto it = nb; it != ne; ++it) {
-				LI_ASSERT(it->parent == this);
-				it->parent = blk;
-			}
+		LI_ASSERT(at->next != end());
+		auto it = back();
+		while (true) {
+			if (it == at)
+				break;
+			LI_ASSERT(it->parent == this);
+			auto* p = it->prev;
+			blk->push_front(it->erase());
+			it = p;
 		}
-
-		// Append the jump.
-		//
-		builder{}.emit_after<jmp>((insn*) at, blk);
 
 		// Fixup the successor / predecessor list.
 		//
-		blk->successors  = std::move(successors);
-		blk->predecessors = {blk};
-		successors       = {blk};
-		for (auto& suc : blk->successors) {
+		for (auto& suc : successors) {
 			for (auto& pred : suc->predecessors) {
 				if (pred == this) {
 					pred = blk;
@@ -108,10 +99,11 @@ namespace li::ir {
 				}
 			}
 		}
+		successors.swap(blk->successors);
 
-		// Dirty the toplogical sorting.
+		// Dirty the analysis.
 		//
-		proc->is_topologically_sorted = false;
+		proc->mark_blocks_dirty();
 		return blk;
 	}
 };

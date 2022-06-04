@@ -12,28 +12,54 @@ namespace li::ir::opt {
 
 			// Optimize JCCs.
 			//
-			if (bb->front() != bb->back()) {
-				auto jc = bb->back();
-				if (jc->is<jcc>()) {
-					ref<> opt = nullptr;
+			auto term = bb->back();
+			if (term->is<jcc>()) {
+				ref<> opt = nullptr;
 
-					if (jc->operands[1] == jc->operands[2]) {
-						opt = jc->operands[1];
-					} else if (jc->operands[0]->is<constant>()) {
-						auto cc = jc->operands[0]->as<constant>();
-						opt     = jc->operands[cc->i1 ? 1 : 2];
+				if (term->operands[1] == term->operands[2]) {
+					opt = term->operands[1];
+				} else if (term->operands[0]->is<constant>()) {
+					auto cc = term->operands[0]->as<constant>();
+					opt     = term->operands[cc->i1 ? 1 : 2];
 
-						auto& opt_out = jc->operands[cc->i1 ? 2 : 1];
-						proc->del_jump(bb.get(), opt_out->as<constant>()->bb);
-					}
-
-					if (opt) {
-						builder{}.emit_after<jmp>(jc, opt);
-						jc->erase();
-					}
+					auto& opt_out = term->operands[cc->i1 ? 2 : 1];
+					proc->del_jump(bb.get(), opt_out->as<constant>()->bb);
 				}
 
-				++it;
+				if (opt) {
+					auto new_term = builder{}.emit_after<jmp>(term, opt);
+					term->erase();
+					term = new_term;
+				}
+			}
+
+			// Delete blocks with only jmp.
+			//
+			if (bb->front() == bb->back() && term->is<jmp>()) {
+				auto* target = bb->successors.front();
+
+				// Duplicate PHI operands N-1 times.
+				//
+				auto pit = range::find(target->predecessors, bb.get()) - target->predecessors.begin();
+				for (auto* phi : target->phis()) {
+					phi->operands.insert(phi->operands.begin() + pit, bb->predecessors.size() - 1, phi->operands[pit]);
+				}
+
+				// Fixup jump lists.
+				//
+				target->predecessors.insert(target->predecessors.begin() + pit, bb->predecessors.size() - 1, nullptr);
+				range::copy(bb->predecessors, target->predecessors.begin() + pit);
+				for (auto& pred : bb->predecessors) {
+					*range::find(pred->successors, bb.get()) = target;
+					for (auto& op : pred->back()->operands) {
+						if (op->is<constant>() && op->as<constant>()->bb == bb.get()) {
+							op = term->operands[0];
+						}
+					}
+				}
+				bb->predecessors.clear();
+				bb->successors.clear();
+				it = proc->del_block(bb.get());
 				continue;
 			}
 
@@ -42,32 +68,11 @@ namespace li::ir::opt {
 			#1e    %14:? = phi $1->%6:nil, $3->%11:?
 			#1d    jmp $7
 			*/
-
-			// Delete useless blocks.
-			//
-			auto term = bb->back();
-			if (term->is<jmp>()) {
-				for (auto& pred : bb->predecessors) {
-					auto t2 = pred->back();
-					for (auto& op : t2->operands) {
-						if (op->is<constant>() && op->as<constant>()->bb == bb.get()) {
-							op = term->operands[0];
-						}
-					}
-					proc->del_jump(pred, bb.get());
-					proc->del_jump(bb.get(), term->operands[0]->as<constant>()->bb);
-					proc->add_jump(pred, term->operands[0]->as<constant>()->bb);
-				}
-			}
-			it = proc->del_block(bb.get());
-
 			// ^ todo:
-			// z:
-			//  jmp a
-			// a: <-- only successor is z
-			//  <stuff> 
-			//  jmp b
+			++it;
 		}
+
+		proc->mark_blocks_dirty();
 		proc->validate();
 	}
 };

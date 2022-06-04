@@ -47,8 +47,8 @@ namespace li::ir {
 
 		// Copy basic state.
 		//
-		result->next_reg_name = next_reg_name;
-		result->next_block_uid         = next_block_uid;
+		result->next_reg_name           = next_reg_name;
+		result->next_block_uid          = next_block_uid;
 		result->is_topologically_sorted = is_topologically_sorted;
 
 		// Pre-allocate the basic blocks, map using visitor_context.
@@ -65,7 +65,7 @@ namespace li::ir {
 			//
 			auto bf = basic_blocks[i].get();
 			auto bb = result->basic_blocks[i].get();
-			bb->uid        = bf->uid * 100;
+			bb->uid        = bf->uid;
 			bb->cold_hint  = bf->cold_hint;
 			bb->loop_depth = bf->loop_depth;
 			bb->bc_begin   = bf->bc_begin;

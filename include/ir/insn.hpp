@@ -77,6 +77,7 @@ namespace li::ir {
 		//
 		ret,
 		thrw,
+		unreachable,
 
 		// Hints.
 		//
@@ -135,13 +136,16 @@ namespace li::ir {
 		//
 		insn() = default;
 
-		// Erases the instruction.
+		// Erases the instruction from the containing block.
 		//
-		void erase() {
+		ref<insn> erase() {
 			LI_ASSERT(parent);
 			parent    = nullptr;
 			util::unlink(this);
-			dec_ref(false); // Parent's reference.
+
+			// Return the previous parents reference.
+			//
+			return ref<insn>(std::in_place, this);
 		}
 
 		// Use replacement.
@@ -458,6 +462,14 @@ namespace li::ir {
 			sideffect = true;
 			vt = type::none;
 			LI_ASSERT(operands.size() == 1);
+		}
+	};
+	// none   unreachable()
+	struct unreachable final : insn_tag<unreachable, opcode::unreachable> {
+		void update() override {
+			sideffect = true;
+			vt        = type::none;
+			LI_ASSERT(operands.empty());
 		}
 	};
 	// none   jmp(const bb)

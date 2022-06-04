@@ -19,9 +19,9 @@ namespace li::util {
 	}
 	template<typename T>
 	static void unlink(T* entry) {
-		auto* prev = entry->prev;
-		auto* next = entry->next;
-		prev->next = next;
-		next->prev = prev;
+		auto* prev  = std::exchange(entry->prev, entry);
+		auto* next  = std::exchange(entry->next, entry);
+		prev->next  = next;
+		next->prev  = prev;
 	}
 };

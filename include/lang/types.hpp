@@ -113,6 +113,7 @@ namespace li {
 	LI_INLINE static constexpr bool is_gc_value(uint64_t value) { return value > (make_tag(type_gc_last + 1) + 1); }
 	LI_INLINE static constexpr bool is_traitful_value(uint64_t value) { return value > (make_tag(type_gc_last_traitful + 1) + 1); }
 	LI_INLINE static constexpr bool is_gc_traversable_value(uint64_t value) { return value > (make_tag(type_gc_last_traversable + 1) + 1); }
+	LI_INLINE static constexpr bool is_numeric_value(uint64_t value) { return value <= make_tag(type_number); }
 
 	// Forward for auto-typing.
 	//
@@ -151,7 +152,7 @@ namespace li {
 		inline constexpr value_type type() const { return (value_type) std::min(get_type(value), (uint64_t) type_number); }
 		inline constexpr bool       is(uint8_t t) const { return t == type(); }
 		inline constexpr bool       is_bool() const { return get_type(value) == type_false || get_type(value) == type_true; }
-		inline constexpr bool       is_num() const { return get_type(value) >= type_number; }
+		inline constexpr bool       is_num() const { return is_numeric_value(value); }
 		inline constexpr bool       is_arr() const { return get_type(value) == type_array; }
 		inline constexpr bool       is_tbl() const { return get_type(value) == type_table; }
 		inline constexpr bool       is_str() const { return get_type(value) == type_string; }

@@ -254,7 +254,6 @@ namespace li::ir::jit {
 		// Requests a register of given kind for the name.
 		//
 		arch::reg get_anyreg(uint32_t ip, uint32_t name, bool gp, bool discard_value = false) {
-			discard_value = false;
 
 			// Return if we already have a matching register for this.
 			//
@@ -371,14 +370,12 @@ namespace li::ir::jit {
 	// Pre-register allocation cleanup pass.
 	//
 	static void pre_alloc_cleanup(procedure* proc) {
-		// Fixup PHIs to not have any constants.
+		// Fixup PHIs.
 		//
 		for (auto& bb : proc->basic_blocks) {
 			for (auto phi : bb->phis()) {
 				for (size_t i = 0; i != phi->operands.size(); i++) {
-					if (phi->operands[i]->is<constant>()) {
-						phi->operands[i] = builder{}.emit_before<move>(bb->predecessors[i]->back(), phi->operands[i]);
-					}
+					phi->operands[i] = builder{}.emit_before<move>(bb->predecessors[i]->back(), phi->operands[i]);
 				}
 			}
 		}
@@ -387,6 +384,16 @@ namespace li::ir::jit {
 		//
 		proc->topological_sort();
 		proc->reset_names();
+
+		// Fixup the moves we inserted.
+		//
+		for (auto& bb : proc->basic_blocks) {
+			for (auto phi : bb->phis()) {
+				for (size_t i = 0; i != phi->operands.size(); i++) {
+					phi->operands[i]->as<insn>()->name = phi->name;
+				}
+			}
+		}
 	}
 
 	// Fills the interval information.
@@ -420,17 +427,17 @@ namespace li::ir::jit {
 
 			// Extend the intervals for block length.
 			//
-			for (uint32_t j = 0; j != r.vreg.size(); j++) {
-				auto beg = bb->front()->name;
-				auto end = bb->back()->name;
-				while (beg != end && !r.vreg[j].live[beg])
-					++beg;
-				while (end != beg && !r.vreg[j].live[end])
-					--end;
-				for (size_t k = beg; k != end; k++) {
-					r.vreg[j].live[k] = true;
-				}
-			}
+			//for (uint32_t j = 0; j != r.vreg.size(); j++) {
+			//	auto beg = bb->front()->name;
+			//	auto end = bb->back()->name;
+			//	while (beg != end && !r.vreg[j].live[beg])
+			//		++beg;
+			//	while (end != beg && !r.vreg[j].live[end])
+			//		--end;
+			//	for (size_t k = beg; k != end; k++) {
+			//		r.vreg[j].live[k] = true;
+			//	}
+			//}
 		}
 	}
 
@@ -439,33 +446,33 @@ namespace li::ir::jit {
 	static void coalesce_intervals(reg_allocator& r) {
 		// Coalesce certain register names.
 		//
-		for (auto& bb : r.proc->basic_blocks) {
-			for (auto ins : bb->insns()) {
-				if (ins->alias) {
-					auto coalesce_as = [&](insn* dst, insn* src) {
-						printf("merge %u <= %u [%s]\n", dst->name, src->name, dst->name <= src->name ? "BAD" : "");
-						//if (dst->name <= src->name)
-						//	return;
-						r.merge(dst->name, src->name);
-						dst->name = src->name;
-					};
-		
-					if (ins->is<phi>()) {
-						coalesce_as(ins, ins->operands[0]->as<insn>());
-						for (size_t i = 1; i != ins->operands.size(); i++) {
-							coalesce_as(ins->operands[i]->as<insn>(), ins);
-						}
-					} else {
-						for (size_t i = 0; i != ins->operands.size(); i++) {
-							if (ins->operands[i]->is<insn>()) {
-								coalesce_as(ins, ins->operands[i]->as<insn>());
-								break;
-							}
-						}
-					}
-				}
-			}
-		}
+		//for (auto& bb : r.proc->basic_blocks) {
+		//	for (auto ins : bb->insns()) {
+		//		if (ins->alias && !ins->is<move>()) {
+		//			auto coalesce_as = [&](insn* dst, insn* src) {
+		//				printf("merge %u <= %u [%s]\n", dst->name, src->name, dst->name <= src->name ? "BAD" : "");
+		//				//if (dst->name <= src->name)
+		//				//	return;
+		//				r.merge(dst->name, src->name);
+		//				dst->name = src->name;
+		//			};
+		//
+		//			if (ins->is<phi>()) {
+		//				coalesce_as(ins, ins->operands[0]->as<insn>());
+		//				for (size_t i = 1; i != ins->operands.size(); i++) {
+		//					coalesce_as(ins->operands[i]->as<insn>(), ins);
+		//				}
+		//			} else {
+		//				for (size_t i = 0; i != ins->operands.size(); i++) {
+		//					if (ins->operands[i]->is<insn>()) {
+		//						coalesce_as(ins, ins->operands[i]->as<insn>());
+		//						break;
+		//					}
+		//				}
+		//			}
+		//		}
+		//	}
+		//}
 	}
 
 	// Creates an allocator after completing all required passes.

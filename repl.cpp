@@ -81,17 +81,29 @@ static bool ir_test(vm* L, any* args, slot_t n) {
 
 	auto get_unreachable_block = [&proc, unreachable_block = (basic_block*) nullptr]() mutable {
 		if (unreachable_block)
-         return unreachable_block;
-      auto* b = proc->add_block();
-      builder{b}.emit_front<unreachable>();
+			return unreachable_block;
+		auto* b = proc->add_block();
+		builder{b}.emit_front<unreachable>();
+		b->cold_hint = 100;
 		unreachable_block = b;
-      return b;
+		return b;
 	};
 
 	proc->bfs([&](basic_block* bb) {
-		// Find the first operation with an unknown type.
+		// Find the first numeric operation with an unknown type.
 		//
-		auto i = range::find_if(bb->insns(), [](insn* i) { return (i->is<binop>() || i->is<compare>()) && (i->operands[1]->vt == type::unk || i->operands[2]->vt == type::unk); });
+		auto i = range::find_if(bb->insns(), [](insn* i) {
+			if (i->is<binop>() || i->is<compare>()) {
+				i->update();
+				if (i->vt != type::unk) {
+					for (auto& op : i->operands)
+						op->update();
+				} else {
+					return true;
+				}
+			}
+			return false;
+		});
 		if (i == bb->end()) {
 			return false;
 		}
@@ -122,10 +134,8 @@ static bool ir_test(vm* L, any* args, slot_t n) {
 
 		// Replace uses.
 		//
-		cont_blk->validate();
 		i->for_each_user_outside_block([&](insn* i, size_t op) {
 			i->operands[op].reset(v1.at);
-			i->parent->validate();
 			return false;
 		});
 

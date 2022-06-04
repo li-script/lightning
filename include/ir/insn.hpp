@@ -210,11 +210,6 @@ namespace li::ir {
 			return std::is_same_v<std::decay_t<T>, value>;
 		}
 
-		// Updates the instruction details such as return type/side effects.
-		// Throws in debug mode if it's in an invalid state.
-		//
-		virtual void update() {}
-
 		// Duplicates the instruction.
 		//
 		virtual insn* duplicate() const { return nullptr; }
@@ -255,10 +250,14 @@ namespace li::ir {
 			auto* c = operands[0]->as<constant>();
 			LI_ASSERT(c->is(type::vmopr));
 			LI_ASSERT(c->vmopr == operation::ANEG || c->vmopr == operation::LNOT);
-
-			if (operands[1]->vt <= type::f64) {
-				vt = operands[1]->vt;
+			vt = type::unk;
+			type_try_settle(operands[1]->vt, true);
+		}
+		bool rec_type_check(type x) override {
+			if (x > type::f64) {
+				return false;
 			}
+			return operands[1]->type_try_settle(x);
 		}
 	};
 	// unk  binop(const op, unk lhs, unk rhs)
@@ -270,9 +269,18 @@ namespace li::ir {
 			LI_ASSERT(c->is(type::vmopr));
 			LI_ASSERT(operation::AADD <= c->vmopr && c->vmopr <= operation::APOW);
 
-			if (operands[1]->vt <= type::f64 && operands[2]->vt <= type::f64) {
-				vt = std::max(operands[1]->vt, operands[2]->vt);
+			vt = type::unk;
+			if (operands[1]->vt <= type::f64) {
+				type_try_settle(operands[1]->vt, true);
+			} else if (operands[2]->vt <= type::f64) {
+				type_try_settle(operands[2]->vt, true);
 			}
+		}
+		bool rec_type_check(type x) override {
+			if (x > type::f64) {
+				return false;
+			}
+			return operands[1]->type_try_settle(x) && operands[2]->type_try_settle(x);
 		}
 	};
 
@@ -285,17 +293,6 @@ namespace li::ir {
 			auto* c = operands[0]->as<constant>();
 			LI_ASSERT(c->is(type::vmopr));
 			LI_ASSERT(operation::CEQ <= c->vmopr && c->vmopr <= operation::CGE);
-		}
-	};
-	// unk  select(i1 cc, unk t, unk f)
-	struct select final : insn_tag<select, opcode::select> {
-		void update() override {
-			is_const = true;
-			LI_ASSERT(operands.size() == 3);
-			LI_ASSERT(operands[0]->is(type::i1));
-			if (operands[0]->vt == operands[1]->vt) {
-				vt = operands[0]->vt;
-			}
 		}
 	};
 	// i1   test_type(unk, const vmtype)
@@ -372,6 +369,9 @@ namespace li::ir {
 			is_pure = false;
 			LI_ASSERT(operands.size() == 1);
 			vt = operands[0]->vt;
+		}
+		bool rec_type_check(type x) override {
+			return operands[0]->type_try_settle(x);
 		}
 	};
 	// unk   uval_get(vfn, i32)
@@ -491,22 +491,54 @@ namespace li::ir {
 			LI_ASSERT(operands[2]->is<constant>() && operands[2]->is(type::bb));
 		}
 	};
+	// unk  select(i1 cc, unk t, unk f)
+	struct select final : insn_tag<select, opcode::select> {
+		void update() override {
+			is_const = true;
+			LI_ASSERT(operands.size() == 3);
+			LI_ASSERT(operands[0]->is(type::i1));
+
+			vt = type::unk;
+			for (size_t i = 1; i != 3; i++) {
+				auto& op = operands[i];
+				if (op->vt != type::unk) {
+					type_try_settle(op->vt, true);
+					break;
+				}
+			}
+		}
+		bool rec_type_check(type x) override {
+			for (size_t i = 1; i != 3; i++) {
+				auto& op = operands[i];
+				if (!op->type_try_settle(x))
+					return false;
+			}
+			return true;
+		}
+	};
 	// unk   phi(unk...)
 	struct phi final : insn_tag<phi, opcode::phi> {
 		void update() override {
 			alias    = true;
 			is_const = true;
 
-			if (size_t n = operands.size()) {
-				vt = operands[0]->vt;
-				for (size_t i = 0; i != n; i++) {
-					if (vt != operands[i]->vt) {
-						vt = type::unk;
-					}
+			vt = type::none;
+			for (auto& op : operands) {
+				if (op->vt != type::unk) {
+					vt = type::unk;
+					type_try_settle(op->vt, true);
+					break;
+				} else {
+					vt = op->vt;
 				}
-			} else {
-				vt = type::none;
 			}
+		}
+		bool rec_type_check(type x) override {
+			for (auto& op : operands) {
+				if (!op->type_try_settle(x))
+					return false;
+			}
+			return true;
 		}
 	};
 	// unk  vlen(unk obj)
@@ -534,6 +566,9 @@ namespace li::ir {
 			}
 			LI_ASSERT(vt == type::unk || vt == type::tbl || vt == type::arr);
 		}
+		bool rec_type_check(type x) override {
+			return operands[0]->type_try_settle(x) && operands[1]->type_try_settle(x);
+		}
 	};
 	// unk  load_local(const i32)
 	struct load_local final : insn_tag<load_local, opcode::load_local> {
@@ -551,6 +586,9 @@ namespace li::ir {
 			alias    = true;
 			LI_ASSERT(operands.size() == 1);
 			vt = operands[0]->vt;
+		}
+		bool rec_type_check(type x) override {
+			return operands[0]->type_try_settle(x);
 		}
 	};
 	// none store_local(const i32, unk)

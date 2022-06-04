@@ -138,8 +138,24 @@ namespace li::ir {
 			}
 		}
 
-		virtual void add_user(insn* a) const {}
-		virtual void del_user(insn* a) const {}
+		// Recursive type check.
+		//
+		virtual bool rec_type_check(type x) { return false; }
+		bool type_try_settle(type x, bool save = false) {
+			if (vt == x || x == type::unk)
+				return true;
+			if (vt != type::unk)
+				return false;
+			type prev = std::exchange(vt, x);
+			bool r    = rec_type_check(x);
+			vt        = (save && r) ? vt : prev;
+			return r;
+		}
+
+		// Updates the instruction details such as return type/side effects.
+		// Throws in debug mode if it's in an invalid state.
+		//
+		virtual void update() {}
 
 		// Printer.
 		//

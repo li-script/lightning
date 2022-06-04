@@ -1,14 +1,14 @@
 #pragma once
+#include <algorithm>
+#include <optional>
+#include <span>
 #include <util/format.hpp>
 #include <util/llist.hpp>
 #include <util/platform.hpp>
 #include <vm/gc.hpp>
-#include <algorithm>
-#include <span>
-#include <optional>
 
 #ifndef LI_STACK_SIZE
-	#define LI_STACK_SIZE (4*1024*1024)
+	#define LI_STACK_SIZE (4 * 1024 * 1024)
 #endif
 #ifndef LI_SAFE_STACK
 	#define LI_SAFE_STACK 0
@@ -30,15 +30,15 @@ namespace li {
 
 	// Call frame as a linked list of caller records.
 	//
-	static constexpr uint32_t MAX_ARGS       = 32;
-	static constexpr slot_t   FRAME_SELF     = -3;  // specials relative to local 0
-	static constexpr slot_t   FRAME_TARGET   = -2;
-	static constexpr slot_t   FRAME_RET      = -2;
-	static constexpr slot_t   FRAME_CALLER   = -1;
-	static constexpr slot_t   FRAME_SIZE     = 3;
-	static constexpr uint64_t FRAME_C_FLAG   = (1ll << 17);
-	static constexpr slot_t   STACK_LENGTH   = LI_STACK_SIZE / sizeof(any);
-	static constexpr slot_t   BC_MAX_IP      = FRAME_C_FLAG - 1;
+	static constexpr uint32_t MAX_ARGS     = 32;
+	static constexpr slot_t   FRAME_SELF   = -3;  // specials relative to local 0
+	static constexpr slot_t   FRAME_TARGET = -2;
+	static constexpr slot_t   FRAME_RET    = -2;
+	static constexpr slot_t   FRAME_CALLER = -1;
+	static constexpr slot_t   FRAME_SIZE   = 3;
+	static constexpr uint64_t FRAME_C_FLAG = (1ll << 17);
+	static constexpr slot_t   STACK_LENGTH = LI_STACK_SIZE / sizeof(any);
+	static constexpr slot_t   BC_MAX_IP    = FRAME_C_FLAG - 1;
 	static_assert(STACK_LENGTH <= util::fill_bits(23), "Stack configured too large.");
 
 	struct call_frame {
@@ -64,12 +64,12 @@ namespace li {
 	//
 	struct func_scope;
 	struct expression;
-	using fn_parse_builtin = std::optional<expression>(*)(func_scope& scope, std::string_view name, const expression& self, std::span<std::pair<expression, bool>> params);
+	using fn_parse_builtin = std::optional<expression> (*)(func_scope& scope, std::string_view name, const expression& self, std::span<std::pair<expression, bool>> params);
 
 	// VM state.
 	//
 	struct vm : gc::leaf<vm> {
-		static vm* create(fn_alloc alloc = &platform::page_alloc, void* allocu = nullptr, size_t context_space = 0);
+		static vm*              create(fn_alloc alloc = &platform::page_alloc, void* allocu = nullptr);
 		static constexpr size_t reserved_global_length = 32;
 
 		// VM state.
@@ -80,10 +80,13 @@ namespace li {
 		string*          empty_string   = nullptr;           // Constant "".
 		table*           globals        = nullptr;           // Globals.
 		uint64_t         prng_seed      = platform::srng();  // PRNG seed.
-		any*             stack          = nullptr;           // Stack base.
-		any*             stack_top      = nullptr;           // Top of the stack.
 		call_frame       last_vm_caller = {};                // Last valid VM frame that called into C.
 		fn_parse_builtin builtin_parser = nullptr;           // Parser callback to emit bytecode for builtins.
+
+		// VM stack.
+		//
+		any* stack_top = nullptr;  // Top of the stack.
+		any  stack[];              // Stack base.
 
 		// Closes the VM state.
 		//
@@ -93,7 +96,7 @@ namespace li {
 		//
 		LI_INLINE void push_stack(any x) {
 #if LI_SAFE_STACK
-			if (stack_top >= (stack+STACK_LENGTH)) [[unlikely]] {
+			if (stack_top >= (stack + STACK_LENGTH)) [[unlikely]] {
 				panic("stack too large.");
 			}
 #endif
@@ -115,12 +118,12 @@ namespace li {
 #endif
 			stack_top -= n;
 		}
-		LI_INLINE any  peek_stack() { return stack_top[-1]; }
+		LI_INLINE any peek_stack() { return stack_top[-1]; }
 		LI_INLINE any pop_stack() {
 #if LI_SAFE_STACK
-			 if (stack_top == stack) {
-				 return any{};
-			 }
+			if (stack_top == stack) {
+				return any{};
+			}
 #endif
 			return *--stack_top;
 		}
@@ -132,14 +135,10 @@ namespace li {
 
 		// Gets next random.
 		//
-		uint64_t random() { 
+		uint64_t random() {
 			prng_seed = (6364136223846793005 * prng_seed + 1442695040888963407);
 			return prng_seed;
 		}
-
-		// Gets user context.
-		//
-		void* context() { return this + 1; }
 
 		// Wrappers around the configurable function pointers.
 		//

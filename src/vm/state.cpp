@@ -2,10 +2,10 @@
 #include <vm/table.hpp>
 
 namespace li {
-	vm* vm::create(fn_alloc alloc, void* allocu, size_t context_space) {
+	vm* vm::create(fn_alloc alloc, void* allocu) {
 		// Allocate the first page.
 		//
-		size_t length = (std::max(gc::minimum_allocation, sizeof(vm) + context_space) + 0xFFF) >> 12;
+		size_t length = (std::max(gc::minimum_allocation, sizeof(vm) + STACK_LENGTH * sizeof(any)) + 0xFFF) >> 12;
 		auto*  ptr    = alloc(allocu, nullptr, length, false);
 		if (!ptr)
 			return nullptr;
@@ -20,17 +20,9 @@ namespace li {
 
 		// Create the VM.
 		//
-		vm* L = gc.create<vm>(nullptr, context_space);
-		L->gc = gc;
-
-		// Initialize stack.
-		//
-		L->stack    = (any*) alloc(allocu, 0, (STACK_LENGTH * sizeof(any)) >> 12, false);
+		vm* L        = gc.create<vm>(nullptr, STACK_LENGTH * sizeof(any));
+		L->gc        = gc;
 		L->stack_top = L->stack;
-		if (!L->stack) [[unlikely]] {
-			alloc(allocu, ptr, length, false);
-			return nullptr;
-		}
 
 		// Initialize globals and string interning state.
 		//
@@ -41,9 +33,5 @@ namespace li {
 
 	// Closes the VM state.
 	//
-	void vm::close()
-	{
-		gc.alloc_fn(gc.alloc_ctx, stack, (STACK_LENGTH * sizeof(any)) >> 12, false);
-		gc.close(this);
-	}
+	void vm::close() { gc.close(this); }
 };

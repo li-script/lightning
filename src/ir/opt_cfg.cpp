@@ -14,6 +14,9 @@ namespace li::ir::opt {
 			for (auto it = proc->basic_blocks.begin(); it != proc->basic_blocks.end();) {
 				auto& bb = *it;
 
+				// TODO: Optimize if unreachable terminated & not debug mode.
+				//
+
 				// Delete if there is no predecessors.
 				//
 				if (bb->predecessors.empty() && it != proc->basic_blocks.begin()) {

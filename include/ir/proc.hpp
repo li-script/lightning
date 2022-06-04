@@ -359,7 +359,7 @@ namespace li::ir {
 			auto mark = ++next_visited_mark;
 			auto rec = [&](auto& self, const basic_block* b) -> bool {
             b->visited = mark;
-				for (auto& s : b->successors)
+            for (auto& s : b->successors)
 					if (s->visited != mark)
 						if (self(self, s))
 							return true;

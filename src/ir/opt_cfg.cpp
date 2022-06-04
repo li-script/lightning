@@ -63,6 +63,32 @@ namespace li::ir::opt {
 				continue;
 			}
 
+			// Join jumps to blocks with a single predecessor.
+			//
+			if (term->is<jmp>() && bb->successors.front()->predecessors.size() == 1) {
+				auto* target = bb->successors.front();
+
+				// Move the instruction list.
+				//
+				term->erase();
+				while (!target->empty()) {
+					auto i = target->front()->erase();
+					LI_ASSERT(!i->is<phi>());
+					bb->push_back(std::move(i));
+				}
+
+				// Fixup jump lists.
+				//
+				bb->successors.swap(target->successors);
+				for (auto& suc : bb->successors) {
+					*range::find(suc->predecessors, target) = bb.get();
+				}
+
+				target->predecessors.clear();
+				target->successors.clear();
+				proc->del_block(target);
+			}
+
 			/*
 			-- Block $4
 			#1e    %14:? = phi $1->%6:nil, $3->%11:?

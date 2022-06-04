@@ -12,13 +12,9 @@
 #include <jit/zydis.hpp>
 
 #if __AVX__
-	static constexpr int  vector_reg_size = 0x20;
 	static constexpr auto vector_move     = ZYDIS_MNEMONIC_VMOVUPS;
-	static constexpr auto vector_full     = ZYDIS_REGISTER_YMM0;
 #else
-	static constexpr int  vector_reg_size = 0x10;
 	static constexpr auto vector_move     = ZYDIS_MNEMONIC_MOVUPS;
-	static constexpr auto vector_full     = ZYDIS_REGISTER_XMM0;
 #endif
 
 namespace li::ir::jit {
@@ -74,7 +70,13 @@ namespace li::ir::jit {
 	}
 
 
-	static constexpr int32_t magic_reloc = 0xAABBC2;
+	static constexpr int32_t magic_reloc = 0xAAABBC2;
+
+	// Code leaf.
+	//
+	struct gc_code : gc::exec_leaf<gc_code> {
+		uint8_t data[];
+	};
 
 	// Machine-code block.
 	//
@@ -116,9 +118,10 @@ namespace li::ir::jit {
 
 		// Jump condition.
 		//
-		ZydisMnemonic jcc       = ZYDIS_MNEMONIC_INVALID;
-		uint32_t      jmp_true  = 0;
-		uint32_t      jmp_false = 0;
+		ZydisMnemonic jcc             = ZYDIS_MNEMONIC_INVALID;
+		uint32_t      jmp_true        = 0;
+		uint32_t      jmp_false       = 0;
+		bool          has_second_jump = false;
 
 		// Adds an instruction.
 		//
@@ -147,7 +150,7 @@ namespace li::ir::jit {
 				emit(ZYDIS_MNEMONIC_MOV, dst, src);
 			} else {
 	#if __AVX__
-				emit(ZYDIS_MNEMONIC_VMOVQ, dst, src);
+				emit(ZYDIS_MNEMONIC_VMOVSD, dst, src);
 	#else
 				emit(ZYDIS_MNEMONIC_MOVSD, dst, src);
 	#endif
@@ -158,7 +161,7 @@ namespace li::ir::jit {
 				emit(ZYDIS_MNEMONIC_MOV, dst, src);
 			} else {
 	#if __AVX__
-				emit(ZYDIS_MNEMONIC_VMOVQ, dst, src);
+				emit(ZYDIS_MNEMONIC_VMOVSD, dst, src);
 	#else
 				emit(ZYDIS_MNEMONIC_MOVSD, dst, src);
 	#endif
@@ -187,9 +190,9 @@ namespace li::ir::jit {
 	#endif
 				} else {
 	#if __AVX__
-					emit(ZYDIS_MNEMONIC_VMOVQ, dst, src);
+					emit(ZYDIS_MNEMONIC_VMOVAPD, dst, src);
 	#else
-					emit(ZYDIS_MNEMONIC_MOVSD, dst, src);
+					emit(ZYDIS_MNEMONIC_MOVAPD, dst, src);
 	#endif
 				}
 			}
@@ -470,7 +473,7 @@ namespace li::ir::jit {
 				auto calc = [&](auto& vl, auto& vr) -> string* {
 					// Get output register.
 					//
-					auto vx = reg.get_anyreg(ip, ip, false, true);
+					auto vx = reg.get_anyreg(ip, i->name, false, true);
 					switch (op) {
 						case bc::AADD: {
 	#if __AVX__
@@ -582,10 +585,12 @@ namespace li::ir::jit {
 
 				// Set the ok flag.
 				//
+				auto r32 = zy::resize_reg(arch::gp_retval, 4);
+				auto r8  = zy::resize_reg(arch::gp_retval, 1);
 				if (i->opc == opcode::thrw)
-					mc(ZYDIS_MNEMONIC_MOV, zy::EAX, 1);
+					mc(ZYDIS_MNEMONIC_XOR, r32, r32);
 				else
-					mc(ZYDIS_MNEMONIC_XOR, zy::EAX, zy::EAX);
+					mc(ZYDIS_MNEMONIC_MOV, r32, 1);
 				return nullptr;
 			}
 			default:
@@ -597,7 +602,7 @@ namespace li::ir::jit {
 	// - On success, writes the JIT callback into function and returns null.
 	// - On failure, returns the error reason.
 	//
-	string* generate_code(procedure* proc_proto) {
+	string* generate_code(procedure* proc_proto, nfunction** test) {
 		// Duplicate the procedure as we will transform it out of SSA, effectively making it invalid.
 		//
 		auto proc = proc_proto->duplicate();
@@ -692,16 +697,16 @@ namespace li::ir::jit {
 			// Allocate space and align stack.
 			//
 			int  num_fp_used = std::popcount(used_fp_mask >> std::size(arch::fp_volatile));
-			auto alloc_bytes = (push_count & 1 ? 0 : 8) + (arch::home_size + num_fp_used * vector_reg_size);
+			auto alloc_bytes = (push_count & 1 ? 0 : 8) + (arch::home_size + num_fp_used * 0x10);
 			LI_ASSERT(zy::encode(prologue, ZYDIS_MNEMONIC_SUB, arch::sp, alloc_bytes));
 
 			// Save vector registers.
 			//
-			zy::mem vsave_it{.size = vector_reg_size, .base = arch::sp, .disp = arch::home_size};
+			zy::mem vsave_it{.size = 0x10, .base = arch::sp, .disp = arch::home_size};
 			for (int i = std::size(arch::fp_volatile); i != arch::num_fp_reg; i++) {
 				if ((used_fp_mask >> i) & 1) {
-					LI_ASSERT(zy::encode(prologue, vector_move, vsave_it, zy::reg(vector_full + i)));
-					vsave_it.disp += vector_reg_size;
+					LI_ASSERT(zy::encode(prologue, vector_move, vsave_it, arch::fp_nonvolatile[i - std::size(arch::fp_volatile)]));
+					vsave_it.disp += 0x10;
 				}
 			}
 
@@ -713,14 +718,17 @@ namespace li::ir::jit {
 			//
 			// TODO: Allocate local space.
 			//
-
+				
+			// TODO: Arg count check, stack guard if safe stack enabled.
+			//
+				
 
 			// Load vector registers.
 			//
 			for (int i = std::size(arch::fp_volatile); i != arch::num_fp_reg; i++) {
 				if ((used_fp_mask >> i) & 1) {
-					vsave_it.disp -= vector_reg_size;
-					LI_ASSERT(zy::encode(epilogue, vector_move, vsave_it, zy::reg(vector_full + i)));
+					vsave_it.disp -= 0x10;
+					LI_ASSERT(zy::encode(prologue, vector_move, arch::fp_nonvolatile[i - std::size(arch::fp_volatile)], vsave_it));
 				}
 			}
 
@@ -743,8 +751,10 @@ namespace li::ir::jit {
 			epilogue.emplace_back(0xC3); // RETN
 		}
 
-		// Insert as needed and shift the data.
+		// Insert as needed and shift the data, calcucate total length.
 		//
+		size_t total_code_length = 0;
+		size_t total_data_length = 0;
 		for (auto& b : mproc.blocks) {
 			if (&b == &mproc.blocks.front()) {
 				b.code.insert(b.code.begin(), prologue.begin(), prologue.end());
@@ -755,9 +765,104 @@ namespace li::ir::jit {
 			}
 			if (b.pending_epilogue) {
 				b.code.insert(b.code.end(), epilogue.begin(), epilogue.end());
+			} else if (b.jcc != ZYDIS_MNEMONIC_INVALID) {
+				if (b.jcc == ZYDIS_MNEMONIC_JMP) {
+					if (b.jmp_true == (b.label + 1)) {
+						b.jcc = ZYDIS_MNEMONIC_INVALID;
+					} else {
+						b.emit(ZYDIS_MNEMONIC_JMP, magic_reloc);
+					}
+				} else if (b.jmp_true == (b.label + 1)) {
+					b.emit(jcc_reverse(b.jcc), magic_reloc);
+					b.jmp_true = b.jmp_false;
+				} else if (b.jmp_false == (b.label + 1)) {
+					b.emit(b.jcc, magic_reloc);
+					b.jmp_false = b.jmp_true;
+				} else {
+					b.emit(b.jcc, magic_reloc);
+					b.emit(ZYDIS_MNEMONIC_JMP, magic_reloc);
+					b.has_second_jump = true;
+				}
 			}
+			total_code_length += b.code.size();
+			total_data_length += b.data.size() * sizeof(double);
 		}
-		return string::create(proc_proto->L, "unknown JIT error");
+
+		// Align up the code size, allocate the executable region.
+		//
+		total_code_length = (total_code_length + 31) & ~31;
+		gc_code* result = proc->L->alloc<gc_code>(total_code_length + total_data_length);
+		memset(result->data, 0xCC, total_code_length);
+
+		auto get_label_ip = [&](auto i) {
+			auto it = result->data;
+			for (auto& b : mproc.blocks) {
+				if (b.label == i)
+					return it;
+				else
+					it += b.code.size();
+			}
+			util::abort("invalid label.");
+		};
+
+		// Copy the code over iteratively, fixing relocations.
+		//
+		auto it      = result->data;
+		auto data_it = result->data + total_code_length;
+		for (auto& b : mproc.blocks) {
+			memcpy(it, b.code.data(), b.code.size());
+			memcpy(data_it, b.data.data(), b.data.size() * sizeof(double));
+
+			for (auto [ip, off] : b.data_relocs) {
+				std::span<const uint8_t> range(it + ip, it + b.code.size());
+				zy::decoded_ins          d;
+				do {
+					d = *zy::decode(range);
+					ip += d.ins.length;
+				} while (*(uint32_t*) (it + ip - 4) != magic_reloc);
+				auto dst                  = data_it + off * sizeof(double);
+				*(int32_t*) (it + ip - 4) = dst - (it + ip);
+			}
+
+			it += b.code.size();
+
+			if (b.jcc != ZYDIS_MNEMONIC_INVALID) {
+				if (b.has_second_jump) {
+					auto j1 = it - 5;
+					auto j0 = it;
+					*(int32_t*) (j1 - 4) = get_label_ip(b.jmp_true) - j1;
+					*(int32_t*) (j0 - 4) = get_label_ip(b.jmp_false) - j0;
+				} else {
+					auto j0 = it;
+					*(int32_t*) (j0 - 4) = get_label_ip(b.jmp_true) - j0;
+				}
+			}
+
+			data_it += b.data.size() * sizeof(double);
+		}
+
+		// TODO: Fix empty jumps.
+		/*
+				vmulsd xmm3, xmm0, xmm2
+				$3:
+				vptest xmm1, xmm1
+				$4: <--------------------------
+				$5:
+				vaddsd xmm4, xmm4, xmm1
+		*/
+
+		auto gen = std::span<const uint8_t>(result->data, total_code_length);
+		while (auto i = zy::decode(gen)) {
+			puts(i->to_string().c_str());
+		}
+
+
+		result->acquire(); // remove
+
+		auto f = nfunction::create(proc->L, (nfunc_t) &result->data[0]);
+		f->jit = true;
+		*test = f;
+		return nullptr;
 	}
 };
 

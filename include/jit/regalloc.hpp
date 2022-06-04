@@ -254,6 +254,8 @@ namespace li::ir::jit {
 		// Requests a register of given kind for the name.
 		//
 		arch::reg get_anyreg(uint32_t ip, uint32_t name, bool gp, bool discard_value = false) {
+			discard_value = false;
+
 			// Return if we already have a matching register for this.
 			//
 			auto& vr = vreg[name];
@@ -440,9 +442,17 @@ namespace li::ir::jit {
 			for (auto ins : bb->insns()) {
 				if (ins->alias) {
 					auto alias_as = [&](insn* dst, insn* src) {
+						printf("merge %u <= %u [%s]\n", dst->name, src->name, dst->name <= src->name ? "BAD" : "");
+						// idk whats goin on here
+						//
+						//if (dst->name <= src->name)
+						//	return;
+
 						r.merge(dst->name, src->name);
 						dst->name = src->name;
 					};
+
+					// If you cannot merge, insert mov?
 
 					// Use the name of the first insn.
 					//
@@ -451,26 +461,7 @@ namespace li::ir::jit {
 					// For each other operand:
 					//
 					for (size_t i = 1; i != ins->operands.size(); i++) {
-						if (ins->operands[i]->is<insn>()) {
-							auto* s = ins->operands[i]->as<insn>()->parent;
-
-							bool unique_src = true;
-							for (size_t j = 0; j != ins->operands.size(); j++) {
-								if (i != j && ins->operands[j]->is<insn>()) {
-									auto* s2 = ins->operands[j]->as<insn>()->parent;
-									if (s2 == s) {
-										unique_src = false;
-										break;
-									}
-								}
-							}
-
-							// If unique reference, rename them as well.
-							//
-							if (unique_src) {
-								alias_as(ins->operands[i]->as<insn>(), ins);
-							}
-						}
+						alias_as(ins->operands[i]->as<insn>(), ins);
 					}
 				}
 			}

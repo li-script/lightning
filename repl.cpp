@@ -52,6 +52,59 @@ static void handle_repl_io(vm* L, std::string_view input) {
 	}
 }
 
+
+
+#include <list>
+#include <memory>
+#include <vm/bc.hpp>
+#include <lang/types.hpp>
+#include <vm/gc.hpp>
+
+#include <ir/insn.hpp>
+#include <ir/lifter.hpp>
+#include <ir/opt.hpp>
+#include <jit/regalloc.hpp>
+#include <jit/target.hpp>
+
+// TODO: Builtin markers for tables.
+// math.sqrt -> sqrtss
+// type / trait stuff
+
+static bool ir_test(vm* L, any* args, slot_t n) {
+	using namespace ir;
+
+	auto proc = lift_bc(L, args->as_vfn());
+	opt::lift_phi(proc.get());
+	opt::fold_identical(proc.get());
+	opt::dce(proc.get());
+	opt::cfg(proc.get());
+
+	nfunction* res = 0;
+	auto err = jit::generate_code(proc.get(), &res);
+	if (err) {
+		printf("error during jit codegen: %s\n", err->c_str());
+	} else {
+		L->push_stack(res);
+	}
+
+	//
+	//
+	
+
+
+
+	// hoist table fields even if it escapes
+	// move stuff out of loops
+	// type inference
+	// trait inference
+	// constant folding
+	// escape analysis
+	// loop analysis
+	// handling of frozen tables + add builtin tables
+
+	return true;
+}
+
 #if LI_ARCH_WASM
 static vm* emscripten_vm = nullptr;
 extern "C" {
@@ -69,6 +122,7 @@ int main(int argv, const char** args) {
 	//
 	auto* L = vm::create();
 	lib::register_std(L);
+	L->globals->set(L, string::create(L, "@IR"), nfunction::create(L, &ir_test));
 
 	// Repl if no file given.
 	//

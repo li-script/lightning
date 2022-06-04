@@ -39,7 +39,9 @@ namespace li {
 	// Replication of vm::call.
 	//
 	bool nfunction::call(vm* L, slot_t n_args, slot_t caller_frame, uint32_t caller_pc) {
-		LI_ASSERT(callback != nullptr);
+		if (jit) {
+			return callback(L, L->stack_top, n_args);
+		}
 
 		// Swap previous c-frame.
 		//

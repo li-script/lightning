@@ -8,9 +8,9 @@ namespace li::ir::jit {
 	// - On failure, returns the error reason.
 	//
 #if LI_JIT
-	string* generate_code(procedure* proc);
+	string* generate_code(procedure* proc, nfunction** test);
 #else
-	inline string* generate_code(procedure* proc) {
+	inline string* generate_code(procedure* proc, nfunction** test) {
 		return string::create(proc->L, "target does not have JIT capabilities.");
 	}
 #endif

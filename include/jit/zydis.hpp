@@ -203,4 +203,27 @@ namespace li::zy {
 		}
 		return result;
 	}
+
+	// Register resize.
+	//
+	static reg resize_reg(reg r, size_t n) {
+		switch (n) {
+			case 1:
+				return ZydisRegisterEncode(ZYDIS_REGCLASS_GPR8, ZydisRegisterGetId(r));
+			case 2:
+				return ZydisRegisterEncode(ZYDIS_REGCLASS_GPR16, ZydisRegisterGetId(r));
+			case 4:
+				return ZydisRegisterEncode(ZYDIS_REGCLASS_GPR32, ZydisRegisterGetId(r));
+			case 8:
+				return ZydisRegisterEncode(ZYDIS_REGCLASS_GPR64, ZydisRegisterGetId(r));
+			case 0x10:
+				return ZydisRegisterEncode(ZYDIS_REGCLASS_XMM, ZydisRegisterGetId(r));
+			case 0x20:
+				return ZydisRegisterEncode(ZYDIS_REGCLASS_YMM, ZydisRegisterGetId(r));
+			case 0x40:
+				return ZydisRegisterEncode(ZYDIS_REGCLASS_ZMM, ZydisRegisterGetId(r));
+			default:
+				return NO_REG;
+		}
+	}
 };

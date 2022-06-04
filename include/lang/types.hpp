@@ -44,14 +44,14 @@ namespace li {
 		type_function  = 3,  // Last traversable.
 		type_nfunction = 4,
 		type_string    = 5,
-		type_none      = 8,  // First non-GC type.
+		type_true      = 8,  // First non-GC type.
 		type_false     = 9,
-		type_true      = 10,
+		type_none      = 10,
 		type_opaque    = 11,  // No type/definition, unique integer part.
 		type_number    = 12,
 
 		// GC aliases.
-		type_gc_free = type_none,
+		type_gc_free = type_true,
 		type_gc_private,
 		type_gc_uninit,
 		type_gc_last             = 7,
@@ -129,7 +129,7 @@ namespace li {
 		// Literal construction.
 		//
 		inline constexpr any() : value(make_tag(type_none)) {}
-		inline constexpr any(bool v) : value(make_tag(type_false + v)) {}
+		inline constexpr any(bool v) : value(v ? make_tag(type_true) : make_tag(type_false)) {}
 		inline constexpr any(number v) : value(bit_cast<uint64_t>(v)) {
 			if (v != v) [[unlikely]]
 				value = kvalue_nan;

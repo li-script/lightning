@@ -7,7 +7,7 @@
 #include <utility>
 
 #if !LI_32 && LI_ARCH_X86
-	#include <jit/zydis.hpp>
+	#include <mir/zydis.hpp>
 #endif
 
 // Architectural constants.
@@ -17,50 +17,22 @@ namespace li::ir::arch {
 	static constexpr std::span<const T> empty_set_v = {};
 
 #if LI_ARCH_X86 && !LI_32
-	using native_reg                             = zy::reg;
-	static constexpr const char* name_native( native_reg r ) {
-		switch ( r ) {
-			// clang-format off
-			case zy::RAX:   return "RAX";
-			case zy::RCX:   return "RCX";
-			case zy::RDX:   return "RDX";
-			case zy::RSP:   return "RSP";
-			case zy::RBP:   return "RBP";
-			case zy::RSI:   return "RSI";
-			case zy::RDI:   return "RDI";
-			case zy::RBX:   return "RBX";
-			case zy::R8:    return "R8";
-			case zy::R9:    return "R9";
-			case zy::R10:   return "R10";
-			case zy::R11:   return "R11";
-			case zy::R12:   return "R12";
-			case zy::R13:   return "R13";
-			case zy::R14:   return "R14";
-			case zy::R15:   return "R15";
-			case zy::XMM0:  return "XMM0";
-			case zy::XMM1:  return "XMM1";
-			case zy::XMM2:  return "XMM2";
-			case zy::XMM3:  return "XMM3";
-			case zy::XMM4:  return "XMM4";
-			case zy::XMM5:  return "XMM5";
-			case zy::XMM6:  return "XMM6";
-			case zy::XMM7:  return "XMM7";
-			case zy::XMM8:  return "XMM8";
-			case zy::XMM9:  return "XMM9";
-			case zy::XMM10: return "XMM0";
-			case zy::XMM11: return "XMM1";
-			case zy::XMM12: return "XMM2";
-			case zy::XMM13: return "XMM3";
-			case zy::XMM14: return "XMM4";
-			case zy::XMM15: return "XMM5";
-			default:        return "?";
-			// clang-format on
-		}
+	
+	using native_reg      = zy::reg;
+	using native_mnemonic = ZydisMnemonic;
+
+	static const char* name_reg(native_reg r) {
+		const char* reg = ZydisRegisterGetString(r);
+		return reg ? reg : "INVALID";
+	}
+	static const char* name_mnemonic(native_mnemonic r) {
+		const char* m = ZydisMnemonicGetString(r);
+		return m ? m : "INVALID";
 	}
 #endif
 
 #if LI_ABI_MS64
-	static constexpr native_reg gp_nonvolatile[] = {zy::RSI, zy::RDI, zy::R12, zy::R13, zy::R14, zy::R15};
+	static constexpr native_reg gp_nonvolatile[] = {zy::RBX, zy::RSI, zy::RDI, zy::R12, zy::R13, zy::R14, zy::R15};
 	static constexpr native_reg gp_volatile[]    = {zy::RAX, zy::RCX, zy::RDX, zy::R8, zy::R9, zy::R10, zy::R11};
 	static constexpr native_reg gp_argument[]    = {zy::RCX, zy::RDX, zy::R8, zy::R9};
 	static constexpr native_reg gp_retval        = zy::RAX;
@@ -69,14 +41,13 @@ namespace li::ir::arch {
 	static constexpr native_reg fp_argument[]    = {zy::XMM0, zy::XMM1, zy::XMM2, zy::XMM3};
 	static constexpr native_reg fp_retval        = zy::XMM0;
 	static constexpr native_reg sp               = zy::RSP;
-	static constexpr native_reg bp               = zy::RBP; // args*
-	static constexpr native_reg bp2              = zy::RBX; // vm*
+	static constexpr native_reg bp               = zy::RBP;
 	static constexpr native_reg invalid          = zy::NO_REG;
 
 	static constexpr int32_t home_size            = 0x20;
 	static constexpr bool    combined_arg_counter = true;
 #elif LI_ABI_SYSV64
-	static constexpr native_reg gp_nonvolatile[] = {zy::R12, zy::R13, zy::R14, zy::R15};
+	static constexpr native_reg gp_nonvolatile[] = {zy::RBX, zy::R12, zy::R13, zy::R14, zy::R15};
 	static constexpr native_reg gp_volatile[]    = {zy::RAX, zy::RDI, zy::RSI, zy::RDX, zy::RCX, zy::R8, zy::R9, zy::R10, zy::R11};
 	static constexpr native_reg gp_argument[]    = {zy::RDI, zy::RSI, zy::RDX, zy::RCX, zy::R8, zy::R9};
 	static constexpr native_reg gp_retval        = zy::RAX;
@@ -85,14 +56,15 @@ namespace li::ir::arch {
 	static constexpr native_reg fp_argument[]    = {zy::XMM0, zy::XMM1, zy::XMM2, zy::XMM3, zy::XMM4, zy::XMM5, zy::XMM6, zy::XMM7};
 	static constexpr native_reg fp_retval        = zy::XMM0;
 	static constexpr native_reg sp               = zy::RSP;
-	static constexpr native_reg bp               = zy::RBP;  // args*
-	static constexpr native_reg bp2              = zy::RBX;  // vm*
+	static constexpr native_reg bp               = zy::RBP;
 	static constexpr native_reg invalid          = zy::NO_REG;
 
 	static constexpr int32_t home_size            = 0x20;
 	static constexpr bool    combined_arg_counter = false;
 #else
 	using native_reg                           = int32_t;
+	using native_mnemonic                      = int32_t;
+
 	static constexpr auto       gp_nonvolatile = empty_set_v<native_reg>;
 	static constexpr auto       gp_volatile    = empty_set_v<native_reg>;
 	static constexpr auto       gp_argument    = empty_set_v<native_reg>;
@@ -108,7 +80,8 @@ namespace li::ir::arch {
 
 	static constexpr int32_t     home_size            = 0;
 	static constexpr bool        combined_arg_counter = false;
-	static constexpr const char* name_native(native_reg r) { return "?"; }
+	static constexpr const char* name_reg(native_reg r) { return "?"; }
+	static constexpr const char* name_mnemonic(native_mnemonic r) { return "?"; }
 #endif
 
 	static constexpr size_t num_gp_reg = std::size(gp_volatile) + std::size(gp_nonvolatile);

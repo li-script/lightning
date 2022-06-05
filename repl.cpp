@@ -63,8 +63,7 @@ static void handle_repl_io(vm* L, std::string_view input) {
 #include <ir/insn.hpp>
 #include <ir/lifter.hpp>
 #include <ir/opt.hpp>
-#include <jit/regalloc.hpp>
-#include <jit/target.hpp>
+#include <mir/core.hpp>
 
 // TODO: Builtin markers for tables.
 // math.sqrt -> sqrtss
@@ -95,6 +94,9 @@ static bool ir_test(vm* L, any* args, slot_t n) {
 		auto i = range::find_if(bb->insns(), [](insn* i) {
 			if (i->is<binop>() || i->is<compare>()) {
 				i->update();
+				if (i->is<compare>() && (i->operands[1]->vt != i->operands[2]->vt)) {
+					return true;
+				}
 				if (i->vt != type::unk) {
 					for (auto& op : i->operands)
 						op->update();
@@ -161,21 +163,68 @@ static bool ir_test(vm* L, any* args, slot_t n) {
 		//});
 		return false;
 	});
+
 	opt::fold_identical(proc.get());
 	opt::dce(proc.get());
 	opt::cfg(proc.get());
+	opt::type_inference(proc.get());
 
 	proc->topological_sort();
+
+
+	for (auto& bb : proc->basic_blocks) {
+		bb->loop_depth = bb->check_path(bb.get()) ? 1 : 0;
+	}
+
+	// Ready for MIR.
+	{
+		// Fixup PHIs.
+		//
+		for (auto& bb : proc->basic_blocks) {
+			for (auto phi : bb->insns()) {
+				if (!phi->is<ir::phi>())
+					break;
+				for (size_t i = 0; i != phi->operands.size(); i++) {
+					if (phi->vt == type::unk && phi->operands[i]->vt != type::unk)
+						phi->operands[i] = builder{}.emit_before<erase_type>(bb->predecessors[i]->back(), phi->operands[i]);
+					else
+						phi->operands[i] = builder{}.emit_before<move>(bb->predecessors[i]->back(), phi->operands[i]);
+				}
+
+				// Replace all uses.
+				//
+				//auto phi_copy = builder{}.emit_before<move>(bb->end_phi().at, phi);
+				//phi->replace_all_uses(phi_copy);
+				//phi_copy->operands[0] = make_use(phi);
+			}
+		}
+
+		// Topologically sort the procedure and rename every register.
+		//
+		proc->topological_sort();
+		proc->reset_names();
+		proc->print();
+
+		// Fixup the moves we inserted.
+		//
+		for (auto& bb : proc->basic_blocks) {
+			for (auto phi : bb->phis()) {
+				for (size_t i = 0; i != phi->operands.size(); i++) {
+					phi->operands[i]->as<insn>()->name = phi->name;
+				}
+			}
+		}
+	}
 
 	proc->validate();
 	proc->print();
 
-	nfunction* res = 0;
-	auto err = jit::generate_code(proc.get(), &res);
+
+	mprocedure mp{proc.get()};
+	string* err = lift_to_mir(&mp);
 	if (err) {
-		printf("error during jit codegen: %s\n", err->c_str());
-	} else {
-		L->push_stack(res);
+		L->push_stack(err);
+		return false;
 	}
 
 	//

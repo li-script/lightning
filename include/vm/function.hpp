@@ -23,7 +23,6 @@ namespace li {
 		//
 		nfunc_t  callback      = nullptr;
 		uint32_t num_arguments = 0;
-		bool     jit           = false; // TODO: Temporary.
 
 		// TODO: Fast function alternative with types for JIT.
 		//

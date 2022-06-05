@@ -68,8 +68,11 @@
     <ClCompile Include="..\src\ir\proc.cpp">
       <Filter>IR\Core</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\jit\x64.cpp">
-      <Filter>JIT</Filter>
+    <ClCompile Include="..\src\mir\target_x86.cpp">
+      <Filter>MIR\Targets</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ir\opt_type.cpp">
+      <Filter>IR\Optimizations</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -88,9 +91,6 @@
     <Filter Include="Library">
       <UniqueIdentifier>{c57d2e3d-b45c-41cf-abbe-fd7785828a57}</UniqueIdentifier>
     </Filter>
-    <Filter Include="JIT">
-      <UniqueIdentifier>{c978084a-5145-47d5-ac84-0a05a56eba6c}</UniqueIdentifier>
-    </Filter>
     <Filter Include="IR">
       <UniqueIdentifier>{6937ce40-997f-467c-8e02-df4d1f1a3a62}</UniqueIdentifier>
     </Filter>
@@ -102,6 +102,12 @@
     </Filter>
     <Filter Include="IR\Core">
       <UniqueIdentifier>{cb731b20-7d80-4098-b7e3-94b1f8868930}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="MIR">
+      <UniqueIdentifier>{c978084a-5145-47d5-ac84-0a05a56eba6c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="MIR\Targets">
+      <UniqueIdentifier>{ac856f68-ce87-4e4f-ac6e-884510d68f84}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -162,9 +168,6 @@
     <ClInclude Include="..\include\vm\traits.hpp">
       <Filter>VM\Types</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\jit\zydis.hpp">
-      <Filter>JIT</Filter>
-    </ClInclude>
     <ClInclude Include="..\include\vm\userdata.hpp">
       <Filter>VM\Types</Filter>
     </ClInclude>
@@ -195,11 +198,11 @@
     <ClInclude Include="..\include\util\func.hpp">
       <Filter>Utility</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\jit\regalloc.hpp">
-      <Filter>JIT</Filter>
+    <ClInclude Include="..\include\mir\zydis.hpp">
+      <Filter>MIR</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\jit\target.hpp">
-      <Filter>JIT</Filter>
+    <ClInclude Include="..\include\mir\core.hpp">
+      <Filter>MIR</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

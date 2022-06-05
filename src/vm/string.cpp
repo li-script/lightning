@@ -210,10 +210,12 @@ namespace li {
 		va_end(a1);
 		return string_set::push_if(L, str);
 	}
-	string* string::concat( vm* L, string* a, string* b) {
+	string* string::concat(vm* L, string* a, string* b) {
 		// Handle empty case.
 		//
-		if (a == b && a == L->empty_string) [[unlikely]]
+		if (a == L->empty_string) [[unlikely]]
+			return b;
+		if (b == L->empty_string) [[unlikely]]
 			return a;
 
 		// Allocate a new GC string instance and concat within it.

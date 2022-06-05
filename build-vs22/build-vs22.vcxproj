@@ -69,6 +69,7 @@
     <ClInclude Include="..\include\lang\parser.hpp" />
     <ClInclude Include="..\include\lang\types.hpp" />
     <ClInclude Include="..\include\lib\std.hpp" />
+    <ClInclude Include="..\include\util\bitset.hpp" />
     <ClInclude Include="..\include\util\common.hpp" />
     <ClInclude Include="..\include\util\enuminfo.hpp" />
     <ClInclude Include="..\include\util\format.hpp" />

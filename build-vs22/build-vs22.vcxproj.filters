@@ -207,6 +207,9 @@
     <ClInclude Include="..\include\ir\ir2mir.hpp">
       <Filter>IR\Machine</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\util\bitset.hpp">
+      <Filter>Utility</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\.clang-format" />

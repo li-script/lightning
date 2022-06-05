@@ -70,6 +70,45 @@ static void handle_repl_io(vm* L, std::string_view input) {
 // math.sqrt -> sqrtss
 // type / trait stuff
 
+struct bool_matrix {
+	std::vector<bool> vec;
+	size_t            n = 0;
+
+	// Default construction copy and move.
+	//
+	bool_matrix()                              = default;
+	bool_matrix(const bool_matrix&)            = default;
+	bool_matrix& operator=(const bool_matrix&) = default;
+	bool_matrix(bool_matrix&& o) noexcept { swap(o); }
+	bool_matrix& operator=(bool_matrix&& o) noexcept {
+		swap(o);
+		return *this;
+	}
+	void swap(bool_matrix& o) {
+		std::swap(vec, o.vec);
+		std::swap(n, o.n);
+	}
+
+	// Observers.
+	//
+	size_t size() const { return n; }
+
+	// Resizing.
+	//
+	bool_matrix(size_t n, bool f = false) { resize(n, f); }
+	void resize(size_t n, bool f) {
+		this->n = n;
+		vec.resize(n * n, f);
+	}
+
+	// Indexing.
+	//
+	decltype(auto) operator()(size_t i, size_t j) { return vec[i * n + j]; }
+	decltype(auto) operator()(size_t i, size_t j) const { return vec[i * n + j]; }
+};
+
+
+
 static bool ir_test(vm* L, any* args, slot_t n) {
 	using namespace ir;
 
@@ -172,6 +211,21 @@ static bool ir_test(vm* L, any* args, slot_t n) {
 
 	proc->topological_sort();
 
+	//bool_matrix bm{proc->next_block_uid};
+	//proc->bfs([&](basic_block* b) {
+	//	for (auto& s : b->successors) {
+	//		bm(s->uid, b->uid) = 1;
+	//		for (auto& p : b->predecessors) {
+	//			bm(s->uid, p->uid) = 1;
+	//		}
+	//	}
+	//	return false;
+	//});
+	//for (size_t i = 0; i != bm.size(); i++) {
+	//	if (bm(i, i)) {
+	//		printf("block %u starts a loop\n", i);
+	//	}
+	//}
 
 	for (auto& bb : proc->basic_blocks) {
 		bb->loop_depth = bb->check_path(bb.get()) ? 1 : 0;

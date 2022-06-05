@@ -3,6 +3,7 @@
 #include <vector>
 #include <util/common.hpp>
 #include <util/format.hpp>
+#include <util/bitset.hpp>
 #include <ir/arch.hpp>
 #include <ir/proc.hpp>
 
@@ -60,6 +61,21 @@ namespace li::ir {
 		constexpr flag_id flag() const {
 			LI_ASSERT(is_flag());
 			return flag_id(id);
+		}
+
+		// Gets a zero-based unique identifier.
+		//
+		constexpr uint32_t uid() const {
+			uint32_t x = id < 0 ? uint32_t(-id) : uint32_t(id);
+			return (x << 3) + (id < 0) + (uint32_t(cl) << 1);
+		}
+		static constexpr mreg from_uid(uint32_t i) {
+			mreg result = {};
+			result.id   = i >> 3;
+			if (i & 1)
+				result.id = -result.id;
+			result.cl = regclass((i >> 1) & 3);
+			return result;
 		}
 
 		// Properties.
@@ -263,6 +279,29 @@ namespace li::ir {
 		}
 		explicit operator bool() const { return !is_null(); }
 
+		// Register enumerator.
+		// - F(Reg, IsRead)
+		//
+		template<typename F>
+		void for_each_reg(F&& fn) const {
+			for (auto& a : arg) {
+				if (!a) {
+					break;
+				}
+				if (a.is_reg()) {
+					fn(a.reg, true);
+				}
+				if (a.is_mem()) {
+					if (a.mem.base)
+						fn(a.mem.base, true);
+					if (a.mem.scale)
+						fn(a.mem.index, true);
+				}
+			}
+			if (out)
+				fn(out, false);
+		}
+
 		// String conversion.
 		//
 		std::string to_string() const {
@@ -312,6 +351,10 @@ namespace li::ir {
 		//
 		uint64_t visited = 0;
 
+		// Data-flow analysis results.
+		//
+		util::bitset df_live, df_def, df_ref;
+
 		// Appends an instruction at the end of the block and returns the IP.
 		//
 		template<typename O, typename... Tx>
@@ -329,7 +372,7 @@ namespace li::ir {
 		//
 		void print() const {
 			for (auto& i : instructions) {
-				puts(i.to_string().c_str());
+				printf("\t%s\n", i.to_string().c_str());
 			}
 		}
 	};

@@ -7,7 +7,7 @@
 #include <utility>
 
 #if !LI_32 && LI_ARCH_X86
-	#include <mir/zydis.hpp>
+	#include <ir/zydis.hpp>
 #endif
 
 // Architectural constants.

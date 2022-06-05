@@ -61,9 +61,10 @@ static void handle_repl_io(vm* L, std::string_view input) {
 #include <vm/gc.hpp>
 
 #include <ir/insn.hpp>
-#include <ir/lifter.hpp>
+#include <ir/bc2ir.hpp>
+#include <ir/ir2mir.hpp>
 #include <ir/opt.hpp>
-#include <mir/core.hpp>
+#include <ir/mir.hpp>
 
 // TODO: Builtin markers for tables.
 // math.sqrt -> sqrtss
@@ -208,12 +209,11 @@ static bool ir_test(vm* L, any* args, slot_t n) {
 	proc->validate();
 	proc->print();
 
-	mprocedure mp{proc.get()};
-	string* err = lift_to_mir(&mp);
-	if (err) {
-		L->push_stack(err);
-		return false;
-	}
+	auto mp = lift_ir(proc.get());
+	mp->print();
+
+	opt::regalloc(mp.get());
+
 
 	//
 	//

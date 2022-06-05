@@ -1,9 +1,11 @@
 #pragma once
 #include <ir/proc.hpp>
+#include <ir/mir.hpp>
 
-// All optimizations.
 //
-namespace li::ir::opt {
+// -- SSA IR Optimizations --
+//
+namespace li::ir::opt {	
 	// Lowers load/store of locals to PHI nodes and named registers.
 	//
 	void lift_phi(procedure* proc);
@@ -23,4 +25,13 @@ namespace li::ir::opt {
 	// Infers constant type information and optimizes the control flow.
 	//
 	void type_inference(procedure* proc);
+};
+
+//
+// -- Machine IR Optimizations --
+//
+namespace li::ir::opt {
+	// Allocates registers for each virtual register and generates the spill instructions.
+	//
+	void regalloc(mprocedure* proc);
 };

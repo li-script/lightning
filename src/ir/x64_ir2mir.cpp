@@ -1,6 +1,6 @@
 #include <util/common.hpp>
 #if LI_JIT && LI_ARCH_X86 && !LI_32
-#include <mir/core.hpp>
+#include <ir/mir.hpp>
 
 #if __AVX__
 	static constexpr bool USE_AVX = true;
@@ -469,15 +469,15 @@ namespace li::ir {
 
 	// Main lifter switch.
 	//
-	static string* mlift(mblock& b, insn* i) {
+	static void mlift(mblock& b, insn* i) {
 		switch (i->opc) {
 			case opcode::load_local: {
 				local_load(b, RIi(i->operands[0]), REG(i));
-				return nullptr;
+				return;
 			}
 			case opcode::store_local: {
 				local_store(b, RIi(i->operands[0]), REG(i->operands[1]));
-				return nullptr;
+				return;
 			}
 			case opcode::coerce_cast: {
 				LI_ASSERT(i->operands[1]->as<constant>()->irtype == type::i1);
@@ -485,10 +485,10 @@ namespace li::ir {
 					case type::none:
 					case type::nil: {
 						b.append(vop::movi, REG(i), 0);
-						return nullptr;
+						return;
 					}
 					case type::unk: {
-						static_assert(type_false == (type_none - 1), "update logic.");
+						static_assert(type_false == (type_none - 1), "Outdated constants.");
 
 						auto tmp = REG(i);
 						b.append(vop::movi, tmp, RIi(i->operands[0]));
@@ -497,15 +497,15 @@ namespace li::ir {
 						SUB(b, tmp, (int64_t) type_false);
 						CMP(b, FLAG_NBE, tmp, 1ll);
 						b.append(vop::setcc, tmp, FLAG_NBE);
-						return nullptr;
+						return;
 					}
 					case type::i1: {
 						b.append(vop::movi, REG(i), RIi(i->operands[0]));
-						return nullptr;
+						return;
 					}
 					default: {
 						b.append(vop::movi, REG(i), 1);
-						return nullptr;
+						return;
 					} 
 				}
 			}
@@ -516,52 +516,52 @@ namespace li::ir {
 				auto tmp = REG(i);
 				b.append(vop::movi, tmp, REG(i->operands[0]));
 				check_type_cc(b, FLAG_Z, vt, tmp);
-				return nullptr;
+				return;
 			}
 			case opcode::jcc: {
 				b.append(vop::js, {}, REG(i->operands[0]), i->operands[1]->as<constant>()->bb->uid, i->operands[2]->as<constant>()->bb->uid);
-				return nullptr;
+				return;
 			}
 			case opcode::jmp: {
 				b.append(vop::jmp, {}, i->operands[0]->as<constant>()->bb->uid);
-				return nullptr;
+				return;
 			}
 			case opcode::assume_cast: {
 				auto out = REG(i);
 				b.append(out.is_fp() ? vop::movf : vop::movi, out, REG(i->operands[0]));
-				return nullptr;
+				return;
 			}
 			case opcode::compare: {
 				auto cc = i->operands[0]->as<constant>()->vmopr;
 				auto flag = fp_compare(b, cc, i->operands[1], i->operands[2]);
 				b.append(vop::setcc, REG(i), flag);
-				return nullptr;
+				return;
 			}
 			case opcode::erase_type: {
 				YIELD(type_erase(b, i->operands[0]));
-				return nullptr;
+				return;
 			}
 			case opcode::move: {
 				YIELD(RI(i->operands[0]));
-				return nullptr;
+				return;
 			}
 			case opcode::unop: {
 				if (i->vt == type::f64) {
 					if (fp_unary(b, i->operands[0]->as<constant>()->vmopr, i->operands[1], i))
-						return nullptr;
+						return;
 				}
 				break;
 			}
 			case opcode::binop: {
 				if (i->vt == type::f64) {
 					if (fp_binary(b, i->operands[0]->as<constant>()->vmopr, i->operands[1], i->operands[2], i))
-						return nullptr;
+						return;
 				}
 				break;
 			}
 			case opcode::unreachable: {
 				b.append(vop::unreachable, {});
-				return nullptr;
+				return;
 			}
 			case opcode::phi: {
 				auto r = get_existing_reg(i->operands[0]->as<insn>());
@@ -569,23 +569,26 @@ namespace li::ir {
 					LI_ASSERT(get_existing_reg(op->as<insn>()) == r);
 				}
 				YIELD(r);
-				return nullptr;
+				return;
 			}
 			case opcode::thrw: 
 			case opcode::ret: {
 				auto code = i->opc == opcode::ret;
 				local_store(b, FRAME_RET, RI(i->operands[0]));
 				b.append(vop::ret, {}, code ? 1ll : 0ll);
-				return nullptr;
+				return;
 			}
 			default:
 				break;
 		}
-		return b->error("Opcode %s NYI", i->to_string(true).c_str());
+		util::abort("Opcode %s NYI", i->to_string(true).c_str());
 	}
 
+	// Generates crude machine IR from the SSA IR.
+	//
+	std::unique_ptr<mprocedure> lift_ir(procedure* p) {
+		auto m = std::make_unique<mprocedure>(p);
 
-	string* lift_to_mir(mprocedure* m) {
 		// Clear all visitor state, we use both fields for mapping to machine structures.
 		//
 		m->source->clear_all_visitor_state();
@@ -622,12 +625,12 @@ namespace li::ir {
 		// For each block:
 		//
 		for (auto& b : m->source->basic_blocks) {
-			printf("-- Block $%u", b->uid);
-			if (b->cold_hint)
-				printf(LI_CYN " [COLD %u]" LI_DEF, (uint32_t) b->cold_hint);
-			if (b->loop_depth)
-				printf(LI_RED " [LOOP %u]" LI_DEF, (uint32_t) b->loop_depth);
-			putchar('\n');
+			//printf("-- Block $%u", b->uid);
+			//if (b->cold_hint)
+			//	printf(LI_CYN " [COLD %u]" LI_DEF, (uint32_t) b->cold_hint);
+			//if (b->loop_depth)
+			//	printf(LI_RED " [LOOP %u]" LI_DEF, (uint32_t) b->loop_depth);
+			//putchar('\n');
 
 			// Fix the jumps.
 			//
@@ -639,20 +642,19 @@ namespace li::ir {
 			//
 			for (auto* i : b->insns()) {
 				//printf(LI_GRN "#%-5x" LI_DEF " %s\n", i->source_bc, i->to_string(true).c_str());
-
-				size_t n = mb->instructions.size();
-				string* err = mlift(*mb, i);
-				while (n != mb->instructions.size()) {
-					puts(mb->instructions[n++].to_string().c_str());
-				}
-				if (err)
-					return err;
+				//size_t n = mb->instructions.size();
+				mlift(*mb, i);
+				//while (n != mb->instructions.size()) {
+				//	puts(mb->instructions[n++].to_string().c_str());
+				//}
 			}
 		}
-
-		return m->error("lolz");
+		return m;
 	}
-	string* mir_assemble(mprocedure* m);
+
+	// Assembles the pseudo-target instructions in the IR.
+	//
+	void assemble_ir(mprocedure* proc);
 };
 
 #endif

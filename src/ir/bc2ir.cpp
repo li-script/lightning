@@ -1,4 +1,4 @@
-#include <ir/lifter.hpp>
+#include <ir/bc2ir.hpp>
 #include <ir/value.hpp>
 #include <ir/proc.hpp>
 #include <ir/insn.hpp>

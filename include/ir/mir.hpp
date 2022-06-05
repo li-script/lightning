@@ -299,7 +299,7 @@ namespace li::ir {
 	struct mprocedure;
 	struct mblock {
 		mprocedure*        parent       = nullptr;  // Owning procedure.
-		size_t             uid          = 0;        // Unique identifier of the block.
+		uint32_t           uid          = 0;        // Unique identifier of the block.
 		int32_t            hot          = 0;        // Hotness of the block.
 		std::vector<minsn> instructions = {};       // List of instructions.
 
@@ -324,6 +324,14 @@ namespace li::ir {
 		// Cute shortcut to access current procedure.
 		//
 		mprocedure* operator->() const { return parent; }
+
+		// Printer.
+		//
+		void print() const {
+			for (auto& i : instructions) {
+				puts(i.to_string().c_str());
+			}
+		}
 	};
 	struct mprocedure {
 		procedure*           source       = nullptr;  // Source procedure.
@@ -384,22 +392,19 @@ namespace li::ir {
 			return bb;
 		}
 
-		// Error wrapper.
+		// Printer.
 		//
-		template<typename... Tx>
-		string* error(const char* fmt, Tx... args) const {
-			if constexpr (sizeof...(Tx) == 0) {
-				return string::create(source->L, fmt);
-			} else {
-				return string::format(source->L, fmt, args...);
+		void print() const {
+			for (auto& b : basic_blocks) {
+				printf("-- Block $%u", b.uid);
+				if (b.hot < 0)
+					printf(LI_CYN " [COLD %u]" LI_DEF, (uint32_t) -b.hot);
+				if (b.hot > 0)
+					printf(LI_RED " [HOT  %u]" LI_DEF, (uint32_t) b.hot);
+				putchar('\n');
+				b.print();
 			}
 		}
 	};
-
-	// Target-dependent lifter and assembler.
-	// - Both return nullptr on success and error string on failure.
-	//
-	string* lift_to_mir(mprocedure* m);
-	string* mir_assemble(mprocedure* m);
 };
 

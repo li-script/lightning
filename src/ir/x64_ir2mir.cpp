@@ -587,7 +587,8 @@ namespace li::ir {
 	// Generates crude machine IR from the SSA IR.
 	//
 	std::unique_ptr<mprocedure> lift_ir(procedure* p) {
-		auto m = std::make_unique<mprocedure>(p);
+		auto m = std::make_unique<mprocedure>();
+		m->source = p;
 
 		// Clear all visitor state, we use both fields for mapping to machine structures.
 		//

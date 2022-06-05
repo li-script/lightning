@@ -200,27 +200,26 @@ namespace li::ir::opt {
 				interference_graph[bu].vtx.set(au);
 				return prev;
 			};
-			for (auto& b : proc->basic_blocks) {
-				for (mreg def : regs_in(b.df_def)) {
-					if (!add_vertex(def, def)) {
-						if (def.is_phys()) {
-							interference_graph[def.uid()].color = std::abs(def.phys());
-						}
-						for (size_t i = 0; i != max_reg_id; i++) {
-							if (b.df_live[i]) {
-								add_vertex(def, mreg::from_uid(i));
-							}
-						}
+			auto initial_entry = [&](mblock& b, mreg def) {
+				interference_graph[def.uid()].vtx.set(def.uid());
+				if (def.is_phys()) {
+					interference_graph[def.uid()].color = std::abs(def.phys());
+				}
+				for (size_t i = 0; i != max_reg_id; i++) {
+					if (b.df_live[i]) {
+						add_vertex(def, mreg::from_uid(i));
 					}
 				}
+			};
+
+			for (auto& b : proc->basic_blocks) {
 				for (auto& i : b.instructions) {
-					if (i.out) {
-						i.for_each_reg([&](mreg r, bool is_read) {
-							if (is_read) {
-								add_vertex(i.out, r);
-							}
-						});
-					}
+					i.for_each_reg([&](mreg r, bool is_read) {
+						initial_entry(b, r);
+						if (is_read && i.out) {
+							add_vertex(i.out, r);
+						}
+					});
 				}
 			}
 

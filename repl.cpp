@@ -208,6 +208,9 @@ static bool ir_test(vm* L, any* args, slot_t n) {
 	opt::dce(proc.get());
 	opt::cfg(proc.get());
 	opt::type_inference(proc.get());
+	opt::fold_identical(proc.get());
+	opt::dce(proc.get());
+	opt::cfg(proc.get());
 
 	proc->topological_sort();
 

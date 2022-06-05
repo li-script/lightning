@@ -2,7 +2,6 @@
 #include <vector>
 #include <string>
 #include <ir/value.hpp>
-#include <ir/arch.hpp>
 #include <util/format.hpp>
 #include <util/llist.hpp>
 #include <util/func.hpp>
@@ -108,22 +107,10 @@ namespace li::ir {
 
 		// Traits.
 		//
-		uint32_t alias : 1       = 0;  // Result always is one of the register operands.
 		uint32_t is_pure : 1     = 1;  // Always returns the same value given the same arguments (unless there was an instruction with sideeffects).
 		uint32_t is_const : 1    = 0;  // On top of being pure, also doesn't break the constraints on sideffect.
 		uint32_t sideffect : 1   = 0;  // Has side effects and should not be discarded if not used.
 		uint32_t is_volatile : 1 = 0;  // Same as side-effect, but user specified and cannot be ignored by instruction-specific optimizers.
-		uint32_t spill_gc : 1    = 0;  // Spills all locals that are GC'd.
-		uint32_t spill_vol : 1   = 0;  // Spills volatile registers.
-
-		// Spilled registers.
-		//
-		std::vector<arch::reg> spilled_regs = {};
-
-		// Forced register ids.
-		//
-		arch::reg              force_result_reg   = arch::reg_none;
-		std::vector<arch::reg> force_operand_regs = {};
 
 		// Operands.
 		//
@@ -422,7 +409,6 @@ namespace li::ir {
 	// T      try_cast(unk, const irtype T)
 	struct try_cast final : insn_tag<try_cast, opcode::try_cast> {
 		void update() override {
-			alias    = true;
 			is_const = true;
 			LI_ASSERT(operands.size() == 2);
 			LI_ASSERT(operands[1]->is<constant>() && operands[1]->is(type::irtype));
@@ -432,7 +418,6 @@ namespace li::ir {
 	// T      assume_cast(unk, const irtype T)
 	struct assume_cast final : insn_tag<assume_cast, opcode::assume_cast> {
 		void update() override {
-			alias    = true;
 			is_const = true;
 			LI_ASSERT(operands.size() == 2);
 			LI_ASSERT(operands[1]->is<constant>() && operands[1]->is(type::irtype));
@@ -446,7 +431,6 @@ namespace li::ir {
 			LI_ASSERT(operands.size() == 2);
 			LI_ASSERT(operands[1]->is<constant>() && operands[1]->is(type::irtype));
 			vt = operands[1]->as<constant>()->irtype;
-			alias = operands[0]->vt == vt;
 		}
 	};
 	// none   ret(unk val)
@@ -520,7 +504,6 @@ namespace li::ir {
 	// unk   phi(unk...)
 	struct phi final : insn_tag<phi, opcode::phi> {
 		void update() override {
-			alias    = true;
 			is_const = true;
 
 			vt = type::none;
@@ -584,7 +567,6 @@ namespace li::ir {
 	struct move final : insn_tag<move, opcode::move> {
 		void update() override {
 			is_const  = true;
-			alias    = true;
 			LI_ASSERT(operands.size() == 1);
 			vt = operands[0]->vt;
 		}
@@ -596,7 +578,6 @@ namespace li::ir {
 	struct erase_type final : insn_tag<erase_type, opcode::erase_type> {
 		void update() override {
 			is_const = true;
-			alias    = true;
 			LI_ASSERT(operands.size() == 1);
 			vt = type::unk;
 		}
@@ -616,26 +597,10 @@ namespace li::ir {
 		void update() override {
 			is_pure   = false;
 			sideffect = true;
-			spill_vol = true;
 			LI_ASSERT(operands.size() >= 2);
 			LI_ASSERT(operands[0]->is<constant>() && operands[0]->is(type::irtype));
 			LI_ASSERT(operands[1]->is(type::ptr));
 			vt = operands[0]->as<constant>()->irtype;
-			if (vt == type::f32 || vt == type::f64) {
-				force_result_reg = arch::from_native(arch::fp_retval);
-			}
-
-			force_operand_regs.clear();
-			force_operand_regs.reserve(operands.size());
-			size_t num_fp = 0;
-			size_t num_gp = 0;
-			for (auto& op : operands) {
-				bool is_fp = op->vt == type::f32 || op->vt == type::f64;
-				auto reg = arch::map_argument(num_gp, num_fp, is_fp);
-				if (!reg)
-					break;
-				force_operand_regs.emplace_back(reg);
-			}
 		}
 	};
 	// any vcall(const i32 fixedargs)
@@ -643,8 +608,6 @@ namespace li::ir {
 		void update() override {
 			is_pure   = false;
 			sideffect = true;
-			spill_gc  = true;
-			spill_vol = true;
 			LI_ASSERT(operands.size() == 2);
 			LI_ASSERT(operands[0]->is<constant>() && operands[0]->is(type::i32));
 		}

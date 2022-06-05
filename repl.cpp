@@ -203,22 +203,10 @@ static bool ir_test(vm* L, any* args, slot_t n) {
 		//
 		proc->topological_sort();
 		proc->reset_names();
-		proc->print();
-
-		// Fixup the moves we inserted.
-		//
-		for (auto& bb : proc->basic_blocks) {
-			for (auto phi : bb->phis()) {
-				for (size_t i = 0; i != phi->operands.size(); i++) {
-					phi->operands[i]->as<insn>()->name = phi->name;
-				}
-			}
-		}
 	}
 
 	proc->validate();
 	proc->print();
-
 
 	mprocedure mp{proc.get()};
 	string* err = lift_to_mir(&mp);

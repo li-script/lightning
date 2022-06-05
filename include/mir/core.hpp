@@ -84,7 +84,7 @@ namespace li::ir {
 			if (is_null()) {
 				return LI_RED "null" LI_DEF;
 			} else if (is_flag()) {
-				return util::fmt(LI_YLW "%%f%x" LI_DEF, id);
+				return util::fmt(LI_BLU "%%f%x" LI_DEF, id);
 			} else if (is_virt()) {
 				if (is_fp()) {
 					return util::fmt(LI_CYN "%%vf%u" LI_DEF, -id);

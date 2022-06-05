@@ -106,9 +106,13 @@ namespace li::ir::opt {
 					//
 					term->erase();
 					while (!target->empty()) {
-						auto i = target->front()->erase();
-						LI_ASSERT(!i->is<phi>());
-						bb->push_back(std::move(i));
+						auto i = target->front();
+						if (i->is<phi>()) {
+							i->replace_all_uses(i->operands[0]);
+							i->erase();
+						} else {
+							bb->push_back(i->erase());
+						}
 					}
 
 					// Fixup jump lists.

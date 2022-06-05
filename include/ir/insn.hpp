@@ -571,7 +571,7 @@ namespace li::ir {
 			return operands[0]->type_try_settle(x) && operands[1]->type_try_settle(x);
 		}
 	};
-	// unk  load_local(const i32)
+	// unk  load_local(i32)
 	struct load_local final : insn_tag<load_local, opcode::load_local> {
 		void update() override {
 			is_pure = true;
@@ -601,7 +601,7 @@ namespace li::ir {
 			vt = type::unk;
 		}
 	};
-	// none store_local(const i32, unk)
+	// none store_local(i32, unk)
 	struct store_local final : insn_tag<store_local, opcode::store_local> {
 		void update() override {
 			is_pure   = false;

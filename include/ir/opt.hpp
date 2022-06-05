@@ -19,4 +19,8 @@ namespace li::ir::opt {
 	// Optimizes the control flow graph.
 	//
 	void cfg(procedure* proc);
+
+	// Infers constant type information and optimizes the control flow.
+	//
+	void type_inference(procedure* proc);
 };

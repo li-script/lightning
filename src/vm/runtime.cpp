@@ -32,7 +32,9 @@ namespace li::runtime {
 			if (!key.is_num() || key.as_num() < 0) [[unlikely]] {
 				return any(string::create(L, "indexing array with non-integer or negative key")).value;
 			}
-			tbl.as_arr()->set(L, size_t(key.as_num()), val);
+			if (!tbl.as_arr()->set(L, size_t(key.as_num()), val)) {
+				return any(string::create(L, "out-of-boundaries array access")).value;
+			}
 		} else [[unlikely]] {
 			return any(string::create(L, "indexing non-table")).value;
 		}

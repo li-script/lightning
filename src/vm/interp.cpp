@@ -371,7 +371,9 @@ namespace li {
 								if (!key.is_num() || key.as_num() < 0) [[unlikely]] {
 									VM_RET(string::create(L, "indexing array with non-integer or negative key"), true);
 								}
-								tbl.as_arr()->set(L, size_t(key.as_num()), val);
+								if (!tbl.as_arr()->set(L, size_t(key.as_num()), val)) {
+									VM_RET(string::create(L, "out-of-boundaries array access"), true);
+								}
 							} else [[unlikely]] {
 								VM_RET(string::create(L, "indexing non-table"), true);
 							}

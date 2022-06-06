@@ -87,7 +87,6 @@ namespace li {
 				} else if (b.is_tbl()) {
 					return {any(a != none && b.as_tbl()->get(L, a) != none), true};
 				} else if (b.is_str()) {
-
 					if (a.is_num()) {
 						if (auto num = uint32_t(a.as_num()); num <= 0xFF) {
 							for (auto& k : b.as_str()->view())

@@ -213,9 +213,11 @@ namespace li::ir {
 		//
 		insn* duplicate() const override {
 			T* copy = new T(*(T*)this);
-			copy->parent = nullptr;
-			copy->prev   = copy;
-			copy->next   = copy;
+			copy->parent  = nullptr;
+			copy->visited = 0;
+			copy->name    = 0;
+			copy->prev    = copy;
+			copy->next    = copy;
 			return copy;
 		}
 	};

@@ -4,26 +4,18 @@
 #include <ir/value.hpp>
 
 namespace li::ir::opt {
-	// Helper to convert from IR to VM type.
-	//
-	static value_type ir_to_vm(type r) {
-		constant test;
-		test.vt = r;
-		return test.to_any().type();
-	}
-
 	// Resolves dominating type for a value at the given instruction.
 	//
 	static std::optional<value_type> get_dominating_type_at(insn* i, value* v) {
 		if (v->vt != type::unk) {
-			return ir_to_vm(v->vt);
+			return to_vm_type(v->vt);
 		} else {
 			std::optional<value_type> resolved;
 			v->as<insn>()->for_each_user([&](insn* c, size_t j) {
 				// TODD: test_type branch check, has path to.
 				if (c->is<assume_cast>()) {
 					if (c->parent->dom(i->parent)) {
-						resolved = ir_to_vm(c->operands[1]->as<constant>()->irtype);
+						resolved = to_vm_type(c->operands[1]->as<constant>()->irtype);
 						return true;
 					}
 				}
@@ -36,8 +28,6 @@ namespace li::ir::opt {
 	// Adds the branches for required type checks.
 	//
 	void type_split_cfg(procedure* proc) {
-		// Force numeric operations to be numbers.
-		//
 		auto get_unreachable_block = [&proc, unreachable_block = (basic_block*) nullptr]() mutable {
 			if (unreachable_block)
 				return unreachable_block;
@@ -47,6 +37,9 @@ namespace li::ir::opt {
 			unreachable_block = b;
 			return b;
 		};
+
+		// Force numeric operations to be numbers.
+		//
 		proc->bfs([&](basic_block* bb) {
 			// Find the first numeric operation with an unknown type.
 			//

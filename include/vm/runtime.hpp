@@ -8,7 +8,7 @@
 	#define LI_C_CC
 #endif
 
-// C builtins used for the VM runtime.
+// Builtins used for the VM runtime.
 //
 namespace li::runtime {
 	array* LI_C_CC   array_new(vm* L, msize_t n);

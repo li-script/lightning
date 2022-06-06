@@ -44,6 +44,7 @@ namespace li::ir {
 		udt,
 		arr,
 		fn,
+		proto,
 		str,
 
 		// Instruction stream types.
@@ -287,23 +288,24 @@ namespace li::ir {
 	//
 	struct constant final : value_tag<constant> {
 		union {
-			uint64_t     u;
-			bool         i1;
-			int32_t      i32;
-			int64_t      i;
-			operation    vmopr;
-			trait        vmtrait;
-			value_type   vmtype;
-			type         irtype;
-			double       n;
-			gc::header*  gc;
-			table*       tbl;
-			array*       arr;
-			userdata*    udt;
-			string*      str;
-			function*    fn;
-			opaque       opq;
-			basic_block* bb;
+			uint64_t        u;
+			bool            i1;
+			int32_t         i32;
+			int64_t         i;
+			operation       vmopr;
+			trait           vmtrait;
+			value_type      vmtype;
+			type            irtype;
+			double          n;
+			gc::header*     gc;
+			table*          tbl;
+			array*          arr;
+			userdata*       udt;
+			string*         str;
+			function*       fn;
+			function_proto* proto;
+			opaque          opq;
+			basic_block*    bb;
 		};
 
 		// Default construction and copy.
@@ -330,6 +332,7 @@ namespace li::ir {
 		constexpr constant(userdata* v) : udt(v) { vt = type::udt; }
 		constexpr constant(string* v) : str(v) { vt = type::str; }
 		constexpr constant(function* v) : fn(v) { vt = type::fn; }
+		constexpr constant(function_proto* v) : proto(v) { vt = type::proto; }
 		constexpr constant(opaque v) : opq(v) { vt = type::opq; }
 		constexpr constant(basic_block* v) : bb(v) { vt = type::bb; }
 		constexpr constant(operation v) : vmopr(v) { vt = type::vmopr; }
@@ -377,6 +380,8 @@ namespace li::ir {
 				return any(arr);
 			} else if (vt == type::fn) {
 				return any(fn);
+			} else if (vt == type::proto) {
+				return any(proto);
 			} else if (vt == type::str) {
 				return any(str);
 			} else {
@@ -392,4 +397,36 @@ namespace li::ir {
 		//
 		std::string to_string(bool = false) const override;
 	};
+
+	// Conversion between IR and VM types.
+	//
+	static constexpr value_type to_vm_type(type vt) {
+		if (vt == type::i1) {
+			return type_false;
+		} else if (type::i8 <= vt && vt <= type::i64) {
+			return type_number;
+		} else if (type::f32 <= vt && vt <= type::f64) {
+			return type_number;
+		} else if (vt == type::nil) {
+			return type_none;
+		} else if (vt == type::opq) {
+			return type_opaque;
+		} else if (type::tbl <= vt && vt < type::bb) {
+			return value_type(uint8_t(vt) - uint8_t(type::tbl) + type_table);
+		} else {
+			util::abort("IR type does not map to VM type");
+		}
+	}
+	static constexpr type to_ir_type(value_type t) {
+		if (t == type_true || t == type_false)
+			return type::i1;
+		else if (t == type_number)
+			return type::f64;
+		else if (t == type_opaque)
+			return type::opq;
+		else if (t == type_none)
+			return type::nil;
+		else
+			return type(uint8_t(t) + uint8_t(type::tbl) - type_table);
+	}
 };

@@ -918,18 +918,26 @@ namespace li::ir {
 				}
 				break;
 			}
-			case vop::loadf64:{
-				auto           dst = to_op(b, i.out);
-				auto           src = to_op(b, i.arg[0]);
-				constexpr auto mn  = USE_AVX ? ZYDIS_MNEMONIC_VMOVSD : ZYDIS_MNEMONIC_MOVSD;
-				LI_ASSERT(zy::encode(b->assembly, mn, dst, src));
+
+			case vop::loadi8: {
+				auto dst     = to_op(b, i.out);
+				auto src     = to_op(b, i.arg[0]);
+				src.mem.size = 1;
+				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOVZX, zy::resize_reg(dst.reg.value, 4), src));
 				break;
 			}
-			case vop::storef64: {
-				auto           dst = to_op(b, i.arg[0]);
-				auto           src = to_op(b, i.arg[1]);
-				constexpr auto mn  = USE_AVX ? ZYDIS_MNEMONIC_VMOVSD : ZYDIS_MNEMONIC_MOVSD;
-				LI_ASSERT(zy::encode(b->assembly, mn, dst, src));
+			case vop::loadi16: {
+				auto dst     = to_op(b, i.out);
+				auto src     = to_op(b, i.arg[0]);
+				src.mem.size = 2;
+				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOVZX, zy::resize_reg(dst.reg.value, 4), src));
+				break;
+			}
+			case vop::loadi32: {
+				auto dst     = to_op(b, i.out);
+				auto src     = to_op(b, i.arg[0]);
+				src.mem.size = 4;
+				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, zy::resize_reg(dst.reg.value, 4), src));
 				break;
 			}
 			case vop::loadi64: {
@@ -938,10 +946,61 @@ namespace li::ir {
 				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, dst, src));
 				break;
 			}
+			case vop::loadf32: {
+				auto dst          = to_op(b, i.out);
+				auto src          = to_op(b, i.arg[0]);
+				src.mem.size      = 4;
+				constexpr auto mn  = USE_AVX ? ZYDIS_MNEMONIC_VMOVSS : ZYDIS_MNEMONIC_MOVSS;
+				LI_ASSERT(zy::encode(b->assembly, mn, dst, src));
+				break;
+			}
+			case vop::loadf64: {
+				auto           dst = to_op(b, i.out);
+				auto           src = to_op(b, i.arg[0]);
+				constexpr auto mn  = USE_AVX ? ZYDIS_MNEMONIC_VMOVSD : ZYDIS_MNEMONIC_MOVSD;
+				LI_ASSERT(zy::encode(b->assembly, mn, dst, src));
+				break;
+			}
+			case vop::storei8: {
+				auto dst     = to_op(b, i.arg[0]);
+				auto src     = to_op(b, i.arg[1]);
+				dst.mem.size = 1;
+				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, dst, zy::resize_reg(src.reg.value, 1)));
+				break;
+			}
+			case vop::storei16: {
+				auto dst     = to_op(b, i.arg[0]);
+				auto src     = to_op(b, i.arg[1]);
+				dst.mem.size = 2;
+				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, dst, zy::resize_reg(src.reg.value, 2)));
+				break;
+			}
+			case vop::storei32: {
+				auto dst     = to_op(b, i.arg[0]);
+				auto src     = to_op(b, i.arg[1]);
+				dst.mem.size = 4;
+				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, dst, zy::resize_reg(src.reg.value, 4)));
+				break;
+			}
 			case vop::storei64: {
+				auto dst = to_op(b, i.arg[0]);
+				auto src = to_op(b, i.arg[1]);
+				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, dst, src));
+				break;
+			}
+			case vop::storef32: {
 				auto           dst = to_op(b, i.arg[0]);
 				auto           src = to_op(b, i.arg[1]);
-				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, dst, src));
+				dst.mem.size       = 4;
+				constexpr auto mn  = USE_AVX ? ZYDIS_MNEMONIC_VMOVSS : ZYDIS_MNEMONIC_MOVSS;
+				LI_ASSERT(zy::encode(b->assembly, mn, dst, src));
+				break;
+			}
+			case vop::storef64: {
+				auto           dst = to_op(b, i.arg[0]);
+				auto           src = to_op(b, i.arg[1]);
+				constexpr auto mn  = USE_AVX ? ZYDIS_MNEMONIC_VMOVSD : ZYDIS_MNEMONIC_MOVSD;
+				LI_ASSERT(zy::encode(b->assembly, mn, dst, src));
 				break;
 			}
 			case vop::setcc: {

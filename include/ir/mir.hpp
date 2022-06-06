@@ -217,10 +217,21 @@ namespace li::ir {
 		fsx32,     // fpreg = f32(fpreg)
 		icvt,      // gpreg = f64(fpreg)
 		fcvt,      // fpreg = f64(gpreg)
-		loadf64,   // fpreg = fp64[mem]
-		storef64,  // fp64[mem] = fpreg
-		loadi64,   // gpreg = i64[mem]
-		storei64,  // i64[mem] = gpreg // TODO: Maybe add constant?
+
+		loadi8,   // gpreg = i8[mem]
+		loadi16,  // gpreg = i16[mem]
+		loadi32,  // gpreg = i32[mem]
+		loadi64,  // gpreg = i64[mem]
+		loadf32,  // fpreg = fp32[mem]
+		loadf64,  // fpreg = fp64[mem]
+
+		storei8,   // i8[mem] = gpreg 
+		storei16,  // i16[mem] = gpreg
+		storei32,  // i32[mem] = gpreg
+		storei64,  // i64[mem] = gpreg
+		storef32,  // fp32[mem] = fpreg
+		storef64,  // fp64[mem] = fpreg 
+
 		setcc,     // reg = flag
 		select,    // reg = flag ? reg1 : reg2
 		// side-effect group.
@@ -244,10 +255,19 @@ namespace li::ir {
 		 "fsx32",
 		 "icvt",
 		 "fcvt",
-		 "loadf64",
-		 "storef64",
+		 "loadi8",
+		 "loadi16",
+		 "loadi32",
 		 "loadi64",
+		 "loadf32",
+		 "loadf64",
+		 "storei8",
+		 "storei16",
+		 "storei32",
 		 "storei64",
+		 "storef32",
+		 "storef64",
+
 		 "setcc",
 		 "select",
 		 "call",
@@ -377,7 +397,7 @@ namespace li::ir {
 		}
 		bool writes_to_memory() const {
 			if (is_virtual) {
-				return getv() == vop::storef64 || getv() == vop::storei64;
+				return vop::storei8 <= getv() && getv() <= vop::storef64;
 			} else {
 				return !out;
 			}

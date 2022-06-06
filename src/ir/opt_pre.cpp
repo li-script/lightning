@@ -13,8 +13,8 @@ namespace li::ir::opt {
 	void prepare_for_mir(procedure* proc) {
 		// Helper to replace an instruction with call.
 		//
-		auto replace_with_call = [&](instruction_iterator i, bool vm, type ret, const void* fn, auto&&... args) {
-			auto nit = builder{}.emit_after<ccall>(i.at, vm, ret, (int64_t) fn, args...);
+		auto replace_with_call = [&] (instruction_iterator i, bool vm, type ret, auto* fn, auto&&... args) {
+			auto nit = builder{}.emit_after<ccall>(i.at, vm, ret, (intptr_t) bit_cast<void*>(fn), args...);
 			i->replace_all_uses(nit.at);
 			i->erase();
 			return instruction_iterator(nit);
@@ -36,24 +36,24 @@ namespace li::ir::opt {
 				// Duplication.
 				//
 				if (it->is<vdup>()) {
-					void* duplicator;
 					switch (it->operands[0]->vt) {
 						case type::arr:
-							duplicator = +[](vm* L, array* a) { return a->duplicate(L); };
+							it = replace_with_call(
+								 it, true, it->operands[0]->vt, +[](vm* L, array* a) { return a->duplicate(L); }, it->operands[0]);
 							break;
 						case type::tbl:
-							duplicator = +[](vm* L, table* a) { return a->duplicate(L); };
+							it = replace_with_call(
+								 it, true, it->operands[0]->vt, +[](vm* L, table* a) { return a->duplicate(L); }, it->operands[0]);
 							break;
 						case type::fn:
-							duplicator = +[](vm* L, function* a) { return a->duplicate(L); };
+							it = replace_with_call(
+								 it, true, it->operands[0]->vt, +[](vm* L, function* a) { return a->duplicate(L); }, it->operands[0]);
 							break;
 						default:
 							util::abort("unexpected dup with invalid or unknown type.");
 					}
-					it = replace_with_call(it, true, it->operands[0]->vt, duplicator, it->operands[0]);
 					continue;
 				}
-
 				++it;
 			}
 		}	

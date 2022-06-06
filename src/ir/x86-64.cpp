@@ -216,7 +216,6 @@ namespace li::ir {
 			b.append(vop::movi, out, r);
 		} else {
 			auto ty = v->vt == type::opq ? type_opaque : type_table + (int(v->vt) - int(type::tbl));
-			auto out = b->next_gp();
 			mreg fv;
 	#if LI_KERNEL_MODE
 			fv = b->next_gp();
@@ -571,9 +570,9 @@ namespace li::ir {
 			case opcode::array_new: {
 				auto fn = i->opc == opcode::array_new ? (intptr_t) &runtime::array_new : (intptr_t) &runtime::table_new;
 				b.append(vop::movi, arch::map_gp_arg(0, 0), mreg(vreg_vm));
-				b.append(vop::movi, arch::map_gp_arg(1, 0), RI(i->operands[0]));
+				b.append(vop::movi, arch::map_gp_arg(1, 0), RIi(i->operands[0]));
 				b.append(vop::call, arch::from_native(arch::gp_retval), fn);
-				YIELD(mreg(arch::from_native(arch::gp_retval)));
+				b.append(vop::movi, REG(i), mreg(arch::from_native(arch::gp_retval)));
 				return;
 			}
 			// TODO: None of this is right, just testing...
@@ -595,7 +594,7 @@ namespace li::ir {
 				type_erase(b, i->operands[0], arch::map_gp_arg(1, 0));
 				type_erase(b, i->operands[1], arch::map_gp_arg(2, 0));
 				b.append(vop::call, arch::from_native(arch::gp_retval), (int64_t) &runtime::field_get_raw);
-				YIELD(mreg(arch::from_native(arch::gp_retval)));
+				b.append(vop::movi, REG(i), mreg(arch::from_native(arch::gp_retval)));
 				return;
 			}
 			case opcode::unreachable: {
@@ -1072,11 +1071,11 @@ namespace li::ir {
 			auto bytes = std::span<const uint8_t>(out->code, asm_length).subspan(src);
 
 			auto input = bytes;
-			auto ins   = zy::decode(input);
-			LI_ASSERT(ins.has_value());
+			auto dec   = zy::decode(input);
+			LI_ASSERT(dec.has_value());
 
-			auto* rip = bytes.data() + ins->ins.length;
-			auto& rel = *(int32_t*) (rip - 4);
+			auto* rip = bytes.data() + dec->ins.length;
+			auto& rel = *(int32_t*) (bytes.data() + (dec->ins.raw.disp.offset ? dec->ins.raw.disp.offset : dec->ins.raw.imm->offset));
 
 			void* target = nullptr;
 			if (rel == MAGIC_RELOC_CPOOL) {
@@ -1086,7 +1085,7 @@ namespace li::ir {
 				LI_ASSERT(bb != proc->basic_blocks.end());
 				target = out->code + bb->asm_loc;
 			} else {
-				util::abort("invalid reloc, insn has suffix bytes?");
+				util::abort("invalid reloc");
 			}
 
 			intptr_t disp = intptr_t(target) - intptr_t(rip);

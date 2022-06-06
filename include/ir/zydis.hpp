@@ -137,7 +137,9 @@ namespace li::zy {
 	static ZydisEncoderOperand to_encoder_op(const T& op) {
 		ZydisEncoderOperand res = {};
 
-		if constexpr (std::is_integral_v<T>) {
+		if constexpr (std::is_same_v<T, ZydisEncoderOperand>) {
+			return op;
+		} else if constexpr (std::is_integral_v<T>) {
 			res.type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
 			if constexpr (std::is_unsigned_v<T>) {
 				res.imm.u = op;

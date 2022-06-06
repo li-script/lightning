@@ -9,5 +9,5 @@ namespace li::ir {
 
 	// Assembles the pseudo-target instructions in the IR.
 	//
-	void assemble_ir(mprocedure* proc);
+	nfunction* assemble_ir(mprocedure* proc);
 };

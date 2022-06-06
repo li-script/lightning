@@ -142,7 +142,7 @@ namespace li::ir::opt {
 					mreg* replace_with = nullptr;
 					if (r == vreg_vm)
 						replace_with = &regs[0];
-					else if (r == vreg_args)
+					else if (r == vreg_tos)
 						replace_with = &regs[1];
 					else if (r == vreg_nargs)
 						replace_with = &regs[2];
@@ -357,12 +357,17 @@ namespace li::ir::opt {
 			for (auto& bb : proc->basic_blocks) {
 				for (auto& i : bb.instructions) {
 					i.for_each_reg([&](const mreg& r, bool is_read) {
-						if (!r.is_phys() && !r.is_flag() && (!r.is_virt() || r.virt() != vreg_cpool)) {
+						if (!is_pseudo(r) && r.is_virt()) {
 							int x = int(interference_graph[r.uid()].color);
-							if (r.is_fp())
-								x = -x;
 							if (!x)
 								util::abort("Missed allocation for %s (%u)?", r.to_string().c_str(), r.uid());
+
+							if (r.is_fp()) {
+								proc->used_fp_mask |= 1ull << (x);
+								x = -x;
+							} else {
+								proc->used_gp_mask |= 1ull << (x - 1);
+							}
 							const_cast<mreg&>(r) = arch::reg(x);
 						}
 						return false;

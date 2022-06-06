@@ -272,7 +272,7 @@ static bool ir_test(vm* L, any* args, slot_t n) {
 	opt::remove_redundant_setcc(mp.get());
 	opt::allocate_registers(mp.get());
 
-	assemble_ir(mp.get());
+	L->push_stack(assemble_ir(mp.get()));
 	//
 	//
 	
@@ -308,7 +308,7 @@ int main(int argv, const char** args) {
 	//
 	auto* L = vm::create();
 	lib::register_std(L);
-	L->globals->set(L, string::create(L, "@IR"), nfunction::create(L, &ir_test));
+	L->globals->set(L, string::create(L, "@JIT"), nfunction::create(L, &ir_test));
 
 	// Repl if no file given.
 	//

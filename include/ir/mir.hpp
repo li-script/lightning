@@ -25,12 +25,12 @@ namespace li::ir {
 	using preg = arch::reg;
 	enum vreg : int32_t {
 		vreg_vm    = 1,  // arguments[0], vm*
-		vreg_args  = 2,  // arguments[1], any*
+		vreg_tos  = 2,   // arguments[1], any*
 		vreg_nargs = 3,  // arguments[2], int
 		vreg_cpool = 4,  // constant pool, rip-rel
 		vreg_first = 5,  // ...
 	};
-	static constexpr const char* vreg_names[] = {"$null", "$vm", "$args", "$nargs", "$cpool"};
+	static constexpr const char* vreg_names[] = {"$null", "$vm", "$tos", "$nargs", "$cpool"};
 	struct mreg {
 		int32_t  id : 30 = 0;
 		regclass cl : 2  = regclass::null;
@@ -188,9 +188,9 @@ namespace li::ir {
 			else if (is_mem())
 				return mem.to_string();
 			else if (is_const())
-				return util::fmt(LI_GRN "0x%llx", i64);
+				return util::fmt(LI_GRN "0x%llx" LI_DEF, i64);
 			else
-				return LI_RED "null";
+				return LI_RED "null" LI_DEF;
 		}
 	};
 
@@ -243,7 +243,7 @@ namespace li::ir {
 
 		// Architecture specific information.
 		//
-		void* archinfo = nullptr;
+		uintptr_t archinfo = 0;
 
 		// Default construction and copy.
 		//
@@ -256,7 +256,7 @@ namespace li::ir {
 		template<typename... Tx>
 		minsn(vop v, mreg out, Tx... arg) : mnemonic(int32_t(v)), is_virtual(true), out(out), arg{arg...} {}
 		template<typename... Tx>
-		minsn(pop v, void* archinfo, mreg out, Tx... arg) : mnemonic(int32_t(v)), is_virtual(false), out(out), arg{arg...}, archinfo(archinfo) {}
+		minsn(pop v, uintptr_t archinfo, mreg out, Tx... arg) : mnemonic(int32_t(v)), is_virtual(false), out(out), arg{arg...}, archinfo(archinfo) {}
 
 		// Observers.
 		//
@@ -358,6 +358,10 @@ namespace li::ir {
 		util::bitset df_def, df_ref;
 		util::bitset df_in_live, df_out_live;
 
+		// Offset to beginning in assembly.
+		//
+		size_t asm_loc = 0;
+
 		// Appends an instruction at the end of the block and returns the IP.
 		//
 		template<typename O, typename... Tx>
@@ -387,6 +391,18 @@ namespace li::ir {
 		uint32_t             next_block   = 0;        // Name of the next block.
 		std::vector<uint8_t> code         = {};       // Generated code.
 		std::vector<any>     const_pool   = {};       // Pool of constants.
+
+		// Used register and spill slot info
+		//
+		size_t used_gp_mask      = 0;
+		size_t used_fp_mask      = 0;
+		size_t used_stack_length = 0;
+
+		// Target-specific assembly and relocation info.
+		//
+		std::vector<uint8_t>                   epilogue;
+		std::vector<uint8_t>                   assembly;
+		std::vector<std::pair<size_t, size_t>> reloc_info;
 
 		// Visitor temporaries.
 		//

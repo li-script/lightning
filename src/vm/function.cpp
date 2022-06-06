@@ -39,7 +39,12 @@ namespace li {
 	// Replication of vm::call.
 	//
 	bool nfunction::call(vm* L, slot_t n_args, slot_t caller_frame, uint32_t caller_pc) {
-
+		// TODO: Remove, just for debugging.
+		//
+		if (jit) {
+			return callback(L, L->stack_top, n_args);
+		}
+		
 		// Swap previous c-frame.
 		//
 		call_frame prevframe = L->last_vm_caller;

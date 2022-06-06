@@ -8,6 +8,8 @@
 	static constexpr bool USE_AVX = false;
 #endif
 
+// TODO: Const hoisting
+
 namespace li::ir {
 	// Flags.
 	//
@@ -96,36 +98,31 @@ namespace li::ir {
 
 	// Instructions.
 	//
-	#define INSN_W_R(name)                                                           \
-		static size_t name(mblock& blk, mreg a, mop b) {                              \
-			size_t n = blk.instructions.size();                                        \
-			blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), nullptr, a, b}); \
-			return n;                                                                  \
-		}
-	#define INSN_RW_R(name)																				 \
-	static size_t name(mblock& blk, mreg a, mop b) {											 \
-		size_t n = blk.instructions.size();															 \
-		blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), nullptr, a, a, b});	 \
-		return n;																							 \
-	}
-	#define INSN_RW(name)                                                            \
-		static size_t name(mblock& blk, mreg a) {                                     \
-			size_t n = blk.instructions.size();                                        \
-			blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), nullptr, a, a}); \
-			return n;                                                                  \
-		}
-	#define INSN_W_R_R(name)                                                            \
-		static size_t name(mblock& blk, mreg a, mop b, mop c) {                          \
-			size_t n = blk.instructions.size();                                           \
-			blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), nullptr, a, b, c}); \
-			return n;                                                                     \
-		}
-	#define INSN_F_R_R(name)                                                                        \
-		static size_t name(mblock& blk, flag_id flag, mreg a, mop b) {                               \
-			size_t n = blk.instructions.size();                                                       \
-			blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), nullptr, flag, a, b}); \
-			return n;                                                                                 \
-		}
+	enum encoding_directive : uint32_t {
+		ENC_W_R,
+		ENC_W_N_R,
+		ENC_RW_R,
+		ENC_RW,
+		ENC_W_R_R,
+		ENC_W_N_R_R,
+		ENC_F_R_R,
+	};
+
+	#define INSN_W_R(name) \
+		inline static void name(mblock& blk, mreg a, mop b) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), ENC_W_R, a, b}); }
+	#define INSN_W_N_R(name) \
+		inline static void name(mblock& blk, mreg a, mop b) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), ENC_W_N_R, a, b}); }
+	#define INSN_RW_R(name) \
+		inline static void name(mblock& blk, mreg a, mop b) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), ENC_RW_R, a, a, b}); }
+	#define INSN_RW(name) \
+		inline static void name(mblock& blk, mreg a) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), ENC_RW, a, a}); }
+	#define INSN_W_R_R(name) \
+		inline static void name(mblock& blk, mreg a, mop b, mop c) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), ENC_W_R_R, a, b, c}); }
+	#define INSN_W_N_R_R(name) \
+		inline static void name(mblock& blk, mreg a, mop b, mop c) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), ENC_W_N_R_R, a, b, c}); }
+	#define INSN_F_R_R(name) \
+		inline static void name(mblock& blk, flag_id flag, mreg a, mop b) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), ENC_F_R_R, flag, a, b}); }
+
 	INSN_RW(NEG);
 	INSN_RW(NOT);
 	INSN_RW_R(SHR);
@@ -138,25 +135,22 @@ namespace li::ir {
 	INSN_W_R_R(SHLX);
 	INSN_W_R_R(SHRX);
 	INSN_W_R_R(BZHI);
-
 	INSN_W_R(CVTSI2SD);
 	INSN_W_R(CVTSS2SD);
 	INSN_W_R_R(ROUNDSD);
-	INSN_W_R(VCVTSI2SD);  // TODO: Need three operand form for encoding!
-	INSN_W_R(VCVTSS2SD);  // TODO: Need three operand form for encoding!
-	INSN_W_R_R(VROUNDSD);  // TODO: Need four operand form for encoding!
-
-	INSN_W_R(DIVSD);
-	INSN_W_R(MULSD);
-	INSN_W_R(ADDSD);
-	INSN_W_R(SUBSD);
-	INSN_W_R(XORPS);
+	INSN_W_N_R(VCVTSI2SD);
+	INSN_W_N_R(VCVTSS2SD);
+	INSN_W_N_R_R(VROUNDSD);
+	INSN_RW_R(DIVSD);
+	INSN_RW_R(MULSD);
+	INSN_RW_R(ADDSD);
+	INSN_RW_R(SUBSD);
+	INSN_RW_R(XORPS);
 	INSN_W_R_R(VXORPS);
 	INSN_W_R_R(VDIVSD);
 	INSN_W_R_R(VMULSD);
 	INSN_W_R_R(VADDSD);
 	INSN_W_R_R(VSUBSD);
-
 	INSN_F_R_R(CMP);
 	INSN_F_R_R(TEST);
 	INSN_F_R_R(VPTEST);
@@ -428,14 +422,14 @@ namespace li::ir {
 			LI_ASSERT(disp32 == disp);
 
 			if (out.is_fp())
-				b.append(vop::loadf64, out, mmem{.base = vreg_args, .disp = disp32});
+				b.append(vop::loadf64, out, mmem{.base = vreg_tos, .disp = disp32});
 			else
-				b.append(vop::loadi64, out, mmem{.base = vreg_args, .disp = disp32});
+				b.append(vop::loadi64, out, mmem{.base = vreg_tos, .disp = disp32});
 		} else if (idx.is_reg() && idx.reg.is_gp()) {
 			if (out.is_fp())
-				b.append(vop::loadf64, out, mmem{.base = vreg_args, .index = idx.reg, .scale = 8});
+				b.append(vop::loadf64, out, mmem{.base = vreg_tos, .index = idx.reg, .scale = 8});
 			else
-				b.append(vop::loadi64, out, mmem{.base = vreg_args, .index = idx.reg, .scale = 8});
+				b.append(vop::loadi64, out, mmem{.base = vreg_tos, .index = idx.reg, .scale = 8});
 		} else {
 			util::abort("invalid index value.");
 		}
@@ -457,14 +451,14 @@ namespace li::ir {
 			LI_ASSERT(disp32 == disp);
 
 			if (in.reg.is_fp())
-				b.append(vop::storef64, {}, mmem{.base = vreg_args, .disp = disp32}, in);
+				b.append(vop::storef64, {}, mmem{.base = vreg_tos, .disp = disp32}, in);
 			else
-				b.append(vop::storei64, {}, mmem{.base = vreg_args, .disp = disp32}, in);
+				b.append(vop::storei64, {}, mmem{.base = vreg_tos, .disp = disp32}, in);
 		} else if (idx.is_reg() && idx.reg.is_gp()) {
 			if (in.reg.is_fp())
-				b.append(vop::storef64, {}, mmem{.base = vreg_args, .index = idx.reg, .scale = 8}, in);
+				b.append(vop::storef64, {}, mmem{.base = vreg_tos, .index = idx.reg, .scale = 8}, in);
 			else
-				b.append(vop::storei64, {}, mmem{.base = vreg_args, .index = idx.reg, .scale = 8}, in);
+				b.append(vop::storei64, {}, mmem{.base = vreg_tos, .index = idx.reg, .scale = 8}, in);
 		} else {
 			util::abort("invalid index value.");
 		}
@@ -656,22 +650,373 @@ namespace li::ir {
 		return m;
 	}
 
+	// Operand converters.
+	//
+	static constexpr int32_t MAGIC_RELOC_CPOOL  = 0x77777777;
+	static constexpr int32_t MAGIC_RELOC_BRANCH = 0x77777778;
+	static zy::reg to_reg(mblock& b, const mreg& r, size_t n = 0) {
+		if (!r) {
+			return zy::NO_REG;
+		}
+
+		zy::reg pr = arch::to_native(r.phys());
+		if (n) {
+			return zy::resize_reg(pr, n);
+		} else {
+			return pr;
+		}
+	}
+	static zy::mem to_mem(mblock& b, const mmem& m) {
+		if (m.base == vreg_cpool) {
+			b->reloc_info.emplace_back(b->assembly.size(), -m.disp);
+			return {
+				 .size  = 8,
+				 .base  = zy::RIP,
+				 .index = to_reg(b, m.index),
+				 .scale = (uint8_t) m.scale,
+				 .disp  = MAGIC_RELOC_CPOOL,
+			};
+		} else {
+			return {
+				 .size  = 8,
+				 .base  = to_reg(b, m.base),
+				 .index = to_reg(b, m.index),
+				 .scale = (uint8_t) m.scale,
+				 .disp  = m.disp,
+			};
+		}
+	}
+	static ZydisEncoderOperand to_op(mblock& b, const mop& m) {
+		if (m.is_const()) {
+			return zy::to_encoder_op(m.i64);
+		} else if (m.is_reg()) {
+			return zy::to_encoder_op(to_reg(b, m.reg));
+		} else if (m.is_mem()) {
+			return zy::to_encoder_op(to_mem(b, m.mem));
+		}
+		util::abort("invalid operand");
+	}
+
+	static void assemble_native(mblock& b, const minsn& i) {
+		ZydisEncoderRequest req;
+		memset(&req, 0, sizeof(req));
+		req.mnemonic      = arch::native_mnemonic(i.mnemonic);
+		req.machine_mode  = ZYDIS_MACHINE_MODE_LONG_64;
+		req.operand_count = 0;
+
+		auto push_operand = [&](const mop& op) {
+			//printf(" %s", op.to_string().c_str());
+			req.operands[req.operand_count++] = to_op(b, op);
+		};
+		//printf("\t%s ", arch::name_mnemonic(req.mnemonic));
+		switch (i.archinfo) {
+			case ENC_W_R:
+				push_operand(i.out);
+				push_operand(i.arg[0]);
+				break;
+			case ENC_W_N_R:
+				push_operand(i.out);
+				push_operand(i.out);
+				push_operand(i.arg[0]);
+				break;
+			case ENC_RW_R:
+				push_operand(i.arg[0]);
+				push_operand(i.arg[1]);
+				break;
+			case ENC_RW:
+				push_operand(i.out);
+				break;
+			case ENC_W_R_R:
+				push_operand(i.out);
+				push_operand(i.arg[0]);
+				push_operand(i.arg[1]);
+				break;
+			case ENC_W_N_R_R:
+				push_operand(i.out);
+				push_operand(i.out);
+				push_operand(i.arg[0]);
+				push_operand(i.arg[1]);
+				break;
+			case ENC_F_R_R:
+				push_operand(i.arg[0]);
+				push_operand(i.arg[1]);
+				break;
+			default:
+				assume_unreachable();
+				break;
+		}
+		LI_ASSERT(zy::encode(b->assembly, req));
+	}
+	static void assemble_virtual(mblock& b, const minsn& i) {
+		switch (i.getv()) {
+			case vop::movf: {
+				auto  dst = to_reg(b, i.out);
+				auto& src = i.arg[0];
+				if (src.is_reg()) {
+					if (src.reg.is_gp()) {
+						constexpr auto mn = USE_AVX ? ZYDIS_MNEMONIC_VMOVQ : ZYDIS_MNEMONIC_MOVQ;
+						LI_ASSERT(zy::encode(b->assembly, mn, dst, to_reg(b, src.reg)));
+					} else if (src.reg != i.out) {
+						constexpr auto mn = USE_AVX ? ZYDIS_MNEMONIC_VMOVAPD : ZYDIS_MNEMONIC_MOVAPD;
+						LI_ASSERT(zy::encode(b->assembly, mn, dst, to_reg(b, src.reg)));
+					}
+				} else if (src.i64 == 0) {
+					if constexpr (USE_AVX) {
+						LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_VXORPS, dst, dst, dst));
+					} else {
+						LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_XORPS, dst, dst));
+					}
+				} else if (src.i64 == -1ll) {
+					if constexpr (USE_AVX) {
+						LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_VCMPSD, dst, dst, dst, 0));
+					} else {
+						LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_CMPSD, dst, dst, 0));
+					}
+				} else {
+					auto           mem = b->add_const(i.arg[0].i64);
+					constexpr auto mn  = USE_AVX ? ZYDIS_MNEMONIC_VMOVSD : ZYDIS_MNEMONIC_MOVSD;
+					LI_ASSERT(zy::encode(b->assembly, mn, dst, to_op(b, mem)));
+				}
+				break;
+			}
+			case vop::movi: {
+				auto dst = to_reg(b, i.out);
+				auto& src = i.arg[0];
+				if (src.is_reg()) {
+					if (src.reg.is_gp()) {
+						if (src.reg != i.out)
+							LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, dst, to_reg(b, src.reg)));
+					} else {
+						constexpr auto mn = USE_AVX ? ZYDIS_MNEMONIC_VMOVQ : ZYDIS_MNEMONIC_MOVQ;
+						LI_ASSERT(zy::encode(b->assembly, mn, dst, to_reg(b, src.reg)));
+					}
+				} else if (src.i64 == 0) {
+					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_XOR, dst, dst));
+				} else if (src.i64 == int32_t(src.i64)) {
+					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, zy::resize_reg(dst, 4), src.i64));
+				} else {
+					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, dst, src.i64));
+				}
+				break;
+			}
+			case vop::loadf64:{
+				auto           dst = to_op(b, i.out);
+				auto           src = to_op(b, i.arg[0]);
+				constexpr auto mn  = USE_AVX ? ZYDIS_MNEMONIC_VMOVSD : ZYDIS_MNEMONIC_MOVSD;
+				LI_ASSERT(zy::encode(b->assembly, mn, dst, src));
+				break;
+			}
+			case vop::storef64: {
+				auto           dst = to_op(b, i.arg[0]);
+				auto           src = to_op(b, i.arg[1]);
+				constexpr auto mn  = USE_AVX ? ZYDIS_MNEMONIC_VMOVSD : ZYDIS_MNEMONIC_MOVSD;
+				LI_ASSERT(zy::encode(b->assembly, mn, dst, src));
+				break;
+			}
+			case vop::loadi64: {
+				auto dst = to_op(b, i.out);
+				auto src = to_op(b, i.arg[0]);
+				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, dst, src));
+				break;
+			}
+			case vop::storei64: {
+				auto           dst = to_op(b, i.arg[0]);
+				auto           src = to_op(b, i.arg[1]);
+				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, dst, src));
+				break;
+			}
+			case vop::setcc: {
+				auto dst   = to_reg(b, i.out);
+				auto dstb  = zy::resize_reg(dst, 1);
+				auto dstd  = zy::resize_reg(dst, 4);
+				auto setcc = flags[(uint32_t) i.arg[0].reg.flag()].sets;
+				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_XOR, dstd, dstd));
+				LI_ASSERT(zy::encode(b->assembly, setcc, dstb));
+				break;
+			}
+			case vop::js: {
+				// Get the flag ID.
+				//
+				uint32_t flag;
+				if (i.arg[0].reg.is_flag()) {
+					flag = (uint32_t) i.arg[0].reg.flag();
+				} else {
+					auto r = to_reg(b, i.arg[0].reg);
+					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_TEST, r, r));
+					flag = (uint32_t) FLAG_S;
+				}
+
+				// If true branch is closer to us, invert the condition.
+				//
+				arch::native_mnemonic mn           = flags[flag].js;
+				auto                  true_branch  = i.arg[1].i64;
+				auto                  false_branch = i.arg[2].i64;
+				if (true_branch == (b.uid + 1) || (false_branch != (b.uid + 1) && true_branch < false_branch)) {
+					std::swap(true_branch, false_branch);
+					mn = flags[flag].jns;
+				}
+
+				// Emit the JCC.
+				//
+				b->reloc_info.emplace_back(b->assembly.size(), true_branch);
+				LI_ASSERT(zy::encode(b->assembly, mn, MAGIC_RELOC_BRANCH));
+
+				// Emit the next JMP.
+				//
+				if (false_branch != (b.uid + 1)) {
+					b->reloc_info.emplace_back(b->assembly.size(), false_branch);
+					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_JMP, MAGIC_RELOC_BRANCH));
+				}
+				break;
+			}
+			case vop::jmp:
+				if (i.arg[0].i64 != (b.uid + 1)) {
+					b->reloc_info.emplace_back(b->assembly.size(), i.arg[0].i64);
+					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_JMP, MAGIC_RELOC_BRANCH));
+				}
+				break;
+			case vop::ret: {
+				b->assembly.insert(b->assembly.end(), b->epilogue.begin(), b->epilogue.end());
+				if (i.arg[0].is_const()) {
+					if (i.arg[0]) {
+						LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, zy::RAX, i.arg[0].i64));
+					} else {
+						LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_XOR, zy::EAX, zy::EAX));
+					}
+					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_RET));
+				} else if (i.arg[0].is_reg()) {
+					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, zy::RAX, to_op(b, i.arg[0])));
+					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_RET));
+				}
+				break;
+			}
+			case vop::null:
+				break;
+			case vop::unreachable:
+				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_UD2));
+				break;
+			case vop::call:
+			default:
+				util::abort("NYI");
+				break;
+		}
+	}
+
 	// Assembles the pseudo-target instructions in the IR.
 	//
-	void assemble_ir(mprocedure* proc) {
-		// Target doesn't support floating-point constants so let's start by removing them.
+	nfunction* assemble_ir(mprocedure* proc) {
+		// TODO: Hot/Cold
+		// 
+		// Sort the blocks by name.
 		//
-		for (auto& bb : proc->basic_blocks) {
-			for (auto& i : bb.instructions) {
-				if (i.is(vop::movf) && i.arg[0].is_const()) {
-					i.arg[0] = proc->add_const(i.arg[0].i64);
+		proc->basic_blocks.sort([](mblock& a, mblock& b) { return a.uid < b.uid; });
+
+		
+		// Generate the epilogue and prologue.
+		//
+		{
+			auto& prologue = proc->assembly;
+			auto& epilogue = proc->epilogue;
+			constexpr auto vector_move = USE_AVX ? ZYDIS_MNEMONIC_VMOVUPD : ZYDIS_MNEMONIC_MOVUPD;
+
+			// Push non-vol GPs.
+			//
+			size_t push_count = 0;
+			for (size_t i = std::size(arch::gp_volatile); i != arch::num_gp_reg; i++) {
+				if ((proc->used_gp_mask >> i) & 1) {
+					push_count++;
+					auto reg = arch::gp_nonvolatile[i - std::size(arch::gp_volatile)];
+					LI_ASSERT(zy::encode(prologue, ZYDIS_MNEMONIC_PUSH, reg));
+					LI_ASSERT(zy::encode(epilogue, ZYDIS_MNEMONIC_POP, reg));
+				}
+			}
+
+			// Allocate space and align stack.
+			//
+			int  num_fp_used = std::popcount(proc->used_fp_mask >> std::size(arch::fp_volatile));
+			auto alloc_bytes = (push_count & 1 ? 8 : 0) + (arch::home_size + num_fp_used * 0x10 - 8);
+			LI_ASSERT(zy::encode(prologue, ZYDIS_MNEMONIC_SUB, arch::sp, alloc_bytes));
+			LI_ASSERT(zy::encode(epilogue, ZYDIS_MNEMONIC_ADD, arch::sp, alloc_bytes));
+
+			// Save vector registers.
+			//
+			zy::mem vsave_it{.size = 0x10, .base = arch::sp, .disp = arch::home_size};
+			for (size_t i = std::size(arch::fp_volatile); i != arch::num_fp_reg; i++) {
+				if ((proc->used_fp_mask >> i) & 1) {
+					LI_ASSERT(zy::encode(prologue, vector_move, vsave_it, arch::fp_nonvolatile[i - std::size(arch::fp_volatile)]));
+					LI_ASSERT(zy::encode(prologue, vector_move, arch::fp_nonvolatile[i - std::size(arch::fp_volatile)], vsave_it));
+					vsave_it.disp += 0x10;
 				}
 			}
 		}
 
-		// Print the IR again.
+		// Assemble all instructions.
 		//
-		proc->print();
+		for (auto& b : proc->basic_blocks) {
+			b.asm_loc = proc->assembly.size();
+			for (auto& i : b.instructions) {
+				if (i.is_virtual) {
+					assemble_virtual(b, i);
+				} else {
+					assemble_native(b, i);
+				}
+			}
+		}
+
+		// Allocate the code, cache-line align the assembly and append the constant pool.
+		//
+		function* f = proc->source->f;
+		vm*       L = proc->source->L;
+		size_t asm_length   = (proc->assembly.size() + 63) & ~63;
+		size_t cpool_length = proc->const_pool.size() * sizeof(any);
+		jfunction* out = L->alloc<jfunction>(asm_length + cpool_length);
+		memcpy(&out->code[0], proc->assembly.data(), proc->assembly.size());
+		memset(&out->code[proc->assembly.size()], 0xCC, asm_length - proc->assembly.size());
+		memcpy(&out->code[asm_length], proc->const_pool.data(), cpool_length);
+
+		// Apply the relocations.
+		//
+		for (auto& [src, dst] : proc->reloc_info) {
+			auto bytes = std::span<const uint8_t>(out->code, asm_length).subspan(src);
+
+			auto input = bytes;
+			auto ins   = zy::decode(input);
+			LI_ASSERT(ins.has_value());
+
+			auto* rip = bytes.data() + ins->ins.length;
+			auto& rel = *(int32_t*) (rip - 4);
+
+			void* target = nullptr;
+			if (rel == MAGIC_RELOC_CPOOL) {
+				target = out->code + asm_length - dst;
+			} else if (rel == MAGIC_RELOC_BRANCH) {
+				auto bb = range::find_if(proc->basic_blocks, [dst=dst](mblock& m) { return m.uid == dst; });
+				LI_ASSERT(bb != proc->basic_blocks.end());
+				target = out->code + bb->asm_loc;
+			} else {
+				util::abort("invalid reloc, insn has suffix bytes?");
+			}
+
+			intptr_t disp = intptr_t(target) - intptr_t(rip);
+			LI_ASSERT(int32_t(disp) == disp);
+			rel = int32_t(disp);
+		}
+
+		auto gen = std::span<const uint8_t>(out->code, asm_length);
+		while (auto i = zy::decode(gen)) {
+			if (i->ins.mnemonic == ZYDIS_MNEMONIC_INT3)
+				break;
+			puts(i->to_string().c_str());
+		}
+
+		// TODO: Debug
+		out->acquire();
+
+		nfunction* result = nfunction::create(L);
+		result->callback      = (nfunc_t) &out->code[0];
+		result->jit           = true;
+		result->num_arguments = f->num_arguments;
+		return result;
 	}
 };
 

@@ -9,6 +9,12 @@ namespace li {
 	//
 	using nfunc_t = bool (*)(vm* L, any* args, slot_t n);
 
+	// JIT code.
+	//
+	struct jfunction : gc::exec_leaf<jfunction> {
+		uint8_t code[];
+	};
+
 	// Native function.
 	//
 	struct nfunction : gc::leaf<nfunction, type_nfunction> {
@@ -26,6 +32,10 @@ namespace li {
 
 		// TODO: Fast function alternative with types for JIT.
 		//
+
+		// TODO: Remove, just for debugging.
+		//
+		bool jit = false;
 
 		// Replication of vm::call.
 		//

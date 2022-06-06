@@ -522,6 +522,59 @@ namespace li::ir {
 				break;
 			}
 
+			// Upvalue.
+			//
+			case opcode::uval_get: {
+				auto base = REG(i->operands[0]);
+				auto idx  = REG(i->operands[1]);
+
+				// Get number of instructions.
+				//
+				mmem mem = {.base = base, .disp = offsetof(function, length)};
+				auto out = REG(i);
+				b.append(vop::loadi32, out, mem);
+
+				// Add the upvalue offset and compute final offset.
+				//
+				static_assert(sizeof(bc::insn) == 16, "update constants.");
+				SHL(b, out, 1);
+				ADD(b, out, idx);
+				mem.index = out;
+				mem.scale = 8;
+				mem.disp  = offsetof(function, opcode_array);
+
+				// Load the result.
+				//
+				b.append(vop::loadi64, out, mem);
+				return;
+			}
+			case opcode::uval_set: {
+				auto base = REG(i->operands[0]);
+				auto idx  = REG(i->operands[1]);
+				auto val  = b->next_gp();
+				type_erase(b, i->operands[2], val);
+
+				// Get number of instructions.
+				//
+				mmem mem = {.base = base, .disp = offsetof(function, length)};
+				auto tmp = b->next_gp();
+				b.append(vop::loadi32, tmp, mem);
+
+				// Add the upvalue offset and compute final offset.
+				//
+				static_assert(sizeof(bc::insn) == 16, "update constants.");
+				SHL(b, tmp, 1);
+				ADD(b, tmp, idx);
+				mem.index = tmp;
+				mem.scale = 8;
+				mem.disp  = offsetof(function, opcode_array);
+
+				// Write the result.
+				//
+				b.append(vop::storei64, {}, mem, val);
+				return;
+			}
+
 			// Casts.
 			//
 			case opcode::assume_cast: {

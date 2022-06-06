@@ -1162,7 +1162,7 @@ namespace li::ir {
 				auto dst = to_reg(b, i.out);
 				auto src = to_reg(b, i.arg[0].reg);
 				if constexpr (USE_AVX)
-					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_VCVTSD2SS, dst, src));
+					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_VCVTSD2SS, dst, dst, src));
 				else
 					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_CVTSD2SS, dst, src));
 				break;

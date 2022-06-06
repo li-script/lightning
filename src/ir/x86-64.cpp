@@ -108,23 +108,23 @@ namespace li::ir {
 		ENC_F_R_R,
 	};
 
-	#define INSN_W_R(name) \
-		inline static void name(mblock& blk, mreg a, mop b) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), ENC_W_R, a, b}); }
-	#define INSN_W_N_R(name) \
-		inline static void name(mblock& blk, mreg a, mop b) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), ENC_W_N_R, a, b}); }
-	#define INSN_RW_R(name) \
-		inline static void name(mblock& blk, mreg a, mop b) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), ENC_RW_R, a, a, b}); }
-	#define INSN_RW(name) \
-		inline static void name(mblock& blk, mreg a) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), ENC_RW, a, a}); }
-	#define INSN_W_R_R(name) \
-		inline static void name(mblock& blk, mreg a, mop b, mop c) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), ENC_W_R_R, a, b, c}); }
-	#define INSN_W_N_R_R(name) \
-		inline static void name(mblock& blk, mreg a, mop b, mop c) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), ENC_W_N_R_R, a, b, c}); }
-	#define INSN_F_R_R(name) \
-		inline static void name(mblock& blk, flag_id flag, mreg a, mop b) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), ENC_F_R_R, flag, a, b}); }
+	#define INSN_W_R(name, ...) \
+		inline static void name(mblock& blk, mreg a, mop b) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__.rsvd = ENC_W_R}, a, b}); }
+	#define INSN_W_N_R(name, ...) \
+		inline static void name(mblock& blk, mreg a, mop b) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__ .rsvd = ENC_W_N_R}, a, b}); }
+	#define INSN_RW_R(name, ...) \
+		inline static void name(mblock& blk, mreg a, mop b) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__ .rsvd = ENC_RW_R}, a, a, b}); }
+	#define INSN_RW(name, ...) \
+		inline static void name(mblock& blk, mreg a) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__ .rsvd = ENC_RW}, a, a}); }
+	#define INSN_W_R_R(name, ...) \
+		inline static void name(mblock& blk, mreg a, mop b, mop c) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__ .rsvd = ENC_W_R_R}, a, b, c}); }
+	#define INSN_W_N_R_R(name, ...) \
+		inline static void name(mblock& blk, mreg a, mop b, mop c) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__ .rsvd = ENC_W_N_R_R}, a, b, c}); }
+	#define INSN_F_R_R(name, ...) \
+		inline static void name(mblock& blk, flag_id flag, mreg a, mop b) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__ .rsvd=ENC_F_R_R}, flag, a, b}); }
 
 	INSN_RW(NEG);
-	INSN_RW(NOT);
+	INSN_RW(NOT, .trashes_flags = false, );
 	INSN_RW_R(SHR);
 	INSN_RW_R(SHL);
 	INSN_RW_R(ADD);
@@ -132,29 +132,25 @@ namespace li::ir {
 	INSN_RW_R(OR);
 	INSN_RW_R(AND);
 	INSN_RW_R(XOR);
-	INSN_W_R_R(SHLX);
-	INSN_W_R_R(SHRX);
-	INSN_W_R_R(BZHI);
-	INSN_W_R(CVTSI2SD);
-	INSN_W_R(CVTSS2SD);
-	INSN_W_R_R(ROUNDSD);
-	INSN_W_N_R(VCVTSI2SD);
-	INSN_W_N_R(VCVTSS2SD);
-	INSN_W_N_R_R(VROUNDSD);
-	INSN_RW_R(DIVSD);
-	INSN_RW_R(MULSD);
-	INSN_RW_R(ADDSD);
-	INSN_RW_R(SUBSD);
-	INSN_RW_R(XORPS);
-	INSN_W_R_R(VXORPS);
-	INSN_W_R_R(VDIVSD);
-	INSN_W_R_R(VMULSD);
-	INSN_W_R_R(VADDSD);
-	INSN_W_R_R(VSUBSD);
+	INSN_W_R_R(BZHI, .trashes_flags = false, );
+	INSN_W_R(CVTSI2SD, .trashes_flags = false, );
+	INSN_W_R_R(ROUNDSD, .trashes_flags = false, );
+	INSN_W_N_R(VCVTSI2SD, .trashes_flags = false, );
+	INSN_W_N_R_R(VROUNDSD, .trashes_flags = false, );
+	INSN_RW_R(DIVSD, .trashes_flags = false, );
+	INSN_RW_R(MULSD, .trashes_flags = false, );
+	INSN_RW_R(ADDSD, .trashes_flags = false, );
+	INSN_RW_R(SUBSD, .trashes_flags = false, );
+	INSN_RW_R(XORPS, .trashes_flags = false, );
+	INSN_W_R_R(VXORPS, .trashes_flags = false, );
+	INSN_W_R_R(VDIVSD, .trashes_flags = false, );
+	INSN_W_R_R(VMULSD, .trashes_flags = false, );
+	INSN_W_R_R(VADDSD, .trashes_flags = false, );
+	INSN_W_R_R(VSUBSD, .trashes_flags = false, );
 	INSN_F_R_R(CMP);
 	INSN_F_R_R(TEST);
-	INSN_F_R_R(VPTEST);
 	INSN_F_R_R(PTEST);
+	INSN_F_R_R(VPTEST);
 	INSN_F_R_R(VUCOMISD);
 	INSN_F_R_R(UCOMISD);
 
@@ -188,13 +184,13 @@ namespace li::ir {
 		auto r = REG(v);
 		if (v->vt == type::i1) {
 			auto tmp = b->next_gp();
-			// mov R1, 47
-			b.append(vop::movi, tmp, 47);
-			// shlx R1, R0, R1
-			SHLX(b, tmp, r, tmp);
-			// mov R2, false
-			b.append(vop::movi, out, (int64_t)make_tag(type_false));
-			// mov R2, R1
+			// mov tmp, false
+			b.append(vop::movi, tmp, (int64_t) make_tag(type_false));
+			// movzx out, r
+			b.append(vop::izx8, out, r);
+			// shl out, 47
+			SHL(b, out, 47);
+			// add out, tmp
 			ADD(b, out, tmp);
 		} else if (type::i8 <= v->vt && v->vt <= type::i64) {
 			auto tf = b->next_fp();
@@ -205,10 +201,7 @@ namespace li::ir {
 			b.append(vop::movi, out, tf);
 		} else if (v->vt == type::f32) {
 			auto tf = b->next_fp();
-			if constexpr (USE_AVX)
-				VCVTSS2SD(b, tf, r);
-			else
-				CVTSS2SD(b, tf, r);
+			b.append(vop::fsx32, tf, r);
 			b.append(vop::movi, out, tf);
 		} else if (v->vt == type::f64 || v->vt == type::unk) {
 			b.append(vop::movi, out, r);
@@ -698,7 +691,7 @@ namespace li::ir {
 			req.operands[req.operand_count++] = to_op(b, op);
 		};
 		//printf("\t%s ", arch::name_mnemonic(req.mnemonic));
-		switch (i.archinfo) {
+		switch (i.target_info.rsvd) {
 			case ENC_W_R:
 				push_operand(i.out);
 				push_operand(i.arg[0]);
@@ -817,10 +810,44 @@ namespace li::ir {
 			case vop::setcc: {
 				auto dst   = to_reg(b, i.out);
 				auto dstb  = zy::resize_reg(dst, 1);
-				auto dstd  = zy::resize_reg(dst, 4);
 				auto setcc = flags[(uint32_t) i.arg[0].reg.flag()].sets;
-				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_XOR, dstd, dstd));
 				LI_ASSERT(zy::encode(b->assembly, setcc, dstb));
+				break;
+			}
+			case vop::fsx32: {
+				auto dst = to_reg(b, i.out);
+				auto src = to_reg(b, i.arg[0].reg);
+				if constexpr (USE_AVX)
+					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_VCVTSS2SD, dst, src));
+				else
+					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_CVTSS2SD, dst, src));
+				break;
+			}
+			case vop::izx8:
+			case vop::izx16:
+			case vop::izx32:
+			case vop::isx8:
+			case vop::isx16:
+			case vop::isx32: {
+				auto dst = to_reg(b, i.out);
+				auto src = to_reg(b, i.arg[0].reg);
+
+				if (i.is(vop::isx8) || i.is(vop::izx8))
+					src = zy::resize_reg(src, 1);
+				else if (i.is(vop::isx16) || i.is(vop::izx16))
+					src = zy::resize_reg(src, 2);
+				else if (i.is(vop::isx32) || i.is(vop::izx32))
+					src = zy::resize_reg(src, 4);
+
+				auto mn = ZYDIS_MNEMONIC_MOVSX;
+				if (i.is(vop::izx32)) {
+					mn  = ZYDIS_MNEMONIC_MOV;
+					dst = zy::resize_reg(dst, 4);
+				} else if (i.is(vop::izx8) || i.is(vop::izx16)) {
+					mn  = ZYDIS_MNEMONIC_MOVZX;
+					dst = zy::resize_reg(dst, 4);
+				}
+				LI_ASSERT(zy::encode(b->assembly, mn, dst, src));
 				break;
 			}
 			case vop::js: {
@@ -830,9 +857,10 @@ namespace li::ir {
 				if (i.arg[0].reg.is_flag()) {
 					flag = (uint32_t) i.arg[0].reg.flag();
 				} else {
-					auto r = to_reg(b, i.arg[0].reg);
-					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_TEST, r, r));
-					flag = (uint32_t) FLAG_S;
+					auto r  = to_reg(b, i.arg[0].reg);
+					auto rb = zy::resize_reg(r, 1);
+					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_TEST, rb, rb));
+					flag = (uint32_t) FLAG_NZ;
 				}
 
 				// If true branch is closer to us, invert the condition.
@@ -921,8 +949,8 @@ namespace li::ir {
 			// Allocate space and align stack.
 			//
 			int  num_fp_used = std::popcount(proc->used_fp_mask >> std::size(arch::fp_volatile));
-			auto alloc_bytes = std::max(arch::home_size, num_fp_used * 0x10 + proc->used_stack_length);
-			alloc_bytes      = (alloc_bytes + 7) & ~7;
+			auto alloc_bytes = std::max(arch::home_size - 8, num_fp_used * 0x10 + proc->used_stack_length);
+			alloc_bytes = (alloc_bytes + 8) & ~7;
 			LI_ASSERT(zy::encode(prologue, ZYDIS_MNEMONIC_SUB, arch::sp, alloc_bytes));
 			LI_ASSERT(zy::encode(epilogue, ZYDIS_MNEMONIC_ADD, arch::sp, alloc_bytes));
 

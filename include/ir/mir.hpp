@@ -194,17 +194,33 @@ namespace li::ir {
 		}
 	};
 
+	// Target specific information.
+	//
+	struct ins_target_info {
+		uint64_t side_effects : 1  = false;
+		uint64_t trashes_flags : 1 = true;
+		int64_t  rsvd : 62         = 0;
+	};
+
 	// Machine instruction.
 	//
 	enum class vop {
 		null,
 		movf,      // fpreg = fpreg/gpreg/const
 		movi,      // gpreg = fpreg/gpreg/const
+		izx8,      // gpreg = u8(gpreg)
+		izx16,     // gpreg = u16(gpreg)
+		izx32,     // gpreg = u32(gpreg)
+		isx8,      // gpreg = i8(gpreg)
+		isx16,     // gpreg = i16(gpreg)
+		isx32,     // gpreg = i32(gpreg)
+		fsx32,     // fpreg = f32(fpreg)
 		loadf64,   // fpreg = fp64[mem]
 		storef64,  // fp64[mem] = fpreg
 		loadi64,   // gpreg = i64[mem]
 		storei64,  // i64[mem] = gpreg
 		setcc,     // reg = flag
+		// side-effect group.
 		call,      // mreg = call i64, ...
 		js,        // cnd true block, false block
 		jmp,       // block
@@ -217,6 +233,13 @@ namespace li::ir {
 		 "null",
 		 "movf",
 		 "movi",
+		 "izx8",
+		 "izx16",
+		 "izx32",
+		 "isx8",
+		 "isx16",
+		 "isx32",
+		 "fsx32",
 		 "loadf64",
 		 "storef64",
 		 "loadi64",
@@ -228,7 +251,6 @@ namespace li::ir {
 		 "ret",
 		 "unreachable",
 	};
-
 	using pop = arch::native_mnemonic;
 	struct minsn {
 		// Virtual or physical mnemonic.
@@ -243,7 +265,11 @@ namespace li::ir {
 
 		// Architecture specific information.
 		//
-		uintptr_t archinfo = 0;
+		ins_target_info target_info = {};
+
+		// No spill mark.
+		//
+		bool no_spill = false;
 
 		// Default construction and copy.
 		//
@@ -256,7 +282,7 @@ namespace li::ir {
 		template<typename... Tx>
 		minsn(vop v, mreg out, Tx... arg) : mnemonic(int32_t(v)), is_virtual(true), out(out), arg{arg...} {}
 		template<typename... Tx>
-		minsn(pop v, uintptr_t archinfo, mreg out, Tx... arg) : mnemonic(int32_t(v)), is_virtual(false), out(out), arg{arg...}, archinfo(archinfo) {}
+		minsn(pop v, ins_target_info target_info, mreg out, Tx... arg) : mnemonic(int32_t(v)), is_virtual(false), out(out), arg{arg...}, target_info(target_info) {}
 
 		// Observers.
 		//
@@ -304,6 +330,51 @@ namespace li::ir {
 				fn(out, false);
 		}
 
+		// Simple use checks.
+		//
+		bool uses_register(mreg r) const {
+			bool x = false;
+			for_each_reg([&](const mreg& a, bool) { x = x || a == r; });
+			return x;
+		}
+		bool writes_to_register(mreg r) const {
+			bool x = false;
+			for_each_reg([&](const mreg& a, bool w) { x = x || (w && a == r); });
+			return x;
+		}
+		bool reads_from_register(mreg r) const {
+			bool x = false;
+			for_each_reg([&](const mreg& a, bool w) { x = x || (!w && a == r); });
+			return x;
+		}
+		bool trashes_flags() const {
+			if (out.is_flag() || is(vop::call))
+				return true;
+			else if (!is_virtual && target_info.trashes_flags)
+				return true;
+			return false;
+		}
+		bool writes_to_memory() const {
+			if (is_virtual) {
+				return getv() == vop::storef64 || getv() == vop::storei64;
+			} else {
+				return !out;
+			}
+		}
+		bool has_side_effects() const {
+			if (is_virtual) {
+				return getv() >= vop::call;
+			} else {
+				return target_info.side_effects;
+			}
+		}
+		bool is_move_between_same_class() const {
+			if (is_virtual && (vop::movf <= getv() && getv() <= vop::fsx32)) {
+				return arg[0].is_reg() && out.is_fp() == arg[0].reg.is_fp();
+			}
+			return false;
+		}
+
 		// String conversion.
 		//
 		std::string to_string() const {
@@ -311,8 +382,12 @@ namespace li::ir {
 				return "INVALID";
 
 			std::string result;
+			if (no_spill) {
+				result = LI_BLU "nospill " LI_DEF;
+			}
+
 			if (out) {
-				result = out.to_string() + LI_DEF " = ";
+				result += out.to_string() + LI_DEF " = ";
 			}
 			if (is_virtual) {
 				auto v = getv();

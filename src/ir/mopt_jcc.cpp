@@ -29,17 +29,17 @@ namespace li::ir::opt {
 
 			// Skip if value will be killed if we move it.
 			//
-			auto kill = range::find_if(range::subrange(comperator.base() - 1, bb.instructions.end()), [&](minsn& i) {
+			auto kill = range::find_if(range::subrange(comperator.base() - 1, bb.instructions.end() - 1), [&](minsn& i) {
 				if (&i == &*setcc)
 					return false;
-				if (i.is(vop::call))
+				if (i.has_side_effects())
 					return true;
 				for (auto& livereg : comperator->arg)
 					if (livereg.is_reg() && livereg.reg == i.out)
 						return true;
 				return false;
 			});
-			if (kill != bb.instructions.end())
+			if (kill != (bb.instructions.end() - 1))
 				continue;
 
 			// Re-insert after moving the instruction.

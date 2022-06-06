@@ -26,9 +26,9 @@ B) reg alloc
   %f3 = cmp %v8 0x1
 */
 
-static constexpr float RA_PRIO_HOT_BIAS = 12.0f;
-
 namespace li::ir::opt {
+	static constexpr float  RA_PRIO_HOT_BIAS = 12.0f;
+
 	struct graph_node {
 		util::bitset vtx                 = {};
 		float        priority            = 0;
@@ -77,13 +77,13 @@ namespace li::ir::opt {
 
 		for (size_t i = 0; i != gr.size(); i++) {
 			auto v = mreg::from_uid(i);
-			if (gr[i].vtx.popcount() != 1)
+			if (gr[i].vtx.popcount() > 1)
 				printf("r%u [color=%u label=\"%s\"];\n", v.uid(), gr[i].color, v.to_string().c_str());
 		}
 
 		for (size_t i = 0; i != gr.size(); i++) {
 			for (size_t j = 0; j != gr.size(); j++) {
-				if (i <= j && gr[i].vtx.get(j)) {
+				if (i < j && gr[i].vtx.get(j)) {
 					printf("r%u -- r%u;\n", i, j);
 				}
 			}
@@ -172,6 +172,9 @@ namespace li::ir::opt {
 			// Otherwise continue as spilled.
 			//
 			it = overlimit_it;
+			print_graph(gr);
+			printf("Spilling register: %s\n", mreg::from_uid(it - gr.data()).to_string().c_str());
+			LI_ASSERT(it->priority != std::numeric_limits<float>::infinity());
 		}
 
 		// Remove from the graph.
@@ -283,23 +286,19 @@ namespace li::ir::opt {
 	static std::vector<graph_node> build_graph(mprocedure* proc, std::vector<graph_node>* tmp = nullptr) {
 		// Get maximum register id and calculate use counts.
 		//
-		std::vector<size_t> reg_use_counter = {};
-		uint32_t            max_reg_id      = 0;
+		std::vector<float> reg_prios  = {};
+		uint32_t           max_reg_id = 0;
 		for (auto& bb : proc->basic_blocks) {
 			for (auto& i : bb.instructions) {
-
-
 				i.for_each_reg([&](mreg r, bool is_read) {
 					if (max_reg_id < r.uid()) {
 						max_reg_id = r.uid();
-						reg_use_counter.resize(max_reg_id + 1);
+						reg_prios.resize(max_reg_id + 1);
 					}
-					if (is_read) {
-						reg_use_counter[r.uid()]++;
-					}
-
-					if (i.is(vop::loadi64) || i.is(vop::storei64) || i.is(vop::loadf64) || i.is(vop::storef64))
-						reg_use_counter[r.uid()] += 100;
+					if (i.no_spill)
+						reg_prios[r.uid()] = std::numeric_limits<float>::infinity();
+					else if (is_read)
+						reg_prios[r.uid()] += (bb.hot * RA_PRIO_HOT_BIAS) + 1;
 				});
 			}
 		}
@@ -377,7 +376,7 @@ namespace li::ir::opt {
 			auto  mr   = mreg::from_uid(i);
 			node.vtx.resize(max_reg_id);
 			node.vtx.set(i);
-			node.priority = (reg_use_counter[i] + 1) * RA_PRIO_HOT_BIAS;
+			node.priority = reg_prios[i];
 			node.is_fp    = mr.is_fp();
 			if (mr.is_phys()) {
 				node.color = std::abs(mr.phys());
@@ -405,7 +404,7 @@ namespace li::ir::opt {
 		for (auto& b : proc->basic_blocks) {
 			auto live = b.df_out_live;
 			for (auto& i : view::reverse(b.instructions)) {
-				if (i.is(vop::movi) || i.is(vop::movf)) {
+				if (i.is_move_between_same_class()) {
 					if (i.arg[0].is_reg()) {
 						auto& a = interference_graph[i.arg[0].reg.uid()];
 						auto& b = interference_graph[i.out.uid()];
@@ -436,7 +435,8 @@ namespace li::ir::opt {
 
 	// Allocates registers for each virtual register and generates the spill instructions.
 	//
-	void allocate_registers(mprocedure* proc) {
+	void allocate_registers(mprocedure* proc)
+ {
 		// Spill arguments.
 		//
 		spill_args(proc);
@@ -444,12 +444,12 @@ namespace li::ir::opt {
 		// Build the interference graph.
 		//
 		std::vector<graph_node> interference_graph = build_graph(proc);
-		print_graph(interference_graph);
+		//print_graph(interference_graph);
 		print_lifetime(proc);
 
 		// Enter the register allocation loop.
 		//
-		static constexpr size_t MAX_K =  arch::num_gp_reg;
+		static constexpr size_t MAX_K = 4;  // arch::num_gp_reg;
 		static constexpr size_t MAX_M = arch::num_fp_reg;
 		size_t                  K     = std::min(MAX_K, std::max<size_t>(std::size(arch::gp_volatile), 2));
 		size_t                  M     = std::min(MAX_M, std::max<size_t>(std::size(arch::fp_volatile), 2));
@@ -463,7 +463,6 @@ namespace li::ir::opt {
 			//
 			auto [spill_gp, spill_fp] = try_color(interference_graph, K, M);
 			printf("Try_color (K=%llu, M=%llu) spills (%llu, %llu) registers\n", K, M, spill_gp, spill_fp);
-			//print_lifetime(proc);
 
 			// If we don't need to spill, break out.
 			//
@@ -515,22 +514,21 @@ namespace li::ir::opt {
 					};
 					it->for_each_reg([&](const mreg& r, bool is_read) {
 						if (is_pseudo(r) || !r.is_virt())
-							return false;
+							return;
 						if (interference_graph.size() <= r.uid())
-							return false;
+							return;
 
 						// Skip if not spilled.
 						//
 						auto& info = interference_graph[r.uid()];
 						if (!info.spill_slot) {
-							return false;
+							return;
 						}
 						if (is_read) {
 							spill_and_swap(const_cast<mreg&>(r), reload_list, info.spill_slot);
 						} else {
 							spill_and_swap(const_cast<mreg&>(r), spill_list, info.spill_slot);
 						}
-						return false;
 					});
 
 					// If we don't need to change anything, continue.
@@ -540,6 +538,7 @@ namespace li::ir::opt {
 						continue;
 					}
 
+					it->no_spill = true;
 					// Reload and spill as requested.
 					//
 					for (auto& entry : reload_list) {
@@ -547,14 +546,18 @@ namespace li::ir::opt {
 							break;
 						auto op = entry.src.is_fp() ? vop::loadf64 : vop::loadi64;
 						mmem mem{.base = arch::from_native(arch::sp), .disp = entry.slot * 8};
-						it = bb.instructions.insert(it, minsn{op, entry.dst, mem}) + 1;
+						minsn i{op, entry.dst, mem};
+						i.no_spill = true;
+						it = bb.instructions.insert(it, i) + 1;
 					}
 					for (auto& entry : spill_list) {
 						if (entry.src.is_null())
 							break;
 						auto op = entry.src.is_fp() ? vop::storef64 : vop::storei64;
-						mmem mem{.base = arch::from_native(arch::sp), .disp = entry.slot * 8};
-						it = bb.instructions.insert(it + 1, minsn{op, {}, mem, entry.dst}) + 1;
+						mmem  mem{.base = arch::from_native(arch::sp), .disp = entry.slot * 8};
+						minsn i{op, {}, mem, entry.dst};
+						i.no_spill = true;
+						it = bb.instructions.insert(it + 1, i) + 1;
 					}
 				}
 			}
@@ -583,12 +586,9 @@ namespace li::ir::opt {
 						}
 						const_cast<mreg&>(r) = arch::reg(x);
 					}
-					return false;
 				});
 			}
 		}
-		proc->print();
-
 		// Remove eliminated moves.
 		//
 		for (auto& bb : proc->basic_blocks) {
@@ -600,5 +600,6 @@ namespace li::ir::opt {
 				return false;
 			});
 		}
+		proc->print();
 	}
 };

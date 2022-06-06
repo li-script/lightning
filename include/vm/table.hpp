@@ -25,7 +25,7 @@ namespace li {
 		table_entry   small_table[small_table_length + overflow_factor];
 		msize_t       active_count = 0;
 		size_t        mask         = 0;
-		constexpr static size_t compute_mask(msize_t n) { return (n - 1) << table_hash_shift; }
+		constexpr static size_t compute_mask(msize_t n) { return size_t(n - 1) << table_hash_shift; }
 
 		table_entry* begin() { return node_list ? &node_list->entries[0] : &small_table[0]; }
 		table_entry* end() { return begin() + realsize(); }

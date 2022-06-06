@@ -74,7 +74,7 @@ namespace li {
 		//
 		if (!fn.line_table.empty())
 			fn.line_table.front().line_delta -= line;
-		function* f      = function::create(fn.L, fn.pc, fn.kvalues, fn.uvalues.size(), fn.line_table);
+		function* f      = function::create(fn.L, fn.pc, fn.kvalues, (msize_t) fn.uvalues.size(), fn.line_table);
 		f->num_locals    = fn.max_reg_id + 1;
 		f->num_arguments = (msize_t) fn.args.size();
 		if (fn.decl_name) {

@@ -355,7 +355,8 @@ namespace li::ir {
 
 		// Data-flow analysis results.
 		//
-		util::bitset df_live, df_def, df_ref;
+		util::bitset df_def, df_ref;
+		util::bitset df_in_live, df_out_live;
 
 		// Appends an instruction at the end of the block and returns the IP.
 		//

@@ -21,6 +21,7 @@ namespace li::ir::opt {
 	struct graph_node {
 		util::bitset vtx   = {};
 		uint8_t      color = {};
+		graph_node*  coalescing_hint = nullptr;
 	};
 
 	// Returns a view that can be enumerated as a series of mregs for a given bitset.
@@ -107,6 +108,17 @@ namespace li::ir::opt {
 		if (!rec_result)
 			return false;
 
+		// Try using any coalescing hints.
+		//
+		if (it->coalescing_hint) {
+			if (it->coalescing_hint->color) {
+				if (color_mask & (1ull << (it->coalescing_hint->color - 1))) {
+					it->color = it->coalescing_hint->color;
+					return true;
+				}
+			}
+		}
+
 		// Pick a color.
 		//
 		size_t n = std::countr_zero(color_mask);
@@ -164,7 +176,8 @@ namespace li::ir::opt {
 		for (auto& bb : proc->basic_blocks) {
 			bb.df_def.resize(max_reg_id);
 			bb.df_ref.resize(max_reg_id);
-			bb.df_live.resize(max_reg_id);
+			bb.df_in_live.resize(max_reg_id);
+			bb.df_out_live.resize(max_reg_id);
 
 			for (auto& i : bb.instructions) {
 				i.for_each_reg([&](mreg r, bool is_read) {
@@ -179,7 +192,7 @@ namespace li::ir::opt {
 			}
 		}
 
-		// Calculate live ranges:
+		// Calculate in-live ranges:
 		// - in-live(n) = (out-live(n)\def(n)) U ref(n)
 		// - out-live(n) = for each succ, (... U in-live(s))
 		//
@@ -192,16 +205,23 @@ namespace li::ir::opt {
 			for (auto& bb : proc->basic_blocks) {
 				util::bitset new_live{max_reg_id};
 				for (auto& s : bb.successors) {
-					new_live.set_union(s->df_live);
+					new_live.set_union(s->df_in_live);
 				}
 				new_live.set_difference(bb.df_def);
 				new_live.set_union(bb.df_ref);
-				if (new_live != bb.df_live) {
+				if (new_live != bb.df_in_live) {
 					changed = true;
-					new_live.swap(bb.df_live);
+					new_live.swap(bb.df_in_live);
 				}
 			}
 		} while (changed);
+
+		// Convert to out-live.
+		//
+		for (auto& b : proc->basic_blocks) {
+			for (auto& suc : b.successors)
+				b.df_out_live.set_union(suc->df_in_live);
+		}
 
 		//for (auto& b : proc->basic_blocks) {
 		//	printf("-- Block $%u", b.uid);
@@ -211,8 +231,8 @@ namespace li::ir::opt {
 		//		printf(LI_RED " [HOT  %u]" LI_DEF, (uint32_t) b.hot);
 		//	putchar('\n');
 		//
-		//	printf("Live = ");
-		//	for (mreg r : regs_in(b.df_live))
+		//	printf("Out-Live = ");
+		//	for (mreg r : regs_in(b.df_out_live))
 		//		printf(" %s", r.to_string().c_str());
 		//	printf("\n");
 		//	printf("Def = ");
@@ -271,8 +291,18 @@ namespace li::ir::opt {
 			};
 
 			for (auto& b : proc->basic_blocks) {
-				auto live = b.df_live;
+				auto live = b.df_out_live;
 				for (auto& i : view::reverse(b.instructions)) {
+
+					if (i.is(vop::movi) || i.is(vop::movf)) {
+						if (i.arg[0].is_reg()) {
+							// TODO: Maybe this should be a vector and should try to satisfy as many as possible?
+							auto& a = interference_graph[i.arg[0].reg.uid()];
+							auto& b = interference_graph[i.out.uid()];
+							b.coalescing_hint = &a;
+							a.coalescing_hint = &b;
+						}
+					}
 
 					if (i.out)
 						live.reset(i.out.uid());

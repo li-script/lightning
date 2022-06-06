@@ -562,7 +562,9 @@ namespace li::ir {
 			case opcode::thrw: 
 			case opcode::ret: {
 				auto code = i->opc == opcode::ret;
-				local_store(b, FRAME_RET, RI(i->operands[0]));
+				auto tmp  = b->next_gp();
+				type_erase(b, i->operands[0], tmp);
+				local_store(b, FRAME_RET, tmp);
 				b.append(vop::ret, {}, code ? 1ll : 0ll);
 				return;
 			}

@@ -45,6 +45,10 @@ namespace li {
 			return tbl;
 		}
 
+		// Joins another table into this.
+		//
+		void join(vm* L, table* other);
+
 		// Rehashing resize.
 		//
 		void resize(vm* L, msize_t n);

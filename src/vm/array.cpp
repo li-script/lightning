@@ -17,6 +17,14 @@ namespace li {
 		traverse_n(s, o->begin(), o->size());
 	}
 
+	// Joins another array into this.
+	//
+	void array::join(vm* L, array* other) {
+		msize_t pos = size();
+		resize(L, pos + other->size());
+		memcpy(begin() + pos, other->begin(), other->size() * sizeof(any));
+	}
+
 	// Reserve and resize.
 	//
 	void array::reserve(vm* L, msize_t n) {

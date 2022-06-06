@@ -21,6 +21,24 @@ namespace li {
 		traverse_n(s, (any*) o->begin(), 2 * o->realsize());
 	}
 
+	// Joins another table into this.
+	//
+	void table::join(vm* L, table* other) {
+		// Copy every trait except freeze.
+		//
+		trait_seal = other->trait_seal;
+		trait_hide = other->trait_hide;
+		trait_mask = other->trait_mask;
+		traits     = other->traits;
+
+		// Copy fields raw.
+		//
+		for (auto& [k, v] : *other) {
+			if (k != none)
+				set(L, k, v);
+		}
+	}
+
 	// Rehashing resize.
 	//
 	void table::resize(vm* L, msize_t n) {

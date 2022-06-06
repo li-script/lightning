@@ -25,6 +25,10 @@ namespace li {
 			return r;
 		}
 
+		// Joins another array into this.
+		//
+		void join(vm* L, array* other);
+
 		// Reserve and resize.
 		//
 		void reserve(vm* L, msize_t n);

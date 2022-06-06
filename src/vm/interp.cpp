@@ -481,22 +481,7 @@ namespace li {
 									if (!dst.is_tbl()) [[unlikely]] {
 										VM_RET(string::create(L, "can't join different types, expected table"), true);
 									}
-									auto* s = src.as_tbl();
-									auto* d = dst.as_tbl();
-
-									// Copy every trait except freeze.
-									//
-									d->trait_seal = s->trait_seal;
-									d->trait_hide = s->trait_hide;
-									d->trait_mask = s->trait_mask;
-									d->traits     = s->traits;
-
-									// Copy fields raw.
-									//
-									for (auto& [k, v] : *s) {
-										if (k != none)
-											d->set(L, k, v);
-									}
+									dst.as_tbl()->join(L, src.as_tbl());
 								}
 							} else if (src.is_arr()) {
 								auto dst = REG(b);
@@ -504,12 +489,7 @@ namespace li {
 								if (!dst.is_arr()) [[unlikely]] {
 									VM_RET(string::create(L, "can't join different types, expected array"), true);
 								}
-								auto* s = src.as_arr();
-								auto* d = dst.as_arr();
-
-								msize_t pos = d->size();
-								d->resize(L, pos + s->size());
-								memcpy(d->begin() + pos, s->begin(), s->size() * sizeof(any));
+								dst.as_arr()->join(L, src.as_arr());
 							} else [[unlikely]] {
 								VM_RET(string::create(L, "join expected table or array"), true);
 							}

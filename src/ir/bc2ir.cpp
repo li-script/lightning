@@ -140,7 +140,14 @@ namespace li::ir {
 					set_reg(a, bld.emit<vdup>(any(std::in_place, insn.xmm())));
 					continue;
 				}
-				// case bc::CCAT: // A=CONCAT(A..A+B)
+				case bc::CCAT: {
+					auto tmp = get_reg(a);
+					for (msize_t i = 1; i != b; i++) {
+						tmp = bld.emit<vjoin>(std::move(tmp), get_reg(a + i));
+					}
+					set_reg(a, std::move(tmp));
+					continue;
+				}
 
 				// Casts:
 				//

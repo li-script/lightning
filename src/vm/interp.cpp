@@ -472,6 +472,7 @@ namespace li {
 							continue;
 						}
 						case bc::VJOIN: {
+							L->gc.tick(L);
 							auto src = REG(c);
 							if (src.is_tbl()) {
 								if (auto dst = REG(b); dst == none) {
@@ -490,8 +491,14 @@ namespace li {
 									VM_RET(string::create(L, "can't join different types, expected array"), true);
 								}
 								dst.as_arr()->join(L, src.as_arr());
+							} else if (src.is_str()) {
+								auto dst = REG(b);
+								if (!dst.is_str()) [[unlikely]] {
+									VM_RET(string::create(L, "can't join different types, expected string"), true);
+								}
+								REG(a) = string::concat(L, dst.as_str(), src.as_str());
 							} else [[unlikely]] {
-								VM_RET(string::create(L, "join expected table or array"), true);
+								VM_RET(string::create(L, "join expected table, array, or string"), true);
 							}
 							continue;
 						}

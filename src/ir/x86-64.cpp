@@ -573,7 +573,7 @@ namespace li::ir {
 				b.append(vop::movi, arch::map_gp_arg(0, 0), mreg(vreg_vm));
 				b.append(vop::movi, arch::map_gp_arg(1, 0), RI(i->operands[0]));
 				b.append(vop::call, arch::from_native(arch::gp_retval), fn);
-				YIELD(arch::from_native(arch::gp_retval));
+				YIELD(mreg(arch::from_native(arch::gp_retval)));
 				return;
 			}
 			// TODO: None of this is right, just testing...
@@ -595,7 +595,7 @@ namespace li::ir {
 				type_erase(b, i->operands[0], arch::map_gp_arg(1, 0));
 				type_erase(b, i->operands[1], arch::map_gp_arg(2, 0));
 				b.append(vop::call, arch::from_native(arch::gp_retval), (int64_t) &runtime::field_get_raw);
-				b.append(vop::movi, REG(i), arch::from_native(arch::gp_retval));
+				YIELD(mreg(arch::from_native(arch::gp_retval)));
 				return;
 			}
 			case opcode::unreachable: {

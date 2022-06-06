@@ -43,6 +43,7 @@ namespace li::ir::arch {
 	static constexpr native_reg sp               = zy::RSP;
 	static constexpr native_reg invalid          = zy::NO_REG;
 
+	static constexpr int32_t stack_arg_begin      = 0x20;
 	static constexpr int32_t home_size            = 0x20;
 	static constexpr bool    combined_arg_counter = true;
 #elif LI_ABI_SYSV64
@@ -57,6 +58,7 @@ namespace li::ir::arch {
 	static constexpr native_reg sp               = zy::RSP;
 	static constexpr native_reg invalid          = zy::NO_REG;
 
+	static constexpr int32_t stack_arg_begin      = 0x0;
 	static constexpr int32_t home_size            = 0x20;
 	static constexpr bool    combined_arg_counter = false;
 #else
@@ -74,6 +76,7 @@ namespace li::ir::arch {
 	static constexpr native_reg sp             = 0;
 	static constexpr native_reg invalid        = 0;
 
+	static constexpr int32_t     stack_arg_begin      = 0;
 	static constexpr int32_t     home_size            = 0;
 	static constexpr bool        combined_arg_counter = false;
 	static constexpr const char* name_reg(native_reg r) { return "?"; }

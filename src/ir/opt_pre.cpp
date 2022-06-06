@@ -2,11 +2,37 @@
 #include <ir/opt.hpp>
 #include <ir/proc.hpp>
 #include <ir/value.hpp>
+#include <vm/runtime.hpp>
 
 namespace li::ir::opt {
 	// Prepares the IR to be lifted to MIR.
 	//
 	void prepare_for_mir(procedure* proc) {
+		// Helper to replace an instruction with call.
+		//
+		auto replace_with_call = [&](instruction_iterator i, bool vm, type ret, const void* fn, auto&&... args) {
+			auto nit = builder{}.emit_after<ccall>(i.at, vm, ret, (int64_t) fn, args...);
+			i->replace_all_uses(nit.at);
+			i->erase();
+			return instruction_iterator(nit);
+		};
+
+		for (auto& bb : proc->basic_blocks) {
+			for (auto it = bb->begin(); it != bb->end();) {
+
+				// Array/Table new.
+				//
+				if (it->is<array_new>()) {
+					it = replace_with_call(it, true, type::arr, &runtime::array_new, it->operands[0]);
+					continue;
+				} else if (it->is<table_new>()) {
+					it = replace_with_call(it, true, type::tbl, &runtime::table_new, it->operands[0]);
+					continue;
+				}
+
+				++it;
+			}
+		}	
 	}
 	void finalize_for_mir(procedure* proc) {
 		// Fixup PHIs, this should be the last operation as they are not allowed to be optimized out.

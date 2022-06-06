@@ -4,6 +4,35 @@
 #include <ir/value.hpp>
 
 namespace li::ir::opt {
+	// Helper to convert from IR to VM type.
+	//
+	static value_type ir_to_vm(type r) {
+		constant test;
+		test.vt = r;
+		return test.to_any().type();
+	}
+
+	// Resolves dominating type for a value at the given instruction.
+	//
+	static std::optional<value_type> get_dominating_type_at(insn* i, value* v) {
+		if (v->vt != type::unk) {
+			return ir_to_vm(v->vt);
+		} else {
+			std::optional<value_type> resolved;
+			v->as<insn>()->for_each_user([&](insn* c, size_t j) {
+				// TODD: test_type branch check, has path to.
+				if (c->is<assume_cast>()) {
+					if (c->parent->dom(i->parent)) {
+						resolved = ir_to_vm(c->operands[1]->as<constant>()->irtype);
+						return true;
+					}
+				}
+				return false;
+			});
+			return resolved;
+		}
+	}
+
 	// Adds the branches for required type checks.
 	//
 	void type_split_cfg(procedure* proc) {
@@ -101,32 +130,13 @@ namespace li::ir::opt {
 		bool changed = false;
 		for (auto& b : proc->basic_blocks) {
 			for (auto* i : b->insns()) {
-				if (!i->is<test_type>())
-					continue;
-				auto expected = i->operands[1]->as<constant>()->vmtype;
-
-				if (i->operands[0]->vt != type::unk) {
-					constant test;
-					test.vt = i->operands[0]->vt;
-					i->replace_all_uses(launder_value(proc, test.to_any().type() == expected));
-					changed = true;
-					continue;
-				}
-
-				std::optional<value_type> resolved;
-				i->operands[0]->as<insn>()->for_each_user([&](insn* c, size_t j) {
-					if (c->is<try_cast>() || c->is<assume_cast>()) {
-						if (c->parent->dom(b.get())) {
-							resolved = i->operands[1]->as<constant>()->vmtype;
-							return true;
-						}
+				if (i->is<test_type>()) {
+					auto expected = i->operands[1]->as<constant>()->vmtype;
+					auto resolved = get_dominating_type_at(i, i->operands[0]);
+					if (resolved) {
+						i->replace_all_uses(launder_value(proc, *resolved == expected));
+						changed = true;
 					}
-					return false;
-				});
-				if (resolved) {
-					i->replace_all_uses(launder_value(proc, *resolved == expected));
-					changed = true;
-					continue;
 				}
 			}
 		}

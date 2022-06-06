@@ -25,17 +25,17 @@ namespace li::ir {
 		vjoin,
 		trait_get,
 		trait_set,
-		array_new,
-		table_new,
-		field_get,
-		field_get_raw,
-		field_set,
-		field_set_raw,
+		array_new,      // Not allowed at MIR.
+		table_new,      // Not allowed at MIR.
+		field_get,      // Not allowed at MIR.
+		field_get_raw,  // Must be typed at MIR.
+		field_set,      // Not allowed at MIR.
+		field_set_raw,  // Must be typed at MIR.
 
 		// Operators.
 		//
-		unop,
-		binop,
+		unop,   // No traits allowed at MIR, must be typed.
+		binop,  // No traits allowed at MIR, must be typed.
 
 		// Upvalue.
 		//
@@ -44,11 +44,10 @@ namespace li::ir {
 
 		// Casts.
 		//
-		try_cast,
 		assume_cast,
 		coerce_cast,
 
-		// Low level IR.
+		// Helpers used before transitioning to MIR.
 		//
 		move,
 		erase_type,
@@ -63,15 +62,15 @@ namespace li::ir {
 		select,
 		phi,
 
-		// Block terminators.
-		//
-		jmp,
-		jcc,
-
 		// Call types.
 		//
 		ccall,
 		vcall,
+
+		// Block terminators.
+		//
+		jmp,
+		jcc,
 
 		// Procedure terminators.
 		//
@@ -402,15 +401,6 @@ namespace li::ir {
 			LI_ASSERT(operands.size() == 3);
 		}
 	};
-	// T      try_cast(unk, const irtype T)
-	struct try_cast final : insn_tag<try_cast, opcode::try_cast> {
-		void update() override {
-			is_const = true;
-			LI_ASSERT(operands.size() == 2);
-			LI_ASSERT(operands[1]->is<constant>() && operands[1]->is(type::irtype));
-			vt        = operands[1]->as<constant>()->irtype;
-		}
-	};
 	// T      assume_cast(unk, const irtype T)
 	struct assume_cast final : insn_tag<assume_cast, opcode::assume_cast> {
 		void update() override {
@@ -588,15 +578,16 @@ namespace li::ir {
 			LI_ASSERT(operands[0]->is<constant>() && operands[0]->is(type::i32));
 		}
 	};
-	// T ccall(irtype rettype, ptr target, ...)
+	// T ccall(i1 has_vm, irtype rettype, ptr target, ...)
 	struct ccall final : insn_tag<ccall, opcode::ccall> {
 		void update() override {
 			is_pure   = false;
 			sideffect = true;
-			LI_ASSERT(operands.size() >= 2);
-			LI_ASSERT(operands[0]->is<constant>() && operands[0]->is(type::irtype));
-			LI_ASSERT(operands[1]->is(type::ptr));
-			vt = operands[0]->as<constant>()->irtype;
+			LI_ASSERT(operands.size() >= 3);
+			LI_ASSERT(operands[0]->is<constant>() && operands[0]->is(type::i1));
+			LI_ASSERT(operands[1]->is<constant>() && operands[1]->is(type::irtype));
+			LI_ASSERT(operands[2]->is(type::ptr));
+			vt = operands[1]->as<constant>()->irtype;
 		}
 	};
 	// any vcall(const i32 fixedargs)

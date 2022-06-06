@@ -25,7 +25,7 @@ namespace li::ir {
 	using preg = arch::reg;
 	enum vreg : int32_t {
 		vreg_vm    = 1,  // arguments[0], vm*
-		vreg_tos  = 2,   // arguments[1], any*
+		vreg_tos   = 2,  // arguments[1], any*
 		vreg_nargs = 3,  // arguments[2], int
 		vreg_cpool = 4,  // constant pool, rip-rel
 		vreg_first = 5,  // ...
@@ -220,10 +220,10 @@ namespace li::ir {
 		loadf64,   // fpreg = fp64[mem]
 		storef64,  // fp64[mem] = fpreg
 		loadi64,   // gpreg = i64[mem]
-		storei64,  // i64[mem] = gpreg
+		storei64,  // i64[mem] = gpreg // TODO: Maybe add constant?
 		setcc,     // reg = flag
 		// side-effect group.
-		call,      // mreg = call i64, [implicit args & nonvol clobber]
+		call,      // call i64, [implicit args & nonvol clobber]
 		js,        // cnd true block, false block
 		jmp,       // block
 		ret,       // i1
@@ -490,7 +490,7 @@ namespace li::ir {
 		//
 		size_t  used_gp_mask      = 0;
 		size_t  used_fp_mask      = 0;
-		int32_t used_stack_length = 0;
+		int32_t used_stack_length = arch::home_size;
 
 		// Target-specific assembly and relocation info.
 		//

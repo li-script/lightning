@@ -462,12 +462,63 @@ namespace li::ir {
 	//
 	static void mlift(mblock& b, insn* i) {
 		switch (i->opc) {
+			// Locals.
+			//
 			case opcode::load_local: {
 				local_load(b, RIi(i->operands[0]), REG(i));
 				return;
 			}
 			case opcode::store_local: {
 				local_store(b, RIi(i->operands[0]), REG(i->operands[1]));
+				return;
+			}
+
+			// Complex types.
+			//
+			// TODO: None of this is right, just testing...
+			//
+			case opcode::field_set_raw: {
+				// TODO: Inline if type known.
+				//
+				b.append(vop::movi, arch::map_gp_arg(0, 0), mreg(vreg_vm));
+				type_erase(b, i->operands[0], arch::map_gp_arg(1, 0));
+				type_erase(b, i->operands[1], arch::map_gp_arg(2, 0));
+				type_erase(b, i->operands[2], arch::map_gp_arg(3, 0));
+				b.append(vop::call, {}, (int64_t) &runtime::field_set_raw);
+				// ^ result is potentially error!
+				return;
+			}
+			case opcode::field_get:
+			case opcode::field_get_raw: {
+				b.append(vop::movi, arch::map_gp_arg(0, 0), mreg(vreg_vm));
+				type_erase(b, i->operands[0], arch::map_gp_arg(1, 0));
+				type_erase(b, i->operands[1], arch::map_gp_arg(2, 0));
+				b.append(vop::call, {}, (int64_t) &runtime::field_get_raw);
+				b.append(vop::movi, REG(i), mreg(arch::from_native(arch::gp_retval)));
+				return;
+			}
+
+			// Operators.
+			//
+			case opcode::unop: {
+				LI_ASSERT(i->vt == type::f64);
+				if (fp_unary(b, i->operands[0]->as<constant>()->vmopr, i->operands[1], i))
+					return;
+				break;
+			}
+			case opcode::binop: {
+				LI_ASSERT(i->vt == type::f64);
+				if (fp_binary(b, i->operands[0]->as<constant>()->vmopr, i->operands[1], i->operands[2], i))
+					return;
+				break;
+			}
+
+			// Casts.
+			//
+			case opcode::assume_cast: {
+				auto out = REG(i);
+				// TODO: Need type specific action, e.g. clear high bits if LI_KERNEL_MODE.
+				b.append(out.is_fp() ? vop::movf : vop::movi, out, REG(i->operands[0]));
 				return;
 			}
 			case opcode::coerce_cast: {
@@ -500,6 +551,20 @@ namespace li::ir {
 					} 
 				}
 			}
+
+			// Helpers used before transitioning to MIR.
+			//
+			case opcode::move: {
+				YIELD(RI(i->operands[0]));
+				return;
+			}
+			case opcode::erase_type: {
+				type_erase(b, i->operands[0], REG(i));
+				return;
+			}
+
+			// Conditionals.
+			//
 			case opcode::test_type: {
 				auto vt = i->operands[1]->as<constant>()->vmtype;
 				LI_ASSERT(i->operands[0]->vt == type::unk);
@@ -509,47 +574,11 @@ namespace li::ir {
 				check_type_cc(b, FLAG_Z, vt, tmp);
 				return;
 			}
-			case opcode::jcc: {
-				b.append(vop::js, {}, REG(i->operands[0]), i->operands[1]->as<constant>()->bb->uid, i->operands[2]->as<constant>()->bb->uid);
-				return;
-			}
-			case opcode::jmp: {
-				b.append(vop::jmp, {}, i->operands[0]->as<constant>()->bb->uid);
-				return;
-			}
-			case opcode::assume_cast: {
-				auto out = REG(i);
-				// TODO: Need type specific action, e.g. clear high bits if LI_KERNEL_MODE.
-				b.append(out.is_fp() ? vop::movf : vop::movi, out, REG(i->operands[0]));
-				return;
-			}
 			case opcode::compare: {
-				auto cc = i->operands[0]->as<constant>()->vmopr;
+				auto cc   = i->operands[0]->as<constant>()->vmopr;
 				auto flag = fp_compare(b, cc, i->operands[1], i->operands[2]);
 				b.append(vop::setcc, REG(i), flag);
 				return;
-			}
-			case opcode::erase_type: {
-				type_erase(b, i->operands[0], REG(i));
-				return;
-			}
-			case opcode::move: {
-				YIELD(RI(i->operands[0]));
-				return;
-			}
-			case opcode::unop: {
-				if (i->vt == type::f64) {
-					if (fp_unary(b, i->operands[0]->as<constant>()->vmopr, i->operands[1], i))
-						return;
-				}
-				break;
-			}
-			case opcode::binop: {
-				if (i->vt == type::f64) {
-					if (fp_binary(b, i->operands[0]->as<constant>()->vmopr, i->operands[1], i->operands[2], i))
-						return;
-				}
-				break;
 			}
 			case opcode::phi: {
 				auto r = get_existing_reg(i->operands[0]->as<insn>());
@@ -559,44 +588,84 @@ namespace li::ir {
 				YIELD(r);
 				return;
 			}
-			case opcode::thrw: 
-			case opcode::ret: {
+
+			// Call types.
+			//
+			case opcode::ccall: {
+				// If it takes VM as it's first argument, add it.
+				//
+				int32_t gp_index = 0;
+				int32_t fp_index = 0;
+				if (i->operands[0]->as<constant>()->i1) {
+					b.append(vop::movi, arch::map_gp_arg(0, 0), mreg(vreg_vm));
+					gp_index++;
+				}
+
+				// Append each argument.
+				//
+				for (uint32_t n = 3; n != i->operands.size(); n++) {
+					auto& op = i->operands[n];
+
+					if (op->vt == type::f32 || op->vt == type::f64) {
+						auto r = arch::map_fp_arg(gp_index, fp_index++);
+						if (r != arch::invalid) {
+							b.append(vop::movf, mreg(r), RI(op));
+						} else {
+							mmem mem{
+								 .base = arch::from_native(arch::sp),
+								 .disp = arch::stack_arg_begin + (gp_index + fp_index) * 8,
+							};
+							b.append(vop::storef64, {}, mem, REG(op));
+							b->used_stack_length = std::max(b->used_stack_length, mem.disp + 8);
+						}
+					} else {
+						auto r = arch::map_gp_arg(gp_index++, fp_index);
+						if (r != arch::invalid) {
+							b.append(vop::movi, mreg(r), RIi(op));
+						} else {
+							mmem mem{
+								 .base = arch::from_native(arch::sp),
+								 .disp = arch::stack_arg_begin + (gp_index + fp_index) * 8,
+							};
+							b.append(vop::storei64, {}, mem, REG(op));
+							b->used_stack_length = std::max(b->used_stack_length, mem.disp + 8);
+						}
+					}
+				}
+				// Write the call.
+				//
+				b.append(vop::call, {}, RIi(i->operands[2]));
+
+				// Read the result.
+				//
+				if (auto ty = i->operands[1]->as<constant>()->irtype; (ty == type::f32 || ty == type::f64)) {
+					b.append(vop::movf, REG(i), mreg(arch::from_native(arch::fp_retval)));
+				} else if (ty != type::none) {
+					b.append(vop::movi, REG(i), mreg(arch::from_native(arch::gp_retval)));
+				}
+				return;
+			}
+
+			// Block terminators.
+			//
+			case opcode::jcc: {
+				b.append(vop::js, {}, REG(i->operands[0]), i->operands[1]->as<constant>()->bb->uid, i->operands[2]->as<constant>()->bb->uid);
+				return;
+			}
+			case opcode::jmp: {
+				b.append(vop::jmp, {}, i->operands[0]->as<constant>()->bb->uid);
+				return;
+			}
+
+			// Procedure terminators.
+			//
+			case opcode::ret:
+			case opcode::thrw: {
 				auto code = i->opc == opcode::ret;
 				auto tmp  = b->next_gp();
 				type_erase(b, i->operands[0], tmp);
 				local_store(b, FRAME_RET, tmp);
 				b.append(vop::ret, {}, code ? 1ll : 0ll);
-				return;
-			}
-			case opcode::table_new:
-			case opcode::array_new: {
-				auto fn = i->opc == opcode::array_new ? (intptr_t) &runtime::array_new : (intptr_t) &runtime::table_new;
-				b.append(vop::movi, arch::map_gp_arg(0, 0), mreg(vreg_vm));
-				b.append(vop::movi, arch::map_gp_arg(1, 0), RIi(i->operands[0]));
-				b.append(vop::call, arch::from_native(arch::gp_retval), fn);
-				b.append(vop::movi, REG(i), mreg(arch::from_native(arch::gp_retval)));
-				return;
-			}
-			// TODO: None of this is right, just testing...
-			//
-			case opcode::field_set_raw: {
-				// TODO: Inline if type known.
-				//
-				b.append(vop::movi, arch::map_gp_arg(0, 0), mreg(vreg_vm));
-				type_erase(b, i->operands[0], arch::map_gp_arg(1, 0));
-				type_erase(b, i->operands[1], arch::map_gp_arg(2, 0));
-				type_erase(b, i->operands[2], arch::map_gp_arg(3, 0));
-				b.append(vop::call, arch::from_native(arch::gp_retval), (int64_t) &runtime::field_set_raw);
-				// ^ result is potentially error!
-				return;
-			}
-			case opcode::field_get:
-			case opcode::field_get_raw: {
-				b.append(vop::movi, arch::map_gp_arg(0, 0), mreg(vreg_vm));
-				type_erase(b, i->operands[0], arch::map_gp_arg(1, 0));
-				type_erase(b, i->operands[1], arch::map_gp_arg(2, 0));
-				b.append(vop::call, arch::from_native(arch::gp_retval), (int64_t) &runtime::field_get_raw);
-				b.append(vop::movi, REG(i), mreg(arch::from_native(arch::gp_retval)));
 				return;
 			}
 			case opcode::unreachable: {
@@ -1009,7 +1078,7 @@ namespace li::ir {
 			// Allocate space and align stack.
 			//
 			int  num_fp_used = std::popcount(proc->used_fp_mask >> std::size(arch::fp_volatile));
-			auto alloc_bytes = num_fp_used * 0x10 + proc->used_stack_length + arch::home_size - 8;
+			auto alloc_bytes = num_fp_used * 0x10 + proc->used_stack_length - 8;
 			alloc_bytes      = (alloc_bytes + 8) & ~7;
 			LI_ASSERT(zy::encode(prologue, ZYDIS_MNEMONIC_SUB, arch::sp, alloc_bytes));
 

@@ -438,7 +438,7 @@ namespace li::ir::opt {
 		size_t                  M     = std::min(MAX_M, std::max<size_t>(std::size(arch::fp_volatile), 2));
 		std::vector<graph_node> interference_graph_copy(interference_graph);
 
-		int32_t num_spill_slots = 0;
+		int32_t num_spill_slots = proc->used_stack_length / 8;
 		for(size_t step = 0;; step++) {
 			LI_ASSERT(step < 32);
 

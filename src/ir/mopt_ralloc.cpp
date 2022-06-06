@@ -1,4 +1,6 @@
 #include <ir/opt.hpp>
+#include <util/common.hpp>
+#if LI_JIT
 
 #ifndef LI_RA_TEST_PRESSURE
 	#define LI_RA_TEST_PRESSURE 0
@@ -585,3 +587,5 @@ namespace li::ir::opt {
 		}
 	}
 };
+
+#endif

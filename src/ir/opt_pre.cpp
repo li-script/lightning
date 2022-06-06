@@ -1,3 +1,6 @@
+#include <util/common.hpp>
+#if LI_JIT
+
 #include <ir/insn.hpp>
 #include <ir/opt.hpp>
 #include <ir/proc.hpp>
@@ -113,3 +116,4 @@ namespace li::ir::opt {
 		proc->validate();
 	}
 };
+#endif

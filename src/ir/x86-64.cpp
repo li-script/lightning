@@ -153,7 +153,7 @@ namespace li::ir {
 	static mreg check_type_cc(mblock& b, flag_id f, value_type t, mreg tmp) {
 		uint64_t cmp;
 		if (f == FLAG_Z && t == type_number) {
-			f = FLAG_B;
+			f   = FLAG_B;
 			cmp = (make_tag(uint8_t(t)) + 1) >> 47;
 		} else {
 			cmp = make_tag(uint8_t(t)) >> 47;
@@ -161,6 +161,13 @@ namespace li::ir {
 		SHR(b, tmp, 47);
 		CMP(b, f, tmp, cmp);
 		b.append(vop::setcc, tmp, f);
+		return tmp;
+	}
+	static mreg check_traitful(mblock& b, value_type t, mreg tmp) {
+		uint64_t cmp = (make_tag(type_gc_last_traitful + 1) + 1);
+		b.append(vop::movi, tmp, (int64_t)cmp);
+		CMP(b, FLAG_NBE, tmp, cmp);
+		b.append(vop::setcc, tmp, FLAG_NBE);
 		return tmp;
 	}
 
@@ -572,6 +579,15 @@ namespace li::ir {
 				auto tmp = REG(i);
 				b.append(vop::movi, tmp, REG(i->operands[0]));
 				check_type_cc(b, FLAG_Z, vt, tmp);
+				return;
+			}
+			case opcode::test_traitful: {
+				auto vt = i->operands[1]->as<constant>()->vmtype;
+				LI_ASSERT(i->operands[0]->vt == type::unk);
+
+				auto tmp = REG(i);
+				b.append(vop::movi, tmp, REG(i->operands[0]));
+				check_traitful(b, vt, tmp);
 				return;
 			}
 			case opcode::compare: {

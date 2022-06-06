@@ -55,8 +55,7 @@ namespace li::ir {
 		// Conditionals.
 		//
 		test_type,
-		test_trait,
-		test_gc,
+		test_trait,  // Must have passed is traitful at MIR.
 		test_traitful,
 		compare,
 		select,
@@ -297,14 +296,6 @@ namespace li::ir {
 	};
 	// i1   test_traitful(unk)
 	struct test_traitful final : insn_tag<test_traitful, opcode::test_traitful> {
-		void update() override {
-			is_const = true;
-			vt       = type::i1;
-			LI_ASSERT(operands.size() == 1);
-		}
-	};
-	// i1   test_gc(unk)
-	struct test_gc final : insn_tag<test_gc, opcode::test_gc> {
 		void update() override {
 			is_const = true;
 			vt       = type::i1;

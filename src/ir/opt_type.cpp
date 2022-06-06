@@ -130,7 +130,19 @@ namespace li::ir::opt {
 		bool changed = false;
 		for (auto& b : proc->basic_blocks) {
 			for (auto* i : b->insns()) {
-				if (i->is<test_type>()) {
+				if (i->is<test_traitful>()) {
+					auto resolved = get_dominating_type_at(i, i->operands[0]);
+					if (resolved) {
+						i->replace_all_uses(launder_value(proc, is_type_traitful(*resolved)));
+						changed = true;
+					}
+				} else if (i->is<test_trait>()) {
+					auto resolved = get_dominating_type_at(i, i->operands[0]);
+					if (resolved && !is_type_traitful(*resolved)) {
+						i->replace_all_uses(launder_value(proc, false));
+						changed = true;
+					}
+				} else if (i->is<test_type>()) {
 					auto expected = i->operands[1]->as<constant>()->vmtype;
 					auto resolved = get_dominating_type_at(i, i->operands[0]);
 					if (resolved) {

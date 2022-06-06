@@ -623,7 +623,7 @@ namespace li::ir {
 					case type::f32:
 					case type::f64: {
 						b.append(vop::movf, out, REG(i->operands[0]));
-						if (i->vt == type::f64)
+						if (i->vt == type::f32)
 							b.append(vop::fx32, out, out);
 						return;
 					}

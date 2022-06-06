@@ -290,12 +290,14 @@ namespace li {
 			case type_userdata:
 				formatter("userdata @ %p", a.as_gc());
 				break;
-			case type_function:
-				//formatter("function @ %p", a.as_gc());
-				formatter("function @ %s", a.as_vfn()->src_chunk->c_str());
+			case type_proto:
+				formatter("proto @ %p", a.as_gc());
 				break;
-			case type_nfunction:
-				formatter("nfunction @ %p", a.as_gc());
+			case type_function:
+				if (a.as_fn()->is_native())
+					formatter("function @ %s", a.as_fn()->proto->src_chunk->c_str());
+				else
+					formatter("native-function @ %p", a.as_fn());
 				break;
 			case type_opaque:
 				formatter("opaque %llx", (uint64_t) a.as_opq().bits);

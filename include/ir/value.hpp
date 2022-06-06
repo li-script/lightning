@@ -43,8 +43,7 @@ namespace li::ir {
 		tbl,  // same order as gc types
 		udt,
 		arr,
-		vfn,
-		nfn,
+		fn,
 		str,
 
 		// Instruction stream types.
@@ -302,8 +301,7 @@ namespace li::ir {
 			array*       arr;
 			userdata*    udt;
 			string*      str;
-			function*    vfn;
-			nfunction*   nfn;
+			function*    fn;
 			opaque       opq;
 			basic_block* bb;
 		};
@@ -331,8 +329,7 @@ namespace li::ir {
 		constexpr constant(array* v) : arr(v) { vt = type::arr; }
 		constexpr constant(userdata* v) : udt(v) { vt = type::udt; }
 		constexpr constant(string* v) : str(v) { vt = type::str; }
-		constexpr constant(function* v) : vfn(v) { vt = type::vfn; }
-		constexpr constant(nfunction* v) : nfn(v) { vt = type::nfn; }
+		constexpr constant(function* v) : fn(v) { vt = type::fn; }
 		constexpr constant(opaque v) : opq(v) { vt = type::opq; }
 		constexpr constant(basic_block* v) : bb(v) { vt = type::bb; }
 		constexpr constant(operation v) : vmopr(v) { vt = type::vmopr; }
@@ -378,10 +375,8 @@ namespace li::ir {
 				return any(udt);
 			} else if (vt == type::arr) {
 				return any(arr);
-			} else if (vt == type::vfn) {
-				return any(vfn);
-			} else if (vt == type::nfn) {
-				return any(nfn);
+			} else if (vt == type::fn) {
+				return any(fn);
 			} else if (vt == type::str) {
 				return any(str);
 			} else {

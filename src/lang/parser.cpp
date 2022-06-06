@@ -74,8 +74,10 @@ namespace li {
 		//
 		if (!fn.line_table.empty())
 			fn.line_table.front().line_delta -= line;
-		function* f      = function::create(fn.L, fn.pc, fn.kvalues, (msize_t) fn.uvalues.size(), fn.line_table);
+
+		function_proto* f = function_proto::create(fn.L, fn.pc, fn.kvalues, fn.line_table);
 		f->num_locals    = fn.max_reg_id + 1;
+		f->num_uval       = (msize_t) fn.uvalues.size();
 		f->num_arguments = (msize_t) fn.args.size();
 		if (fn.decl_name) {
 			f->src_chunk = string::format(fn.L, "'%.*s':%s", (uint32_t) fn.lex.source_name.size(), fn.lex.source_name.data(), fn.decl_name->c_str());
@@ -85,7 +87,7 @@ namespace li {
 			f->src_chunk = string::format(fn.L, "'%.*s'", (uint32_t) fn.lex.source_name.size(), fn.lex.source_name.data());
 		}
 		f->src_line      = line;
-		return f;
+		return function::create(fn.L, f);
 	}
 
 	// Applies an operator to the expressions handling constant folding, returns the resulting expression.

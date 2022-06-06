@@ -239,7 +239,7 @@ namespace li::ir::opt {
 					mreg* replace_with = nullptr;
 					if (r == vreg_vm)
 						replace_with = &regs[0];
-					else if (r == vreg_tos)
+					else if (r == vreg_args)
 						replace_with = &regs[1];
 					else if (r == vreg_nargs)
 						replace_with = &regs[2];

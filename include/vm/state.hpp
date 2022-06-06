@@ -128,10 +128,19 @@ namespace li {
 			return *--stack_top;
 		}
 
-		// Error helper.
+		// Error/OK helper.
 		//
 		template<typename... Tx>
 		LI_COLD bool error(const char* fmt, Tx... args);
+
+		bool error(any result = none) {
+			stack_top[FRAME_RET] = result;
+			return false;
+		}
+		bool ok(any result = none) {
+			stack_top[FRAME_RET] = result;
+			return true;
+		}
 
 		// Gets next random.
 		//

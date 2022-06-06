@@ -32,30 +32,29 @@ namespace li {
 	struct string;
 	struct userdata;
 	struct function;
-	struct nfunction;
 
 	// Type enumerator.
 	//
 	enum value_type : uint8_t /*:4*/ {
 		// - first gc type
-		type_table     = 0,
-		type_userdata  = 1,  // Last traitful.
-		type_array     = 2,
-		type_function  = 3,  // Last traversable.
-		type_nfunction = 4,
-		type_string    = 5,
-		type_true      = 8,  // First non-GC type.
-		type_false     = 9,
-		type_none      = 10,
-		type_opaque    = 11,  // No type/definition, unique integer part.
-		type_number    = 12,
+		type_table    = 0,
+		type_userdata = 1,  // Last traitful.
+		type_array    = 2,
+		type_function = 3,
+		type_proto    = 4,  // Last traversable. | Not visible to user.
+		type_string   = 5,
+		type_true     = 8,  // First non-GC type.
+		type_false    = 9,
+		type_none     = 10,
+		type_opaque   = 11,  // No type/definition, unique integer part.
+		type_number   = 12,
 
 		// GC aliases.
 		type_gc_free = type_true,
 		type_gc_private,
 		type_gc_uninit,
 		type_gc_last             = 7,
-		type_gc_last_traversable = type_function,
+		type_gc_last_traversable = type_proto,
 		type_gc_last_traitful    = type_userdata,
 	};
 
@@ -67,7 +66,7 @@ namespace li {
 		result[type_table]     = "table";
 		result[type_array]     = "array";
 		result[type_function]  = "function";
-		result[type_nfunction] = "nfunction";
+		result[type_proto]     = "proto";
 		result[type_string]    = "string";
 		result[type_userdata]  = "userdata";
 		result[type_none]      = "none";
@@ -85,8 +84,6 @@ namespace li {
 			return type_table;
 		if (t == type_true)
 			return type_false;
-		if (t == type_nfunction)
-			return type_function;
 		return t;
 	}
 
@@ -150,7 +147,6 @@ namespace li {
 		inline any(string* v) : value(mix_value(type_string, (uint64_t) v)) {}
 		inline any(userdata* v) : value(mix_value(type_userdata, (uint64_t) v)) {}
 		inline any(function* v) : value(mix_value(type_function, (uint64_t) v)) {}
-		inline any(nfunction* v) : value(mix_value(type_nfunction, (uint64_t) v)) {}
 		inline any(gc::header* v) : value(mix_value(gc::identify(v), (uint64_t) v)) {}
 
 		// Type check.
@@ -163,8 +159,7 @@ namespace li {
 		inline constexpr bool       is_tbl() const { return get_type(value) == type_table; }
 		inline constexpr bool       is_str() const { return get_type(value) == type_string; }
 		inline constexpr bool       is_udt() const { return get_type(value) == type_userdata; }
-		inline constexpr bool       is_vfn() const { return get_type(value) == type_function; }
-		inline constexpr bool       is_nfn() const { return get_type(value) == type_nfunction; }
+		inline constexpr bool       is_fn() const { return get_type(value) == type_function; }
 		inline constexpr bool       is_opq() const { return get_type(value) == type_opaque; }
 		inline constexpr bool       is_gc() const { return is_gc_value(value); }
 		inline constexpr bool       is_traitful() const { return is_traitful_value(value); }
@@ -179,8 +174,7 @@ namespace li {
 		inline table*           as_tbl() const { return (table*) as_gc(); }
 		inline string*          as_str() const { return (string*) as_gc(); }
 		inline userdata*        as_udt() const { return (userdata*) as_gc(); }
-		inline function*        as_vfn() const { return (function*) as_gc(); }
-		inline nfunction*       as_nfn() const { return (nfunction*) as_gc(); }
+		inline function*        as_fn() const { return (function*) as_gc(); }
 
 		// Bytewise equal comparsion.
 		//

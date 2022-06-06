@@ -45,10 +45,8 @@ namespace li::ir {
 				return util::fmt(LI_BLU "udt: %p" LI_DEF, gc);
 			case li::ir::type::arr:
 				return util::fmt(LI_BLU "arr: %p" LI_DEF, gc);
-			case li::ir::type::vfn:
-				return util::fmt(LI_BLU "vfn: %p" LI_DEF, gc);
-			case li::ir::type::nfn:
-				return util::fmt(LI_BLU "nfn: %p" LI_DEF, gc);
+			case li::ir::type::fn:
+				return util::fmt(LI_BLU "fn:  %p" LI_DEF, gc);
 			case li::ir::type::str:
 				return util::fmt(LI_BLU "str: %s" LI_DEF, str->c_str());
 			case li::ir::type::bb:

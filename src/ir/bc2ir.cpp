@@ -7,7 +7,7 @@ namespace li::ir {
 	static void lift_basic_block(builder bld, const std::vector<basic_block*>& bc_to_bb) {
 		// Local cache.
 		//
-		function*               f = bld.blk->proc->f;
+		function_proto*         f = bld.blk->proc->f;
 		std::vector<ref<value>> local_locals;
 		local_locals.resize(f->num_locals + f->num_arguments + FRAME_SIZE);
 		bc::reg local_shift = f->num_arguments + FRAME_SIZE;
@@ -19,7 +19,7 @@ namespace li::ir {
          if (!x) {
 				x = bld.emit<load_local>(r);
 				if (r == FRAME_TARGET)
-					x = bld.emit<assume_cast>(std::move(x), type::vfn);
+					x = bld.emit<assume_cast>(std::move(x), type::fn);
 			}
          return x;
 		};
@@ -174,8 +174,8 @@ namespace li::ir {
 				case bc::FDUP: {
 					auto bf     = get_kval(b);
 					auto r  = bld.emit<dup>(bf);
-					r           = bld.emit<assume_cast>(r, type::vfn);
-					for (bc::reg i = 0; i != bf.as_vfn()->num_uval; i++) {
+					r           = bld.emit<assume_cast>(r, type::fn);
+					for (bc::reg i = 0; i != bf.as_fn()->num_uval; i++) {
 						bld.emit<uval_set>(r, i, get_reg(c + i));
 					}
 					set_reg(a, r);
@@ -282,7 +282,7 @@ namespace li::ir {
 
 	// Generates crude bytecode.
 	//
-	std::unique_ptr<procedure> lift_bc(vm* L, function* f) {
+	std::unique_ptr<procedure> lift_bc(vm* L, function_proto* f) {
 		auto proc = std::make_unique<procedure>(L, f);
 
 		// Bytecode label position to basic-block mapping.

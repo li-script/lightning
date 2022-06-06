@@ -5,5 +5,5 @@
 namespace li::ir {
 	// Generates crude bytecode.
 	//
-	std::unique_ptr<procedure> lift_bc(vm* L, function* f);
+	std::unique_ptr<procedure> lift_bc(vm* L, function_proto* f);
 };

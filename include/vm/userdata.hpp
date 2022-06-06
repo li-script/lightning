@@ -36,7 +36,7 @@ namespace li {
 			new (result->data) T(std::forward<Tx>(args)...);
 
 			if constexpr (!std::is_trivially_destructible_v<std::remove_cvref_t<T>>) {
-				result->set_trait(L, trait::gc, nfunction::create(L, [](vm* L, any* args, slot_t n) {
+				result->set_trait(L, trait::gc, function::create(L, [](vm* L, any* args, slot_t n) {
 					if (!args[1].is_udt()) [[unlikely]] {
 						return L->error("gc type mismatch");
 					}
@@ -47,7 +47,7 @@ namespace li {
 					std::destroy_at((std::remove_cvref_t<T>*) udt->self);
 					udt->self = nullptr;
 					udt->tid  = 0;
-					return true;
+					return L->ok();
 				}));
 			}
 			return result;
@@ -67,7 +67,7 @@ namespace li {
 			userdata* result = create(L, ptr.get(), std::is_empty_v<Dx> ? 0 : sizeof(Dx));
 			if constexpr (!std::is_empty_v<Dx>)
 				new (result->data) Dx(std::move(ptr.get_deleter()));
-			result->set_trait(L, trait::gc, nfunction::create(L, [](vm* L, any* args, slot_t n) {
+			result->set_trait(L, trait::gc, function::create(L, [](vm* L, any* args, slot_t n) {
 				if (!args[1].is_udt()) [[unlikely]] {
 					return L->error("gc type mismatch");
 				}
@@ -79,7 +79,7 @@ namespace li {
 				(*(Dx*) udt->data)((std::remove_cvref_t<T>*) udt->self);
 				udt->self = nullptr;
 				udt->tid  = 0;
-				return true;
+				return L->ok();
 			}));
 			return result;
 		}
@@ -88,7 +88,7 @@ namespace li {
 			userdata* result = create(L, ptr.get(), sizeof(std::shared_ptr<T>));
 			new (result->data) std::shared_ptr<T>(std::move(ptr));
 
-			result->set_trait(L, trait::gc, nfunction::create(L, [](vm* L, any* args, slot_t n) {
+			result->set_trait(L, trait::gc, function::create(L, [](vm* L, any* args, slot_t n) {
 				if (!args[1].is_udt()) [[unlikely]] {
 					return L->error("gc type mismatch");
 				}
@@ -99,7 +99,7 @@ namespace li {
 				std::destroy_at((std::shared_ptr<T>*) udt->data);
 				udt->self = nullptr;
 				udt->tid  = 0;
-				return true;
+				return L->ok();
 			}));
 			return result;
 		}

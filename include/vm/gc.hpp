@@ -15,6 +15,7 @@ namespace li {
 	struct array;
 	struct table;
 	struct function;
+	struct function_proto;
 	struct string_set;
 };
 namespace li::gc {
@@ -26,6 +27,7 @@ namespace li::gc {
 	void traverse(stage_context s, array* o);
 	void traverse(stage_context s, table* o);
 	void traverse(stage_context s, function* o);
+	void traverse(stage_context s, function_proto* o);
 	void traverse(stage_context s, string_set* o);
 	void traverse(stage_context s, userdata* o);
 

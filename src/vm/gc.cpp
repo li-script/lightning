@@ -31,6 +31,8 @@ namespace li::gc {
 				traverse(s, (table*) this);
 			else if (gc_type == type_function)
 				traverse(s, (function*) this);
+			else if (gc_type == type_proto)
+				traverse(s, (function_proto*) this);
 		}
 
 		// Increment counter.

@@ -352,7 +352,7 @@ namespace li::ir {
 	struct uval_get final : insn_tag<uval_get, opcode::uval_get> {
 		void update() override {
 			LI_ASSERT(operands.size() == 2);
-			LI_ASSERT(operands[0]->is(type::vfn));
+			LI_ASSERT(operands[0]->is(type::fn));
 			LI_ASSERT(operands[1]->is(type::i32));
 		}
 	};
@@ -362,7 +362,7 @@ namespace li::ir {
 			is_pure   = false;
 			sideffect = true;
 			LI_ASSERT(operands.size() == 3);
-			LI_ASSERT(operands[0]->is(type::vfn));
+			LI_ASSERT(operands[0]->is(type::fn));
 			LI_ASSERT(operands[1]->is(type::i32));
 		}
 	};

@@ -31,9 +31,9 @@ namespace li {
 	template<typename... Tx>
 	LI_COLD inline bool vm::error(const char* fmt, Tx... args) {
 		if constexpr (sizeof...(Tx) != 0) {
-			push_stack(string::format(this, fmt, args...));
+			stack_top[FRAME_RET] = string::format(this, fmt, args...);
 		} else {
-			push_stack(string::create(this, fmt));
+			stack_top[FRAME_RET] = string::create(this, fmt);
 		}
 		return false;
 	}

@@ -25,12 +25,12 @@ namespace li::ir {
 	using preg = arch::reg;
 	enum vreg : int32_t {
 		vreg_vm    = 1,  // arguments[0], vm*
-		vreg_tos   = 2,  // arguments[1], any*
+		vreg_args  = 2,  // arguments[1], any*
 		vreg_nargs = 3,  // arguments[2], int
 		vreg_cpool = 4,  // constant pool, rip-rel
 		vreg_first = 5,  // ...
 	};
-	static constexpr const char* vreg_names[] = {"$null", "$vm", "$tos", "$nargs", "$cpool"};
+	static constexpr const char* vreg_names[] = {"$null", "$vm", "$args", "$nargs", "$cpool"};
 	struct mreg {
 		int32_t  id : 30 = 0;
 		regclass cl : 2  = regclass::null;

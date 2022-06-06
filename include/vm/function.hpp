@@ -9,43 +9,20 @@ namespace li {
 	//
 	using nfunc_t = bool (*)(vm* L, any* args, slot_t n);
 
+	// nfunc_t for virtual functions.
+	//
+	bool vm_invoke(vm* L, any* args, slot_t n_args);
+
 	// JIT code.
 	//
 	struct jfunction : gc::exec_leaf<jfunction> {
 		// For 16-byte alignment.
 		//
-		uint64_t __rsvd;
+		uint64_t rsvd;
 
 		// Generated code.
 		//
 		uint8_t code[];
-	};
-
-	// Native function.
-	//
-	struct nfunction : gc::leaf<nfunction, type_nfunction> {
-		static nfunction* create(vm* L, size_t context = 0) { return L->alloc<nfunction>(context); }
-		static nfunction* create(vm* L, nfunc_t f, size_t context = 0) {
-			nfunction* nf = create(L, context);
-			nf->callback  = f;
-			return nf;
-		}
-
-		// Stack-based callback.
-		//
-		nfunc_t callback      = nullptr;
-		msize_t num_arguments = 0;
-
-		// TODO: Fast function alternative with types for JIT.
-		//
-
-		// TODO: Remove, just for debugging.
-		//
-		bool jit = false;
-
-		// Replication of vm::call.
-		//
-		bool call(vm* L, slot_t n_args, slot_t caller_frame, msize_t caller_pc);
 	};
 
 	// VM function.
@@ -54,39 +31,27 @@ namespace li {
 		msize_t ip : 18         = 0;
 		msize_t line_delta : 14 = 0;
 	};
-	struct function : gc::node<function, type_function> {
-		static function* create(vm* L, std::span<const bc::insn> opcodes, std::span<const any> kval, msize_t uval, std::span<const line_info> lines);
+	struct function_proto : gc::node<function_proto, type_proto> {
+		static function_proto* create(vm* L, std::span<const bc::insn> opcodes, std::span<const any> kval, std::span<const line_info> lines);
 
-		// Function details.
-		//
-		msize_t  num_arguments : 6 = 0;        // Number of fixed arguments.
-		msize_t  num_locals : 26   = 0;        // Number of local variables we need to reserve on stack.
-		msize_t  num_uval          = 0;        // Number of upvalues.
-		msize_t  num_kval          = 0;        // Number of constants.
-		msize_t  length            = 0;        // Bytecode length.
-		msize_t  src_line          = 0;        // Line of definition.
-		string*  src_chunk         = nullptr;  // Source of definition (chunk:function_name or chunk).
-		msize_t  num_lines         = 0;
-		table*   environment       = nullptr;  // Table environment.
-
-		// Variable length part.
-		//
-		bc::insn opcode_array[];
-		// any upvalue_array[];
+		msize_t    length        = 0;        // Bytecode length.
+		msize_t    num_locals    = 0;        // Number of local variables we need to reserve on stack.
+		msize_t    num_kval      = 0;        // Number of constants.
+		msize_t    num_lines     = 0;        // Number of lines in the line tab
+		msize_t    num_arguments = 0;        // Number of fixed arguments.
+		msize_t    num_uval      = 0;        // Number of upvalues.le.
+		msize_t    src_line      = 0;        // Line of definition.
+		string*    src_chunk     = nullptr;  // Source of definition (chunk:function_name or chunk).
+		jfunction* jfunc         = nullptr;  // JIT function if there is one.
+		bc::insn   opcode_array[];
 		// any constant_array[];
 		// line_table[] line_array[];
 
 		// Range observers.
 		//
 		std::span<bc::insn>  opcodes() { return {opcode_array, length}; }
-		std::span<any>       uvals() { return {(any*) &opcode_array[length], num_uval}; }
-		std::span<any>       kvals() { return {num_uval + (any*) &opcode_array[length], num_kval}; }
-		std::span<any>       gcvals() { return {(any*) &opcode_array[length], num_uval + num_kval}; }
-		std::span<line_info> lines() { return {(line_info*) (num_uval + num_kval + (any*) &opcode_array[length]), num_lines}; }
-
-		// Duplicates the function.
-		//
-		function* duplicate(vm* L) const { return L->duplicate(this); }
+		std::span<any>       kvals() { return {(any*) &opcode_array[length], num_kval}; }
+		std::span<line_info> lines() { return {(line_info*) (num_kval + (any*) &opcode_array[length]), num_lines}; }
 
 		// Converts BC -> Line.
 		//
@@ -99,5 +64,40 @@ namespace li {
 			}
 			return n;
 		}
+	};
+	struct function : gc::node<function, type_function> {
+		// Creates a new instance given the prototype.
+		//
+		static function* create(vm* L, function_proto* proto);
+
+		// Creates a simple native function.
+		//
+		static function* create(vm* L, nfunc_t cb);
+
+		// Function details.
+		//
+		nfunc_t         invoke            = nullptr;  // Common function type for all calls.
+		msize_t         num_arguments : 6 = 0;        // Number of fixed arguments.
+		msize_t         num_uval : 26     = 0;        // Number of upvalues.
+		table*          environment       = nullptr;  // Table environment.
+		function_proto* proto             = nullptr;  // Function prototype (if VM).
+		any             upvalue_array[];
+
+		// TODO: Fast function alternative with types for JIT.
+		//
+
+		// Range observers.
+		//
+		std::span<any> uvals() { return {(any*) upvalue_array, num_uval}; }
+
+		// Checks for the function type.
+		//
+		bool is_native() const { return proto == nullptr; }
+		bool is_virtual() const { return proto != nullptr; }
+		bool is_jit() const { return is_virtual() && invoke != vm_invoke; }
+
+		// Duplicates the function.
+		//
+		function* duplicate(vm* L) const { return L->duplicate(this); }
 	};
 };

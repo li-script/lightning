@@ -6,7 +6,7 @@
 
 namespace li {
 	// Table traits.
-	// All non-flag entries are guaranteed to be either <function|nfunction> except of get, which can be a table.
+	// All non-flag entries are guaranteed to be function* except of get, which can be a table.
 	//
 #define LIGHTNING_ENUM_TRAIT(_, __) \
 	/* Iterable traits. */				\
@@ -44,38 +44,33 @@ namespace li {
 	// Compressed trait pointer.
 	//
 	struct trait_pointer {
-		uintptr_t n : 1 = 0;  // Native bit, switches to nfunction.
-		uintptr_t t : 1 = 0;  // Table bit, switches to table, must be handled specifically if used, is_nfn / is_vfn ignores it.
+		uintptr_t t : 1 = 0;  // Table bit, switches to table, must be handled specifically if used.
 #if LI_32
-		uintptr_t pointer : 30 = 0;
+		intptr_t pointer : 31 = 0;
 #else
-		uintptr_t pointer : 62 = 0;
+		intptr_t pointer : 63 = 0;
 #endif
 
 		// Default construction and construction by any.
 		//
 		constexpr trait_pointer() {}
 		trait_pointer(any a) {
-			if (a.is_nfn()) {
-				n = true;
-			} else if (a.is_vfn()) {
+			if (a.is_fn()) {
+				t = false;
 			} else {
 				t = true;
 				LI_ASSERT(a.is_tbl());
 			}
-			pointer = uint64_t(a.as_gc()) >> 2;
+			pointer = intptr_t(a.as_gc());
 		}
 
 		// Replicate any interface.
 		//
-		constexpr bool is_nfn() const { return n; }
-		constexpr bool is_vfn() const { return !n; }
 		constexpr bool is_tbl() const { return t; }
-		gc::header*    as_gc() const { return (gc::header*) (pointer << 2); }
-		nfunction*     as_nfn() const { return (nfunction*) as_gc(); }
-		function*      as_vfn() const { return (function*) as_gc(); }
+		gc::header*    as_gc() const { return (gc::header*) uintptr_t(intptr_t(pointer)); }
+		function*      as_fn() const { return (function*) as_gc(); }
 		table*         as_tbl() const { return (table*) as_gc(); }
-		any            as_any() const { return t ? any(as_tbl()) : (n ? any(as_nfn()) : any(as_vfn())); }
+		any            as_any() const { return t ? any(as_tbl()) : any(as_fn()); }
 	};
 	struct trait_table : gc::leaf<trait_table> {
 		trait_pointer list[num_traits] = {};
@@ -151,7 +146,7 @@ namespace li {
 			if (v != none) {
 				// Type check.
 				//
-				if (!v.is_vfn() && !v.is_nfn()) {
+				if (!v.is_fn()) {
 					if (v.is_tbl() && t != trait::get) {
 						return "only get trait can be a table";
 					}

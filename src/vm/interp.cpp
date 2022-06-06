@@ -15,21 +15,21 @@ namespace li {
 
 	// VM helpers.
 	//
-#define UNOP_HANDLE(K)                                      \
-	case K: {                                                \
-		auto [r, ok] = apply_unary(L, REG(b), K);             \
-		if (!ok) [[unlikely]]                                 \
-			VM_RET(r, true);                                   \
-		REG(a) = r;                                           \
-		continue;                                             \
+#define UNOP_HANDLE(K)                          \
+	case K: {                                    \
+		auto [r, ok] = apply_unary(L, REG(b), K); \
+		if (!ok) [[unlikely]]                     \
+			VM_RET(r, true);                       \
+		REG(a) = r;                               \
+		continue;                                 \
 	}
-#define BINOP_HANDLE(K)                                     \
-	case K: {                                                \
-		auto [r, ok] = apply_binary(L, REG(b), REG(c), K);    \
-		if (!ok) [[unlikely]]                                 \
-			VM_RET(r, true);                                   \
-		REG(a) = r;                                           \
-		continue;                                             \
+#define BINOP_HANDLE(K)                                  \
+	case K: {                                             \
+		auto [r, ok] = apply_binary(L, REG(b), REG(c), K); \
+		if (!ok) [[unlikely]]                              \
+			VM_RET(r, true);                                \
+		REG(a) = r;                                        \
+		continue;                                          \
 	}
 #define VM_RET(value, ex)                                  \
 	{                                                       \
@@ -39,8 +39,8 @@ namespace li {
 	}
 #if !LI_DEBUG
 	#define REG(...)  locals_begin[(__VA_ARGS__)]
-	#define UVAL(...) f->uvals()[(__VA_ARGS__)]
-	#define KVAL(...) f->kvals()[(__VA_ARGS__)]
+	#define UVAL(...) uval_array[(__VA_ARGS__)]
+	#define KVAL(...) kval_array[(__VA_ARGS__)]
 #endif
 
 	LI_NOINLINE static bool vm_loop(vm* __restrict L, call_frame frame, vm_state state) {
@@ -51,15 +51,15 @@ namespace li {
 			//
 			function* f = nullptr;
 			any* __restrict locals_begin;
-			slot_t    n_args = 0;
-			int64_t   ip     = 0;
+			slot_t  n_args = 0;
+			int64_t ip     = 0;
 			if (state == vm_begin) {
 				// Push the return frame for previous function.
 				//
-				call_frame caller     = frame;
-				n_args                = caller.n_args;
+				call_frame caller    = frame;
+				n_args               = caller.n_args;
 				msize_t caller_frame = caller.stack_pos;
-				msize_t caller_pc     = caller.caller_pc;
+				msize_t caller_pc    = caller.caller_pc;
 				L->push_stack(bit_cast<opaque>(caller));
 				locals_begin = L->stack_top;
 
@@ -70,18 +70,32 @@ namespace li {
 					locals_begin[FRAME_SELF] = vf;
 					vf                       = vf.as_tbl()->get_trait<trait::call>();
 				}
-				if (vf.is_nfn()) {
-					state = vf.as_nfn()->call(L, n_args, caller_frame, caller_pc) ? vm_ok : vm_exception;
-					goto vret;
-				} else if (!vf.is_vfn()) [[unlikely]] {
+				if (!vf.is_fn()) [[unlikely]] {
 					locals_begin[FRAME_RET] = string::format(L, "invoking non-function");
 					state                   = vm_exception;
+					goto vret;
+				}
+				f = vf.as_fn();
+				if (f->is_native() || f->invoke != &vm_invoke) {
+					// Swap previous c-frame.
+					//
+					call_frame prevframe = L->last_vm_caller;
+					L->last_vm_caller    = call_frame{.stack_pos = caller_frame, .caller_pc = caller_pc, .n_args = n_args};
+
+					// Invoke callback.
+					//
+					auto* prev = L->stack_top;
+					state      = vf.as_fn()->invoke(L, &L->stack_top[-1 - FRAME_SIZE], n_args) ? vm_ok : vm_exception;
+					LI_ASSERT(L->stack_top == prev);  // Must be balanced!
+
+					// Restore C-frame and return.
+					//
+					L->last_vm_caller = prevframe;
 					goto vret;
 				}
 
 				// Validate argument count.
 				//
-				f = vf.as_vfn();
 				if (f->num_arguments > n_args) [[unlikely]] {
 					locals_begin[FRAME_RET] = string::format(L, "expected at least %u arguments, got %u", f->num_arguments, n_args);
 					state                   = vm_exception;
@@ -90,7 +104,7 @@ namespace li {
 				// Allocate locals and call.
 				//
 				else {
-					L->alloc_stack(f->num_locals);
+					L->alloc_stack(f->proto->num_locals);
 				}
 			}
 			// If returning:
@@ -107,8 +121,8 @@ namespace li {
 				locals_begin = &L->stack[frame.stack_pos];
 				ip           = (int64_t) frame.caller_pc;
 				any vf       = locals_begin[FRAME_TARGET];
-				LI_ASSERT(vf.is_vfn());
-				f = vf.as_vfn();
+				LI_ASSERT(vf.is_fn());
+				f = vf.as_fn();
 #if LI_DEBUG
 				n_args = bit_cast<call_frame>(locals_begin[FRAME_CALLER].as_opq()).n_args;
 #endif
@@ -117,6 +131,10 @@ namespace li {
 			// Enter execution scope.
 			//
 			{
+				auto* __restrict uval_array         = &f->uvals()[0];
+				const auto* __restrict kval_array   = &f->proto->kvals()[0];
+				const auto* __restrict opcode_array = &f->proto->opcode_array[0];
+
 				// Define debug helpers.
 				//
 #if LI_DEBUG
@@ -124,21 +142,21 @@ namespace li {
 					if (r < 0) {
 						LI_ASSERT((n_args + FRAME_SIZE) >= (msize_t) -r);
 					} else {
-						LI_ASSERT(f->num_locals > (msize_t) r);
+						LI_ASSERT(f->proto->num_locals > (msize_t) r);
 					}
 					return locals_begin[r];
 				};
 				auto UVAL = [&](bc::reg r) LI_INLINE -> any& {
 					LI_ASSERT(f->num_uval > (msize_t) r);
-					return f->uvals()[r];
+					return uval_array[r];
 				};
 				auto KVAL = [&](bc::reg r) LI_INLINE -> const any& {
-					LI_ASSERT(f->num_kval > (msize_t) r);
-					return f->kvals()[r];
+					LI_ASSERT(f->proto->num_kval > (msize_t) r);
+					return kval_array[r];
 				};
 #endif
 				while (true) {
-					const auto& insn   = f->opcode_array[ip++];
+					const auto& insn   = opcode_array[ip++];
 					auto [op, a, b, c] = insn;
 					switch (op) {
 						UNOP_HANDLE(bc::TOSTR)
@@ -366,8 +384,7 @@ namespace li {
 								}
 								tbl.as_tbl()->set(L, key, val);
 								L->gc.tick(L);
-							}
-							else if (tbl.is_arr()) {
+							} else if (tbl.is_arr()) {
 								if (!key.is_num() || key.as_num() < 0) [[unlikely]] {
 									VM_RET(string::create(L, "indexing array with non-integer or negative key"), true);
 								}
@@ -403,7 +420,7 @@ namespace li {
 								}
 								auto i = size_t(key.as_num());
 								auto v = tbl.as_str()->view();
-								REG(a) = v.size() <= i ? any(none) : any(number((uint8_t)v[i]));
+								REG(a) = v.size() <= i ? any(none) : any(number((uint8_t) v[i]));
 							} else if (tbl == none) {
 								REG(a) = none;
 							} else {
@@ -472,10 +489,10 @@ namespace li {
 
 									// Copy every trait except freeze.
 									//
-									d->trait_seal   = s->trait_seal;
-									d->trait_hide   = s->trait_hide;
-									d->trait_mask   = s->trait_mask;
-									d->traits       = s->traits;
+									d->trait_seal = s->trait_seal;
+									d->trait_hide = s->trait_hide;
+									d->trait_mask = s->trait_mask;
+									d->traits     = s->traits;
 
 									// Copy fields raw.
 									//
@@ -486,7 +503,7 @@ namespace li {
 								}
 							} else if (src.is_arr()) {
 								auto dst = REG(b);
-								REG(a) = dst;
+								REG(a)   = dst;
 								if (!dst.is_arr()) [[unlikely]] {
 									VM_RET(string::create(L, "can't join different types, expected array"), true);
 								}
@@ -508,10 +525,8 @@ namespace li {
 									value = value.as_arr()->duplicate(L);
 								} else if (value.is_tbl()) {
 									value = value.as_tbl()->duplicate(L);
-								} else if (value.is_vfn()) {
-									value = value.as_vfn()->duplicate(L);
-								} else if (value.is_nfn()) {
-									value = L->duplicate(value.as_nfn());
+								} else if (value.is_fn()) {
+									value = value.as_fn()->duplicate(L);
 								} else {
 									// TODO: Thread, userdata
 								}
@@ -547,9 +562,9 @@ namespace li {
 						case bc::FDUP: {
 							L->gc.tick(L);
 							auto fn = KVAL(b);
-							LI_ASSERT(fn.is_vfn());
+							LI_ASSERT(fn.is_fn());
 
-							function* r = fn.as_vfn();
+							function* r = fn.as_fn();
 							if (r->num_uval) {
 								r = r->duplicate(L);
 								for (msize_t i = 0; i != r->num_uval; i++) {
@@ -560,14 +575,14 @@ namespace li {
 							continue;
 						}
 						case bc::TRGET: {
-							auto idx = trait(c);
-							auto holder = REG(b);
+							auto  idx    = trait(c);
+							auto  holder = REG(b);
 							auto& trait  = REG(a);
 							if (!holder.is_traitful()) {
 								trait = none;
 							} else {
 								auto* t = (traitful_node<>*) holder.as_gc();
-								trait = t->trait_hide ? none : t->get_trait(idx);
+								trait   = t->trait_hide ? none : t->get_trait(idx);
 							}
 							continue;
 						}
@@ -607,7 +622,7 @@ namespace li {
 							if (state == vm_exception) {
 								VM_RET(L->stack_top[FRAME_RET], true);
 							}
-							L->stack_top = locals_begin + f->num_locals;
+							L->stack_top = locals_begin + f->proto->num_locals;
 							continue;
 						case bc::NOP:
 							continue;

@@ -420,19 +420,19 @@ namespace li::ir {
 	//
 	static void local_load(mblock& b, mop idx, mreg out) {
 		if (idx.is_const()) {
-			int64_t disp = idx.i64 * 8;
+			int64_t disp = (idx.i64 + FRAME_SIZE + 1) * 8;
 			int32_t disp32 = int32_t(disp);
 			LI_ASSERT(disp32 == disp);
 
 			if (out.is_fp())
-				b.append(vop::loadf64, out, mmem{.base = vreg_tos, .disp = disp32});
+				b.append(vop::loadf64, out, mmem{.base = vreg_args, .disp = disp32});
 			else
-				b.append(vop::loadi64, out, mmem{.base = vreg_tos, .disp = disp32});
+				b.append(vop::loadi64, out, mmem{.base = vreg_args, .disp = disp32});
 		} else if (idx.is_reg() && idx.reg.is_gp()) {
 			if (out.is_fp())
-				b.append(vop::loadf64, out, mmem{.base = vreg_tos, .index = idx.reg, .scale = 8});
+				b.append(vop::loadf64, out, mmem{.base = vreg_args, .index = idx.reg, .scale = 8});
 			else
-				b.append(vop::loadi64, out, mmem{.base = vreg_tos, .index = idx.reg, .scale = 8});
+				b.append(vop::loadi64, out, mmem{.base = vreg_args, .index = idx.reg, .scale = 8});
 		} else {
 			util::abort("invalid index value.");
 		}
@@ -449,19 +449,19 @@ namespace li::ir {
 		}
 
 		if (idx.is_const()) {
-			int64_t disp   = idx.i64 * 8;
+			int64_t disp   = (idx.i64 + FRAME_SIZE + 1) * 8;
 			int32_t disp32 = int32_t(disp);
 			LI_ASSERT(disp32 == disp);
 
 			if (in.reg.is_fp())
-				b.append(vop::storef64, {}, mmem{.base = vreg_tos, .disp = disp32}, in);
+				b.append(vop::storef64, {}, mmem{.base = vreg_args, .disp = disp32}, in);
 			else
-				b.append(vop::storei64, {}, mmem{.base = vreg_tos, .disp = disp32}, in);
+				b.append(vop::storei64, {}, mmem{.base = vreg_args, .disp = disp32}, in);
 		} else if (idx.is_reg() && idx.reg.is_gp()) {
 			if (in.reg.is_fp())
-				b.append(vop::storef64, {}, mmem{.base = vreg_tos, .index = idx.reg, .scale = 8}, in);
+				b.append(vop::storef64, {}, mmem{.base = vreg_args, .index = idx.reg, .scale = 8}, in);
 			else
-				b.append(vop::storei64, {}, mmem{.base = vreg_tos, .index = idx.reg, .scale = 8}, in);
+				b.append(vop::storei64, {}, mmem{.base = vreg_args, .index = idx.reg, .scale = 8}, in);
 		} else {
 			util::abort("invalid index value.");
 		}
@@ -526,49 +526,37 @@ namespace li::ir {
 			//
 			case opcode::uval_get: {
 				auto base = REG(i->operands[0]);
-				auto idx  = REG(i->operands[1]);
-
-				// Get number of instructions.
-				//
-				mmem mem = {.base = base, .disp = offsetof(function, length)};
-				auto out = REG(i);
-				b.append(vop::loadi32, out, mem);
-
+				auto idx  = RIi(i->operands[1]);
+			
 				// Add the upvalue offset and compute final offset.
 				//
-				static_assert(sizeof(bc::insn) == 16, "update constants.");
-				SHL(b, out, 1);
-				ADD(b, out, idx);
-				mem.index = out;
-				mem.scale = 8;
-				mem.disp  = offsetof(function, opcode_array);
-
+				mmem mem;
+				if (idx.is_const()) {
+					mem = {.base = base, .disp = int32_t(offsetof(function, upvalue_array) + idx.i64 * 8)};
+				} else {
+					mem = {.base = base, .index = idx.reg, .scale = 8, .disp = offsetof(function, upvalue_array)};
+				}
+			
 				// Load the result.
 				//
-				b.append(vop::loadi64, out, mem);
+				b.append(vop::loadi64, REG(i), mem);
 				return;
 			}
 			case opcode::uval_set: {
 				auto base = REG(i->operands[0]);
-				auto idx  = REG(i->operands[1]);
+				auto idx  = RIi(i->operands[1]);
 				auto val  = b->next_gp();
 				type_erase(b, i->operands[2], val);
 
-				// Get number of instructions.
-				//
-				mmem mem = {.base = base, .disp = offsetof(function, length)};
-				auto tmp = b->next_gp();
-				b.append(vop::loadi32, tmp, mem);
-
 				// Add the upvalue offset and compute final offset.
 				//
-				static_assert(sizeof(bc::insn) == 16, "update constants.");
-				SHL(b, tmp, 1);
-				ADD(b, tmp, idx);
-				mem.index = tmp;
-				mem.scale = 8;
-				mem.disp  = offsetof(function, opcode_array);
-
+				mmem mem;
+				if (idx.is_const()) {
+					mem = {.base = base, .disp = int32_t(offsetof(function, upvalue_array) + idx.i64 * 8)};
+				} else {
+					mem = {.base = base, .index = idx.reg, .scale = 8, .disp = offsetof(function, upvalue_array)};
+				}
+			
 				// Write the result.
 				//
 				b.append(vop::storei64, {}, mem, val);
@@ -816,10 +804,10 @@ namespace li::ir {
 			// Lift each instruction.
 			//
 			for (auto* i : b->insns()) {
-				//printf(LI_GRN "#%-5x" LI_DEF " %s\n", i->source_bc, i->to_string(true).c_str());
-				//size_t n = mb->instructions.size();
+				// printf(LI_GRN "#%-5x" LI_DEF "\t\t %s\n", i->source_bc, i->to_string(true).c_str());
+				// size_t n = mb->instructions.size();
 				mlift(*mb, i);
-				//while (n != mb->instructions.size()) {
+				// while (n != mb->instructions.size()) {
 				//	puts(mb->instructions[n++].to_string().c_str());
 				//}
 			}
@@ -1224,7 +1212,7 @@ namespace li::ir {
 
 	// Assembles the pseudo-target instructions in the IR.
 	//
-	nfunction* assemble_ir(mprocedure* proc) {
+	jfunction* assemble_ir(mprocedure* proc) {
 		// Sort the blocks by name.
 		//
 		proc->basic_blocks.sort([](mblock& a, mblock& b) { return a.uid < b.uid; });
@@ -1298,11 +1286,10 @@ namespace li::ir {
 
 		// Allocate the code, cache-line align the assembly and append the constant pool.
 		//
-		function* f = proc->source->f;
-		vm*       L = proc->source->L;
-		size_t asm_length   = (proc->assembly.size() + 63) & ~63;
-		size_t cpool_length = proc->const_pool.size() * sizeof(any);
-		jfunction* out = L->alloc<jfunction>(asm_length + cpool_length);
+		vm*        L            = proc->source->L;
+		size_t     asm_length   = (proc->assembly.size() + 63) & ~63;
+		size_t     cpool_length = proc->const_pool.size() * sizeof(any);
+		jfunction* out          = L->alloc<jfunction>(asm_length + cpool_length);
 		memcpy(&out->code[0], proc->assembly.data(), proc->assembly.size());
 		memset(&out->code[proc->assembly.size()], 0xCC, asm_length - proc->assembly.size());
 		memcpy(&out->code[asm_length], proc->const_pool.data(), cpool_length);
@@ -1341,15 +1328,7 @@ namespace li::ir {
 		//		break;
 		//	puts(i->to_string().c_str());
 		//}
-
-		// TODO: Debug
-		out->acquire();
-
-		nfunction* result = nfunction::create(L);
-		result->callback      = (nfunc_t) &out->code[0];
-		result->jit           = true;
-		result->num_arguments = f->num_arguments;
-		return result;
+		return out;
 	}
 };
 

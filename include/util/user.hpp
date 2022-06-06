@@ -32,8 +32,6 @@ namespace li::util {
 		tbl->set(L, string::create(L, name), value);
 	}
 	static void export_as(vm* L, std::string_view name, nfunc_t f) {
-		auto nf      = nfunction::create(L);
-		nf->callback = f;
-		export_as(L, name, nf);
+		export_as(L, name, function::create(L, f));
 	}
 };

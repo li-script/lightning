@@ -241,8 +241,8 @@ namespace li::ir {
 
 		// Source information.
 		//
-		vm*       L = nullptr;  // Related VM and function.
-		function* f = nullptr;  //
+		vm*             L = nullptr;  // Related VM and function.
+		function_proto* f = nullptr;  //
 
 		// Constant pool.
 		//
@@ -264,7 +264,7 @@ namespace li::ir {
 
 		// Constructed by VM instance and the function we're translating.
 		//
-		procedure(vm* L, function* f) : L(L), f(f) {}
+		procedure(vm* L, function_proto* f) : L(L), f(f) {}
 
 		// Duplicates the procedure.
 		//

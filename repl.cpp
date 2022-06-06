@@ -30,7 +30,7 @@ namespace li::debug {
 using namespace li;
 static void handle_repl_io(vm* L, std::string_view input) {
 	auto fn = li::load_script(L, input, "console", true);
-	if (fn.is_vfn()) {
+	if (fn.is_fn()) {
 		if (!L->scall(0, fn)) {
 			printf(LI_RED "Exception: ");
 			L->pop_stack().print();
@@ -66,58 +66,67 @@ static void handle_repl_io(vm* L, std::string_view input) {
 #include <ir/opt.hpp>
 #include <ir/mir.hpp>
 
-static bool ir_test(vm* L, any* args, slot_t n) {
-	using namespace ir;
 
-	auto proc = lift_bc(L, args->as_vfn());
-	opt::lift_phi(proc.get());
+static bool jit_on(vm* L, any* args, slot_t n) {
+	if (!args->is_fn() || args->as_fn()->is_native()) {
+		return L->error("expected vfunction.");
+	}
 
-	opt::fold_constant(proc.get());
-	opt::fold_identical(proc.get());
-	opt::dce(proc.get());
-	opt::cfg(proc.get());
+	if (!args->as_fn()->proto->jfunc) {
+		using namespace ir;
 
-	opt::type_split_cfg(proc.get());
-	opt::type_inference(proc.get());
-	opt::fold_constant(proc.get());
-	opt::fold_identical(proc.get());
-	opt::dce(proc.get());
-	opt::cfg(proc.get());
+		auto proc = lift_bc(L, args->as_fn()->proto);
+		opt::lift_phi(proc.get());
 
-	opt::prepare_for_mir(proc.get());
-	opt::type_inference(proc.get());
-	opt::fold_constant(proc.get());
-	opt::fold_identical(proc.get());
-	opt::dce(proc.get());
-	opt::cfg(proc.get());
+		opt::fold_constant(proc.get());
+		opt::fold_identical(proc.get());
+		opt::dce(proc.get());
+		opt::cfg(proc.get());
 
-	opt::finalize_for_mir(proc.get());
+		opt::type_split_cfg(proc.get());
+		opt::type_inference(proc.get());
+		opt::fold_constant(proc.get());
+		opt::fold_identical(proc.get());
+		opt::dce(proc.get());
+		opt::cfg(proc.get());
 
+		opt::prepare_for_mir(proc.get());
+		opt::type_inference(proc.get());
+		opt::fold_constant(proc.get());
+		opt::fold_identical(proc.get());
+		opt::dce(proc.get());
+		opt::cfg(proc.get());
+
+		opt::finalize_for_mir(proc.get());
+
+		auto mp = lift_ir(proc.get());
+
+		opt::remove_redundant_setcc(mp.get());
+		opt::allocate_registers(mp.get());
+
+		args->as_fn()->proto->jfunc = assemble_ir(mp.get());
+		//
+		//
+
+		// hoist table fields even if it escapes
+		// move stuff out of loops
+		// type inference
+		// trait inference
+		// constant folding
+		// escape analysis
+		// loop analysis
+		// handling of frozen tables + add builtin tables
+	}
 	
-
-
-	auto mp = lift_ir(proc.get());
-
-	opt::remove_redundant_setcc(mp.get());
-	opt::allocate_registers(mp.get());
-
-	L->push_stack(assemble_ir(mp.get()));
-	//
-	//
-	
-
-
-
-	// hoist table fields even if it escapes
-	// move stuff out of loops
-	// type inference
-	// trait inference
-	// constant folding
-	// escape analysis
-	// loop analysis
-	// handling of frozen tables + add builtin tables
-
-	return true;
+	args->as_fn()->invoke = (nfunc_t) &args->as_fn()->proto->jfunc->code[0];
+	return L->ok();
+}
+static bool jit_off(vm* L, any* args, slot_t n) {
+	if (!args->is_fn() || args->as_fn()->is_native()) {
+		return L->error("expected vfunction.");
+	}
+	args->as_fn()->invoke = &vm_invoke;
+	return L->ok();
 }
 
 #if LI_ARCH_WASM
@@ -129,6 +138,7 @@ extern "C" {
 };
 #endif
 
+#include <util/user.hpp>
 int main(int argv, const char** args) {
 	platform::setup_ansi_escapes();
 
@@ -137,7 +147,8 @@ int main(int argv, const char** args) {
 	//
 	auto* L = vm::create();
 	lib::register_std(L);
-	L->globals->set(L, string::create(L, "@JIT"), nfunction::create(L, &ir_test));
+	util::export_as(L, "jit.on", jit_on);
+	util::export_as(L, "jit.off", jit_off);
 
 	// Repl if no file given.
 	//
@@ -199,7 +210,7 @@ int main(int argv, const char** args) {
 	// Validate, print the result.
 	//
 	int retval = 1;
-	if (fn.is_vfn()) {
+	if (fn.is_fn()) {
 		auto t0 = std::chrono::high_resolution_clock::now();
 		if (!L->scall(0, fn)) {
 			auto t1 = std::chrono::high_resolution_clock::now();

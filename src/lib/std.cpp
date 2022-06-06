@@ -16,21 +16,17 @@ namespace li::lib {
 #define REMAP_MATH_UNARY(name)                                                     \
 	util::export_as(L, "math." LI_STRINGIFY(name), [](vm* L, any* args, slot_t n) { \
 		if (n != 1 || !args->is_num()) {                                             \
-			L->push_stack(any(string::create(L, "expected number")));                 \
-			return false;                                                             \
+			return L->error("expected number");                 \
 		}                                                                            \
-		L->push_stack(any(name(args->as_num())));                                    \
-		return true;                                                                 \
+		return L->ok(any(name(args->as_num())));                                    \
 	});
 
 #define REMAP_MATH_BINARY(name)                                                    \
 	util::export_as(L, "math." LI_STRINGIFY(name), [](vm* L, any* args, slot_t n) { \
 		if (n != 2 || !args[0].is_num() || !args[-1].is_num()) {                     \
-			L->push_stack(any(string::create(L, "expected two numbers")));            \
-			return false;                                                             \
+			return L->error("expected two numbers");            \
 		}                                                                            \
-		L->push_stack(any(name(args[0].as_num(), args[-1].as_num())));               \
-		return true;                                                                 \
+		return L->ok(any(name(args[0].as_num(), args[-1].as_num())));               \
 	});
 
 	static constexpr double pi = 3.14159265358979323846264338327950288;
@@ -65,8 +61,7 @@ namespace li::lib {
 		// If no args given, return.
 		//
 		if (n == 0) {
-			L->push_stack(r);
-			return true;
+			return L->ok(r);
 		}
 
 		// Validate args.
@@ -89,9 +84,7 @@ namespace li::lib {
 				return L->error("expected one or two numbers.");
 			y = args[0].as_num();
 		}
-
-		L->push_stack(y + r * (x - y));
-		return true;
+		return L->ok(y + r * (x - y));
 	}
 
 	static bool math_random(vm* L, any* args, slot_t n) { return math_random_to_dbl(L, args, n, L->random()); }
@@ -143,10 +136,9 @@ namespace li::lib {
 				return L->error("expected 2 or more arguments.");
 			}
 			auto f = args[0];
-			if (!f.is_vfn()) {
+			if (!f.is_fn()) {
 				args[-1] = any(false);
-				L->push_stack(string::create(L, "invoking non-function"));
-				return true;
+				return L->error("invoking non-function");
 			}
 
 			auto apos = &args[0] - L->stack;
@@ -155,15 +147,14 @@ namespace li::lib {
 
 			bool res           = L->scall(n - 2, f);
 			L->stack[apos - 1] = res;
-			return true;
+			return L->ok(L->pop_stack());
 		});
 
 		// Time.
 		//
 		util::export_as(L, "chrono.now", [](vm* L, any* args, slot_t n) {
 			auto time = std::chrono::high_resolution_clock::now().time_since_epoch();
-			L->push_stack(number(time / std::chrono::duration<double, std::milli>(1)));
-			return true;
+			return L->ok(number(time / std::chrono::duration<double, std::milli>(1)));
 		});
 		util::export_as(L, "chrono.cycles", [](vm* L, any* args, slot_t n) {
 			uint64_t cycles = 0;
@@ -172,8 +163,7 @@ namespace li::lib {
 #elif LI_ARCH_X86 && LI_MSVC
 			cycles = __rdtsc();
 #endif
-			L->push_stack(number(cycles));
-			return true;
+			return L->ok(number(cycles));
 		});
 
 		// Debug.
@@ -195,8 +185,8 @@ namespace li::lib {
 				}
 
 				auto tbl = table::create(L, 2);
-				if (target.is_vfn()) {
-					tbl->set(L, lstr, any(number(target.as_vfn()->lookup_line(frame.caller_pc & ~FRAME_C_FLAG))));
+				if (target.is_fn() && target.as_fn()->is_virtual()) {
+					tbl->set(L, lstr, any(number(target.as_fn()->proto->lookup_line(frame.caller_pc & ~FRAME_C_FLAG))));
 				}
 				tbl->set(L, fstr, any(target));
 				result->push(L, tbl);
@@ -208,15 +198,14 @@ namespace li::lib {
 					break;
 				}
 			}
-			L->push_stack(result);
-			return true;
+			return L->ok(result);
 		});
 		util::export_as(L, "debug.getuval", [](vm* L, any* args, slot_t n) {
 			if (n != 2) {
 				return L->error("expected 2 arguments.");
 			}
 			auto f = args[0];
-			if (!f.is_vfn()) {
+			if (!f.is_fn()) {
 				return L->error("expected VM function.");
 			}
 
@@ -226,19 +215,18 @@ namespace li::lib {
 			}
 			size_t idx = size_t(i.as_num());
 
-			if (f.as_vfn()->num_uval > idx) {
-				L->push_stack(f.as_vfn()->uvals()[idx]);
+			if (f.as_fn()->num_uval > idx) {
+				return L->ok(f.as_fn()->uvals()[idx]);
 			} else {
-				L->push_stack(none);
+				return L->ok(none);
 			}
-			return true;
 		});
 		util::export_as(L, "debug.setuval", [](vm* L, any* args, slot_t n) {
 			if (n != 3) {
 				return L->error("expected 3 arguments.");
 			}
 			auto f = args[0];
-			if (!f.is_vfn()) {
+			if (!f.is_fn()) {
 				return L->error("expected VM function.");
 			}
 
@@ -249,35 +237,34 @@ namespace li::lib {
 			size_t idx = size_t(i.as_num());
 
 			auto u = args[-2];
-			if (f.as_vfn()->num_uval > idx) {
-				f.as_vfn()->uvals()[idx] = u;
-				L->push_stack(true);
+			if (f.as_fn()->num_uval > idx) {
+				f.as_fn()->uvals()[idx] = u;
+				return L->ok(true);
 			} else {
-				L->push_stack(false);
+				return L->ok(false);
 			}
-			return true;
 		});
 		util::export_as(L, "debug.gc", [](vm* L, any* args, slot_t n) {
 			L->gc.collect(L);
-			return true;
+			return L->ok();
 		});
 		util::export_as(L, "debug.dump", [](vm* L, any* args, slot_t n) {
-			if (n != 1 || !args->is_vfn()) {
+			if (n != 1 || !args->is_fn() || !args->as_fn()->is_virtual()) {
 				return L->error("dump expects a single vfunction");
 			}
 
-			auto f = args->as_vfn();
+			auto f = args->as_fn();
 			puts(
 				 "Dumping bytecode of the function:\n"
 				 "-----------------------------------------------------");
 			msize_t last_line = 0;
-			for (msize_t i = 0; i != f->length; i++) {
-				if (msize_t l = f->lookup_line(i); l != last_line) {
+			for (msize_t i = 0; i != f->proto->length; i++) {
+				if (msize_t l = f->proto->lookup_line(i); l != last_line) {
 					last_line = l;
 					printf("ln%-50u", l);
 					printf("|\n");
 				}
-				f->opcode_array[i].print(i);
+				f->proto->opcode_array[i].print(i);
 			}
 			puts("-----------------------------------------------------");
 			for (msize_t i = 0; i != f->num_uval; i++) {
@@ -286,7 +273,7 @@ namespace li::lib {
 				printf("\n");
 			}
 			puts("-----------------------------------------------------");
-			return true;
+			return L->ok();
 		});
 
 		// String.
@@ -301,25 +288,30 @@ namespace li::lib {
 				printf("\t");
 			}
 			printf("\n");
-			return true;
+			return L->ok();
 		});
 		util::export_as(L, "loadstring", [](vm* L, any* args, slot_t n) {
 			if (n != 1 || !args->is_str()) {
 				return L->error("expected string");
 			}
 			auto res = load_script(L, args->as_str()->view());
-			L->push_stack(res);
-			return res.is_vfn();
+			if (!res.is_fn())
+				return L->error(res);
+			else
+				return L->ok(res);
 		});
 		util::export_as(L, "eval", [](vm* L, any* args, slot_t n) {
 			if (n != 1 || !args->is_str()) {
 				return L->error("expected string");
 			}
 			auto res = load_script(L, args->as_str()->view());
-			if (!res.is_vfn()) {
-				return false;
+			if (!res.is_fn()) {
+				return L->error(res);
 			}
-			return L->scall(0, res);
+			if (L->scall(0, res))
+				return L->ok(L->pop_stack());
+			else
+				return L->error(L->pop_stack());
 		});
 
 		// Misc.
@@ -329,26 +321,24 @@ namespace li::lib {
 			if (n && args->is_num()) {
 				r = (uint16_t) (uint64_t) std::abs(args->as_num());
 			}
-			L->push_stack(table::create(L, r));
-			return true;
+			return L->ok(table::create(L, r));
 		});
 		util::export_as(L, "assert", [](vm* L, any* args, slot_t n) {
 			if (!n || args->coerce_bool())
-				return true;
+				return L->ok();
 
 			if (n >= 2 && args[-1].is_str()) {
-				L->push_stack(args[-1]);
-				return false;
+				return L->error(args[-1]);
 			} else {
 				call_frame frame  = L->last_vm_caller;
 				const char* fn    = "C";
 				msize_t     line   = 0;
 				if (frame.stack_pos >= FRAME_SIZE) {
 					auto&    target = L->stack[frame.stack_pos + FRAME_TARGET];
-					if (target.is_vfn()) {
-						auto vfn = target.as_vfn();
-						fn       = vfn->src_chunk->c_str();
-						line     = vfn->lookup_line(frame.caller_pc & ~FRAME_C_FLAG);
+					if (target.is_fn() && target.as_fn()->is_virtual()) {
+						auto vfn = target.as_fn();
+						fn       = vfn->proto->src_chunk->c_str();
+						line     = vfn->proto->lookup_line(frame.caller_pc & ~FRAME_C_FLAG);
 					}
 				}
 				return L->error("assertion failed at %s, line %u", fn, line);

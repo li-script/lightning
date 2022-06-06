@@ -44,14 +44,14 @@ namespace li::gc {
 
 	// Size classes.
 	//
-	static constexpr uint32_t size_classes[] = {
+	static constexpr msize_t  size_classes[] = {
 		32 >> chunk_shift,
 		256 >> chunk_shift,
 		4096 >> chunk_shift,
 		65536 >> chunk_shift,
 		UINT32_MAX
 	};
-	static constexpr size_t   size_class_of(uint32_t nchunks) {
+	static constexpr size_t   size_class_of(msize_t nchunks) {
 		  for (size_t sc = 0; sc != std::size(size_classes); sc++) {
 			if (nchunks <= size_classes[sc]) {
 				return sc;
@@ -111,7 +111,7 @@ namespace li::gc {
 
 		// Internals.
 		//
-		void gc_init(page* p, vm* L, uint32_t qlen, value_type t);
+		void gc_init(page* p, vm* L, msize_t qlen, value_type t);
 		bool gc_tick(stage_context s, bool weak = false);
 	};
 	static_assert(sizeof(header) == 8, "Invalid GC header size.");
@@ -166,22 +166,22 @@ namespace li::gc {
 
 		// Constructed with number of pages.
 		//
-		constexpr page(size_t num_pages, bool exec) : num_pages((uint32_t) num_pages), is_exec(exec) {}
+		constexpr page(size_t num_pages, bool exec) : num_pages((msize_t) num_pages), is_exec(exec) {}
 
 		// Checks if the page has space to allocate N chunks at the end.
 		//
-		bool check_space(uint32_t clen) const {
-			uint32_t capacity = num_pages << (12 - chunk_shift);
+		bool check_space(msize_t clen) const {
+			msize_t capacity = num_pages << (12 - chunk_shift);
 			return (capacity - next_chunk) > clen;
 		}
 
 		// Gets a pointer to a chunk by index.
 		//
-		void* get_chunk(uint32_t idx) { return (void*) (uintptr_t(this) + chunk_size * idx); }
+		void* get_chunk(msize_t idx) { return (void*) (uintptr_t(this) + chunk_size * idx); }
 
 		// Object enumeration.
 		//
-		header* begin() { return (header*) get_chunk((uint32_t) chunk_ceil(sizeof(page))); }
+		header* begin() { return (header*) get_chunk((msize_t) chunk_ceil(sizeof(page))); }
 		void*   end() { return get_chunk(next_chunk); }
 		template<typename F>
 		header* for_each(F&& fn) {
@@ -198,7 +198,7 @@ namespace li::gc {
 
 		// Allocates an uninitialized chunk, caller must have checked for space.
 		//
-		header* alloc_arena(uint32_t clen) {
+		header* alloc_arena(msize_t clen) {
 			LI_ASSERT(check_space(clen));
 
 			void* p = get_chunk(next_chunk);
@@ -291,8 +291,8 @@ namespace li::gc {
 
 		// Allocates an uninitialized chunk.
 		//
-		std::pair<page*, header*> allocate_uninit(vm* L, uint32_t clen);
-		std::pair<page*, header*> allocate_uninit_ex(vm* L, uint32_t clen);
+		std::pair<page*, header*> allocate_uninit(vm* L, msize_t clen);
+		std::pair<page*, header*> allocate_uninit_ex(vm* L, msize_t clen);
 
 		// Immediately frees an object.
 		//
@@ -302,7 +302,7 @@ namespace li::gc {
 		//
 		template<typename T, typename... Tx>
 		T* create(vm* L, size_t extra_length = 0, Tx&&... args) {
-			uint32_t length   = (uint32_t) (chunk_ceil(extra_length + sizeof(T)) >> chunk_shift);
+			msize_t length    = (msize_t) (chunk_ceil(extra_length + sizeof(T)) >> chunk_shift);
 			auto [page, base] = T::gc_executable ? allocate_uninit_ex(L, length) : allocate_uninit(L, length);
 			T* result         = new (base) T(std::forward<Tx>(args)...);
 			result->gc_init(page, L, length, T::gc_type);

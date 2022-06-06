@@ -44,7 +44,7 @@ namespace li::ir {
 	#define YIELD(x) yield_value(b, i, x)
 
 	static mreg get_existing_reg(insn* i) {
-		mreg r = std::bit_cast<mreg>((uint32_t)i->visited);
+		mreg r = std::bit_cast<mreg>((msize_t) i->visited);
 		return r;
 	}
 	static mreg yield_value(mblock& b, insn* i, mop r) {
@@ -63,7 +63,7 @@ namespace li::ir {
 			} else {
 				dst = r.reg;
 			}
-			i->visited = std::bit_cast<uint32_t>(dst);
+			i->visited = std::bit_cast<msize_t>(dst);
 		}
 		return get_existing_reg(i);
 	}
@@ -99,7 +99,7 @@ namespace li::ir {
 
 	// Instructions.
 	//
-	enum encoding_directive : uint32_t {
+	enum encoding_directive : msize_t {
 		ENC_W_R,
 		ENC_RW_R,
 		ENC_RW,
@@ -109,17 +109,17 @@ namespace li::ir {
 	};
 
 	#define INSN_W_R(name, ...) \
-		inline static void name(mblock& blk, mreg a, mop b) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__.rsvd = ENC_W_R}, a, b}); }
+		static void name(mblock& blk, mreg a, mop b) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__.rsvd = ENC_W_R}, a, b}); }
 	#define INSN_RW_R(name, ...) \
-		inline static void name(mblock& blk, mreg a, mop b) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__ .rsvd = ENC_RW_R}, a, a, b}); }
+		static void name(mblock& blk, mreg a, mop b) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__ .rsvd = ENC_RW_R}, a, a, b}); }
 	#define INSN_RW(name, ...) \
-		inline static void name(mblock& blk, mreg a) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__ .rsvd = ENC_RW}, a, a}); }
+		static void name(mblock& blk, mreg a) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__ .rsvd = ENC_RW}, a, a}); }
 	#define INSN_W_R_R(name, ...) \
-		inline static void name(mblock& blk, mreg a, mop b, mop c) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__ .rsvd = ENC_W_R_R}, a, b, c}); }
+		static void name(mblock& blk, mreg a, mop b, mop c) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__ .rsvd = ENC_W_R_R}, a, b, c}); }
 	#define INSN_W_N_R_R(name, ...) \
-		inline static void name(mblock& blk, mreg a, mop b, mop c) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__ .rsvd = ENC_W_N_R_R}, a, b, c}); }
+		static void name(mblock& blk, mreg a, mop b, mop c) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__ .rsvd = ENC_W_N_R_R}, a, b, c}); }
 	#define INSN_F_R_R(name, ...) \
-		inline static void name(mblock& blk, flag_id flag, mreg a, mop b) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__ .rsvd=ENC_F_R_R}, flag, a, b}); }
+		static void name(mblock& blk, flag_id flag, mreg a, mop b) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__ .rsvd=ENC_F_R_R}, flag, a, b}); }
 
 	INSN_RW(NEG);
 	INSN_RW(NOT, .trashes_flags = false, );
@@ -681,12 +681,12 @@ namespace li::ir {
 
 				// Append each argument.
 				//
-				for (uint32_t n = 3; n != i->operands.size(); n++) {
+				for (msize_t n = 3; n != i->operands.size(); n++) {
 					auto& op = i->operands[n];
 
 					if (op->vt == type::f32 || op->vt == type::f64) {
 						auto r = arch::map_fp_arg(gp_index, fp_index++);
-						if (r != arch::invalid) {
+						if (r) {
 							b.append(vop::movf, mreg(r), RI(op));
 						} else {
 							mmem mem{
@@ -698,7 +698,7 @@ namespace li::ir {
 						}
 					} else {
 						auto r = arch::map_gp_arg(gp_index++, fp_index);
-						if (r != arch::invalid) {
+						if (r) {
 							b.append(vop::movi, mreg(r), RIi(op));
 						} else {
 							mmem mem{
@@ -791,7 +791,7 @@ namespace li::ir {
 					if (auto r2 = get_existing_reg(src)) {
 						LI_ASSERT(r == r2);
 					} else {
-						src->visited = std::bit_cast<uint32_t>(r);
+						src->visited = std::bit_cast<msize_t>(r);
 					}
 				}
 			}
@@ -1059,21 +1059,21 @@ namespace li::ir {
 			case vop::setcc: {
 				auto dst   = to_reg(b, i.out);
 				auto dstb  = zy::resize_reg(dst, 1);
-				auto setcc = flags[(uint32_t) i.arg[0].reg.flag()].sets;
+				auto setcc = flags[(msize_t) i.arg[0].reg.flag()].sets;
 				LI_ASSERT(zy::encode(b->assembly, setcc, dstb));
 				break;
 			}
 			case vop::select: {
 				// Get the flag ID.
 				//
-				uint32_t flag;
+				msize_t flag;
 				if (i.arg[0].reg.is_flag()) {
-					flag = (uint32_t) i.arg[0].reg.flag();
+					flag = (msize_t) i.arg[0].reg.flag();
 				} else {
 					auto r  = to_reg(b, i.arg[0].reg);
 					auto rb = zy::resize_reg(r, 1);
 					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_TEST, rb, rb));
-					flag = (uint32_t) FLAG_NZ;
+					flag = (msize_t) FLAG_NZ;
 				}
 
 				// Swap conditions if output is aliasing true.
@@ -1153,14 +1153,14 @@ namespace li::ir {
 			case vop::js: {
 				// Get the flag ID.
 				//
-				uint32_t flag;
+				msize_t flag;
 				if (i.arg[0].reg.is_flag()) {
-					flag = (uint32_t) i.arg[0].reg.flag();
+					flag = (msize_t) i.arg[0].reg.flag();
 				} else {
 					auto r  = to_reg(b, i.arg[0].reg);
 					auto rb = zy::resize_reg(r, 1);
 					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_TEST, rb, rb));
-					flag = (uint32_t) FLAG_NZ;
+					flag = (msize_t) FLAG_NZ;
 				}
 
 				// If true branch is closer to us, invert the condition.

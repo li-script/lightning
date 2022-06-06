@@ -30,7 +30,7 @@ namespace li {
 
 	// Call frame as a linked list of caller records.
 	//
-	static constexpr uint32_t MAX_ARGS     = 32;
+	static constexpr msize_t  MAX_ARGS     = 32;
 	static constexpr slot_t   FRAME_SELF   = -3;  // specials relative to local 0
 	static constexpr slot_t   FRAME_TARGET = -2;
 	static constexpr slot_t   FRAME_RET    = -2;
@@ -150,7 +150,7 @@ namespace li {
 		// Caller must push all arguments in reverse order, then the self argument or none and the function itself.
 		// - Caller frame takes the caller's base of stack and the PC receives the "return pointer".
 		//
-		bool call(slot_t n_args, slot_t caller_frame, uint32_t caller_pc = FRAME_C_FLAG);
+		bool call(slot_t n_args, slot_t caller_frame, msize_t caller_pc = FRAME_C_FLAG);
 
 		// Simple version of call() for user-invocation that pops all arguments and the function/self from ToS.
 		//
@@ -158,7 +158,7 @@ namespace li {
 			any* req_slot = stack_top - n_args;
 			push_stack(self);
 			push_stack(fn);
-			bool ok   = call(n_args, last_vm_caller.stack_pos, uint32_t(last_vm_caller.caller_pc | FRAME_C_FLAG));
+			bool ok   = call(n_args, last_vm_caller.stack_pos, msize_t(last_vm_caller.caller_pc | FRAME_C_FLAG));
 			*req_slot = stack_top[FRAME_RET];
 			stack_top = req_slot + 1;
 			return ok;

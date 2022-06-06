@@ -39,7 +39,7 @@ namespace li {
 		 LIGHTNING_ENUM_TRAIT(LI_NOOP, TRAIT_NAME)
 #undef TRAIT_NAME
 	};
-	static constexpr uint32_t num_traits = (uint32_t) trait::max; // Does not include flags.
+	static constexpr msize_t num_traits = (msize_t) trait::max;  // Does not include flags.
 
 	// Compressed trait pointer.
 	//
@@ -117,8 +117,8 @@ namespace li {
 
 			// Fields.
 			//
-			if (trait_mask & (1u << uint32_t(t))) {
-				return traits->list[uint32_t(t)].as_any();
+			if (trait_mask & (1u << msize_t(t))) {
+				return traits->list[msize_t(t)].as_any();
 			} else {
 				return none;
 			}
@@ -161,11 +161,11 @@ namespace li {
 					traits = L->alloc<trait_table>();
 				}
 
-				trait_mask |= 1u << uint32_t(t);
-				traits->list[uint32_t(t)] = v;
+				trait_mask |= 1u << msize_t(t);
+				traits->list[msize_t(t)] = v;
 			} else {
-				traits->list[uint32_t(t)] = {};
-				trait_mask &= ~(1u << uint32_t(t));
+				traits->list[msize_t(t)] = {};
+				trait_mask &= ~(1u << msize_t(t));
 
 				if (!trait_mask && traits) {
 					traits = nullptr;
@@ -179,7 +179,7 @@ namespace li {
 		void trait_traverse(gc::stage_context s) {
 			if (auto* tl = traits) {
 				tl->gc_tick(s);
-				for (uint32_t i = 0; i != num_traits; i++) {
+				for (msize_t i = 0; i != num_traits; i++) {
 					if (trait_mask & (1 << i)) {
 						tl->list[i].as_gc()->gc_tick(s);
 					}
@@ -190,14 +190,14 @@ namespace li {
 		// GC callback.
 		//
 		void gc_destroy(vm* L) {
-			if (trait_mask & (1u << uint32_t(trait::gc))) {
+			if (trait_mask & (1u << msize_t(trait::gc))) {
 				any self;
 				if constexpr (std::is_void_v<T>) {
 					self = any(std::in_place, mix_value(((gc::header*)this)->gc_type, (uint64_t) this));
 				} else {
 					self = any((T*) this);
 				}
-				L->scall(0, traits->list[uint32_t(trait::gc)].as_any(), self);
+				L->scall(0, traits->list[msize_t(trait::gc)].as_any(), self);
 				L->pop_stack();
 			}
 		}

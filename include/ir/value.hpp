@@ -69,8 +69,8 @@ namespace li::ir {
 	struct value {
 		// Reference counter.
 		//
-		mutable uint32_t ref_counter = 1;
-		mutable uint32_t use_counter = 0;
+		mutable msize_t ref_counter = 1;
+		mutable msize_t use_counter = 0;
 
 		// Type id of this.
 		//
@@ -119,8 +119,8 @@ namespace li::ir {
 
 		// Reference helpers.
 		//
-		uint32_t use_count() const { return use_counter; }
-		uint32_t ref_count() const { return ref_counter; }
+		msize_t use_count() const { return use_counter; }
+		msize_t ref_count() const { return ref_counter; }
 
 		void add_ref(bool use) const {
 			LI_ASSERT(ref_counter++ > 0);
@@ -130,7 +130,7 @@ namespace li::ir {
 		void dec_ref(bool use) const {
 			if (use)
 				LI_ASSERT(--use_counter >= 0);
-			uint32_t new_ref = --ref_counter;
+			msize_t new_ref = --ref_counter;
 			LI_ASSERT(new_ref >= 0);
 			if (!new_ref) {
 				LI_ASSERT(use_counter == 0);
@@ -232,8 +232,8 @@ namespace li::ir {
 		constexpr T*       operator->() const { return at; }
 		constexpr          operator T*() const { return at; }
 		constexpr T&       operator*() const { return *at; }
-		constexpr uint32_t use_count() const { return at->use_counter; }
-		constexpr uint32_t ref_count() const { return at->ref_counter; }
+		constexpr msize_t  use_count() const { return at->use_counter; }
+		constexpr msize_t  ref_count() const { return at->ref_counter; }
 		constexpr explicit operator bool() const { return at != nullptr; }
 
 		// Reset and release.

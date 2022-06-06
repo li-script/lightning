@@ -30,14 +30,14 @@ namespace li {
 
 	// Writes a function state as a function.
 	//
-	static function* write_func(func_state& fn, uint32_t line, std::optional<bc::reg> implicit_ret = std::nullopt) {
+	static function* write_func(func_state& fn, msize_t line, std::optional<bc::reg> implicit_ret = std::nullopt) {
 		// Validate IP.
 		//
 		LI_ASSERT(fn.pc.size() <= BC_MAX_IP);
 
 		// Apply all fixups before writing it.
 		//
-		for (uint32_t ip = 0; ip != fn.pc.size(); ip++) {
+		for (msize_t ip = 0; ip != fn.pc.size(); ip++) {
 			auto& insn = fn.pc[ip];
 
 			// Skip if flag is not set or it's not actually relative.
@@ -76,7 +76,7 @@ namespace li {
 			fn.line_table.front().line_delta -= line;
 		function* f      = function::create(fn.L, fn.pc, fn.kvalues, fn.uvalues.size(), fn.line_table);
 		f->num_locals    = fn.max_reg_id + 1;
-		f->num_arguments = (uint32_t) fn.args.size();
+		f->num_arguments = (msize_t) fn.args.size();
 		if (fn.decl_name) {
 			f->src_chunk = string::format(fn.L, "'%.*s':%s", (uint32_t) fn.lex.source_name.size(), fn.lex.source_name.data(), fn.decl_name->c_str());
 		} else if (line != 0) {
@@ -344,7 +344,7 @@ namespace li {
 
 		// Until list is exhausted push expressions.
 		//
-		uint32_t nexpr = 0;
+		msize_t nexpr = 0;
 		if (!scope.lex().opt(']')) {
 			while (true) {
 				reg_sweeper _r{scope};
@@ -382,7 +382,7 @@ namespace li {
 
 		// Until list is exhausted set fields.
 		//
-		uint32_t nexpr = 0;
+		msize_t nexpr = 0;
 		if (!scope.lex().opt('}')) {
 			while (true) {
 				reg_sweeper _r{scope};
@@ -1089,7 +1089,7 @@ namespace li {
 	static expression parse_call(func_scope& scope, const expression& func, const expression& self) {
 		using parameter = std::pair<expression, bool>;
 		parameter callsite[MAX_ARGS] = {};
-		uint32_t  size               = 0;
+		msize_t   size               = 0;
 
 		// Allocate temporary site for result.
 		//
@@ -1165,7 +1165,7 @@ namespace li {
 
 				// Find trait by name.
 				//
-				for (uint32_t i = 0; i != uint32_t(trait::pseudo_max); i++) {
+				for (msize_t i = 0; i != msize_t(trait::pseudo_max); i++) {
 					if (trait_names[i] == func.glb->view()) {
 						// Emit the opcode and return.
 						//
@@ -1275,7 +1275,7 @@ namespace li {
 	//
 	static expression parse_format(func_scope& scope) {
 		expression parts[64];
-		uint32_t   size = 0;
+		msize_t    size = 0;
 
 		// Parse format string.
 		//
@@ -1369,7 +1369,7 @@ namespace li {
 		// Allocate base of concat.
 		//
 		auto r = scope.alloc_reg(size);
-		for (uint32_t i = 0; i != size; i++) {
+		for (msize_t i = 0; i != size; i++) {
 			parts[i].to_reg(scope, r + i);
 		}
 		scope.emit(bc::CCAT, r, (int32_t) size);
@@ -1385,7 +1385,7 @@ namespace li {
 	static expression parse_function(func_scope& scope, string* name) {
 		// Consume the '|', '||' or ')'.
 		//
-		uint32_t line_num = scope.lex().line;
+		msize_t line_num = scope.lex().line;
 		auto id = scope.lex().next().id;
 
 		// Create the new function.
@@ -1438,7 +1438,7 @@ namespace li {
 
 		// Allocate space for the uvalue multi-set.
 		//
-		auto uv = scope.alloc_reg((uint32_t) new_fn.uvalues.size());
+		auto uv = scope.alloc_reg((msize_t) new_fn.uvalues.size());
 		for (size_t n = 0; n != new_fn.uvalues.size(); n++) {
 			expr_var(scope, new_fn.uvalues[n].id).to_reg(scope, uv + (bc::reg) n);
 		}
@@ -1446,7 +1446,7 @@ namespace li {
 
 		// Free the unnecessary space and return the function by register.
 		//
-		scope.free_reg(uv + 1, (uint32_t) new_fn.uvalues.size() - 1);
+		scope.free_reg(uv + 1, (msize_t) new_fn.uvalues.size() - 1);
 		return expression(uv);
 	}
 

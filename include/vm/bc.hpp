@@ -146,7 +146,7 @@ namespace li::bc {
 
 		// Prints an instruction.
 		//
-		void print(uint32_t ip) const {
+		void print(msize_t ip) const {
 			auto& d = opcode_details(o);
 
 			std::optional<rel> rel_pr;

@@ -65,11 +65,11 @@ namespace li::ir {
 
 		// Gets a zero-based unique identifier.
 		//
-		constexpr uint32_t uid() const {
-			uint32_t x = id < 0 ? uint32_t(-id) : uint32_t(id);
-			return (x << 3) + (id < 0) + (uint32_t(cl) << 1);
+		constexpr msize_t uid() const {
+			msize_t x = id < 0 ? msize_t(-id) : msize_t(id);
+			return (x << 3) + (id < 0) + (msize_t(cl) << 1);
 		}
-		static constexpr mreg from_uid(uint32_t i) {
+		static constexpr mreg from_uid(msize_t i) {
 			mreg result = {};
 			result.id   = i >> 3;
 			if (i & 1)
@@ -456,7 +456,7 @@ namespace li::ir {
 	struct mprocedure;
 	struct mblock {
 		mprocedure*        parent       = nullptr;  // Owning procedure.
-		uint32_t           uid          = 0;        // Unique identifier of the block.
+		msize_t            uid          = 0;        // Unique identifier of the block.
 		int32_t            hot          = 0;        // Hotness of the block.
 		std::vector<minsn> instructions = {};       // List of instructions.
 

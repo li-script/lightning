@@ -2,21 +2,21 @@
 #include <vm/string.hpp>
 
 namespace li {
-	function* function::create(vm* L, std::span<const bc::insn> opcodes, std::span<const any> kval, size_t uval, std::span<const line_info> lines) {
-		uint32_t routine_length = (uint32_t) opcodes.size();
+	function* function::create(vm* L, std::span<const bc::insn> opcodes, std::span<const any> kval, msize_t uval, std::span<const line_info> lines) {
+		msize_t routine_length = (msize_t) opcodes.size();
 		LI_ASSERT(routine_length != 0);
 
-		uint32_t kval_n         = (uint32_t) kval.size();
+		msize_t kval_n = (msize_t) kval.size();
 
 		// Set function details.
 		//
 		function* result        = L->alloc<function>(sizeof(bc::insn) * routine_length + sizeof(any) * (uval + kval_n) + sizeof(line_info) * lines.size());
-		result->num_uval        = (uint32_t) uval;
+		result->num_uval        = (msize_t) uval;
 		result->num_kval        = kval_n;
 		result->length          = routine_length;
 		result->src_chunk       = string::create(L);
 		result->environment     = L->globals;
-		result->num_lines       = (uint32_t) lines.size();
+		result->num_lines       = (msize_t) lines.size();
 
 		// Copy the information, initialize all upvalues to none.
 		//
@@ -38,7 +38,7 @@ namespace li {
 
 	// Replication of vm::call.
 	//
-	bool nfunction::call(vm* L, slot_t n_args, slot_t caller_frame, uint32_t caller_pc) {
+	bool nfunction::call(vm* L, slot_t n_args, slot_t caller_frame, msize_t caller_pc) {
 		// TODO: Remove, just for debugging.
 		//
 		if (jit) {

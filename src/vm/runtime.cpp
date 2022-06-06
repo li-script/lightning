@@ -4,10 +4,10 @@
 #include <vm/string.hpp>
 
 namespace li::runtime {
-	array* LI_C_CC array_new(vm* L, uint32_t n) {
+	array* LI_C_CC array_new(vm* L, msize_t n) {
 		return array::create(L, n, 0);
 	}
-	table* LI_C_CC table_new(vm* L, uint32_t n) {
+	table* LI_C_CC table_new(vm* L, msize_t n) {
 		return table::create(L, n);
 	}
 
@@ -32,7 +32,7 @@ namespace li::runtime {
 			if (!key.is_num() || key.as_num() < 0) [[unlikely]] {
 				return any(string::create(L, "indexing array with non-integer or negative key")).value;
 			}
-			if (!tbl.as_arr()->set(L, size_t(key.as_num()), val)) {
+			if (!tbl.as_arr()->set(L, msize_t(key.as_num()), val)) {
 				return any(string::create(L, "out-of-boundaries array access")).value;
 			}
 		} else [[unlikely]] {
@@ -55,7 +55,7 @@ namespace li::runtime {
 			if (!key.is_num() || key.as_num() < 0) [[unlikely]] {
 				util::abort("indexing array with non-integer or negative key");
 			}
-			return tbl.as_arr()->get(L, size_t(key.as_num())).value;
+			return tbl.as_arr()->get(L, msize_t(key.as_num())).value;
 		} else if (tbl == none) {
 			return none.value;
 		} else {

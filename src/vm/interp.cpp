@@ -58,8 +58,8 @@ namespace li {
 				//
 				call_frame caller     = frame;
 				n_args                = caller.n_args;
-				uint32_t caller_frame = caller.stack_pos;
-				uint32_t caller_pc    = caller.caller_pc;
+				msize_t caller_frame = caller.stack_pos;
+				msize_t caller_pc     = caller.caller_pc;
 				L->push_stack(bit_cast<opaque>(caller));
 				locals_begin = L->stack_top;
 
@@ -122,18 +122,18 @@ namespace li {
 #if LI_DEBUG
 				auto REG = [&](bc::reg r) LI_INLINE -> any& {
 					if (r < 0) {
-						LI_ASSERT((n_args + FRAME_SIZE) >= (uint32_t) -r);
+						LI_ASSERT((n_args + FRAME_SIZE) >= (msize_t) -r);
 					} else {
-						LI_ASSERT(f->num_locals > (uint32_t) r);
+						LI_ASSERT(f->num_locals > (msize_t) r);
 					}
 					return locals_begin[r];
 				};
 				auto UVAL = [&](bc::reg r) LI_INLINE -> any& {
-					LI_ASSERT(f->num_uval > (uint32_t) r);
+					LI_ASSERT(f->num_uval > (msize_t) r);
 					return f->uvals()[r];
 				};
 				auto KVAL = [&](bc::reg r) LI_INLINE -> const any& {
-					LI_ASSERT(f->num_kval > (uint32_t) r);
+					LI_ASSERT(f->num_kval > (msize_t) r);
 					return f->kvals()[r];
 				};
 #endif
@@ -341,7 +341,7 @@ namespace li {
 								if (!key.is_num() || key.as_num() < 0) [[unlikely]] {
 									VM_RET(string::create(L, "indexing array with non-integer or negative key"), true);
 								}
-								REG(a) = tbl.as_arr()->get(L, size_t(key.as_num()));
+								REG(a) = tbl.as_arr()->get(L, msize_t(key.as_num()));
 							} else if (tbl == none) {
 								REG(a) = none;
 							} else {
@@ -371,7 +371,7 @@ namespace li {
 								if (!key.is_num() || key.as_num() < 0) [[unlikely]] {
 									VM_RET(string::create(L, "indexing array with non-integer or negative key"), true);
 								}
-								if (!tbl.as_arr()->set(L, size_t(key.as_num()), val)) {
+								if (!tbl.as_arr()->set(L, msize_t(key.as_num()), val)) {
 									VM_RET(string::create(L, "out-of-boundaries array access"), true);
 								}
 							} else [[unlikely]] {
@@ -396,7 +396,7 @@ namespace li {
 								if (!key.is_num() || key.as_num() < 0) [[unlikely]] {
 									VM_RET(string::create(L, "indexing array with non-integer or negative key"), true);
 								}
-								REG(a) = tbl.as_arr()->get(L, size_t(key.as_num()));
+								REG(a) = tbl.as_arr()->get(L, msize_t(key.as_num()));
 							} else if (tbl.is_str()) {
 								if (!key.is_num() || key.as_num() < 0) [[unlikely]] {
 									VM_RET(string::create(L, "indexing string with non-integer or negative key"), true);
@@ -423,7 +423,7 @@ namespace li {
 								if (!key.is_num()) [[unlikely]] {
 									VM_RET(string::create(L, "indexing array with non-integer key"), true);
 								}
-								if (!tbl.as_arr()->set(L, size_t(key.as_num()), val)) {
+								if (!tbl.as_arr()->set(L, msize_t(key.as_num()), val)) {
 									VM_RET(string::create(L, "out-of-boundaries array access"), true);
 								}
 								continue;
@@ -493,7 +493,7 @@ namespace li {
 								auto* s = src.as_arr();
 								auto* d = dst.as_arr();
 
-								size_t pos = d->size();
+								msize_t pos = d->size();
 								d->resize(L, pos + s->size());
 								memcpy(d->begin() + pos, s->begin(), s->size() * sizeof(any));
 							} else {
@@ -552,7 +552,7 @@ namespace li {
 							function* r = fn.as_vfn();
 							if (r->num_uval) {
 								r = r->duplicate(L);
-								for (uint32_t i = 0; i != r->num_uval; i++) {
+								for (msize_t i = 0; i != r->num_uval; i++) {
 									r->uvals()[i] = REG(c + i);
 								}
 							}
@@ -589,7 +589,7 @@ namespace li {
 							continue;
 						}
 						case bc::CALL: {
-							frame = {.stack_pos = locals_begin - L->stack, .caller_pc = (uint32_t) ip, .n_args = a};
+							frame = {.stack_pos = locals_begin - L->stack, .caller_pc = (msize_t) ip, .n_args = a};
 							goto vcall;
 						}
 						// Size availability guaranteed by +MAX_ARGUMENTS over-allocation.
@@ -613,7 +613,7 @@ namespace li {
 							continue;
 						default:
 #if LI_DEBUG
-							util::abort("unrecognized opcode '%02x'", (uint32_t) op);
+							util::abort("unrecognized opcode '%02x'", (msize_t) op);
 #else
 							assume_unreachable();
 #endif
@@ -646,5 +646,5 @@ namespace li {
 	// Caller must push all arguments in reverse order, then the self argument or none and the function itself.
 	// - Caller frame takes the caller's base of stack and the PC receives the "return pointer".
 	//
-	LI_INLINE bool vm::call(slot_t n_args, slot_t caller_frame, uint32_t caller_pc) { return vm_loop(this, call_frame{.stack_pos = caller_frame, .caller_pc = caller_pc, .n_args = n_args}, vm_begin); }
+	LI_INLINE bool vm::call(slot_t n_args, slot_t caller_frame, msize_t caller_pc) { return vm_loop(this, call_frame{.stack_pos = caller_frame, .caller_pc = caller_pc, .n_args = n_args}, vm_begin); }
 };

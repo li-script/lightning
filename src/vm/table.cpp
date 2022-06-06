@@ -3,7 +3,7 @@
 #include <vm/string.hpp>
 
 namespace li {
-	table* table::create(vm* L, size_t reserved_entry_count) {
+	table* table::create(vm* L, msize_t reserved_entry_count) {
 		table* tbl = L->alloc<table>();
 		if (reserved_entry_count) {
 			tbl->resize(L, reserved_entry_count);
@@ -23,9 +23,9 @@ namespace li {
 
 	// Rehashing resize.
 	//
-	void table::resize(vm* L, size_t n) {
-		size_t new_count = std::bit_ceil(n | (small_table_length - 1));
-		size_t old_count = size();
+	void table::resize(vm* L, msize_t n) {
+		msize_t new_count = std::bit_ceil(n | (small_table_length - 1));
+		msize_t old_count = size();
 		if (new_count > old_count) {
 			auto*  old_list     = node_list;
 			auto*  old_entries  = begin();
@@ -35,7 +35,7 @@ namespace li {
 			fill_none(node_list->entries, alloc_length / sizeof(any));
 
 			if (old_entries) {
-				for (size_t i = 0; i != (old_count + overflow_factor); i++) {
+				for (msize_t i = 0; i != (old_count + overflow_factor); i++) {
 					if (old_entries[i].key != none) {
 						set(L, old_entries[i].key, old_entries[i].value);
 					}
@@ -69,7 +69,7 @@ namespace li {
 	void table::set(vm* L, any key, any value) {
 		size_t hash = key.hash();
 		if (!set_if(this, key, value, hash)) {
-			uint32_t next_count = active_count + 1;
+			msize_t next_count = active_count + 1;
 			while (true) {
 				for (auto& entry : find(hash)) {
 					if (entry.key == none) {

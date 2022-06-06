@@ -1,6 +1,7 @@
 #pragma once
-#include <stdint.h>
+#include <cstdint>
 #include <cstring>
+#include <cstddef>
 #include <type_traits>
 #include <ranges>
 
@@ -116,6 +117,10 @@
 namespace li {
 	namespace range = std::ranges;
 	namespace view  = std::views;
+
+	// Small size type.
+	//
+	using msize_t = uint32_t;
 
 	// Missing bit operations.
 	//

@@ -53,7 +53,7 @@ namespace li::ir {
 
 		// Unique identifier, note that this may change on sort.
 		//
-		uint32_t uid = 0;
+		msize_t uid = 0;
 
 		// Details of the basic block itself.
 		//
@@ -254,8 +254,8 @@ namespace li::ir {
 		// Procedure state.
 		//
 		container basic_blocks;        // List of basic blocks, first is entry point.
-		uint32_t  next_reg_name  = 0;  // Next register name.
-		uint32_t  next_block_uid = 0;  // Next block uid.
+		msize_t   next_reg_name  = 0;  // Next register name.
+		msize_t   next_block_uid = 0;  // Next block uid.
 
 		// Analysis data.
 		//
@@ -404,7 +404,7 @@ namespace li::ir {
 		void topological_sort() {
 			if (is_topologically_sorted)
 				return;
-			uint32_t tmp = (uint32_t) basic_blocks.size();
+			msize_t tmp = (msize_t) basic_blocks.size();
 			dfs([&](basic_block* b) {
 				b->uid = --tmp;
 				return false;

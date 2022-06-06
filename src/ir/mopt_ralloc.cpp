@@ -24,7 +24,7 @@ namespace li::ir::opt {
 	// Returns a view that can be enumerated as a series of mregs for a given bitset.
 	//
 	static auto regs_in(const util::bitset& bs) {
-		return view::iota(0ull, bs.size()) | view::filter([&](size_t n) { return bs[n]; }) | view::transform([&](size_t n) { return mreg::from_uid(uint32_t(n)); });
+		return view::iota(0ull, bs.size()) | view::filter([&](size_t n) { return bs[n]; }) | view::transform([&](size_t n) { return mreg::from_uid(msize_t(n)); });
 	}
 
 	// Returns true if the register does not require allocation.
@@ -53,14 +53,14 @@ namespace li::ir::opt {
 	static void print_graph(std::span<graph_node> gr) {
 		printf("graph {\n node [colorscheme=set312 penwidth=5]\n");
 
-		for (uint32_t i = 0; i != gr.size(); i++) {
+		for (msize_t i = 0; i != gr.size(); i++) {
 			auto v = mreg::from_uid(i);
 			if (gr[i].vtx.popcount() > 1)
 				printf("r%u [color=%u label=\"%s\"];\n", v.uid(), gr[i].color, v.to_string().c_str());
 		}
 
-		for (uint32_t i = 0; i != gr.size(); i++) {
-			for (uint32_t j = 0; j != gr.size(); j++) {
+		for (msize_t i = 0; i != gr.size(); i++) {
+			for (msize_t j = 0; j != gr.size(); j++) {
 				if (i < j && gr[i].vtx.get(j)) {
 					printf("r%u -- r%u;\n", i, j);
 				}
@@ -151,7 +151,7 @@ namespace li::ir::opt {
 			//
 			it = overlimit_it;
 			// print_graph(gr);
-			//printf("Spilling register: %s\n", mreg::from_uid(uint32_t(it - gr.data())).to_string().c_str());
+			//printf("Spilling register: %s\n", mreg::from_uid(msize_t(it - gr.data())).to_string().c_str());
 			LI_ASSERT(it->priority != std::numeric_limits<float>::infinity());
 		}
 
@@ -265,7 +265,7 @@ namespace li::ir::opt {
 		// Get maximum register id and calculate use counts.
 		//
 		std::vector<float> reg_prios  = {};
-		uint32_t           max_reg_id = 0;
+		msize_t            max_reg_id = 0;
 		for (auto& bb : proc->basic_blocks) {
 			for (auto& i : bb.instructions) {
 				i.for_each_reg_w_implicit([&](mreg r, bool is_read) {
@@ -349,7 +349,7 @@ namespace li::ir::opt {
 			interference_graph.clear();
 		}
 		interference_graph.resize(max_reg_id);
-		for (uint32_t i = 0; i != max_reg_id; i++) {
+		for (msize_t i = 0; i != max_reg_id; i++) {
 			auto& node = interference_graph[i];
 			auto  mr   = mreg::from_uid(i);
 			node.vtx.resize(max_reg_id);
@@ -373,7 +373,7 @@ namespace li::ir::opt {
 			return prev;
 		};
 		auto add_set = [&](const util::bitset& b, mreg def) {
-			for (uint32_t i = 0; i != max_reg_id; i++) {
+			for (msize_t i = 0; i != max_reg_id; i++) {
 				if (b[i]) {
 					add_vertex(def, mreg::from_uid(i));
 				}

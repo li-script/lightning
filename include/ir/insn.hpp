@@ -89,7 +89,7 @@ namespace li::ir {
 
 		// Numbered name of the instruction value.
 		//
-		uint32_t name = 0;
+		msize_t name = 0;
 
 		// Opcode.
 		//
@@ -97,7 +97,7 @@ namespace li::ir {
 
 		// Source/Line information.
 		//
-		uint32_t source_bc   = UINT32_MAX;
+		msize_t source_bc = UINT32_MAX;
 
 		// Traits.
 		//

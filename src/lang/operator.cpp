@@ -26,9 +26,9 @@ namespace li {
 			trait_pointer tp = {};                                                       \
 			any           self;                                                          \
 			if (a.is_traitful() && ((traitful_node<>*) a.as_gc())->has_trait<t>())       \
-				tp = ((traitful_node<>*) a.as_gc())->traits->list[uint32_t(t)], self = a; \
+				tp = ((traitful_node<>*) a.as_gc())->traits->list[msize_t(t)], self = a;  \
 			else if (b.is_traitful() && ((traitful_node<>*) b.as_gc())->has_trait<t>())  \
-				tp = ((traitful_node<>*) b.as_gc())->traits->list[uint32_t(t)], self = b; \
+				tp = ((traitful_node<>*) b.as_gc())->traits->list[msize_t(t)], self = b;  \
 			if (tp.pointer) {                                                            \
 				L->push_stack(b);                                                         \
 				L->push_stack(a);                                                         \

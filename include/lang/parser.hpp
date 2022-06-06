@@ -96,7 +96,7 @@ namespace li {
 
 		// Helper for fixing jump targets.
 		//
-		void jump_here(bc::pos br) { fn.pc[br].a = uint32_t(fn.pc.size()) - (br + 1); }
+		void jump_here(bc::pos br) { fn.pc[br].a = msize_t(fn.pc.size()) - (br + 1); }
 
 		// Gets the lexer.
 		//
@@ -146,13 +146,13 @@ namespace li {
 
 		// Allocates/frees registers.
 		//
-		bc::reg alloc_reg(uint32_t n = 1) {
+		bc::reg alloc_reg(msize_t n = 1) {
 			bc::reg r = reg_next;
 			reg_next += n;
 			fn.max_reg_id = std::max(fn.max_reg_id, bc::reg(r + n - 1));
 			return r;
 		}
-		void free_reg(bc::reg r, uint32_t n = 1) {
+		void free_reg(bc::reg r, msize_t n = 1) {
 			LI_ASSERT((r + n) == reg_next);
 			reg_next -= n;
 		}

@@ -18,8 +18,8 @@ namespace li {
 
 		// String data.
 		//
-		uint32_t hash;
-		uint32_t length;
+		msize_t  hash;
+		msize_t  length;
 		char     data[];  // Null terminated, immutable after construction.
 
 		const char*      c_str() const { return data; }

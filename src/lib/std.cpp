@@ -270,9 +270,9 @@ namespace li::lib {
 			puts(
 				 "Dumping bytecode of the function:\n"
 				 "-----------------------------------------------------");
-			uint32_t last_line = 0;
-			for (uint32_t i = 0; i != f->length; i++) {
-				if (uint32_t l = f->lookup_line(i); l != last_line) {
+			msize_t last_line = 0;
+			for (msize_t i = 0; i != f->length; i++) {
+				if (msize_t l = f->lookup_line(i); l != last_line) {
 					last_line = l;
 					printf("ln%-50u", l);
 					printf("|\n");
@@ -280,7 +280,7 @@ namespace li::lib {
 				f->opcode_array[i].print(i);
 			}
 			puts("-----------------------------------------------------");
-			for (uint32_t i = 0; i != f->num_uval; i++) {
+			for (msize_t i = 0; i != f->num_uval; i++) {
 				printf(LI_CYN "u%u:   " LI_DEF, i);
 				f->uvals()[i].print();
 				printf("\n");
@@ -342,7 +342,7 @@ namespace li::lib {
 			} else {
 				call_frame frame  = L->last_vm_caller;
 				const char* fn    = "C";
-				uint32_t    line   = 0;
+				msize_t     line   = 0;
 				if (frame.stack_pos >= FRAME_SIZE) {
 					auto&    target = L->stack[frame.stack_pos + FRAME_TARGET];
 					if (target.is_vfn()) {

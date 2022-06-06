@@ -33,8 +33,8 @@ namespace li {
 
 		// Stack-based callback.
 		//
-		nfunc_t  callback      = nullptr;
-		uint32_t num_arguments = 0;
+		nfunc_t callback      = nullptr;
+		msize_t num_arguments = 0;
 
 		// TODO: Fast function alternative with types for JIT.
 		//
@@ -45,28 +45,28 @@ namespace li {
 
 		// Replication of vm::call.
 		//
-		bool call(vm* L, slot_t n_args, slot_t caller_frame, uint32_t caller_pc);
+		bool call(vm* L, slot_t n_args, slot_t caller_frame, msize_t caller_pc);
 	};
 
 	// VM function.
 	//
 	struct line_info {
-		uint32_t ip : 18         = 0;
-		uint32_t line_delta : 14 = 0;
+		msize_t ip : 18         = 0;
+		msize_t line_delta : 14 = 0;
 	};
 	struct function : gc::node<function, type_function> {
-		static function* create(vm* L, std::span<const bc::insn> opcodes, std::span<const any> kval, size_t uval, std::span<const line_info> lines);
+		static function* create(vm* L, std::span<const bc::insn> opcodes, std::span<const any> kval, msize_t uval, std::span<const line_info> lines);
 
 		// Function details.
 		//
-		uint32_t num_arguments : 6 = 0;        // Number of fixed arguments.
-		uint32_t num_locals : 26   = 0;        // Number of local variables we need to reserve on stack.
-		uint32_t num_uval          = 0;        // Number of upvalues.
-		uint32_t num_kval          = 0;        // Number of constants.
-		uint32_t length            = 0;        // Bytecode length.
-		uint32_t src_line          = 0;        // Line of definition.
+		msize_t  num_arguments : 6 = 0;        // Number of fixed arguments.
+		msize_t  num_locals : 26   = 0;        // Number of local variables we need to reserve on stack.
+		msize_t  num_uval          = 0;        // Number of upvalues.
+		msize_t  num_kval          = 0;        // Number of constants.
+		msize_t  length            = 0;        // Bytecode length.
+		msize_t  src_line          = 0;        // Line of definition.
 		string*  src_chunk         = nullptr;  // Source of definition (chunk:function_name or chunk).
-		uint32_t num_lines         = 0;
+		msize_t  num_lines         = 0;
 		table*   environment       = nullptr;  // Table environment.
 
 		// Variable length part.
@@ -90,8 +90,8 @@ namespace li {
 
 		// Converts BC -> Line.
 		//
-		uint32_t lookup_line(bc::pos pos) {
-			uint32_t n = src_line;
+		msize_t lookup_line(bc::pos pos) {
+			msize_t n = src_line;
 			for (auto [ip, delta] : lines()) {
 				if (ip >= pos)
 					break;

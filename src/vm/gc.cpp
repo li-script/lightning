@@ -5,7 +5,7 @@
 #include <span>
 
 namespace li::gc {
-	void header::gc_init(page* p, vm* L, uint32_t clen, value_type t) {
+	void header::gc_init(page* p, vm* L, msize_t clen, value_type t) {
 		gc_type        = t;
 		num_chunks     = clen;
 		indep_or_free  = false;
@@ -39,7 +39,7 @@ namespace li::gc {
 		return true;
 	}
 
-	std::pair<page*, header*> state::allocate_uninit(vm* L, uint32_t clen) {
+	std::pair<page*, header*> state::allocate_uninit(vm* L, msize_t clen) {
 		LI_ASSERT(clen != 0);
 
 		// Try allocating from a free list.
@@ -66,7 +66,7 @@ namespace li::gc {
 
 					// If we didn't allocate all of the space, re-insert into the free-list.
 					//
-					if (uint32_t leftover = it->num_chunks - clen) {
+					if (msize_t leftover = it->num_chunks - clen) {
 						it->num_chunks   = clen;
 						auto& free_list  = free_lists[size_class_of(leftover)];
 						auto* fh2        = it->next();
@@ -112,7 +112,7 @@ namespace li::gc {
 		debt += clen;
 		return {pg, pg->alloc_arena(clen)};
 	}
-	std::pair<page*, header*> state::allocate_uninit_ex(vm* L, uint32_t clen) {
+	std::pair<page*, header*> state::allocate_uninit_ex(vm* L, msize_t clen) {
 		LI_ASSERT(clen != 0);
 
 		// Try allocating from the free list.
@@ -138,7 +138,7 @@ namespace li::gc {
 
 				// If we didn't allocate all of the space, re-insert into the free-list.
 				//
-				if (uint32_t leftover = it->num_chunks - clen) {
+				if (msize_t leftover = it->num_chunks - clen) {
 					it->num_chunks     = clen;
 					auto& free_list    = ex_free_list;
 					auto* fh2          = it->next();
@@ -359,7 +359,7 @@ namespace li::gc {
 		h->acquire();
 	}
 	void* mem_alloc(vm* L, size_t n, bool independent) {
-		uint32_t length   = (uint32_t) (chunk_ceil(n + sizeof(header)) >> chunk_shift);
+		msize_t length    = (msize_t) (chunk_ceil(n + sizeof(header)) >> chunk_shift);
 		auto [page, base] = L->gc.allocate_uninit(L, length);
 		base->gc_init(page, L, length, type_gc_private);
 		if (independent) {

@@ -39,8 +39,8 @@ namespace li {
 	}
 #if !LI_DEBUG
 	#define REG(...)  locals_begin[(__VA_ARGS__)]
-	#define UVAL(...) uval_array[(__VA_ARGS__)]
-	#define KVAL(...) kval_array[(__VA_ARGS__)]
+	#define UVAL(...) f->upvalue_array[(__VA_ARGS__)]
+	#define KVAL(...) f->proto->kvals()[(__VA_ARGS__)]
 #endif
 
 	LI_NOINLINE static bool vm_loop(vm* __restrict L, call_frame frame, vm_state state) {
@@ -131,10 +131,6 @@ namespace li {
 			// Enter execution scope.
 			//
 			{
-				auto* __restrict uval_array         = &f->uvals()[0];
-				const auto* __restrict kval_array   = &f->proto->kvals()[0];
-				const auto* __restrict opcode_array = &f->proto->opcode_array[0];
-
 				// Define debug helpers.
 				//
 #if LI_DEBUG
@@ -148,13 +144,14 @@ namespace li {
 				};
 				auto UVAL = [&](bc::reg r) LI_INLINE -> any& {
 					LI_ASSERT(f->num_uval > (msize_t) r);
-					return uval_array[r];
+					return f->upvalue_array[r];
 				};
 				auto KVAL = [&](bc::reg r) LI_INLINE -> const any& {
 					LI_ASSERT(f->proto->num_kval > (msize_t) r);
-					return kval_array[r];
+					return f->proto->kvals()[r];
 				};
 #endif
+				const auto* __restrict opcode_array = &f->proto->opcode_array[0];
 				while (true) {
 					const auto& insn   = opcode_array[ip++];
 					auto [op, a, b, c] = insn;
@@ -308,7 +305,7 @@ namespace li {
 									err = true;
 									break;
 							}
-							if (err) {
+							if (err) [[unlikely]] {
 								VM_RET(string::format(L, "cannot iterate %s", type_names[(uint8_t) target.type()]), true);
 							}
 
@@ -388,7 +385,7 @@ namespace li {
 								if (!key.is_num() || key.as_num() < 0) [[unlikely]] {
 									VM_RET(string::create(L, "indexing array with non-integer or negative key"), true);
 								}
-								if (!tbl.as_arr()->set(L, msize_t(key.as_num()), val)) {
+								if (!tbl.as_arr()->set(L, msize_t(key.as_num()), val)) [[unlikely]] {
 									VM_RET(string::create(L, "out-of-boundaries array access"), true);
 								}
 							} else [[unlikely]] {
@@ -440,7 +437,7 @@ namespace li {
 								if (!key.is_num()) [[unlikely]] {
 									VM_RET(string::create(L, "indexing array with non-integer key"), true);
 								}
-								if (!tbl.as_arr()->set(L, msize_t(key.as_num()), val)) {
+								if (!tbl.as_arr()->set(L, msize_t(key.as_num()), val)) [[unlikely]] {
 									VM_RET(string::create(L, "out-of-boundaries array access"), true);
 								}
 								continue;
@@ -513,7 +510,7 @@ namespace li {
 								msize_t pos = d->size();
 								d->resize(L, pos + s->size());
 								memcpy(d->begin() + pos, s->begin(), s->size() * sizeof(any));
-							} else {
+							} else [[unlikely]] {
 								VM_RET(string::create(L, "join expected table or array"), true);
 							}
 							continue;
@@ -593,7 +590,7 @@ namespace li {
 							if (!holder.is_traitful()) [[unlikely]] {
 								if (holder == none) {
 									holder = table::create(L);
-								} else {
+								} else [[unlikely]] {
 									VM_RET(string::create(L, "can't set traits on non-traitful type"), true);
 								}
 							}

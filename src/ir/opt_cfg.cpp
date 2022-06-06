@@ -53,7 +53,6 @@ namespace li::ir::opt {
 					else if (term->operands[0]->is<constant>()) {
 						auto cc = term->operands[0]->as<constant>();
 						opt     = term->operands[cc->i1 ? 1 : 2];
-
 						auto& opt_out = term->operands[cc->i1 ? 2 : 1];
 						proc->del_jump(bb.get(), opt_out->as<constant>()->bb);
 					}

@@ -280,7 +280,7 @@ namespace li::ir {
 			LI_ASSERT(operands[0]->is<constant>());
 			auto* c = operands[0]->as<constant>();
 			LI_ASSERT(c->is(type::vmopr));
-			LI_ASSERT(operation::CEQ <= c->vmopr && c->vmopr <= operation::CGE);
+			LI_ASSERT(operation::CEQ <= c->vmopr && c->vmopr <= operation::CLE);
 		}
 	};
 	// i1   test_type(unk, const vmtype)

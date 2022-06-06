@@ -54,6 +54,22 @@ namespace li::ir::opt {
 					}
 					continue;
 				}
+
+				// Mod.
+				//
+#if !LI_FAST_MATH
+				if (it->is<binop>() && it->operands[0]->as<constant>()->vmopr == bc::AMOD) {
+					switch (it->vt) {
+						case type::f64:
+							it = replace_with_call(
+								 it, false, type::f64, +[](double x, double y) { return fmod(x, y); }, it->operands[1], it->operands[2]);
+							break;
+						default:
+							util::abort("unexpected AMOD with invalid or unknown type.");
+					}
+					continue;
+				}
+#endif
 				++it;
 			}
 		}	

@@ -269,9 +269,10 @@ static bool ir_test(vm* L, any* args, slot_t n) {
 	auto mp = lift_ir(proc.get());
 	mp->print();
 
-	opt::regalloc(mp.get());
+	opt::remove_redundant_setcc(mp.get());
+	opt::allocate_registers(mp.get());
 
-
+	assemble_ir(mp.get());
 	//
 	//
 	

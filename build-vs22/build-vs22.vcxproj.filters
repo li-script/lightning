@@ -71,10 +71,13 @@
     <ClCompile Include="..\src\ir\opt_type.cpp">
       <Filter>IR\Optimizations</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\ir\x64_ir2mir.cpp">
-      <Filter>IR\Machine</Filter>
+    <ClCompile Include="..\src\ir\x86-64.cpp">
+      <Filter>IR\Machine\x86-64</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\opt\mopt_ralloc.cpp">
+    <ClCompile Include="..\src\ir\mopt_ralloc.cpp">
+      <Filter>IR\Optimizations</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ir\mopt_jcc.cpp">
       <Filter>IR\Optimizations</Filter>
     </ClCompile>
   </ItemGroup>
@@ -108,6 +111,9 @@
     </Filter>
     <Filter Include="IR\Machine">
       <UniqueIdentifier>{d7aa7bec-1ea7-45df-a8ee-16bcd049e5c7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="IR\Machine\x86-64">
+      <UniqueIdentifier>{4319964b-5b17-4a95-94c2-0867b82638d1}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -201,14 +207,14 @@
     <ClInclude Include="..\include\ir\mir.hpp">
       <Filter>IR\Machine</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\ir\zydis.hpp">
-      <Filter>IR\Machine</Filter>
-    </ClInclude>
     <ClInclude Include="..\include\ir\ir2mir.hpp">
       <Filter>IR\Machine</Filter>
     </ClInclude>
     <ClInclude Include="..\include\util\bitset.hpp">
       <Filter>Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\ir\zydis.hpp">
+      <Filter>IR\Machine\x86-64</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

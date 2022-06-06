@@ -207,7 +207,6 @@ namespace li::ir {
 		setcc,     // reg = flag
 		call,      // mreg = call i64, ...
 		js,        // cnd true block, false block
-		jns,       // cnd true block, false block
 		jmp,       // block
 		ret,       // i1
 		unreachable
@@ -225,7 +224,6 @@ namespace li::ir {
 		 "setcc",
 		 "call",
 		 "js",
-		 "jns",
 		 "jmp",
 		 "ret",
 		 "unreachable",
@@ -243,6 +241,10 @@ namespace li::ir {
 		mop  arg[4] = {std::nullopt};
 		mreg out    = {};
 
+		// Architecture specific information.
+		//
+		void* archinfo = nullptr;
+
 		// Default construction and copy.
 		//
 		minsn()                        = default;
@@ -254,7 +256,7 @@ namespace li::ir {
 		template<typename... Tx>
 		minsn(vop v, mreg out, Tx... arg) : mnemonic(int32_t(v)), is_virtual(true), out(out), arg{arg...} {}
 		template<typename... Tx>
-		minsn(pop v, mreg out, Tx... arg) : mnemonic(int32_t(v)), is_virtual(false), out(out), arg{arg...} {}
+		minsn(pop v, void* archinfo, mreg out, Tx... arg) : mnemonic(int32_t(v)), is_virtual(false), out(out), arg{arg...}, archinfo(archinfo) {}
 
 		// Observers.
 		//

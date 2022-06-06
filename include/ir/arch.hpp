@@ -32,7 +32,7 @@ namespace li::ir::arch {
 #endif
 
 #if LI_ABI_MS64
-	static constexpr native_reg gp_nonvolatile[] = {zy::RBX, zy::RSI, zy::RDI, zy::R12, zy::R13, zy::R14, zy::R15};
+	static constexpr native_reg gp_nonvolatile[] = {zy::RBP, zy::RBX, zy::RSI, zy::RDI, zy::R12, zy::R13, zy::R14, zy::R15};
 	static constexpr native_reg gp_volatile[]    = {zy::RAX, zy::RCX, zy::RDX, zy::R8, zy::R9, zy::R10, zy::R11};
 	static constexpr native_reg gp_argument[]    = {zy::RCX, zy::RDX, zy::R8, zy::R9};
 	static constexpr native_reg gp_retval        = zy::RAX;
@@ -41,13 +41,12 @@ namespace li::ir::arch {
 	static constexpr native_reg fp_argument[]    = {zy::XMM0, zy::XMM1, zy::XMM2, zy::XMM3};
 	static constexpr native_reg fp_retval        = zy::XMM0;
 	static constexpr native_reg sp               = zy::RSP;
-	static constexpr native_reg bp               = zy::RBP;
 	static constexpr native_reg invalid          = zy::NO_REG;
 
 	static constexpr int32_t home_size            = 0x20;
 	static constexpr bool    combined_arg_counter = true;
 #elif LI_ABI_SYSV64
-	static constexpr native_reg gp_nonvolatile[] = {zy::RBX, zy::R12, zy::R13, zy::R14, zy::R15};
+	static constexpr native_reg gp_nonvolatile[] = {zy::RBP, zy::RBX, zy::R12, zy::R13, zy::R14, zy::R15};
 	static constexpr native_reg gp_volatile[]    = {zy::RAX, zy::RDI, zy::RSI, zy::RDX, zy::RCX, zy::R8, zy::R9, zy::R10, zy::R11};
 	static constexpr native_reg gp_argument[]    = {zy::RDI, zy::RSI, zy::RDX, zy::RCX, zy::R8, zy::R9};
 	static constexpr native_reg gp_retval        = zy::RAX;
@@ -56,7 +55,6 @@ namespace li::ir::arch {
 	static constexpr native_reg fp_argument[]    = {zy::XMM0, zy::XMM1, zy::XMM2, zy::XMM3, zy::XMM4, zy::XMM5, zy::XMM6, zy::XMM7};
 	static constexpr native_reg fp_retval        = zy::XMM0;
 	static constexpr native_reg sp               = zy::RSP;
-	static constexpr native_reg bp               = zy::RBP;
 	static constexpr native_reg invalid          = zy::NO_REG;
 
 	static constexpr int32_t home_size            = 0x20;
@@ -74,8 +72,6 @@ namespace li::ir::arch {
 	static constexpr auto       fp_argument    = empty_set_v<native_reg>;
 	static constexpr native_reg fp_retval      = 0;
 	static constexpr native_reg sp             = 0;
-	static constexpr native_reg bp             = 0;
-	static constexpr native_reg bp2            = 0;
 	static constexpr native_reg invalid        = 0;
 
 	static constexpr int32_t     home_size            = 0;
@@ -138,10 +134,10 @@ namespace li::ir::arch {
 	static constexpr native_reg map_argument_native(size_t gp_arg_index, size_t fp_arg_index, bool fp) {
 		if (!fp) {
 			size_t idx = combined_arg_counter ? (gp_arg_index + fp_arg_index) : gp_arg_index;
-			return std::size(gp_argument) < idx ? gp_argument[idx] : invalid;
+			return std::size(gp_argument) > idx ? gp_argument[idx] : invalid;
 		} else {
 			size_t idx = combined_arg_counter ? (gp_arg_index + fp_arg_index) : fp_arg_index;
-			return std::size(fp_argument) < idx ? fp_argument[idx] : invalid;
+			return std::size(fp_argument) > idx ? fp_argument[idx] : invalid;
 		}
 	}
 	static constexpr reg map_argument(size_t gp_arg_index, size_t fp_arg_index, bool fp) { return from_native(map_argument_native(gp_arg_index, fp_arg_index, fp)); };

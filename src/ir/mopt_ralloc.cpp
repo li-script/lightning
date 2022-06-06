@@ -118,7 +118,35 @@ namespace li::ir::opt {
 	
 	// Allocates registers for each virtual register and generates the spill instructions.
 	//
-	void regalloc(mprocedure* proc) {
+	void allocate_registers(mprocedure* proc) {
+		// Before anything else, spill all arguments into virtual registers.
+		//
+		mreg regs[3] = {};
+		for (auto& bb : proc->basic_blocks) {
+			for (auto& i : bb.instructions) {
+				i.for_each_reg([&](const mreg& r, bool is_read) {
+					mreg* replace_with = nullptr;
+					if (r == vreg_vm)
+						replace_with = &regs[0];
+					else if (r == vreg_args)
+						replace_with = &regs[1];
+					else if (r == vreg_nargs)
+						replace_with = &regs[2];
+					if (replace_with) {
+						if (replace_with->is_null()) {
+							*replace_with = proc->next_gp();
+						}
+						const_cast<mreg&>(r) = *replace_with;
+					}
+				});
+			}
+		}
+		for (size_t i = 0; i != std::size(regs); i++) {
+			if (regs[i]) {
+				proc->basic_blocks.front().instructions.insert(proc->basic_blocks.front().instructions.begin(), minsn{vop::movi, regs[i], mreg(arch::map_argument(i, 0, false))});
+			}
+		}
+
 		// Get maximum register id.
 		//
 		uint32_t max_reg_id = 0;
@@ -175,6 +203,30 @@ namespace li::ir::opt {
 			}
 		} while (changed);
 
+		//for (auto& b : proc->basic_blocks) {
+		//	printf("-- Block $%u", b.uid);
+		//	if (b.hot < 0)
+		//		printf(LI_CYN " [COLD %u]" LI_DEF, (uint32_t) -b.hot);
+		//	if (b.hot > 0)
+		//		printf(LI_RED " [HOT  %u]" LI_DEF, (uint32_t) b.hot);
+		//	putchar('\n');
+		//
+		//	printf("Live = ");
+		//	for (mreg r : regs_in(b.df_live))
+		//		printf(" %s", r.to_string().c_str());
+		//	printf("\n");
+		//	printf("Def = ");
+		//	for (mreg r : regs_in(b.df_def))
+		//		printf(" %s", r.to_string().c_str());
+		//	printf("\n");
+		//	printf("Ref = ");
+		//	for (mreg r : regs_in(b.df_ref))
+		//		printf(" %s", r.to_string().c_str());
+		//	printf("\n");
+		//
+		//	b.print();
+		//}
+
 		// Allocate the interference graph.
 		//
 		auto graph_alloc = std::make_unique<graph_node[]>(max_reg_id);
@@ -200,35 +252,45 @@ namespace li::ir::opt {
 				interference_graph[bu].vtx.set(au);
 				return prev;
 			};
-			auto initial_entry = [&](mblock& b, mreg def) {
+			auto add_set = [&](const util::bitset& b, mreg def) {
 				interference_graph[def.uid()].vtx.set(def.uid());
 				if (def.is_phys()) {
 					interference_graph[def.uid()].color = std::abs(def.phys());
+				} else if (def.is_virt() && def == vreg_vm) {
+					interference_graph[def.uid()].color = arch::map_argument(0, 0, false);
+				} else if (def.is_virt() && def == vreg_args) {
+					interference_graph[def.uid()].color = arch::map_argument(1, 0, false);
+				} else if (def.is_virt() && def == vreg_nargs) {
+					interference_graph[def.uid()].color = arch::map_argument(2, 0, false);
 				}
 				for (size_t i = 0; i != max_reg_id; i++) {
-					if (b.df_live[i]) {
+					if (b[i]) {
 						add_vertex(def, mreg::from_uid(i));
 					}
 				}
 			};
 
 			for (auto& b : proc->basic_blocks) {
-				for (auto& i : b.instructions) {
+				auto live = b.df_live;
+				for (auto& i : view::reverse(b.instructions)) {
+
+					if (i.out)
+						live.reset(i.out.uid());
 					i.for_each_reg([&](mreg r, bool is_read) {
-						initial_entry(b, r);
-						if (is_read && i.out) {
-							add_vertex(i.out, r);
+						if (is_read) {
+							live.set(r.uid());
+						}
+					});
+
+					i.for_each_reg([&](mreg r, bool is_read) {
+						if (is_read) {
+							add_set(live, r);
 						}
 					});
 				}
 			}
 
-
-			// Constraint the args access.
-			//
-			interference_graph[mreg(vreg_args).uid()].color = arch::map_argument(1, 0, false); 
-
-			// Try each K we get to  succeed.
+			// Try each K until we get to succeed.
 			//
 			size_t num_vol  = std::min(std::size(arch::gp_volatile), std::size(arch::fp_volatile));
 			size_t max_regs = std::min(arch::num_fp_reg, arch::num_gp_reg);
@@ -242,24 +304,24 @@ namespace li::ir::opt {
 
 			// Draw the graph.
 			//
-			printf("graph {\n node [colorscheme=set312 penwidth=5]\n");
-			for (size_t i = 0; i != max_reg_id; i++) {
-				for (size_t j = 0; j != max_reg_id; j++) {
-					if (interference_graph[i].vtx.reset(j)) {
-						interference_graph[j].vtx.reset(i);
-
-						if (i != j) {
-							auto v = mreg::from_uid(i);
-							auto k = mreg::from_uid(j);
-
-							printf("r%u [color=%u label=\"%s\"];\n", v.uid(), interference_graph[i].color, v.to_string().c_str());
-							printf("r%u [color=%u label=\"%s\"];\n", k.uid(), interference_graph[j].color, k.to_string().c_str());
-							printf("r%u -- r%u;\n", k.uid(), v.uid());
-						}
-					}
-				}
-			}
-			printf("}\n");
+			//printf("graph {\n node [colorscheme=set312 penwidth=5]\n");
+			//for (size_t i = 0; i != max_reg_id; i++) {
+			//	for (size_t j = 0; j != max_reg_id; j++) {
+			//		if (interference_graph[i].vtx.reset(j)) {
+			//			interference_graph[j].vtx.reset(i);
+			//
+			//			if (i != j) {
+			//				auto v = mreg::from_uid(i);
+			//				auto k = mreg::from_uid(j);
+			//
+			//				printf("r%u [color=%u label=\"%s\"];\n", v.uid(), interference_graph[i].color, v.to_string().c_str());
+			//				printf("r%u [color=%u label=\"%s\"];\n", k.uid(), interference_graph[j].color, k.to_string().c_str());
+			//				printf("r%u -- r%u;\n", k.uid(), v.uid());
+			//			}
+			//		}
+			//	}
+			//}
+			//printf("}\n");
 
 			// Swap the registers in the IR.
 			//
@@ -278,36 +340,18 @@ namespace li::ir::opt {
 					});
 				}
 			}
+
+			// Remove eliminated moves.
+			//
+			for (auto& bb : proc->basic_blocks) {
+				std::erase_if(bb.instructions, [](minsn& i) {
+					if (i.is(vop::movf) || i.is(vop::movi)) {
+						if (i.arg[0].is_reg())
+							return i.out == i.arg[0].reg;
+					}
+					return false;
+				});
+			}
 		}
-
-		// Print the IR again.
-		//
-		proc->print();
-
-
-
-		//for (auto& b : proc->basic_blocks) {
-		//	printf("-- Block $%u", b.uid);
-		//	if (b.hot < 0)
-		//		printf(LI_CYN " [COLD %u]" LI_DEF, (uint32_t) -b.hot);
-		//	if (b.hot > 0)
-		//		printf(LI_RED " [HOT  %u]" LI_DEF, (uint32_t) b.hot);
-		//	putchar('\n');
-		//
-		//	printf("Live = ");
-		//	for (mreg r : regs_in(b.df_live))
-		//		printf(" %s", r.to_string().c_str());
-		//	printf("\n");
-		//	printf("Def = ");
-		//	for (mreg r : regs_in(b.df_def))
-		//		printf(" %s", r.to_string().c_str());
-		//	printf("\n");
-		//	printf("Ref = ");
-		//	for (mreg r : regs_in(b.df_ref))
-		//		printf(" %s", r.to_string().c_str());
-		//	printf("\n");
-		//
-		//	b.print();
-		//}
 	}
 };

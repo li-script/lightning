@@ -31,7 +31,11 @@ namespace li::ir::opt {
 // -- Machine IR Optimizations --
 //
 namespace li::ir::opt {
+	// Attempts to optimize-out any SETCC's by moving them nearby to the JS.
+	//
+	void remove_redundant_setcc(mprocedure* proc);
+
 	// Allocates registers for each virtual register and generates the spill instructions.
 	//
-	void regalloc(mprocedure* proc);
+	void allocate_registers(mprocedure* proc);
 };

@@ -99,31 +99,31 @@ namespace li::ir {
 	#define INSN_W_R(name)                                                           \
 		static size_t name(mblock& blk, mreg a, mop b) {                              \
 			size_t n = blk.instructions.size();                                        \
-			blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), a, b}); \
+			blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), nullptr, a, b}); \
 			return n;                                                                  \
 		}
 	#define INSN_RW_R(name)																				 \
 	static size_t name(mblock& blk, mreg a, mop b) {											 \
 		size_t n = blk.instructions.size();															 \
-		blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), a, a, b});	 \
+		blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), nullptr, a, a, b});	 \
 		return n;																							 \
 	}
 	#define INSN_RW(name)                                                            \
 		static size_t name(mblock& blk, mreg a) {                                     \
 			size_t n = blk.instructions.size();                                        \
-			blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), a, a}); \
+			blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), nullptr, a, a}); \
 			return n;                                                                  \
 		}
 	#define INSN_W_R_R(name)                                                            \
 		static size_t name(mblock& blk, mreg a, mop b, mop c) {                          \
 			size_t n = blk.instructions.size();                                           \
-			blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), a, b, c}); \
+			blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), nullptr, a, b, c}); \
 			return n;                                                                     \
 		}
 	#define INSN_F_R_R(name)                                                                        \
 		static size_t name(mblock& blk, flag_id flag, mreg a, mop b) {                               \
 			size_t n = blk.instructions.size();                                                       \
-			blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), flag, a, b}); \
+			blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), nullptr, flag, a, b}); \
 			return n;                                                                                 \
 		}
 	INSN_RW(NEG);
@@ -167,10 +167,13 @@ namespace li::ir {
 	// Emits a type check of the temporary given into a flag and sets the condition flag on the temporary.
 	//
 	static mreg check_type_cc(mblock& b, flag_id f, value_type t, mreg tmp) {
+		uint64_t cmp;
 		if (f == FLAG_Z && t == type_number) {
 			f = FLAG_B;
+			cmp = (make_tag(uint8_t(t)) + 1) >> 47;
+		} else {
+			cmp = make_tag(uint8_t(t)) >> 47;
 		}
-		uint64_t cmp = (make_tag(uint8_t(t))+1) >> 47;
 		SHR(b, tmp, 47);
 		CMP(b, f, tmp, cmp);
 		b.append(vop::setcc, tmp, f);
@@ -655,7 +658,21 @@ namespace li::ir {
 
 	// Assembles the pseudo-target instructions in the IR.
 	//
-	void assemble_ir(mprocedure* proc);
+	void assemble_ir(mprocedure* proc) {
+		// Target doesn't support floating-point constants so let's start by removing them.
+		//
+		for (auto& bb : proc->basic_blocks) {
+			for (auto& i : bb.instructions) {
+				if (i.is(vop::movf) && i.arg[0].is_const()) {
+					i.arg[0] = proc->add_const(i.arg[0].i64);
+				}
+			}
+		}
+
+		// Print the IR again.
+		//
+		proc->print();
+	}
 };
 
 #endif

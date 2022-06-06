@@ -17,12 +17,14 @@ namespace li::ir {
 		arch::native_mnemonic jns;
 		arch::native_mnemonic sets;
 		arch::native_mnemonic setns;
+		arch::native_mnemonic cmovs;
+		arch::native_mnemonic cmovns;
 	};
-	#define ENUM_FLAGS(_) _(B,0) _(BE,2) _(L,4) _(LE,6) _(O,8) _(P,10) _(S,12) _(Z,14)
+	#define ENUM_FLAGS(_) _(Z, 0) _(S, 2) _(B, 4) _(BE, 6) _(L, 8) _(LE, 10) _(O, 12) _(P, 14)
 	static constexpr flag_info flags[] = {
 	#define ENUMERATOR(F, id) \
-	 flag_info{LI_STRCAT(ZYDIS_MNEMONIC_J, F), LI_STRCAT(ZYDIS_MNEMONIC_JN, F), LI_STRCAT(ZYDIS_MNEMONIC_SET, F), LI_STRCAT(ZYDIS_MNEMONIC_SETN, F)}, \
-	 flag_info{LI_STRCAT(ZYDIS_MNEMONIC_JN, F), LI_STRCAT(ZYDIS_MNEMONIC_J, F), LI_STRCAT(ZYDIS_MNEMONIC_SETN, F), LI_STRCAT(ZYDIS_MNEMONIC_SET, F)},
+	 flag_info{LI_STRCAT(ZYDIS_MNEMONIC_J, F), LI_STRCAT(ZYDIS_MNEMONIC_JN, F), LI_STRCAT(ZYDIS_MNEMONIC_SET, F), LI_STRCAT(ZYDIS_MNEMONIC_SETN, F), LI_STRCAT(ZYDIS_MNEMONIC_CMOV, F), LI_STRCAT(ZYDIS_MNEMONIC_CMOVN, F)}, \
+	 flag_info{LI_STRCAT(ZYDIS_MNEMONIC_JN, F), LI_STRCAT(ZYDIS_MNEMONIC_J, F), LI_STRCAT(ZYDIS_MNEMONIC_SETN, F), LI_STRCAT(ZYDIS_MNEMONIC_SET, F), LI_STRCAT(ZYDIS_MNEMONIC_CMOVN, F), LI_STRCAT(ZYDIS_MNEMONIC_CMOV, F)},
 		 ENUM_FLAGS(ENUMERATOR)
 	#undef ENUMERATOR
 	};
@@ -596,6 +598,13 @@ namespace li::ir {
 				b.append(vop::setcc, REG(i), flag);
 				return;
 			}
+			case opcode::select: {
+				auto cc  = REG(i->operands[0]);
+				auto lhs = REG(i->operands[1]);
+				auto rhs = REG(i->operands[2]);
+				b.append(vop::select, REG(i), cc, lhs, rhs);
+				return;
+			}
 			case opcode::phi: {
 				auto r = get_existing_reg(i->operands[0]->as<insn>());
 				for (auto& op : i->operands) {
@@ -940,6 +949,40 @@ namespace li::ir {
 				auto dstb  = zy::resize_reg(dst, 1);
 				auto setcc = flags[(uint32_t) i.arg[0].reg.flag()].sets;
 				LI_ASSERT(zy::encode(b->assembly, setcc, dstb));
+				break;
+			}
+			case vop::select: {
+				// Get the flag ID.
+				//
+				uint32_t flag;
+				if (i.arg[0].reg.is_flag()) {
+					flag = (uint32_t) i.arg[0].reg.flag();
+				} else {
+					auto r  = to_reg(b, i.arg[0].reg);
+					auto rb = zy::resize_reg(r, 1);
+					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_TEST, rb, rb));
+					flag = (uint32_t) FLAG_NZ;
+				}
+
+				// Swap conditions if output is aliasing true.
+				//
+				auto o = to_reg(b, i.out);
+				auto t = to_reg(b, i.arg[1].reg);
+				auto f = to_reg(b, i.arg[2].reg);
+				if (o == t) {
+					flag ^= 1;
+					std::swap(t, f);
+				}
+
+				if (i.out.is_gp()) {
+					// ? mov  o, f
+					//   cmov o, t
+					if (o != f)
+						LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, o, f));
+					LI_ASSERT(zy::encode(b->assembly, flags[flag].cmovs, o, t));
+				} else {
+					util::abort("FP select NYI.");
+				}
 				break;
 			}
 			case vop::fsx32: {

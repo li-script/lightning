@@ -72,18 +72,21 @@ static bool ir_test(vm* L, any* args, slot_t n) {
 	auto proc = lift_bc(L, args->as_vfn());
 	opt::lift_phi(proc.get());
 
+	opt::fold_constant(proc.get());
 	opt::fold_identical(proc.get());
 	opt::dce(proc.get());
 	opt::cfg(proc.get());
 
 	opt::type_split_cfg(proc.get());
 	opt::type_inference(proc.get());
+	opt::fold_constant(proc.get());
 	opt::fold_identical(proc.get());
 	opt::dce(proc.get());
 	opt::cfg(proc.get());
 
 	opt::prepare_for_mir(proc.get());
 	opt::type_inference(proc.get());
+	opt::fold_constant(proc.get());
 	opt::fold_identical(proc.get());
 	opt::dce(proc.get());
 	opt::cfg(proc.get());

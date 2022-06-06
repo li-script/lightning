@@ -222,6 +222,7 @@ namespace li::ir {
 		loadi64,   // gpreg = i64[mem]
 		storei64,  // i64[mem] = gpreg // TODO: Maybe add constant?
 		setcc,     // reg = flag
+		select,    // reg = flag ? reg1 : reg2
 		// side-effect group.
 		call,      // call i64, [implicit args & nonvol clobber]
 		js,        // cnd true block, false block
@@ -248,6 +249,7 @@ namespace li::ir {
 		 "loadi64",
 		 "storei64",
 		 "setcc",
+		 "select",
 		 "call",
 		 "js",
 		 "jmp",

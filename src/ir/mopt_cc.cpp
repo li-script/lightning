@@ -4,6 +4,8 @@ namespace li::ir::opt {
 	// Attempts to optimize-out any SETCC's by moving them nearby to the JS.
 	//
 	void remove_redundant_setcc(mprocedure* proc) {
+		// TODO: Also for vop::select.
+
 		// Try to move any compares closer to JS to avoid register allocation.
 		//
 		for (auto& bb : proc->basic_blocks) {

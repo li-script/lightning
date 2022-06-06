@@ -33,7 +33,6 @@ namespace li::ir::opt {
 				auto term = bb->back();
 				if (term->is<jcc>()) {
 					ref<> opt = nullptr;
-
 					// Swap destination if chained to LNOT.
 					//
 					if (term->operands[0]->is<unop>()) {
@@ -123,8 +122,9 @@ namespace li::ir::opt {
 
 					target->predecessors.clear();
 					target->successors.clear();
-					proc->del_block(target);
+					it = proc->del_block(target);
 					changed = true;
+					continue;
 				}
 
 				/*

@@ -10,6 +10,10 @@ namespace li::ir::opt {
 	//
 	void lift_phi(procedure* proc);
 
+	// Applies constant folding.
+	//
+	void fold_constant(procedure* proc);
+
 	// Applies identical value folding.
 	//
 	void fold_identical(procedure* proc, bool local = false);

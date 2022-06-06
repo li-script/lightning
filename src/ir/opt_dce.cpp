@@ -10,7 +10,6 @@ namespace li::ir::opt {
 	// Applies dead code elimination.
 	//
 	void dce(procedure* proc, bool local) {
-		proc->topological_sort();
 		for (auto& bb : proc->basic_blocks) {
 			bb->erase_if([&](insn* ins) { return !ins->use_count() && !ins->is_volatile && !ins->sideffect && !ins->is_terminator(); });
 		}

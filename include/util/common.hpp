@@ -115,8 +115,34 @@
 #endif
 
 namespace li {
-	namespace range = std::ranges;
 	namespace view  = std::views;
+
+	// Fix emscripten's non-cpp20 compliant STL.
+	//
+	#if defined(__EMSCRIPTEN__)
+	namespace range {
+		using namespace std::ranges;
+
+		template<typename R, typename V>
+		inline static constexpr auto copy(R&& r, V&& val) {
+			return std::copy(r.begin(), r.end(), std::forward<V>(val));
+		}
+		template<typename R, typename V>
+		inline static constexpr void fill(R&& r, V&& val) {
+			std::fill(r.begin(), r.end(), std::forward<V>(val));
+		}
+		template<typename R, typename V>
+		inline static constexpr auto find(R&& r, V&& val) {
+			return std::find(r.begin(), r.end(), std::forward<V>(val));
+		}
+		template<typename R, typename F>
+		inline static constexpr auto find_if(R&& r, F&& fn) {
+			return std::find_if(r.begin(), r.end(), std::forward<F>(fn));
+		}
+	};
+	#else
+	namespace range = std::ranges;
+	#endif
 
 	// Small size type.
 	//

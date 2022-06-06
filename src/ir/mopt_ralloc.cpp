@@ -30,14 +30,16 @@ namespace li::ir::opt {
 		return view::iota(0ull, bs.size()) | view::filter([&](size_t n) { return bs[n]; }) | view::transform([&](size_t n) { return mreg::from_uid(uint32_t(n)); });
 	}
 
+	// Returns true if the register does not require allocation.
+	//
+	static bool is_pseudo(mreg r) { return r.is_flag() || (r.is_virt() && r.virt() > 0 && r.virt() < vreg_first); }
+
 	// Returns true if register should be included in the interference graph.
 	//
 	static bool interferes_with(mreg a, mreg b) {
-		// Ignore certain registers.
+		// Ignore pseudo registers.
 		//
-		if (a.is_flag() || b.is_flag())
-			return false;
-		if ((a.is_virt() && a.virt() == vreg_cpool) || (b.is_virt() && b.virt() == vreg_cpool))
+		if (is_pseudo(a) || is_pseudo(b))
 			return false;
 
 		// Match target class.
@@ -181,6 +183,9 @@ namespace li::ir::opt {
 
 			for (auto& i : bb.instructions) {
 				i.for_each_reg([&](mreg r, bool is_read) {
+					if (is_pseudo(r))
+						return;
+
 					if (is_read) {
 						if (!bb.df_def[r.uid()]) {
 							bb.df_ref.set(r.uid());
@@ -276,12 +281,6 @@ namespace li::ir::opt {
 				interference_graph[def.uid()].vtx.set(def.uid());
 				if (def.is_phys()) {
 					interference_graph[def.uid()].color = std::abs(def.phys());
-				} else if (def.is_virt() && def == vreg_vm) {
-					interference_graph[def.uid()].color = arch::map_argument(0, 0, false);
-				} else if (def.is_virt() && def == vreg_args) {
-					interference_graph[def.uid()].color = arch::map_argument(1, 0, false);
-				} else if (def.is_virt() && def == vreg_nargs) {
-					interference_graph[def.uid()].color = arch::map_argument(2, 0, false);
 				}
 				for (size_t i = 0; i != max_reg_id; i++) {
 					if (b[i]) {

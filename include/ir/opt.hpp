@@ -22,9 +22,18 @@ namespace li::ir::opt {
 	//
 	void cfg(procedure* proc);
 
+	// Adds the branches for required type checks.
+	//
+	void type_split_cfg(procedure* proc);
+
 	// Infers constant type information and optimizes the control flow.
 	//
 	void type_inference(procedure* proc);
+
+	// Prepares the IR to be lifted to MIR.
+	//
+	void prepare_for_mir(procedure* proc);
+	void finalize_for_mir(procedure* proc);
 };
 
 //

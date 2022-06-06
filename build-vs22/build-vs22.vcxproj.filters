@@ -83,6 +83,9 @@
     <ClCompile Include="..\src\vm\runtime.cpp">
       <Filter>VM</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\ir\opt_pre.cpp">
+      <Filter>IR\Optimizations</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Language">

@@ -47,6 +47,7 @@
     <ClCompile Include="..\src\lib\std.cpp" />
     <ClCompile Include="..\src\util\platform.cpp" />
     <ClCompile Include="..\src\vm\array.cpp" />
+    <ClCompile Include="..\src\vm\runtime.cpp" />
     <ClCompile Include="..\src\vm\function.cpp" />
     <ClCompile Include="..\src\vm\gc.cpp" />
     <ClCompile Include="..\src\vm\interp.cpp" />
@@ -82,6 +83,7 @@
     <ClInclude Include="..\include\util\utf.hpp" />
     <ClInclude Include="..\include\vm\array.hpp" />
     <ClInclude Include="..\include\vm\bc.hpp" />
+    <ClInclude Include="..\include\vm\runtime.hpp" />
     <ClInclude Include="..\include\vm\function.hpp" />
     <ClInclude Include="..\include\vm\gc.hpp" />
     <ClInclude Include="..\include\vm\state.hpp" />

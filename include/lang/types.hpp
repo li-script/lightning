@@ -94,12 +94,18 @@ namespace li {
 	//
 	static constexpr uint64_t           kvalue_nan = 0xfff8000000000000;
 	LI_INLINE static constexpr uint64_t mask_value(uint64_t value) { return value & util::fill_bits(47); }
-	LI_INLINE static constexpr uint64_t mix_value(uint8_t type, uint64_t value) { return ((~uint64_t(type)) << 47) | mask_value(value); }
+	LI_INLINE static constexpr uint64_t mix_value(uint8_t type, uint64_t value)
+	{
+#if LI_KERNEL_MODE
+		value = mask_value(value);
+#endif
+		return ((~uint64_t(type)) << 47) | value;
+	}
 	LI_INLINE static constexpr uint64_t make_tag(uint8_t type) { return ((~uint64_t(type)) << 47) | mask_value(~0ull); }
 	LI_INLINE static constexpr uint64_t get_type(uint64_t value) { return ((~value) >> 47); }
 	LI_INLINE static gc::header*        get_gc_value(uint64_t value) {
 		value = mask_value(value);
-#if _KERNEL_MODE
+#if LI_KERNEL_MODE
 		value |= ~0ull << 47;
 #endif
 		return (gc::header*) value;

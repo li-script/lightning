@@ -58,7 +58,7 @@
 	#endif
 #endif
 
-// Add intrinsics
+// Add intrinsics.
 //
 #if LI_ARCH_X86
 	#if defined(__SSE4_2__) && LI_GNU
@@ -80,6 +80,11 @@
 		#define LI_ABI_MS64 1
 	#else
 		#define LI_ABI_SYSV64 1
+	#endif
+#endif
+#ifndef LI_KERNEL_MODE
+	#ifdef _KERNEL_MODE
+		#define LI_KERNEL_MODE 1
 	#endif
 #endif
 

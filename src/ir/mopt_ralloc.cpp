@@ -53,14 +53,14 @@ namespace li::ir::opt {
 	static void print_graph(std::span<graph_node> gr) {
 		printf("graph {\n node [colorscheme=set312 penwidth=5]\n");
 
-		for (size_t i = 0; i != gr.size(); i++) {
+		for (uint32_t i = 0; i != gr.size(); i++) {
 			auto v = mreg::from_uid(i);
 			if (gr[i].vtx.popcount() > 1)
 				printf("r%u [color=%u label=\"%s\"];\n", v.uid(), gr[i].color, v.to_string().c_str());
 		}
 
-		for (size_t i = 0; i != gr.size(); i++) {
-			for (size_t j = 0; j != gr.size(); j++) {
+		for (uint32_t i = 0; i != gr.size(); i++) {
+			for (uint32_t j = 0; j != gr.size(); j++) {
 				if (i < j && gr[i].vtx.get(j)) {
 					printf("r%u -- r%u;\n", i, j);
 				}
@@ -150,8 +150,8 @@ namespace li::ir::opt {
 			// Otherwise continue as spilled.
 			//
 			it = overlimit_it;
-			print_graph(gr);
-			printf("Spilling register: %s\n", mreg::from_uid(it - gr.data()).to_string().c_str());
+			// print_graph(gr);
+			//printf("Spilling register: %s\n", mreg::from_uid(uint32_t(it - gr.data())).to_string().c_str());
 			LI_ASSERT(it->priority != std::numeric_limits<float>::infinity());
 		}
 
@@ -222,7 +222,7 @@ namespace li::ir::opt {
 				}
 			} while (changed);
 		} else {
-			it->color = n + 1;
+			it->color = uint8_t(n + 1);
 		}
 		return {rec_spill_gp, rec_spill_fp};
 	}
@@ -254,7 +254,7 @@ namespace li::ir::opt {
 		}
 		for (size_t i = 0; i != std::size(regs); i++) {
 			if (regs[i]) {
-				proc->basic_blocks.front().instructions.insert(proc->basic_blocks.front().instructions.begin(), minsn{vop::movi, regs[i], mreg(arch::map_argument(i, 0, false))});
+				proc->basic_blocks.front().instructions.insert(proc->basic_blocks.front().instructions.begin(), minsn{vop::movi, regs[i], mreg(arch::map_gp_arg(i, 0))});
 			}
 		}
 	}
@@ -268,7 +268,7 @@ namespace li::ir::opt {
 		uint32_t           max_reg_id = 0;
 		for (auto& bb : proc->basic_blocks) {
 			for (auto& i : bb.instructions) {
-				i.for_each_reg([&](mreg r, bool is_read) {
+				i.for_each_reg_w_implicit([&](mreg r, bool is_read) {
 					if (max_reg_id < r.uid()) {
 						max_reg_id = r.uid();
 						reg_prios.resize(max_reg_id + 1);
@@ -295,7 +295,7 @@ namespace li::ir::opt {
 			bb.df_out_live.resize(max_reg_id);
 
 			for (auto& i : bb.instructions) {
-				i.for_each_reg([&](mreg r, bool is_read) {
+				i.for_each_reg_w_implicit([&](mreg r, bool is_read) {
 					if (is_pseudo(r))
 						return;
 
@@ -349,7 +349,7 @@ namespace li::ir::opt {
 			interference_graph.clear();
 		}
 		interference_graph.resize(max_reg_id);
-		for (size_t i = 0; i != max_reg_id; i++) {
+		for (uint32_t i = 0; i != max_reg_id; i++) {
 			auto& node = interference_graph[i];
 			auto  mr   = mreg::from_uid(i);
 			node.vtx.resize(max_reg_id);
@@ -373,7 +373,7 @@ namespace li::ir::opt {
 			return prev;
 		};
 		auto add_set = [&](const util::bitset& b, mreg def) {
-			for (size_t i = 0; i != max_reg_id; i++) {
+			for (uint32_t i = 0; i != max_reg_id; i++) {
 				if (b[i]) {
 					add_vertex(def, mreg::from_uid(i));
 				}
@@ -391,17 +391,18 @@ namespace li::ir::opt {
 					}
 				}
 
-				if (i.out) {
-					live.reset(i.out.uid());
-					add_set(live, i.out);
-				}
-
-				i.for_each_reg([&](mreg r, bool is_read) {
+				i.for_each_reg_w_implicit([&](mreg r, bool is_read) {
+					if (!is_read) {
+						live.reset(r.uid());
+						add_set(live, r);
+					}
+				});
+				i.for_each_reg_w_implicit([&](mreg r, bool is_read) {
 					if (is_read) {
 						live.set(r.uid());
 					}
 				});
-				i.for_each_reg([&](mreg r, bool is_read) {
+				i.for_each_reg_w_implicit([&](mreg r, bool is_read) {
 					if (is_read) {
 						add_set(live, r);
 					}
@@ -413,8 +414,7 @@ namespace li::ir::opt {
 
 	// Allocates registers for each virtual register and generates the spill instructions.
 	//
-	void allocate_registers(mprocedure* proc)
-	{
+	void allocate_registers(mprocedure* proc) {
 		// Spill arguments.
 		//
 		spill_args(proc);
@@ -478,7 +478,7 @@ namespace li::ir::opt {
 					spill_entry spill_list[1]  = {};
 					bool        need_cg        = false;
 
-					auto spill_and_swap = [&](mreg& m, std::span<spill_entry> list, size_t slot) {
+					auto spill_and_swap = [&](mreg& m, std::span<spill_entry> list, int32_t slot) {
 						need_cg = true;
 						for (auto& entry : list) {
 							if (entry.src.is_null()) {
@@ -528,7 +528,7 @@ namespace li::ir::opt {
 						if (entry.src.is_null())
 							break;
 						auto op = entry.src.is_fp() ? vop::loadf64 : vop::loadi64;
-						mmem mem{.base = arch::from_native(arch::sp), .disp = entry.slot * 8};
+						mmem  mem{.base = arch::from_native(arch::sp), .disp = arch::home_size + entry.slot * 8};
 						minsn i{op, entry.dst, mem};
 						i.no_spill = true;
 						it = bb.instructions.insert(it, i) + 1;
@@ -537,7 +537,7 @@ namespace li::ir::opt {
 						if (entry.src.is_null())
 							break;
 						auto op = entry.src.is_fp() ? vop::storef64 : vop::storei64;
-						mmem  mem{.base = arch::from_native(arch::sp), .disp = entry.slot * 8};
+						mmem  mem{.base = arch::from_native(arch::sp), .disp = arch::home_size + entry.slot * 8};
 						minsn i{op, {}, mem, entry.dst};
 						i.no_spill = true;
 						it = bb.instructions.insert(it + 1, i) + 1;

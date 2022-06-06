@@ -80,6 +80,9 @@
     <ClCompile Include="..\src\ir\mopt_jcc.cpp">
       <Filter>IR\Optimizations</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\vm\runtime.cpp">
+      <Filter>VM</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Language">
@@ -215,6 +218,9 @@
     </ClInclude>
     <ClInclude Include="..\include\ir\zydis.hpp">
       <Filter>IR\Machine\x86-64</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\vm\runtime.hpp">
+      <Filter>VM</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -1,6 +1,7 @@
 #include <util/common.hpp>
 #if LI_JIT && LI_ARCH_X86 && !LI_32
 #include <ir/mir.hpp>
+#include <vm/runtime.hpp>
 
 #if __AVX__
 	static constexpr bool USE_AVX = true;
@@ -98,7 +99,6 @@ namespace li::ir {
 	//
 	enum encoding_directive : uint32_t {
 		ENC_W_R,
-		ENC_W_N_R,
 		ENC_RW_R,
 		ENC_RW,
 		ENC_W_R_R,
@@ -108,8 +108,6 @@ namespace li::ir {
 
 	#define INSN_W_R(name, ...) \
 		inline static void name(mblock& blk, mreg a, mop b) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__.rsvd = ENC_W_R}, a, b}); }
-	#define INSN_W_N_R(name, ...) \
-		inline static void name(mblock& blk, mreg a, mop b) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__ .rsvd = ENC_W_N_R}, a, b}); }
 	#define INSN_RW_R(name, ...) \
 		inline static void name(mblock& blk, mreg a, mop b) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__ .rsvd = ENC_RW_R}, a, a, b}); }
 	#define INSN_RW(name, ...) \
@@ -131,9 +129,7 @@ namespace li::ir {
 	INSN_RW_R(AND);
 	INSN_RW_R(XOR);
 	INSN_W_R_R(BZHI, .trashes_flags = false, );
-	INSN_W_R(CVTSI2SD, .trashes_flags = false, );
 	INSN_W_R_R(ROUNDSD, .trashes_flags = false, );
-	INSN_W_N_R(VCVTSI2SD, .trashes_flags = false, );
 	INSN_W_N_R_R(VROUNDSD, .trashes_flags = false, );
 	INSN_RW_R(DIVSD, .trashes_flags = false, );
 	INSN_RW_R(MULSD, .trashes_flags = false, );
@@ -190,12 +186,27 @@ namespace li::ir {
 			SHL(b, out, 47);
 			// add out, tmp
 			ADD(b, out, tmp);
-		} else if (type::i8 <= v->vt && v->vt <= type::i64) {
+		} else if (v->vt == type::i8) {
+			auto tg = b->next_gp();
 			auto tf = b->next_fp();
-			if constexpr (USE_AVX)
-				VCVTSI2SD(b, tf, r);
-			else
-				CVTSI2SD(b, tf, r);
+			b.append(vop::isx8, tg, r);
+			b.append(vop::fcvt, tf, tg);
+			b.append(vop::movi, out, tf);
+		} else if (v->vt == type::i16) {
+			auto tg = b->next_gp();
+			auto tf = b->next_fp();
+			b.append(vop::isx16, tg, r);
+			b.append(vop::fcvt, tf, tg);
+			b.append(vop::movi, out, tf);
+		} else if (v->vt == type::i32) {
+			auto tg = b->next_gp();
+			auto tf = b->next_fp();
+			b.append(vop::isx32, tg, r);
+			b.append(vop::fcvt, tf, tg);
+			b.append(vop::movi, out, tf);
+		} else if (v->vt == type::i64) {
+			auto tf = b->next_fp();
+			b.append(vop::fcvt, tf, r);
 			b.append(vop::movi, out, tf);
 		} else if (v->vt == type::f32) {
 			auto tf = b->next_fp();
@@ -206,11 +217,16 @@ namespace li::ir {
 		} else {
 			auto ty = v->vt == type::opq ? type_opaque : type_table + (int(v->vt) - int(type::tbl));
 			auto out = b->next_gp();
-			auto tmp = b->next_gp();
+			mreg fv;
+	#if LI_KERNEL_MODE
+			fv = b->next_gp();
 			b.append(vop::movi, out, 47);
-			BZHI(b, tmp, r, out);
+			BZHI(b, fv, r, out);
+	#else
+			fv = r;
+	#endif
 			b.append(vop::movi, out, (int64_t) mix_value(uint8_t(ty), 0));
-			OR(b, out, tmp);
+			OR(b, out, fv);
 		}
 	}
 
@@ -504,6 +520,7 @@ namespace li::ir {
 			}
 			case opcode::assume_cast: {
 				auto out = REG(i);
+				// TODO: Need type specific action, e.g. clear high bits if LI_KERNEL_MODE.
 				b.append(out.is_fp() ? vop::movf : vop::movi, out, REG(i->operands[0]));
 				return;
 			}
@@ -535,10 +552,6 @@ namespace li::ir {
 				}
 				break;
 			}
-			case opcode::unreachable: {
-				b.append(vop::unreachable, {});
-				return;
-			}
 			case opcode::phi: {
 				auto r = get_existing_reg(i->operands[0]->as<insn>());
 				for (auto& op : i->operands) {
@@ -554,10 +567,45 @@ namespace li::ir {
 				b.append(vop::ret, {}, code ? 1ll : 0ll);
 				return;
 			}
+			case opcode::table_new:
+			case opcode::array_new: {
+				auto fn = i->opc == opcode::array_new ? (intptr_t) &runtime::array_new : (intptr_t) &runtime::table_new;
+				b.append(vop::movi, arch::map_gp_arg(0, 0), mreg(vreg_vm));
+				b.append(vop::movi, arch::map_gp_arg(1, 0), RI(i->operands[0]));
+				b.append(vop::call, arch::from_native(arch::gp_retval), fn);
+				YIELD(arch::from_native(arch::gp_retval));
+				return;
+			}
+			// TODO: None of this is right, just testing...
+			//
+			case opcode::field_set_raw: {
+				// TODO: Inline if type known.
+				//
+				b.append(vop::movi, arch::map_gp_arg(0, 0), mreg(vreg_vm));
+				type_erase(b, i->operands[0], arch::map_gp_arg(1, 0));
+				type_erase(b, i->operands[1], arch::map_gp_arg(2, 0));
+				type_erase(b, i->operands[2], arch::map_gp_arg(3, 0));
+				b.append(vop::call, arch::from_native(arch::gp_retval), (int64_t) &runtime::field_set_raw);
+				// ^ result is potentially error!
+				return;
+			}
+			case opcode::field_get:
+			case opcode::field_get_raw: {
+				b.append(vop::movi, arch::map_gp_arg(0, 0), mreg(vreg_vm));
+				type_erase(b, i->operands[0], arch::map_gp_arg(1, 0));
+				type_erase(b, i->operands[1], arch::map_gp_arg(2, 0));
+				b.append(vop::call, arch::from_native(arch::gp_retval), (int64_t) &runtime::field_get_raw);
+				b.append(vop::movi, REG(i), arch::from_native(arch::gp_retval));
+				return;
+			}
+			case opcode::unreachable: {
+				b.append(vop::unreachable, {});
+				return;
+			}
 			default:
 				break;
 		}
-		util::abort("Opcode %s NYI", i->to_string(true).c_str());
+		util::abort("Opcode NYI: %s", i->to_string(true).c_str());
 	}
 
 	// Generates crude machine IR from the SSA IR.
@@ -695,11 +743,6 @@ namespace li::ir {
 				push_operand(i.out);
 				push_operand(i.arg[0]);
 				break;
-			case ENC_W_N_R:
-				push_operand(i.out);
-				push_operand(i.out);
-				push_operand(i.arg[0]);
-				break;
 			case ENC_RW_R:
 				push_operand(i.arg[0]);
 				push_operand(i.arg[1]);
@@ -822,6 +865,24 @@ namespace li::ir {
 					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_CVTSS2SD, dst, src));
 				break;
 			}
+			case vop::fcvt: {
+				auto dst = to_reg(b, i.out);
+				auto src = to_reg(b, i.arg[0].reg);
+				if constexpr (USE_AVX)
+					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_VCVTSI2SD, dst, dst, src));
+				else
+					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_CVTSI2SD, dst, src));
+				break;
+			}
+			case vop::icvt: {
+				auto dst = to_reg(b, i.out);
+				auto src = to_reg(b, i.arg[0].reg);
+				if constexpr (USE_AVX)
+					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_VCVTTSD2SI, dst, src));
+				else
+					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_CVTTSD2SI, dst, src));
+				break;
+			}
 			case vop::izx8:
 			case vop::izx16:
 			case vop::izx32:
@@ -830,7 +891,6 @@ namespace li::ir {
 			case vop::isx32: {
 				auto dst = to_reg(b, i.out);
 				auto src = to_reg(b, i.arg[0].reg);
-
 				if (i.is(vop::isx8) || i.is(vop::izx8))
 					src = zy::resize_reg(src, 1);
 				else if (i.is(vop::isx16) || i.is(vop::izx16))
@@ -912,6 +972,9 @@ namespace li::ir {
 				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_UD2));
 				break;
 			case vop::call:
+				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, zy::RAX, to_op(b, i.arg[0])));
+				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_CALL, zy::RAX));
+				break;
 			default:
 				util::abort("NYI");
 				break;
@@ -939,27 +1002,42 @@ namespace li::ir {
 					push_count++;
 					auto reg = arch::gp_nonvolatile[i - std::size(arch::gp_volatile)];
 					LI_ASSERT(zy::encode(prologue, ZYDIS_MNEMONIC_PUSH, reg));
-					LI_ASSERT(zy::encode(epilogue, ZYDIS_MNEMONIC_POP, reg));
 				}
 			}
 
 			// Allocate space and align stack.
 			//
 			int  num_fp_used = std::popcount(proc->used_fp_mask >> std::size(arch::fp_volatile));
-			auto alloc_bytes = std::max(arch::home_size - 8, num_fp_used * 0x10 + proc->used_stack_length);
-			alloc_bytes = (alloc_bytes + 8) & ~7;
+			auto alloc_bytes = num_fp_used * 0x10 + proc->used_stack_length + arch::home_size - 8;
+			alloc_bytes      = (alloc_bytes + 8) & ~7;
 			LI_ASSERT(zy::encode(prologue, ZYDIS_MNEMONIC_SUB, arch::sp, alloc_bytes));
-			LI_ASSERT(zy::encode(epilogue, ZYDIS_MNEMONIC_ADD, arch::sp, alloc_bytes));
 
 			// Save vector registers.
 			//
-			zy::mem        vsave_it{.size = 0x10, .base = arch::sp, .disp = proc->used_stack_length};
 			constexpr auto vector_move = USE_AVX ? ZYDIS_MNEMONIC_VMOVUPD : ZYDIS_MNEMONIC_MOVUPD;
+			zy::mem vsave_it{.size = 0x10, .base = arch::sp, .disp = alloc_bytes};
 			for (size_t i = std::size(arch::fp_volatile); i != arch::num_fp_reg; i++) {
 				if ((proc->used_fp_mask >> i) & 1) {
+					vsave_it.disp -= 0x10;
 					LI_ASSERT(zy::encode(prologue, vector_move, vsave_it, arch::fp_nonvolatile[i - std::size(arch::fp_volatile)]));
-					LI_ASSERT(zy::encode(prologue, vector_move, arch::fp_nonvolatile[i - std::size(arch::fp_volatile)], vsave_it));
-					vsave_it.disp += 0x10;
+				}
+			}
+
+			// Generate the opposite as epilogue.
+			//
+			vsave_it.disp = alloc_bytes;
+			for (size_t i = std::size(arch::fp_volatile); i != arch::num_fp_reg; i++) {
+				if ((proc->used_fp_mask >> i) & 1) {
+					vsave_it.disp -= 0x10;
+					constexpr auto vector_move = USE_AVX ? ZYDIS_MNEMONIC_VMOVUPD : ZYDIS_MNEMONIC_MOVUPD;
+					LI_ASSERT(zy::encode(epilogue, vector_move, arch::fp_nonvolatile[i - std::size(arch::fp_volatile)], vsave_it));
+				}
+			}
+			LI_ASSERT(zy::encode(epilogue, ZYDIS_MNEMONIC_ADD, arch::sp, alloc_bytes));
+			for (size_t i = arch::num_gp_reg - 1; i >= std::size(arch::gp_volatile); i--) {
+				if ((proc->used_gp_mask >> i) & 1) {
+					auto reg = arch::gp_nonvolatile[i - std::size(arch::gp_volatile)];
+					LI_ASSERT(zy::encode(epilogue, ZYDIS_MNEMONIC_POP, reg));
 				}
 			}
 		}

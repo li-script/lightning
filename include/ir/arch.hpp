@@ -132,7 +132,7 @@ namespace li::ir::arch {
 
 	// Argument resolver.
 	//
-	static constexpr native_reg map_argument_native(size_t gp_arg_index, size_t fp_arg_index, bool fp) {
+	static constexpr native_reg map_arg_native(size_t gp_arg_index, size_t fp_arg_index, bool fp) {
 		if (!fp) {
 			size_t idx = combined_arg_counter ? (gp_arg_index + fp_arg_index) : gp_arg_index;
 			return std::size(gp_argument) > idx ? gp_argument[idx] : invalid;
@@ -141,5 +141,10 @@ namespace li::ir::arch {
 			return std::size(fp_argument) > idx ? fp_argument[idx] : invalid;
 		}
 	}
-	static constexpr reg map_argument(size_t gp_arg_index, size_t fp_arg_index, bool fp) { return from_native(map_argument_native(gp_arg_index, fp_arg_index, fp)); };
+	static constexpr reg map_gp_arg(size_t gp_arg_index, size_t fp_arg_index) {
+		return from_native(map_arg_native(gp_arg_index, fp_arg_index, false));
+	};
+	static constexpr reg map_fp_arg(size_t gp_arg_index, size_t fp_arg_index) {
+		return from_native(map_arg_native(gp_arg_index, fp_arg_index, true));
+	};
 };

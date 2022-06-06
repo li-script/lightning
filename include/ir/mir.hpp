@@ -215,13 +215,15 @@ namespace li::ir {
 		isx16,     // gpreg = i16(gpreg)
 		isx32,     // gpreg = i32(gpreg)
 		fsx32,     // fpreg = f32(fpreg)
+		icvt,      // gpreg = f64(fpreg)
+		fcvt,      // fpreg = f64(gpreg)
 		loadf64,   // fpreg = fp64[mem]
 		storef64,  // fp64[mem] = fpreg
 		loadi64,   // gpreg = i64[mem]
 		storei64,  // i64[mem] = gpreg
 		setcc,     // reg = flag
 		// side-effect group.
-		call,      // mreg = call i64, ...
+		call,      // mreg = call i64, [implicit args & nonvol clobber]
 		js,        // cnd true block, false block
 		jmp,       // block
 		ret,       // i1
@@ -239,6 +241,8 @@ namespace li::ir {
 		 "isx16",
 		 "isx32",
 		 "fsx32",
+		 "icvt",
+		 "fcvt",
 		 "loadf64",
 		 "storef64",
 		 "loadi64",
@@ -327,6 +331,22 @@ namespace li::ir {
 			}
 			if (out)
 				fn(out, false);
+		}
+		template<typename F>
+		void for_each_reg_w_implicit(F&& fn) const {
+			if (is(vop::call)) {
+				for (auto r : arch::gp_argument)
+					fn(mreg(arch::from_native(r)), true);
+				for (auto r : arch::fp_argument)
+					fn(mreg(arch::from_native(r)), true);
+				for_each_reg(fn);
+				for (auto r : arch::gp_volatile)
+					fn(mreg(arch::from_native(r)), false);
+				for (auto r : arch::fp_volatile)
+					fn(mreg(arch::from_native(r)), false);
+			} else {
+				for_each_reg(std::forward<F>(fn));
+			}
 		}
 
 		// Simple use checks.

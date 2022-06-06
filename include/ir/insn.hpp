@@ -78,10 +78,6 @@ namespace li::ir {
 		ret,
 		thrw,
 		unreachable,
-
-		// Hints.
-		//
-		mark_used
 	};
 
 	// Instruction type.
@@ -610,13 +606,6 @@ namespace li::ir {
 			sideffect = true;
 			LI_ASSERT(operands.size() == 2);
 			LI_ASSERT(operands[0]->is<constant>() && operands[0]->is(type::i32));
-		}
-	};
-	// none mark_used(unk...)
-	struct mark_used final : insn_tag<mark_used, opcode::mark_used> {
-		void update() override {
-			is_pure   = false;
-			sideffect = true;
 		}
 	};
 };

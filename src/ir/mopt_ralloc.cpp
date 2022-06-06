@@ -17,11 +17,30 @@ B) reg alloc
 
 */
 
+/*
+* TODO: Minimize lifetime by moving around
+* %v8 = shr %v8 0x2f
+  %v8 = sub %v8 0x9
+	%v9 = movi 0xfffaffffffffffff <-- blocks like this.
+	%v1 = movi %v9
+  %f3 = cmp %v8 0x1
+*/
+
+static constexpr float RA_PRIO_HOT_BIAS = 12.0f;
+
 namespace li::ir::opt {
 	struct graph_node {
-		util::bitset vtx   = {};
-		uint8_t      color = {};
-		graph_node*  coalescing_hint = nullptr;
+		util::bitset vtx                 = {};
+		float        priority            = 0;
+		intptr_t     coalescing_hints[4] = {0};  // offset
+		uint8_t      hint_id             = 0;
+		uint8_t      color               = {};
+		bool         is_fp               = false;
+		int32_t      spill_slot          = 0;
+
+		void add_hint(graph_node* g) {
+			coalescing_hints[hint_id++ % std::size(coalescing_hints)] = g - this;
+		}
 	};
 
 	// Returns a view that can be enumerated as a series of mregs for a given bitset.
@@ -32,7 +51,9 @@ namespace li::ir::opt {
 
 	// Returns true if the register does not require allocation.
 	//
-	static bool is_pseudo(mreg r) { return r.is_flag() || (r.is_virt() && r.virt() > 0 && r.virt() < vreg_first); }
+	static bool is_pseudo(mreg r) {
+		return r.is_flag() || (r.is_virt() && r.virt() > 0 && r.virt() < vreg_first);
+	}
 
 	// Returns true if register should be included in the interference graph.
 	//
@@ -49,34 +70,108 @@ namespace li::ir::opt {
 		return true;
 	}
 
-	// Tries coloring the graph with K colors.
+	// Debug helpers.
 	//
-	static bool try_color(std::span<graph_node> gr, size_t K) {
-		// Pick a node we can simplify with < K nodes.
+	static void print_graph(std::span<graph_node> gr) {
+		printf("graph {\n node [colorscheme=set312 penwidth=5]\n");
+
+		for (size_t i = 0; i != gr.size(); i++) {
+			auto v = mreg::from_uid(i);
+			if (gr[i].vtx.popcount() != 1)
+				printf("r%u [color=%u label=\"%s\"];\n", v.uid(), gr[i].color, v.to_string().c_str());
+		}
+
+		for (size_t i = 0; i != gr.size(); i++) {
+			for (size_t j = 0; j != gr.size(); j++) {
+				if (i <= j && gr[i].vtx.get(j)) {
+					printf("r%u -- r%u;\n", i, j);
+				}
+			}
+		}
+		printf("}\n");
+	}
+	static void print_lifetime(mprocedure* proc, std::span<graph_node> gr = {}) {
+		puts("\n");
+		for (auto& b : proc->basic_blocks) {
+			printf("-- Block $%u", b.uid);
+			if (b.hot < 0)
+				printf(LI_CYN " [COLD %u]" LI_DEF, (uint32_t) -b.hot);
+			if (b.hot > 0)
+				printf(LI_RED " [HOT  %u]" LI_DEF, (uint32_t) b.hot);
+			putchar('\n');
+
+			printf("Out-Live = ");
+			for (mreg r : regs_in(b.df_out_live))
+				printf(" %s", r.to_string().c_str());
+			printf("\n");
+			printf("Def = ");
+			for (mreg r : regs_in(b.df_def))
+				printf(" %s", r.to_string().c_str());
+			printf("\n");
+			printf("Ref = ");
+			for (mreg r : regs_in(b.df_ref))
+				printf(" %s", r.to_string().c_str());
+			printf("\n");
+
+			for (auto& i : b.instructions) {
+				printf("\t%s ", i.to_string().c_str());
+
+				i.for_each_reg([&](const mreg& m, bool) {
+					if (gr.size() > m.uid()) {
+						printf("|I[%s]:", m.to_string().c_str());
+						for (mreg r : regs_in(gr[m.uid()].vtx))
+							if (r != m)
+								printf(" %s", r.to_string().c_str());
+					}
+				});
+				printf("\n");
+			}
+		}
+	}
+
+	// Tries coloring the graph with K+M colors respectively for GP and FP.
+	//
+	static std::pair<size_t, size_t> try_color(std::span<graph_node> gr, size_t K, size_t M) {
+		// Pick a node we can simplify with < K/M nodes.
 		//
-		bool found_but_over_limit = false;
-		auto it = range::find_if(gr, [&](graph_node& n) {
-			// Pre-colored.
+		graph_node* overlimit_it = nullptr;
+		graph_node* it           = nullptr;
+		for (auto& n : gr) {
+			// Skip disconnected and pre-colored nodes.
 			//
 			if (n.color)
-				return false;
-
-			// Disconnected or over the limit.
-			//
+				continue;
 			size_t deg = n.vtx.popcount();
 			if (deg == 0)
-				return false;
-         found_but_over_limit = true;
-         if (deg > K /*>=K but we also set one for ourselves so yeah*/) {
-            return false;
-			}
-			return true;
-		});
+				continue;
+			--deg;
 
-		// If we did not find any, fail unless there really isnt any nodes left.
+			// If over the limit, set as spill iterator using the weight.
+			//
+			if (deg > (n.is_fp ? M : K)) {
+				if (!overlimit_it || overlimit_it->priority > n.priority) {
+					overlimit_it = &n;
+				}
+			}
+			// Otherwise, set to color.
+			//
+			else {
+				it = &n;
+				break;
+			}
+		}
+
+		// If we did not find any:
 		//
-		if (it == gr.end()) {
-			return !found_but_over_limit;
+		if (!it) {
+			// If none left, success.
+			//
+			if (!overlimit_it)
+				return {0, 0};
+
+			// Otherwise continue as spilled.
+			//
+			it = overlimit_it;
 		}
 
 		// Remove from the graph.
@@ -85,38 +180,36 @@ namespace li::ir::opt {
 		tmp.swap(it->vtx);
 		for (size_t i = 0; i != gr.size(); i++) {
 			if (tmp[i])
-				gr[i].vtx.reset(it - gr.begin());
+				gr[i].vtx.reset(it - gr.data());
 		}
 
 		// Recursively color.
 		//
-		bool rec_result = try_color(gr, K);
+		auto [rec_spill_gp, rec_spill_fp] = try_color(gr, K, M);
 
 		// Add the node back.
 		//
 		size_t color_mask = ~0ull;
 		for (size_t i = 0; i != gr.size(); i++) {
 			if (tmp[i]) {
-				gr[i].vtx.set(it - gr.begin());
-				if (gr[i].color != 0) {
+				gr[i].vtx.set(it - gr.data());
+				if (gr[i].color != 0 && i != (it - gr.data())) {
 					color_mask &= ~(1ull << (gr[i].color - 1));
 				}
 			}
 		}
 		tmp.swap(it->vtx);
 
-		// If recursive call failed, propagate.
-		//
-		if (!rec_result)
-			return false;
-
 		// Try using any coalescing hints.
 		//
-		if (it->coalescing_hint) {
-			if (it->coalescing_hint->color) {
-				if (color_mask & (1ull << (it->coalescing_hint->color - 1))) {
-					it->color = it->coalescing_hint->color;
-					return true;
+		for (auto hint_off : it->coalescing_hints) {
+			if (!hint_off)
+				continue;
+			auto hint = it + hint_off;
+			if (hint->color) {
+				if (color_mask & (1ull << (hint->color - 1))) {
+					it->color = hint->color;
+					return {rec_spill_gp, rec_spill_fp};
 				}
 			}
 		}
@@ -124,15 +217,38 @@ namespace li::ir::opt {
 		// Pick a color.
 		//
 		size_t n = std::countr_zero(color_mask);
-		if (n > K)
-			return false;
-		it->color = n + 1;
-		return true;
+		if (n > (it->is_fp?M:K)) {
+			// Increment spill counter.
+			//
+			if (it->is_fp)
+				rec_spill_fp++;
+			else
+				rec_spill_gp++;
+
+			// Find spill slot.
+			//
+			it->color = 0;
+			it->spill_slot = 1;
+			bool changed   = false;
+			do {
+				changed = false;
+				for (size_t i = 0; i != gr.size(); i++) {
+					if (gr[i].spill_slot == it->spill_slot && it != &gr[i] && gr[i].vtx[it - gr.data()]) {
+						it->spill_slot++;
+						changed = true;
+						break;
+					}
+				}
+			} while (changed);
+		} else {
+			it->color = n + 1;
+		}
+		return {rec_spill_gp, rec_spill_fp};
 	}
-	
-	// Allocates registers for each virtual register and generates the spill instructions.
+
+	// Spills all arguments into virtual registers.
 	//
-	void allocate_registers(mprocedure* proc) {
+	static void spill_args(mprocedure* proc) {
 		// Before anything else, spill all arguments into virtual registers.
 		//
 		mreg regs[3] = {};
@@ -160,14 +276,30 @@ namespace li::ir::opt {
 				proc->basic_blocks.front().instructions.insert(proc->basic_blocks.front().instructions.begin(), minsn{vop::movi, regs[i], mreg(arch::map_argument(i, 0, false))});
 			}
 		}
+	}
 
-		// Get maximum register id.
+	// Does lifetime analysis and builds the interference graph.
+	//
+	static std::vector<graph_node> build_graph(mprocedure* proc, std::vector<graph_node>* tmp = nullptr) {
+		// Get maximum register id and calculate use counts.
 		//
-		uint32_t max_reg_id = 0;
+		std::vector<size_t> reg_use_counter = {};
+		uint32_t            max_reg_id      = 0;
 		for (auto& bb : proc->basic_blocks) {
 			for (auto& i : bb.instructions) {
+
+
 				i.for_each_reg([&](mreg r, bool is_read) {
-					max_reg_id = std::max(r.uid(), max_reg_id);
+					if (max_reg_id < r.uid()) {
+						max_reg_id = r.uid();
+						reg_use_counter.resize(max_reg_id + 1);
+					}
+					if (is_read) {
+						reg_use_counter[r.uid()]++;
+					}
+
+					if (i.is(vop::loadi64) || i.is(vop::storei64) || i.is(vop::loadf64) || i.is(vop::storef64))
+						reg_use_counter[r.uid()] += 100;
 				});
 			}
 		}
@@ -176,6 +308,10 @@ namespace li::ir::opt {
 		// First calculate ref(n) and def(n) for each basic block.
 		//
 		for (auto& bb : proc->basic_blocks) {
+			bb.df_def.clear();
+			bb.df_ref.clear();
+			bb.df_in_live.clear();
+			bb.df_out_live.clear();
 			bb.df_def.resize(max_reg_id);
 			bb.df_ref.resize(max_reg_id);
 			bb.df_in_live.resize(max_reg_id);
@@ -228,164 +364,241 @@ namespace li::ir::opt {
 				b.df_out_live.set_union(suc->df_in_live);
 		}
 
-		//for (auto& b : proc->basic_blocks) {
-		//	printf("-- Block $%u", b.uid);
-		//	if (b.hot < 0)
-		//		printf(LI_CYN " [COLD %u]" LI_DEF, (uint32_t) -b.hot);
-		//	if (b.hot > 0)
-		//		printf(LI_RED " [HOT  %u]" LI_DEF, (uint32_t) b.hot);
-		//	putchar('\n');
+		// Allocate the interference graph and set the initial state.
 		//
-		//	printf("Out-Live = ");
-		//	for (mreg r : regs_in(b.df_out_live))
-		//		printf(" %s", r.to_string().c_str());
-		//	printf("\n");
-		//	printf("Def = ");
-		//	for (mreg r : regs_in(b.df_def))
-		//		printf(" %s", r.to_string().c_str());
-		//	printf("\n");
-		//	printf("Ref = ");
-		//	for (mreg r : regs_in(b.df_ref))
-		//		printf(" %s", r.to_string().c_str());
-		//	printf("\n");
-		//
-		//	b.print();
-		//}
-
-		// Allocate the interference graph.
-		//
-		auto graph_alloc = std::make_unique<graph_node[]>(max_reg_id);
-		std::span interference_graph{&graph_alloc[0], max_reg_id};
-
-		{
-			// Reset all nodes.
-			//
-			for (auto& node : interference_graph) {
-				node.color = 0;
-				node.vtx.clear();
-				node.vtx.resize(max_reg_id);
+		std::vector<graph_node> interference_graph;
+		if (tmp) {
+			interference_graph = std::move(*tmp);
+			interference_graph.clear();
+		}
+		interference_graph.resize(max_reg_id);
+		for (size_t i = 0; i != max_reg_id; i++) {
+			auto& node = interference_graph[i];
+			auto  mr   = mreg::from_uid(i);
+			node.vtx.resize(max_reg_id);
+			node.vtx.set(i);
+			node.priority = (reg_use_counter[i] + 1) * RA_PRIO_HOT_BIAS;
+			node.is_fp    = mr.is_fp();
+			if (mr.is_phys()) {
+				node.color = std::abs(mr.phys());
 			}
+		}
 
-			// Build the interference graph.
-			//
-			auto add_vertex = [&](mreg a, mreg b) {
-				if (!interferes_with(a, b))
-					return true;
-				auto au   = a.uid();
-				auto bu   = b.uid();
-				bool prev = interference_graph[au].vtx.set(bu);
-				interference_graph[bu].vtx.set(au);
-				return prev;
-			};
-			auto add_set = [&](const util::bitset& b, mreg def) {
-				interference_graph[def.uid()].vtx.set(def.uid());
-				if (def.is_phys()) {
-					interference_graph[def.uid()].color = std::abs(def.phys());
+		// Build the interference graph.
+		//
+		auto add_vertex = [&](mreg a, mreg b) {
+			if (!interferes_with(a, b))
+				return true;
+			auto au   = a.uid();
+			auto bu   = b.uid();
+			bool prev = interference_graph[au].vtx.set(bu);
+			interference_graph[bu].vtx.set(au);
+			return prev;
+		};
+		auto add_set = [&](const util::bitset& b, mreg def) {
+			for (size_t i = 0; i != max_reg_id; i++) {
+				if (b[i]) {
+					add_vertex(def, mreg::from_uid(i));
 				}
-				for (size_t i = 0; i != max_reg_id; i++) {
-					if (b[i]) {
-						add_vertex(def, mreg::from_uid(i));
+			}
+		};
+		for (auto& b : proc->basic_blocks) {
+			auto live = b.df_out_live;
+			for (auto& i : view::reverse(b.instructions)) {
+				if (i.is(vop::movi) || i.is(vop::movf)) {
+					if (i.arg[0].is_reg()) {
+						auto& a = interference_graph[i.arg[0].reg.uid()];
+						auto& b = interference_graph[i.out.uid()];
+						a.add_hint(&b);
+						b.add_hint(&a);
 					}
 				}
-			};
 
-			for (auto& b : proc->basic_blocks) {
-				auto live = b.df_out_live;
-				for (auto& i : view::reverse(b.instructions)) {
-
-					if (i.is(vop::movi) || i.is(vop::movf)) {
-						if (i.arg[0].is_reg()) {
-							// TODO: Maybe this should be a vector and should try to satisfy as many as possible?
-							auto& a = interference_graph[i.arg[0].reg.uid()];
-							auto& b = interference_graph[i.out.uid()];
-							b.coalescing_hint = &a;
-							a.coalescing_hint = &b;
-						}
-					}
-
-					if (i.out)
-						live.reset(i.out.uid());
-					i.for_each_reg([&](mreg r, bool is_read) {
-						if (is_read) {
-							live.set(r.uid());
-						}
-					});
-
-					i.for_each_reg([&](mreg r, bool is_read) {
-						if (is_read) {
-							add_set(live, r);
-						}
-					});
+				if (i.out) {
+					live.reset(i.out.uid());
+					add_set(live, i.out);
 				}
+
+				i.for_each_reg([&](mreg r, bool is_read) {
+					if (is_read) {
+						live.set(r.uid());
+					}
+				});
+				i.for_each_reg([&](mreg r, bool is_read) {
+					if (is_read) {
+						add_set(live, r);
+					}
+				});
+			}
+		}
+		return interference_graph;
+	}
+
+	// Allocates registers for each virtual register and generates the spill instructions.
+	//
+	void allocate_registers(mprocedure* proc) {
+		// Spill arguments.
+		//
+		spill_args(proc);
+
+		// Build the interference graph.
+		//
+		std::vector<graph_node> interference_graph = build_graph(proc);
+		print_graph(interference_graph);
+		print_lifetime(proc);
+
+		// Enter the register allocation loop.
+		//
+		static constexpr size_t MAX_K =  arch::num_gp_reg;
+		static constexpr size_t MAX_M = arch::num_fp_reg;
+		size_t                  K     = std::min(MAX_K, std::max<size_t>(std::size(arch::gp_volatile), 2));
+		size_t                  M     = std::min(MAX_M, std::max<size_t>(std::size(arch::fp_volatile), 2));
+		std::vector<graph_node> interference_graph_copy(interference_graph);
+
+		int32_t num_spill_slots = 0;
+		for(size_t step = 0;; step++) {
+			LI_ASSERT(step < 32);
+
+			// Try coloring the graph.
+			//
+			auto [spill_gp, spill_fp] = try_color(interference_graph, K, M);
+			printf("Try_color (K=%llu, M=%llu) spills (%llu, %llu) registers\n", K, M, spill_gp, spill_fp);
+			//print_lifetime(proc);
+
+			// If we don't need to spill, break out.
+			//
+			if (!spill_gp && !spill_fp) {
+				break;
 			}
 
-			// Try each K until we get to succeed.
+			// If we have more registers to allocate, restore old graph and try again.
 			//
-			size_t num_vol  = std::min(std::size(arch::gp_volatile), std::size(arch::fp_volatile));
-			size_t max_regs = std::min(arch::num_fp_reg, arch::num_gp_reg);
-			for (size_t K = num_vol;; K++) {
-				bool ok = try_color(interference_graph, K);
-				printf("Try_color K=%llu -> %s\n", K, ok ? "OK" : "Fail");
-				if (ok)
-					break;
-				LI_ASSERT(K != max_regs); // TODO: Spill
+			bool increase_k = spill_gp && K != MAX_K;
+			bool increase_m = spill_fp && M != MAX_M;
+			K += increase_k ? 1 : 0;
+			M += increase_m ? 1 : 0;
+			if (increase_k || increase_m) {
+				interference_graph = interference_graph_copy;
+				continue;
 			}
 
-			// Draw the graph.
+			// Add spilling code.
 			//
-			//printf("graph {\n node [colorscheme=set312 penwidth=5]\n");
-			//for (size_t i = 0; i != max_reg_id; i++) {
-			//	for (size_t j = 0; j != max_reg_id; j++) {
-			//		if (interference_graph[i].vtx.reset(j)) {
-			//			interference_graph[j].vtx.reset(i);
-			//
-			//			if (i != j) {
-			//				auto v = mreg::from_uid(i);
-			//				auto k = mreg::from_uid(j);
-			//
-			//				printf("r%u [color=%u label=\"%s\"];\n", v.uid(), interference_graph[i].color, v.to_string().c_str());
-			//				printf("r%u [color=%u label=\"%s\"];\n", k.uid(), interference_graph[j].color, k.to_string().c_str());
-			//				printf("r%u -- r%u;\n", k.uid(), v.uid());
-			//			}
-			//		}
-			//	}
-			//}
-			//printf("}\n");
-
-			// Swap the registers in the IR.
-			//
+			struct spill_entry {
+				mreg   src  = {};
+				mreg   dst  = {};
+				int32_t slot = 0;
+			};
+			int32_t slot_offset = num_spill_slots;
 			for (auto& bb : proc->basic_blocks) {
-				for (auto& i : bb.instructions) {
-					i.for_each_reg([&](const mreg& r, bool is_read) {
-						if (!is_pseudo(r) && r.is_virt()) {
-							int x = int(interference_graph[r.uid()].color);
-							if (!x)
-								util::abort("Missed allocation for %s (%u)?", r.to_string().c_str(), r.uid());
+				for (auto it = bb.instructions.begin(); it != bb.instructions.end();) {
+					spill_entry reload_list[4] = {};
+					spill_entry spill_list[1]  = {};
+					bool        need_cg        = false;
 
-							if (r.is_fp()) {
-								proc->used_fp_mask |= 1ull << (x);
-								x = -x;
-							} else {
-								proc->used_gp_mask |= 1ull << (x - 1);
+					auto spill_and_swap = [&](mreg& m, std::span<spill_entry> list, size_t slot) {
+						need_cg = true;
+						for (auto& entry : list) {
+							if (entry.src.is_null()) {
+								entry.src  = m;
+								entry.dst  = m.is_fp() ? proc->next_fp() : proc->next_gp();
+								entry.slot = slot + slot_offset - 1;
+								m          = entry.dst;
+								num_spill_slots = std::max(num_spill_slots, entry.slot + 1);
+								break;
+							} else if (entry.src == m) {
+								m = entry.dst;
+								break;
 							}
-							const_cast<mreg&>(r) = arch::reg(x);
+						}
+						assume_unreachable();
+					};
+					it->for_each_reg([&](const mreg& r, bool is_read) {
+						if (is_pseudo(r) || !r.is_virt())
+							return false;
+						if (interference_graph.size() <= r.uid())
+							return false;
+
+						// Skip if not spilled.
+						//
+						auto& info = interference_graph[r.uid()];
+						if (!info.spill_slot) {
+							return false;
+						}
+						if (is_read) {
+							spill_and_swap(const_cast<mreg&>(r), reload_list, info.spill_slot);
+						} else {
+							spill_and_swap(const_cast<mreg&>(r), spill_list, info.spill_slot);
 						}
 						return false;
 					});
+
+					// If we don't need to change anything, continue.
+					//
+					if (!need_cg) {
+						++it;
+						continue;
+					}
+
+					// Reload and spill as requested.
+					//
+					for (auto& entry : reload_list) {
+						if (entry.src.is_null())
+							break;
+						auto op = entry.src.is_fp() ? vop::loadf64 : vop::loadi64;
+						mmem mem{.base = arch::from_native(arch::sp), .disp = entry.slot * 8};
+						it = bb.instructions.insert(it, minsn{op, entry.dst, mem}) + 1;
+					}
+					for (auto& entry : spill_list) {
+						if (entry.src.is_null())
+							break;
+						auto op = entry.src.is_fp() ? vop::storef64 : vop::storei64;
+						mmem mem{.base = arch::from_native(arch::sp), .disp = entry.slot * 8};
+						it = bb.instructions.insert(it + 1, minsn{op, {}, mem, entry.dst}) + 1;
+					}
 				}
 			}
 
-			// Remove eliminated moves.
+			// Rebuild the interference graph.
 			//
-			for (auto& bb : proc->basic_blocks) {
-				std::erase_if(bb.instructions, [](minsn& i) {
-					if (i.is(vop::movf) || i.is(vop::movi)) {
-						if (i.arg[0].is_reg())
-							return i.out == i.arg[0].reg;
+			interference_graph = build_graph(proc, &interference_graph);
+			interference_graph_copy = interference_graph;
+		}
+		proc->used_stack_length = ((num_spill_slots + 1) & ~1) * 8;
+
+		// Swap the registers in the IR.
+		//
+		for (auto& bb : proc->basic_blocks) {
+			for (auto& i : bb.instructions) {
+				i.for_each_reg([&](const mreg& r, bool is_read) {
+					if (!is_pseudo(r) && r.is_virt()) {
+						int x = int(interference_graph[r.uid()].color);
+						LI_ASSERT(x != 0);
+
+						if (r.is_fp()) {
+							proc->used_fp_mask |= 1ull << (x - 1);
+							x = -x;
+						} else {
+							proc->used_gp_mask |= 1ull << (x - 1);
+						}
+						const_cast<mreg&>(r) = arch::reg(x);
 					}
 					return false;
 				});
 			}
+		}
+		proc->print();
+
+		// Remove eliminated moves.
+		//
+		for (auto& bb : proc->basic_blocks) {
+			std::erase_if(bb.instructions, [](minsn& i) {
+				if (i.is(vop::movf) || i.is(vop::movi)) {
+					if (i.arg[0].is_reg())
+						return i.out == i.arg[0].reg;
+				}
+				return false;
+			});
 		}
 	}
 };

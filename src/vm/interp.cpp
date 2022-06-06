@@ -607,7 +607,6 @@ namespace li {
 							}
 							L->stack_top = locals_begin + f->num_locals;
 							continue;
-						case bc::USED:
 						case bc::NOP:
 							continue;
 						default:

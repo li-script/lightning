@@ -176,63 +176,50 @@ namespace li::ir {
 
 	// Erases the type into a general purpose register.
 	//
-	static mreg type_erase(mblock& b, value* v) {
+	static void type_erase(mblock& b, value* v, mreg out) {
 		if (v->is<constant>()) {
-			auto r = b->next_gp();
-			b.append(vop::movi, r, v->as<constant>()->to_any());
-			return r;
+			b.append(vop::movi, out, v->as<constant>()->to_any());
+			return;
 		} else if (v->vt == type::nil) {
-			auto r = b->next_gp();
-			b.append(vop::movi, r, none);
-			return r;
+			b.append(vop::movi, out, none);
+			return;
 		}
 
 		auto r = REG(v);
 		if (v->vt == type::i1) {
-			auto tmp1 = b->next_gp();
-			auto tmp2 = b->next_gp();
+			auto tmp = b->next_gp();
 			// mov R1, 47
-			b.append(vop::movi, tmp1, 47);
+			b.append(vop::movi, tmp, 47);
 			// shlx R1, R0, R1
-			SHLX(b, tmp1, r, tmp1);
+			SHLX(b, tmp, r, tmp);
 			// mov R2, false
-			b.append(vop::movi, tmp2, (int64_t)make_tag(type_false));
+			b.append(vop::movi, out, (int64_t)make_tag(type_false));
 			// mov R2, R1
-			ADD(b, tmp2, tmp1);
-			return tmp2;
+			ADD(b, out, tmp);
 		} else if (type::i8 <= v->vt && v->vt <= type::i64) {
 			auto tf = b->next_fp();
-			auto tg = b->next_gp();
 			if constexpr (USE_AVX)
 				VCVTSI2SD(b, tf, r);
 			else
 				CVTSI2SD(b, tf, r);
-			b.append(vop::movi, tg, tf);
-			return tg;
+			b.append(vop::movi, out, tf);
 		} else if (v->vt == type::f32) {
 			auto tf = b->next_fp();
-			auto tg = b->next_gp();
 			if constexpr (USE_AVX)
 				VCVTSS2SD(b, tf, r);
 			else
 				CVTSS2SD(b, tf, r);
-			b.append(vop::movi, tg, tf);
-			return tg;
-		} else if (v->vt == type::f64) {
-			auto tg = b->next_gp();
-			b.append(vop::movi, tg, r);
-			return tg;
-		} else if (v->vt == type::unk) {
-			return r;
+			b.append(vop::movi, out, tf);
+		} else if (v->vt == type::f64 || v->vt == type::unk) {
+			b.append(vop::movi, out, r);
 		} else {
 			auto ty = v->vt == type::opq ? type_opaque : type_table + (int(v->vt) - int(type::tbl));
-			auto t1 = b->next_gp();
-			auto t2 = b->next_gp();
-			b.append(vop::movi, t1, 47);
-			BZHI(b, t2, r, t1);
-			b.append(vop::movi, t1, (int64_t)mix_value(uint8_t(ty), 0));
-			OR(b, t1, t2);
-			return t1;
+			auto out = b->next_gp();
+			auto tmp = b->next_gp();
+			b.append(vop::movi, out, 47);
+			BZHI(b, tmp, r, out);
+			b.append(vop::movi, out, (int64_t) mix_value(uint8_t(ty), 0));
+			OR(b, out, tmp);
 		}
 	}
 
@@ -535,7 +522,7 @@ namespace li::ir {
 				return;
 			}
 			case opcode::erase_type: {
-				YIELD(type_erase(b, i->operands[0]));
+				type_erase(b, i->operands[0], REG(i));
 				return;
 			}
 			case opcode::move: {
@@ -594,8 +581,10 @@ namespace li::ir {
 		// Pre-allocate the block list and coalesce PHI nodes.
 		//
 		for (auto& b : m->source->basic_blocks) {
-			b->visited = (uint64_t) m->add_block();
+			auto* mb   = m->add_block();
+			mb->hot = int32_t(b->loop_depth) - int32_t(b->cold_hint);
 
+			b->visited = (uint64_t) mb;
 			for (auto* phi : b->phis()) {
 				// Allocate a register.
 				//
@@ -911,13 +900,11 @@ namespace li::ir {
 		//
 		proc->basic_blocks.sort([](mblock& a, mblock& b) { return a.uid < b.uid; });
 
-		
 		// Generate the epilogue and prologue.
 		//
 		{
 			auto& prologue = proc->assembly;
 			auto& epilogue = proc->epilogue;
-			constexpr auto vector_move = USE_AVX ? ZYDIS_MNEMONIC_VMOVUPD : ZYDIS_MNEMONIC_MOVUPD;
 
 			// Push non-vol GPs.
 			//
@@ -934,13 +921,15 @@ namespace li::ir {
 			// Allocate space and align stack.
 			//
 			int  num_fp_used = std::popcount(proc->used_fp_mask >> std::size(arch::fp_volatile));
-			auto alloc_bytes = (push_count & 1 ? 8 : 0) + (arch::home_size + num_fp_used * 0x10 - 8);
+			auto alloc_bytes = std::max(arch::home_size, num_fp_used * 0x10 + proc->used_stack_length);
+			alloc_bytes      = (alloc_bytes + 7) & ~7;
 			LI_ASSERT(zy::encode(prologue, ZYDIS_MNEMONIC_SUB, arch::sp, alloc_bytes));
 			LI_ASSERT(zy::encode(epilogue, ZYDIS_MNEMONIC_ADD, arch::sp, alloc_bytes));
 
 			// Save vector registers.
 			//
-			zy::mem vsave_it{.size = 0x10, .base = arch::sp, .disp = arch::home_size};
+			zy::mem        vsave_it{.size = 0x10, .base = arch::sp, .disp = proc->used_stack_length};
+			constexpr auto vector_move = USE_AVX ? ZYDIS_MNEMONIC_VMOVUPD : ZYDIS_MNEMONIC_MOVUPD;
 			for (size_t i = std::size(arch::fp_volatile); i != arch::num_fp_reg; i++) {
 				if ((proc->used_fp_mask >> i) & 1) {
 					LI_ASSERT(zy::encode(prologue, vector_move, vsave_it, arch::fp_nonvolatile[i - std::size(arch::fp_volatile)]));

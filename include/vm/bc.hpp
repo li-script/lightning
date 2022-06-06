@@ -89,8 +89,7 @@ namespace li::bc {
 	_(JNS, rel, reg, ___, none)  /* JMP A if !B */                                        \
 	_(ITER, rel, reg, reg, none) /* B[1,2] = C[B++].kv, JMP A if end */                   \
 	/* Misc. */                                                                           \
-	_(NOP, ___, ___, ___, none)  /* No-op */                                              \
-	_(USED, reg, ___, ___, none) /* Hint that side-effects should not be discarded */                                              
+	_(NOP, ___, ___, ___, none)  /* No-op */                                                                                      
 
 	// Opcodes.
 	//

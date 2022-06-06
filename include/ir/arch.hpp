@@ -100,8 +100,8 @@ namespace li::ir::arch {
 
 	// Translation between each.
 	//
-	static constexpr std::array<native_reg, num_fp_reg + 1 + num_gp_reg> virtual_to_native_map = []() {
-		std::array<native_reg, num_fp_reg + 1 + num_gp_reg> res = {};
+	static constexpr std::array<native_reg, num_fp_reg + 2 + num_gp_reg> virtual_to_native_map = []() {
+		std::array<native_reg, num_fp_reg + 2 + num_gp_reg> res = {};
 		size_t                                              it  = 0;
 		for (native_reg r : view::reverse(fp_nonvolatile))
 			res[it++] = r;
@@ -112,6 +112,7 @@ namespace li::ir::arch {
 			res[it++] = r;
 		for (native_reg r : gp_nonvolatile)
 			res[it++] = r;
+		res[it++] = sp;
 		return res;
 	}();
 	static constexpr native_reg to_native(reg i) {

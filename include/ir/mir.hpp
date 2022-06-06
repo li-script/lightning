@@ -394,9 +394,9 @@ namespace li::ir {
 
 		// Used register and spill slot info
 		//
-		size_t used_gp_mask      = 0;
-		size_t used_fp_mask      = 0;
-		size_t used_stack_length = 0;
+		size_t  used_gp_mask      = 0;
+		size_t  used_fp_mask      = 0;
+		int32_t used_stack_length = 0;
 
 		// Target-specific assembly and relocation info.
 		//

@@ -281,7 +281,6 @@ namespace li::gc {
 		//
 		void collect(vm* L);
 		void tick(vm* L) {
-			// TODO: Proper scheduling.
 			--ticks;
 			if (debt > gc_min_debt) [[unlikely]] {
 				if (ticks < 0 || debt > gc_max_debt) {

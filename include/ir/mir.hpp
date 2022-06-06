@@ -226,7 +226,6 @@ namespace li::ir {
 		jmp,       // block
 		ret,       // i1
 		unreachable
-
 		// TODO: Profile instruction for PGO.
 	};
 	static constexpr const char* vop_names[] = {

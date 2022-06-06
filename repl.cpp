@@ -66,10 +66,6 @@ static void handle_repl_io(vm* L, std::string_view input) {
 #include <ir/opt.hpp>
 #include <ir/mir.hpp>
 
-// TODO: Builtin markers for tables.
-// math.sqrt -> sqrtss
-// type / trait stuff
-
 static bool ir_test(vm* L, any* args, slot_t n) {
 	using namespace ir;
 
@@ -175,7 +171,7 @@ static bool ir_test(vm* L, any* args, slot_t n) {
 
 	proc->topological_sort();
 
-	// Not reaaaly.
+	// TODO: Not reaaaly + move to procedure.
 	//
 	for (auto& blk : proc->basic_blocks) {
 		for (auto& s : blk->successors) {
@@ -187,10 +183,8 @@ static bool ir_test(vm* L, any* args, slot_t n) {
 		}
 	}
 
-	/*for (auto& bb : proc->basic_blocks) {
-		bb->loop_depth = bb->check_path(bb.get()) ? 1 : 0;
-	}*/ 
-
+	// TODO: Move somewhere
+	// 
 	// Ready for MIR.
 	{
 		// Fixup PHIs.

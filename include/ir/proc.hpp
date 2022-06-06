@@ -59,7 +59,7 @@ namespace li::ir {
 		//
 		procedure* proc      = nullptr;  // Procedure it belongs to.
 		uint8_t    cold_hint = 0;        // Number specifying how cold this block is.
-		uint8_t    loop_depth = 0;       // TODO: Number of nested loops we're in.
+		uint8_t    loop_depth = 0;       // Number of nested loops we're in.
 
 		// Bytecode ranges.
 		//

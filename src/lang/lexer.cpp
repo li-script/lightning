@@ -381,7 +381,6 @@ namespace li::lex {
 		//
 		state.input.remove_prefix(1);
 
-		// TODO: Long string
 		bool escape = false;
 		for (size_t i = 0;; i++) {
 			// If we reached EOF|EOL and there is no end of string, error.

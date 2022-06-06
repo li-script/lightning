@@ -4,6 +4,11 @@
 #include <ir/value.hpp>
 
 namespace li::ir::opt {
+	/*
+	* The following algorithm is a modified version adapted from the paper:
+		Braun, M., Buchwald, S., Hack, S., Leißa, R., Mallon, C., Zwinkau, A. (2013). Simple and Efficient Construction of Static Single Assignment Form. In: Jhala, R., De Bosschere, K. (eds) Compiler Construction. CC 2013. Lecture Notes in
+		Computer Science, vol 7791. Springer, Berlin, Heidelberg.
+	*/
 	static ref<> read_variable_local(bc::reg r, basic_block* b, insn* until = nullptr) {
 		for (insn* ins : view::reverse(b->before(until))) {
 			if (ins->is<store_local>() && ins->operands[0]->as<constant>()->i32 == r) {
@@ -20,9 +25,6 @@ namespace li::ir::opt {
 		}
 		return nullptr;
 	}
-
-	// Braun11CC
-	//
 	static ref<> read_variable_recursive(bc::reg r, basic_block* b);
 	static ref<> read_variable(bc::reg r, basic_block* b, insn* until = nullptr) {
 		auto v = read_variable_local(r, b, until);
@@ -30,9 +32,6 @@ namespace li::ir::opt {
 			v = read_variable_recursive(r, b);
 		return v;
 	}
-
-	// TODO: tryRemoveTrivialPhi
-
 	static ref<> try_remove_trivial_phi(ref<phi> phi) {
 		ref<> same = {};
 		for (auto& op : phi->operands) {
@@ -42,16 +41,21 @@ namespace li::ir::opt {
 				return phi;
 			same = op;
 		}
-		// users = phi.users.remove(phi)
-		//auto blk = phi->parent;
-		phi->replace_all_uses(same);
+
+		std::vector<ref<ir::phi>> phi_users;
+		phi->for_each_user([&](insn* i, size_t x) {
+			i->operands[x] = make_use(same.get());
+			if (i->is<ir::phi>())
+				phi_users.emplace_back(make_ref(i->as<ir::phi>()));
+			return false;
+		});
 		phi->erase();
-		// for use in users:
-		//  if use is phi:
-		//   tryremovetrivialbla
+
+		for (auto& p : phi_users)
+			if (p->parent)
+				try_remove_trivial_phi(std::move(p));
 		return same;
 	}
-
 	static ref<> read_variable_recursive(bc::reg r, basic_block* b) {
 		// Actually load the value if it does not exist.
 		//

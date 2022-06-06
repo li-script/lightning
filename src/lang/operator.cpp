@@ -145,7 +145,11 @@ namespace li {
 
 				double x = a.as_num();
 				double y = b.as_num();
+				#if LI_FAST_MATH
 				return {any(x - trunc(x / y) * y), true};
+				#else
+				return {any(fmod(x, y)), true};
+				#endif
 			}
 			case bc::APOW:
 				BINARY_APPLY_TRAIT(trait::pow);

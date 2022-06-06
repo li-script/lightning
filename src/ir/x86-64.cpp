@@ -8,8 +8,6 @@
 	static constexpr bool USE_AVX = false;
 #endif
 
-// TODO: Const hoisting
-
 namespace li::ir {
 	// Flags.
 	//
@@ -371,6 +369,7 @@ namespace li::ir {
 				return vx;
 			}
 			case bc::AMOD: {
+				// TODO: AMOD as CCALL if not fast math.
 				if constexpr (USE_AVX) {
 					VDIVSD(b, vx, vl, vr);
 					VROUNDSD(b, vx, vx, 11);  // = trunc(x/y)
@@ -922,8 +921,6 @@ namespace li::ir {
 	// Assembles the pseudo-target instructions in the IR.
 	//
 	nfunction* assemble_ir(mprocedure* proc) {
-		// TODO: Hot/Cold
-		// 
 		// Sort the blocks by name.
 		//
 		proc->basic_blocks.sort([](mblock& a, mblock& b) { return a.uid < b.uid; });
@@ -1019,12 +1016,12 @@ namespace li::ir {
 			rel = int32_t(disp);
 		}
 
-		auto gen = std::span<const uint8_t>(out->code, asm_length);
-		while (auto i = zy::decode(gen)) {
-			if (i->ins.mnemonic == ZYDIS_MNEMONIC_INT3)
-				break;
-			puts(i->to_string().c_str());
-		}
+		//auto gen = std::span<const uint8_t>(out->code, asm_length);
+		//while (auto i = zy::decode(gen)) {
+		//	if (i->ins.mnemonic == ZYDIS_MNEMONIC_INT3)
+		//		break;
+		//	puts(i->to_string().c_str());
+		//}
 
 		// TODO: Debug
 		out->acquire();

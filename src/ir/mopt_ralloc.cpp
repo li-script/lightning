@@ -1,30 +1,8 @@
 #include <ir/opt.hpp>
 
-/*
-
-A) instruction traits [encoding, etc]
-B) reg alloc
-
-
--> type & trait inference
----> register allocation
-1) flags register
-2) can't spill or re-type conditionally
-- optimize type inference with dominator trees
-
-
--> register allocation
-
-*/
-
-/*
-* TODO: Minimize lifetime by moving around
-* %v8 = shr %v8 0x2f
-  %v8 = sub %v8 0x9
-	%v9 = movi 0xfffaffffffffffff <-- blocks like this.
-	%v1 = movi %v9
-  %f3 = cmp %v8 0x1
-*/
+#ifndef LI_RA_TEST_PRESSURE
+	#define LI_RA_TEST_PRESSURE 0
+#endif
 
 namespace li::ir::opt {
 	static constexpr float  RA_PRIO_HOT_BIAS = 12.0f;
@@ -436,7 +414,7 @@ namespace li::ir::opt {
 	// Allocates registers for each virtual register and generates the spill instructions.
 	//
 	void allocate_registers(mprocedure* proc)
- {
+	{
 		// Spill arguments.
 		//
 		spill_args(proc);
@@ -445,12 +423,17 @@ namespace li::ir::opt {
 		//
 		std::vector<graph_node> interference_graph = build_graph(proc);
 		//print_graph(interference_graph);
-		print_lifetime(proc);
+		//print_lifetime(proc);
 
 		// Enter the register allocation loop.
 		//
-		static constexpr size_t MAX_K = 4;  // arch::num_gp_reg;
+#if LI_RA_TEST_PRESSURE
+		static constexpr size_t MAX_K = 4;
+		static constexpr size_t MAX_M = 3;
+#else
+		static constexpr size_t MAX_K = arch::num_gp_reg;
 		static constexpr size_t MAX_M = arch::num_fp_reg;
+#endif
 		size_t                  K     = std::min(MAX_K, std::max<size_t>(std::size(arch::gp_volatile), 2));
 		size_t                  M     = std::min(MAX_M, std::max<size_t>(std::size(arch::fp_volatile), 2));
 		std::vector<graph_node> interference_graph_copy(interference_graph);
@@ -462,7 +445,7 @@ namespace li::ir::opt {
 			// Try coloring the graph.
 			//
 			auto [spill_gp, spill_fp] = try_color(interference_graph, K, M);
-			printf("Try_color (K=%llu, M=%llu) spills (%llu, %llu) registers\n", K, M, spill_gp, spill_fp);
+			//printf("Try_color (K=%llu, M=%llu) spills (%llu, %llu) registers\n", K, M, spill_gp, spill_fp);
 
 			// If we don't need to spill, break out.
 			//
@@ -600,6 +583,5 @@ namespace li::ir::opt {
 				return false;
 			});
 		}
-		proc->print();
 	}
 };

@@ -19,8 +19,8 @@ namespace li::ir {
 
 		// Complex types.
 		//
-		dup,
-		vlen,
+		vdup,  // Not allowed at MIR, handled by pre-pass.
+		vlen,  // Not traits allowed at MIR, must be typed.
 		vin,
 		vjoin,
 		trait_get,
@@ -339,8 +339,8 @@ namespace li::ir {
 			LI_ASSERT(operands[0]->is(type::i32));
 		}
 	};
-	// T     dup(T)
-	struct dup final : insn_tag<dup, opcode::dup> {
+	// T     vdup(T)
+	struct vdup final : insn_tag<vdup, opcode::vdup> {
 		void update() override {
 			is_pure = false;
 			LI_ASSERT(operands.size() == 1);

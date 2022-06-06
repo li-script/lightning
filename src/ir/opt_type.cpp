@@ -119,7 +119,7 @@ namespace li::ir::opt {
 	static void specialize_dup(procedure* proc) {
 		proc->bfs([&](basic_block* bb) {
 			auto i = range::find_if(bb->insns(), [](insn* i) {
-				if (i->is<dup>()) {
+				if (i->is<vdup>()) {
 					i->update();
 					if (i->vt == type::unk) {
 						return true;
@@ -131,13 +131,13 @@ namespace li::ir::opt {
 				return false;
 			}
 
+			ref<> op        = i.at->operands[0];
 			auto [arr, e0] = split_by(i.at, 0, type_array);
 			auto [tbl, e1] = split_by(e0, 0, type_table);
 			auto [fn, e2]  = split_by(e1, 0, type_function);
-			e2             = builder{e2}.emit_before<unreachable>(e2);  // <-- TODO: throw.
-			while (e2 != e2->parent->back())
-				e2->parent->back()->erase();
-			proc->del_jump(e2->parent, e2->parent->successors.back());
+			// Simple move.
+			e2->replace_all_uses(op);
+			e2->erase();
 			return false;
 		});
 		proc->validate();
@@ -160,6 +160,8 @@ namespace li::ir::opt {
 			auto [arr, e0]  = split_by(i.at, 0, type_array);
 			auto [tbl, e1] = split_by(e0, 0, type_table);
 			auto [str, e2]  = split_by(e1, 0, type_string);
+			// TODO: ^has trait -> e2 (would also include userdata)
+
 			e2             = builder{e2}.emit_before<unreachable>(e2);  // <-- TODO: throw.
 			while (e2 != e2->parent->back())
 				e2->parent->back()->erase();

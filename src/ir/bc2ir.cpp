@@ -131,10 +131,13 @@ namespace li::ir {
 					set_reg(a, bld.emit<table_new>(b));
 					continue;
 				}
-				case bc::VDUP:
+				case bc::VDUP: {
+					set_reg(a, bld.emit<vdup>(get_reg(b)));
+					continue;
+				}
 				case bc::ADUP:
 				case bc::TDUP: {
-					set_reg(a, bld.emit<dup>(get_kval(b)));
+					set_reg(a, bld.emit<vdup>(any(std::in_place, insn.xmm())));
 					continue;
 				}
 				// case bc::CCAT: // A=CONCAT(A..A+B)
@@ -173,7 +176,7 @@ namespace li::ir {
 				//
 				case bc::FDUP: {
 					auto bf     = get_kval(b);
-					auto r  = bld.emit<dup>(bf);
+					auto r  = bld.emit<vdup>(bf);
 					r           = bld.emit<assume_cast>(r, type::fn);
 					for (bc::reg i = 0; i != bf.as_fn()->num_uval; i++) {
 						bld.emit<uval_set>(r, i, get_reg(c + i));

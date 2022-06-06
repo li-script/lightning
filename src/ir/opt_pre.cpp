@@ -3,6 +3,9 @@
 #include <ir/proc.hpp>
 #include <ir/value.hpp>
 #include <vm/runtime.hpp>
+#include <vm/array.hpp>
+#include <vm/table.hpp>
+#include <vm/function.hpp>
 
 namespace li::ir::opt {
 	// Prepares the IR to be lifted to MIR.
@@ -27,6 +30,27 @@ namespace li::ir::opt {
 					continue;
 				} else if (it->is<table_new>()) {
 					it = replace_with_call(it, true, type::tbl, &runtime::table_new, it->operands[0]);
+					continue;
+				}
+
+				// Duplication.
+				//
+				if (it->is<vdup>()) {
+					void* duplicator;
+					switch (it->operands[0]->vt) {
+						case type::arr:
+							duplicator = +[](vm* L, array* a) { return a->duplicate(L); };
+							break;
+						case type::tbl:
+							duplicator = +[](vm* L, table* a) { return a->duplicate(L); };
+							break;
+						case type::fn:
+							duplicator = +[](vm* L, function* a) { return a->duplicate(L); };
+							break;
+						default:
+							util::abort("unexpected dup with invalid or unknown type.");
+					}
+					it = replace_with_call(it, true, it->operands[0]->vt, duplicator, it->operands[0]);
 					continue;
 				}
 

@@ -71,6 +71,5 @@ namespace li::ir::opt {
 		//
 		proc->reset_names();
 		proc->validate();
-		proc->print();
 	}
 };

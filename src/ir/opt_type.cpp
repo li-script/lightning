@@ -25,21 +25,59 @@ namespace li::ir::opt {
 		}
 	}
 
-	// Adds the branches for required type checks.
+	// Splits the instruction stream into two, returns two instructions in a block with only the splitting instruction, an assume cast if applicable and the jmp.
 	//
-	void type_split_cfg(procedure* proc) {
-		auto get_unreachable_block = [&proc, unreachable_block = (basic_block*) nullptr]() mutable {
-			if (unreachable_block)
-				return unreachable_block;
-			auto* b = proc->add_block();
-			builder{b}.emit_front<unreachable>();
-			b->cold_hint      = 100;
-			unreachable_block = b;
-			return b;
-		};
-
-		// Force numeric operations to be numbers.
+	static std::pair<ref<insn>, ref<insn>> split_by(insn* i, size_t op, value_type check_against) {
+		// Insert the type check before the instruction.
 		//
+		builder b{i};
+		auto    cc = b.emit_before<test_type>(i, i->operands[op], check_against);
+
+		// Split the block after the check, add the jcc.
+		//
+		basic_block* at        = i->parent;
+		auto         cont_blk  = at->split_at(cc);
+		auto         true_blk  = at->proc->add_block();
+		auto         false_blk = at->proc->add_block();
+		b.emit<jcc>(cc, true_blk, false_blk);
+		at->proc->add_jump(at, true_blk);
+		at->proc->add_jump(at, false_blk);
+		//true_blk->visited  = at->visited;
+		//false_blk->visited = at->visited;
+
+		// Copy type into two.
+		//
+		auto tunchecked        = make_ref(i->duplicate());
+		auto tchecked          = i->erase();
+		tchecked->operands[op] = builder{true_blk}.emit<assume_cast>(i->operands[op], to_ir_type(check_against));
+
+		// Create both blocks.
+		//
+		auto v1 = true_blk->push_back(tchecked);
+		auto v2 = false_blk->push_back(tunchecked);
+		tchecked->update();
+		builder{true_blk}.emit<jmp>(cont_blk);
+		builder{false_blk}.emit<jmp>(cont_blk);
+		true_blk->proc->add_jump(true_blk, cont_blk);
+		false_blk->proc->add_jump(false_blk, cont_blk);
+
+		// Create a PHI at the destination if there is a result and replace all uses.
+		//
+		if (v1.at->vt != type::none) {
+			auto ph = builder{cont_blk}.emit_front<phi>(v1.at, v2.at);
+			tchecked->for_each_user_outside_block([&](insn* i, size_t op) {
+				if (i != ph)
+					i->operands[op].reset(ph);
+				return false;
+			});
+		}
+		i->parent->validate();
+		return {std::move(tchecked), std::move(tunchecked)};
+	}
+
+	// Each specialization.
+	//
+	static void specialize_op(procedure* proc) {
 		proc->bfs([&](basic_block* bb) {
 			// Find the first numeric operation with an unknown type.
 			//
@@ -62,59 +100,81 @@ namespace li::ir::opt {
 				return false;
 			}
 
-			// Insert an is number check before.
-			//
-			builder b{i.at};
-			auto    op = i->operands[1]->vt == type::unk ? 1 : 2;
-			auto    cc = b.emit_before<test_type>(i.at, i->operands[op], type_number);
+			auto [y, f] = split_by(i.at, i->operands[1]->vt == type::unk ? 1 : 2, type_number);
+			f           = builder{f}.emit_before<unreachable>(f);  // <-- TODO: trait block.
 
-			// Split the block after the check, add the jcc.
-			//
-			auto cont_blk   = bb->split_at(cc);
-			auto num_blk    = proc->add_block();
-			auto nonnum_blk = get_unreachable_block();  // proc->add_block();
-			b.emit<jcc>(cc, num_blk, nonnum_blk);
-			proc->add_jump(bb, num_blk);
-			proc->add_jump(bb, nonnum_blk);
+			while (f != f->parent->back())
+				f->parent->back()->erase();
+			proc->del_jump(f->parent, f->parent->successors.back());
 
-			// Unlink the actual operation and move it to another block.
-			//
-			b.blk           = num_blk;
-			i->operands[op] = b.emit<assume_cast>(i->operands[op], type::f64);
-			auto v1         = num_blk->push_back(i->erase());
-			v1->update();
-			b.emit<jmp>(cont_blk);
-			proc->add_jump(num_blk, cont_blk);
-
-			// Replace uses.
-			//
-			i->for_each_user_outside_block([&](insn* i, size_t op) {
-				i->operands[op].reset(v1.at);
+			y->update();
+			y->for_each_user([](insn* i, size_t) {
+				i->update();
 				return false;
 			});
-
-			// TODO: Trait stuff.
-			// b.blk           = nonnum_blk;
-			// auto v2 = i->is<compare>() ? b.emit<move>(false) : b.emit<move>(0);
-			// b.emit<jmp>(cont_blk);
-			// proc->add_jump(nonnum_blk, cont_blk);
-			//
-			//// Create a PHI at the destination.
-			////
-			// b.blk = cont_blk;
-			// auto x = b.emit_front<phi>(v1.at, v2.at);
-			//
-			//// Replace uses.
-			////
-			// cont_blk->validate();
-			// i->for_each_user_outside_block([&](insn* i, size_t op) {
-			//	if (i!=x)
-			//		i->operands[op].reset(x);
-			//	i->parent->validate();
-			//	return false;
-			// });
 			return false;
 		});
+		proc->validate();
+	}
+	static void specialize_dup(procedure* proc) {
+		proc->bfs([&](basic_block* bb) {
+			auto i = range::find_if(bb->insns(), [](insn* i) {
+				if (i->is<dup>()) {
+					i->update();
+					if (i->vt == type::unk) {
+						return true;
+					}
+				}
+				return false;
+			});
+			if (i == bb->end()) {
+				return false;
+			}
+
+			auto [arr, e0] = split_by(i.at, 0, type_array);
+			auto [tbl, e1] = split_by(e0, 0, type_table);
+			auto [fn, e2]  = split_by(e1, 0, type_function);
+			e2             = builder{e2}.emit_before<unreachable>(e2);  // <-- TODO: throw.
+			while (e2 != e2->parent->back())
+				e2->parent->back()->erase();
+			proc->del_jump(e2->parent, e2->parent->successors.back());
+			return false;
+		});
+		proc->validate();
+	}
+	static void specialize_len(procedure* proc) {
+		proc->bfs([&](basic_block* bb) {
+			auto i = range::find_if(bb->insns(), [](insn* i) {
+				if (i->is<vlen>()) {
+					i->update();
+					if (i->operands[0]->vt == type::unk) {
+						return true;
+					}
+				}
+				return false;
+			});
+			if (i == bb->end()) {
+				return false;
+			}
+
+			auto [arr, e0]  = split_by(i.at, 0, type_array);
+			auto [tbl, e1] = split_by(e0, 0, type_table);
+			auto [str, e2]  = split_by(e1, 0, type_string);
+			e2             = builder{e2}.emit_before<unreachable>(e2);  // <-- TODO: throw.
+			while (e2 != e2->parent->back())
+				e2->parent->back()->erase();
+			proc->del_jump(e2->parent, e2->parent->successors.back());
+			return false;
+		});
+		proc->validate();
+	}
+
+	// Adds the branches for required type checks.
+	//
+	void type_split_cfg(procedure* proc) {
+		specialize_op(proc);
+		specialize_dup(proc);
+		specialize_len(proc);
 	}
 
 	// Infers constant type information and optimizes the control flow.

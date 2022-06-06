@@ -206,17 +206,18 @@ namespace li::ir {
 	//
 	enum class vop {
 		null,
-		movf,      // fpreg = fpreg/gpreg/const
-		movi,      // gpreg = fpreg/gpreg/const
-		izx8,      // gpreg = u8(gpreg)
-		izx16,     // gpreg = u16(gpreg)
-		izx32,     // gpreg = u32(gpreg)
-		isx8,      // gpreg = i8(gpreg)
-		isx16,     // gpreg = i16(gpreg)
-		isx32,     // gpreg = i32(gpreg)
-		fsx32,     // fpreg = f32(fpreg)
-		icvt,      // gpreg = f64(fpreg)
-		fcvt,      // fpreg = f64(gpreg)
+		movf,   // fpreg = fpreg/gpreg/const
+		movi,   // gpreg = fpreg/gpreg/const
+		izx8,   // gpreg = u8(gpreg)
+		izx16,  // gpreg = u16(gpreg)
+		izx32,  // gpreg = u32(gpreg)
+		isx8,   // gpreg = i8(gpreg)
+		isx16,  // gpreg = i16(gpreg)
+		isx32,  // gpreg = i32(gpreg)
+		fx32,   // fpreg = f64->f32(fpreg)
+		fx64,   // fpreg = f32->f64(fpreg)
+		icvt,   // gpreg = f64(fpreg)
+		fcvt,   // fpreg = f64(gpreg)
 
 		loadi8,   // gpreg = i8[mem]
 		loadi16,  // gpreg = i16[mem]
@@ -252,7 +253,8 @@ namespace li::ir {
 		 "isx8",
 		 "isx16",
 		 "isx32",
-		 "fsx32",
+		 "fx32",
+		 "fx64",
 		 "icvt",
 		 "fcvt",
 		 "loadi8",
@@ -410,7 +412,7 @@ namespace li::ir {
 			}
 		}
 		bool is_move_between_same_class() const {
-			if (is_virtual && (vop::movf <= getv() && getv() <= vop::fsx32)) {
+			if (is_virtual && (vop::movf <= getv() && getv() <= vop::fx64)) {
 				return arg[0].is_reg() && out.is_fp() == arg[0].reg.is_fp();
 			}
 			return false;

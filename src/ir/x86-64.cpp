@@ -2,6 +2,8 @@
 #if LI_JIT && LI_ARCH_X86 && !LI_32
 #include <ir/mir.hpp>
 #include <vm/runtime.hpp>
+#include <vm/array.hpp>
+#include <vm/table.hpp>
 
 #if __AVX__
 	static constexpr bool USE_AVX = true;
@@ -173,6 +175,14 @@ namespace li::ir {
 		return tmp;
 	}
 
+	// Clears type tag, should not be a number.
+	//
+	static void type_clear(mblock& b, mreg dst, mreg src) {
+		auto tmp = b->next_gp();
+		b.append(vop::movi, tmp, 47);
+		BZHI(b, dst, src, tmp);
+	}
+
 	// Erases the type into a general purpose register.
 	//
 	static void type_erase(mblock& b, value* v, mreg out) {
@@ -219,7 +229,7 @@ namespace li::ir {
 			b.append(vop::movi, out, tf);
 		} else if (v->vt == type::f32) {
 			auto tf = b->next_fp();
-			b.append(vop::fsx32, tf, r);
+			b.append(vop::fx64, tf, r);
 			b.append(vop::movi, out, tf);
 		} else if (v->vt == type::f64 || v->vt == type::unk) {
 			b.append(vop::movi, out, r);
@@ -506,6 +516,34 @@ namespace li::ir {
 				b.append(vop::movi, REG(i), mreg(arch::from_native(arch::gp_retval)));
 				return;
 			}
+			case opcode::vlen: {
+				// Pick the field.
+				//
+				int32_t offset;
+				switch (i->operands[0]->vt) {
+					case type::str:
+						offset = offsetof(string, length);
+						break;
+					case type::tbl:
+						offset = offsetof(table, active_count);
+						break;
+					case type::arr:
+						offset = offsetof(array, length);
+						break;
+					default:
+						util::abort("unexpected vlen with invalid or unknown type.");
+				}
+
+				// Load the result.
+				//
+				auto tg = b->next_gp();
+				auto tf = b->next_fp();
+				b.append(vop::loadi32, tg, mmem{.base = REG(i->operands[0]), .disp = offset});
+				b.append(vop::izx32, tg, tg);
+				b.append(vop::fcvt, tf, tg);
+				b.append(vop::movi, REG(i), tf);
+				return;
+			}
 
 			// Operators.
 			//
@@ -567,9 +605,44 @@ namespace li::ir {
 			//
 			case opcode::assume_cast: {
 				auto out = REG(i);
-				// TODO: Need type specific action, e.g. clear high bits if LI_KERNEL_MODE.
-				b.append(out.is_fp() ? vop::movf : vop::movi, out, REG(i->operands[0]));
-				return;
+				switch (i->vt) {
+					case type::i1: {
+						auto tmp = b->next_gp();
+						b.append(vop::movi, tmp, (int64_t) make_tag(type_true));
+						CMP(b, FLAG_Z, tmp, REG(i->operands[0]));
+						b.append(vop::setcc, out, FLAG_Z);
+						return;
+					}
+					case type::i8:
+					case type::i16:
+					case type::i32:
+					case type::i64: {
+						b.append(vop::icvt, out, REG(i->operands[0]));
+						return;
+					}
+					case type::f32:
+					case type::f64: {
+						b.append(vop::movf, out, REG(i->operands[0]));
+						if (i->vt == type::f64)
+							b.append(vop::fx32, out, out);
+						return;
+					}
+					case type::opq: {
+						b.append(vop::movi, out, REG(i->operands[0]));
+						return;
+					}
+					// GC types.
+					default: {
+						type_clear(b, out, REG(i->operands[0]));
+						return;
+					}
+					// Invalid types.
+					//
+					case type::nil:
+					case type::unk: {
+						break;
+					}
+				}
 			}
 			case opcode::coerce_cast: {
 				LI_ASSERT(i->operands[1]->as<constant>()->irtype == type::i1);
@@ -1085,7 +1158,16 @@ namespace li::ir {
 				}
 				break;
 			}
-			case vop::fsx32: {
+			case vop::fx32: {
+				auto dst = to_reg(b, i.out);
+				auto src = to_reg(b, i.arg[0].reg);
+				if constexpr (USE_AVX)
+					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_VCVTSD2SS, dst, src));
+				else
+					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_CVTSD2SS, dst, src));
+				break;
+			}
+			case vop::fx64: {
 				auto dst = to_reg(b, i.out);
 				auto src = to_reg(b, i.arg[0].reg);
 				if constexpr (USE_AVX)
@@ -1112,30 +1194,40 @@ namespace li::ir {
 					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_CVTTSD2SI, dst, src));
 				break;
 			}
-			case vop::izx8:
-			case vop::izx16:
-			case vop::izx32:
-			case vop::isx8:
-			case vop::isx16:
+			case vop::izx8: {
+				auto dst = zy::resize_reg(to_reg(b, i.out), 4);
+				auto src = zy::resize_reg(to_reg(b, i.arg[0].reg), 1);
+				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOVZX, dst, src));
+				break;
+			}
+			case vop::izx16: {
+				auto dst = zy::resize_reg(to_reg(b, i.out), 4);
+				auto src = zy::resize_reg(to_reg(b, i.arg[0].reg), 2);
+				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOVZX, dst, src));
+				break;
+			}
+			case vop::izx32: {
+				auto dst = zy::resize_reg(to_reg(b, i.out), 4);
+				auto src = zy::resize_reg(to_reg(b, i.arg[0].reg), 4);
+				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, dst, src));
+				break;
+			}
+			case vop::isx8: {
+				auto dst = zy::resize_reg(to_reg(b, i.out), 4);
+				auto src = zy::resize_reg(to_reg(b, i.arg[0].reg), 1);
+				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOVSX, dst, src));
+				break;
+			}
+			case vop::isx16: {
+				auto dst = zy::resize_reg(to_reg(b, i.out), 4);
+				auto src = zy::resize_reg(to_reg(b, i.arg[0].reg), 2);
+				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOVSX, dst, src));
+				break;
+			}
 			case vop::isx32: {
 				auto dst = to_reg(b, i.out);
-				auto src = to_reg(b, i.arg[0].reg);
-				if (i.is(vop::isx8) || i.is(vop::izx8))
-					src = zy::resize_reg(src, 1);
-				else if (i.is(vop::isx16) || i.is(vop::izx16))
-					src = zy::resize_reg(src, 2);
-				else if (i.is(vop::isx32) || i.is(vop::izx32))
-					src = zy::resize_reg(src, 4);
-
-				auto mn = ZYDIS_MNEMONIC_MOVSX;
-				if (i.is(vop::izx32)) {
-					mn  = ZYDIS_MNEMONIC_MOV;
-					dst = zy::resize_reg(dst, 4);
-				} else if (i.is(vop::izx8) || i.is(vop::izx16)) {
-					mn  = ZYDIS_MNEMONIC_MOVZX;
-					dst = zy::resize_reg(dst, 4);
-				}
-				LI_ASSERT(zy::encode(b->assembly, mn, dst, src));
+				auto src = zy::resize_reg(to_reg(b, i.arg[0].reg), 4);
+				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOVSXD, dst, src));
 				break;
 			}
 			case vop::js: {

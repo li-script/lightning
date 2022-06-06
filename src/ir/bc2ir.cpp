@@ -55,7 +55,7 @@ namespace li::ir {
 					continue;
 				}
 				case bc::VLEN: {
-					set_reg(a, bld.emit<vlen>(op, get_reg(b)));
+					set_reg(a, bld.emit<vlen>(get_reg(b)));
 					continue;
 				}
 

@@ -165,8 +165,9 @@ namespace li::ir {
 				} else {
 					LI_ASSERT(i->operands.size() == predecessors.size());
 					for (size_t j = 0; j != i->operands.size(); j++) {
-						if (i->operands[j]->is<insn>())
+						if (i->operands[j]->is<insn>()) {
 							LI_ASSERT(i->operands[j]->as<insn>()->parent->dom(predecessors[j]));
+						}
 					}
 				}
 				num_term += i->is_terminator();

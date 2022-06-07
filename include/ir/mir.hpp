@@ -574,7 +574,7 @@ namespace li::ir {
 
 		// Adds a new block.
 		//
-		mblock* add_block(mblock* from = nullptr) {
+		mblock* add_block() {
 			auto* bb   = &basic_blocks.emplace_back();
 			bb->parent = this;
 			bb->uid    = next_block++;
@@ -585,7 +585,7 @@ namespace li::ir {
 		//
 		void print() const {
 			for (auto& b : basic_blocks) {
-				printf("-- Block $%u", b.uid);
+				printf("-- Block $%x", b.uid);
 				if (b.hot < 0)
 					printf(LI_CYN " [COLD %u]" LI_DEF, (uint32_t) -b.hot);
 				if (b.hot > 0)

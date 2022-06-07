@@ -128,7 +128,7 @@ namespace li::ir::opt {
 				}
 
 				/*
-				-- Block $4
+				-- Block $x
 				#1e    %14:? = phi $1->%6:nil, $3->%11:?
 				#1d    jmp $7
 				*/

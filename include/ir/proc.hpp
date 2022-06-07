@@ -194,7 +194,7 @@ namespace li::ir {
 		// Printer.
 		//
 		void print() const {
-			printf("-- Block $%u", uid);
+			printf("-- Block $%x", uid);
 			if (cold_hint)
 				printf(LI_CYN " [COLD %u]" LI_DEF, (uint32_t) cold_hint);
 			if (loop_depth)
@@ -230,7 +230,7 @@ namespace li::ir {
 			}
 		}
 	};
-	static std::string to_string(basic_block* bb) { return util::fmt(LI_PRP "$%u" LI_DEF, bb->uid); }
+	static std::string to_string(basic_block* bb) { return util::fmt(LI_PRP "$%x" LI_DEF, bb->uid); }
 
 	// Procedure type.
 	//

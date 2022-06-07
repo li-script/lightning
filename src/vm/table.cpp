@@ -5,9 +5,7 @@
 namespace li {
 	table* table::create(vm* L, msize_t reserved_entry_count) {
 		table* tbl = L->alloc<table>();
-		if (reserved_entry_count) {
-			tbl->resize(L, reserved_entry_count);
-		}
+		tbl->resize(L, std::max(reserved_entry_count, 4u));
 		return tbl;
 	}
 
@@ -42,7 +40,7 @@ namespace li {
 	// Rehashing resize.
 	//
 	void table::resize(vm* L, msize_t n) {
-		msize_t new_count = std::bit_ceil(n | (small_table_length - 1));
+		msize_t new_count = std::bit_ceil(n);
 		msize_t old_count = size();
 		if (new_count > old_count) {
 			auto*  old_list     = node_list;
@@ -52,14 +50,13 @@ namespace li {
 			mask                = compute_mask(new_count);
 			fill_none(node_list->entries, alloc_length / sizeof(any));
 
-			if (old_entries) {
+			if (old_list) {
 				for (msize_t i = 0; i != (old_count + overflow_factor); i++) {
 					if (old_entries[i].key != none) {
 						set(L, old_entries[i].key, old_entries[i].value);
 					}
 				}
-				if (old_list)
-					L->gc.free(L, old_list);
+				L->gc.free(L, old_list);
 			}
 		}
 	}

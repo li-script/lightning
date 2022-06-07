@@ -73,7 +73,7 @@ namespace li::ir::opt {
 	static void print_lifetime(mprocedure* proc, std::span<graph_node> gr = {}) {
 		puts("\n");
 		for (auto& b : proc->basic_blocks) {
-			printf("-- Block $%u", b.uid);
+			printf("-- Block $%x", b.uid);
 			if (b.hot < 0)
 				printf(LI_CYN " [COLD %u]" LI_DEF, (uint32_t) -b.hot);
 			if (b.hot > 0)

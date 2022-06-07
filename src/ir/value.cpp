@@ -76,7 +76,7 @@ namespace li::ir {
 		} else {
 			for (size_t i = 0; i != operands.size(); i++) {
 				if (opc == opcode::phi)
-					s += util::fmt(LI_PRP "$%u" LI_DEF "->", parent->predecessors[i]->uid);
+					s += util::fmt(LI_PRP "$%x" LI_DEF "->", parent->predecessors[i]->uid);
 				s += operands[i]->to_string();
 				s += ", ";
 			}

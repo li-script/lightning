@@ -66,6 +66,7 @@ static void handle_repl_io(vm* L, std::string_view input) {
 #include <ir/opt.hpp>
 #include <ir/mir.hpp>
 
+#if LI_JIT
 namespace li::jit {
 	using namespace ir;
 
@@ -173,8 +174,7 @@ namespace li::jit {
 		return L->ok(string::create(L, result));
 	}
 };
-
-
+#endif
 
 #if LI_ARCH_WASM
 static vm* emscripten_vm = nullptr;

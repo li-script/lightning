@@ -9,6 +9,7 @@
 #include <vm/array.hpp>
 #include <vm/table.hpp>
 #include <vm/function.hpp>
+#include <cmath>
 
 namespace li::ir::opt {
 	// Prepares the IR to be lifted to MIR.

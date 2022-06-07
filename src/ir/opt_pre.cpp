@@ -58,7 +58,7 @@ namespace li::ir::opt {
 					continue;
 				}
 
-				// Mod.
+				// Mod and pow.
 				//
 #if !LI_FAST_MATH
 				if (it->is<binop>() && it->operands[0]->as<constant>()->vmopr == bc::AMOD) {
@@ -73,6 +73,17 @@ namespace li::ir::opt {
 					continue;
 				}
 #endif
+				if (it->is<binop>() && it->operands[0]->as<constant>()->vmopr == bc::APOW) {
+					switch (it->vt) {
+						case type::f64:
+							it = replace_with_call(
+								 it, false, type::f64, +[](double x, double y) { return pow(x, y); }, it->operands[1], it->operands[2]);
+							break;
+						default:
+							util::abort("unexpected APOW with invalid or unknown type.");
+					}
+					continue;
+				}
 				++it;
 			}
 		}	

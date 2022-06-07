@@ -133,6 +133,8 @@ namespace li::ir {
 	INSN_RW_R(AND);
 	INSN_RW_R(IMUL);
 	INSN_RW_R(XOR);
+	INSN_RW_R(CMOVZ);
+	INSN_RW_R(CMOVNBE);
 	INSN_RW_R(CRC32); // Always qword.
 	INSN_W_R(LEA, .trashes_flags = false, );
 	INSN_W_R_R(BZHI, .trashes_flags = false, );
@@ -262,38 +264,30 @@ namespace li::ir {
 
 	// Hashes the value as any::hash.
 	//
-	static void value_hash(mblock& b, value* v, mreg out) {
+	static void value_hash(mblock& b, mreg in, mreg out, value* v = nullptr) {
 		// Skip if constant.
 		//
-		if (v->is<constant>()) {
+		if (v && v->is<constant>()) {
 			b.append(vop::movi, out, (int64_t) v->as<constant>()->to_any().hash());
 			return;
 		}
-
-		// Move with type to a temporary.
-		//
-		auto tmp = b->next_gp();
-		if (v->vt == type::unk)
-			b.append(vop::movi, tmp, REG(v));
-		else
-			type_erase(b, v, tmp);
 
 		// Replicate the hash function in-line.
 		//
 	#if LI_32 || !LI_HAS_CRC
 		auto tmp2 = b->next_gp();
 		b.append(vop::movi, out, 0xff51afd7ed558ccdll);
-		b.append(vop::movi, tmp2, tmp);
+		b.append(vop::movi, tmp2, in);
 		SHR(b, tmp2, 33);
-		XOR(b, tmp2, tmp);
+		XOR(b, tmp2, in);
 		IMUL(b, tmp2, out);
 		b.append(vop::movi, out, tmp2);
 		SHR(b, out, 33);
 		XOR(b, out, tmp2);
 	#else
-		b.append(vop::movi, out, tmp);
+		b.append(vop::movi, out, in);
 		SHR(b, out, 8);
-		CRC32(b, out, tmp);
+		CRC32(b, out, in);
 	#endif
 	}
 
@@ -526,6 +520,101 @@ namespace li::ir {
 		}
 	}
 
+	// Looks up a value from a table without using traits.
+	//
+	static void table_lookup_raw(mblock& b, value* vkey, mreg tbl, mreg out) {
+		// Move the key with the typed erased to a temporary.
+		//
+		auto key = b->next_gp();
+		if (vkey->vt == type::unk)
+			b.append(vop::movi, key, REG(vkey));
+		else
+			type_erase(b, vkey, key);
+
+		// Hash the value and mask it, sum with table base.
+		//
+		auto base = b->next_gp();
+		value_hash(b, key, base, vkey);
+		AND(b, base, mmem{.base = tbl, .disp = offsetof(table, mask)});
+		ADD(b, base, mmem{.base = tbl, .disp = offsetof(table, node_list)});
+
+		// Allocate a temporary to hold the result.
+		//
+		auto tmp = b->next_gp();
+		b.append(vop::movi, tmp, none);
+		for (size_t i = 0; i != overflow_factor; i++) {
+			mmem kv{.base = base, .disp = int32_t(offsetof(table_nodes, entries) + sizeof(table_entry) * i)};
+			CMP(b, FLAG_Z, key, kv);
+			kv.disp += sizeof(any);
+			CMOVZ(b, tmp, kv);
+		}
+		b.append(vop::movi, out, tmp);
+	}
+	static void array_lookup(mblock& b, value* vkey, mreg arr, mreg out) {
+		// Read table length and data pointer.
+		//
+		auto tbl_len = b->next_gp();
+		auto tbl_store = b->next_gp();
+		b.append(vop::loadi32, tbl_len, mmem{.base = arr, .disp = offsetof(array, length)});
+		b.append(vop::loadi64, tbl_store, mmem{.base = arr, .disp = offsetof(array, storage)});
+
+		// Address both and emit a range check.
+		//
+		mreg result_cc   = b->next_gp();
+		mreg result_okay = b->next_gp();
+		LEA(b, result_cc, b->add_const(none));
+		if (vkey->is<constant>()) {
+			msize_t idx = msize_t(vkey->as<constant>()->to_any().as_num());
+			LEA(b, result_okay, mmem{.base = tbl_store, .disp = int32_t(idx * sizeof(any) + offsetof(array_store, entries))});
+			CMP(b, FLAG_NBE, tbl_len, idx);
+		} else {
+			mreg idx_reg = b->next_gp();
+			if (vkey->vt == type::f64)
+				b.append(vop::icvt, idx_reg, REG(vkey));
+			else if (type::i8 <= vkey->vt && vkey->vt <= type::i64)
+				b.append(vop::izx32, idx_reg, REG(vkey));
+			else
+				util::abort("unexpected key for array lookup.");
+			LEA(b, result_okay, mmem{.base = tbl_store, .index = idx_reg, .scale = 8, .disp = int32_t(offsetof(array_store, entries))});
+			CMP(b, FLAG_NBE, tbl_len, idx_reg);
+		}
+
+		// CMOV and then load from it.
+		//
+		CMOVNBE(b, result_cc, result_okay);
+		b.append(vop::loadi64, out, mmem{.base = result_cc});
+	}
+	static void array_write(mblock& b, value* vkey, mreg arr, mreg in) {
+		// Read table length and data pointer.
+		//
+		auto tbl_len   = b->next_gp();
+		auto tbl_store = b->next_gp();
+		b.append(vop::loadi32, tbl_len, mmem{.base = arr, .disp = offsetof(array, length)});
+		b.append(vop::loadi64, tbl_store, mmem{.base = arr, .disp = offsetof(array, storage)});
+
+		// Address the destination and emit the initial comparison.
+		//
+		mmem adr;
+		if (vkey->is<constant>()) {
+			msize_t idx = msize_t(vkey->as<constant>()->to_any().as_num());
+			adr = mmem{.base = tbl_store, .disp = int32_t(idx * sizeof(any) + offsetof(array_store, entries))};
+			CMP(b, FLAG_BE, tbl_len, idx);
+		} else {
+			mreg idx_reg = b->next_gp();
+			if (vkey->vt == type::f64)
+				b.append(vop::icvt, idx_reg, REG(vkey));
+			else if (type::i8 <= vkey->vt && vkey->vt <= type::i64)
+				b.append(vop::izx32, idx_reg, REG(vkey));
+			else
+				util::abort("unexpected key for array lookup.");
+			adr = mmem{.base = tbl_store, .index = idx_reg, .scale = 8, .disp = int32_t(offsetof(array_store, entries))};
+			CMP(b, FLAG_BE, tbl_len, idx_reg);
+		}
+
+		// TODO: Range check?
+		b.append(vop::storei64, {}, adr, in);
+	}
+
 	// Main lifter switch.
 	//
 	static void mlift(mblock& b, insn* i) {
@@ -546,8 +635,24 @@ namespace li::ir {
 			// TODO: None of this is right, just testing...
 			//
 			case opcode::field_set: {
-				// TODO: Inline if type known.
+				// If raw access:
 				//
+				/*if (i->operands[0]->as<constant>()->i1)*/
+				{
+					switch (i->operands[1]->vt) {
+						case type::arr: {
+							auto val = b->next_gp();
+							type_erase(b, i->operands[3], val);
+							array_write(b, i->operands[2], REG(i->operands[1]), val);
+							return;
+						}
+						case type::tbl: {
+						}
+						case type::str: {
+						}
+					}
+				}
+
 				b.append(vop::movi, arch::map_gp_arg(0, 0), mop(intptr_t(b->source->L)));
 				type_erase(b, i->operands[1], arch::map_gp_arg(1, 0));
 				type_erase(b, i->operands[2], arch::map_gp_arg(2, 0));
@@ -557,6 +662,26 @@ namespace li::ir {
 				return;
 			}
 			case opcode::field_get: {
+
+				// If raw access:
+				//
+				/*if (i->operands[0]->as<constant>()->i1)*/
+				{
+					switch (i->operands[1]->vt) {
+						case type::tbl: {
+							table_lookup_raw(b, i->operands[2], REG(i->operands[1]), REG(i));
+							return;
+						}
+						case type::arr: {
+							array_lookup(b, i->operands[2], REG(i->operands[1]), REG(i));
+							return;
+						}
+						case type::str: {
+
+						}
+					}
+				}
+
 				b.append(vop::movi, arch::map_gp_arg(0, 0), mop(intptr_t(b->source->L)));
 				type_erase(b, i->operands[1], arch::map_gp_arg(1, 0));
 				type_erase(b, i->operands[2], arch::map_gp_arg(2, 0));
@@ -978,7 +1103,7 @@ namespace li::ir {
 		// For each block:
 		//
 		for (auto& b : m->source->basic_blocks) {
-			//printf("-- Block $%u", b->uid);
+			//printf("-- Block $%x", b->uid);
 			//if (b->cold_hint)
 			//	printf(LI_CYN " [COLD %u]" LI_DEF, (uint32_t) b->cold_hint);
 			//if (b->loop_depth)
@@ -1446,7 +1571,7 @@ namespace li::ir {
 			auto& prologue = proc->assembly;
 			auto& epilogue = proc->epilogue;
 
-			//prologue.emplace_back(0xCC);
+			prologue.emplace_back(0x90);
 
 			// Push non-vol GPs.
 			//

@@ -588,6 +588,7 @@ namespace li {
 							continue;
 						}
 						case bc::CALL: {
+							L->push_stack(REG(b));
 							frame = {.stack_pos = locals_begin - L->stack, .caller_pc = (msize_t) ip, .n_args = a};
 							goto vcall;
 						}

@@ -61,6 +61,11 @@ namespace li::ir {
 		select,
 		phi,
 
+		// VCALL utilities.
+		//
+		reload_argument,
+		write_argument,
+
 		// Call types.
 		//
 		ccall,
@@ -542,6 +547,16 @@ namespace li::ir {
 			LI_ASSERT(operands[0]->is<constant>() && operands[0]->is(type::i32));
 		}
 	};
+	// none store_local(i32, unk)
+	struct store_local final : insn_tag<store_local, opcode::store_local> {
+		void update() override {
+			is_pure   = false;
+			sideffect = true;
+			vt        = type::none;
+			LI_ASSERT(operands.size() == 2);
+			LI_ASSERT(operands[0]->is<constant>() && operands[0]->is(type::i32));
+		}
+	};
 	// T    move(T x)
 	struct move final : insn_tag<move, opcode::move> {
 		void update() override {
@@ -561,16 +576,6 @@ namespace li::ir {
 			vt = type::unk;
 		}
 	};
-	// none store_local(i32, unk)
-	struct store_local final : insn_tag<store_local, opcode::store_local> {
-		void update() override {
-			is_pure   = false;
-			sideffect = true;
-			vt        = type::none;
-			LI_ASSERT(operands.size() == 2);
-			LI_ASSERT(operands[0]->is<constant>() && operands[0]->is(type::i32));
-		}
-	};
 	// T ccall(i1 has_vm, irtype rettype, ptr target, ...)
 	struct ccall final : insn_tag<ccall, opcode::ccall> {
 		void update() override {
@@ -583,13 +588,33 @@ namespace li::ir {
 			vt = operands[1]->as<constant>()->irtype;
 		}
 	};
-	// any vcall(const i32 fixedargs)
+	// unk  reload_argument(const i32)
+	struct reload_argument final : insn_tag<load_local, opcode::reload_argument> {
+		void update() override {
+			is_pure = true;
+			vt      = type::unk;
+			LI_ASSERT(operands.size() == 1);
+			LI_ASSERT(operands[0]->is<constant>() && operands[0]->is(type::i32));
+		}
+	};
+	// none write_argument(const i32, unk)
+	struct write_argument final : insn_tag<write_argument, opcode::write_argument> {
+		void update() override {
+			is_pure   = false;
+			sideffect = true;
+			vt        = type::none;
+			LI_ASSERT(operands.size() == 2);
+			LI_ASSERT(operands[0]->is<constant>() && operands[0]->is(type::i32));
+		}
+	};
+	// i1  vcall(const i32 fixedargs, unk target)
 	struct vcall final : insn_tag<vcall, opcode::vcall> {
 		void update() override {
 			is_pure   = false;
 			sideffect = true;
 			LI_ASSERT(operands.size() == 2);
 			LI_ASSERT(operands[0]->is<constant>() && operands[0]->is(type::i32));
+			vt = type::i1;
 		}
 	};
 };

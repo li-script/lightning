@@ -81,7 +81,7 @@ namespace li::bc {
 	_(TOBOOL, reg, reg, ___, none) /* A = bool(B) */                                      \
                                                                                          \
 	/* Control flow. */                                                                   \
-	_(CALL, imm, ___, ___, none) /* A = Arg count */                                      \
+	_(CALL, imm, reg, ___, none) /* A = Arg count, B = function */                        \
 	_(RET, reg, ___, ___, none)  /* RETURN A */                                           \
 	_(THRW, reg, ___, ___, none) /* THROW A */                                            \
 	_(JMP, rel, ___, ___, none)  /* JMP A */                                              \

@@ -294,7 +294,7 @@ namespace li {
 				formatter("proto @ %p", a.as_gc());
 				break;
 			case type_function:
-				if (a.as_fn()->is_native())
+				if (a.as_fn()->is_virtual())
 					formatter("function @ %s", a.as_fn()->proto->src_chunk->c_str());
 				else
 					formatter("native-function @ %p", a.as_fn());

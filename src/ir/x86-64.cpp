@@ -1330,7 +1330,7 @@ namespace li::ir {
 			//
 			int  num_fp_used = std::popcount(proc->used_fp_mask >> std::size(arch::fp_volatile));
 			auto alloc_bytes = num_fp_used * 0x10 + proc->used_stack_length - 8;
-			alloc_bytes      = (alloc_bytes + 8) & ~7;
+			alloc_bytes      = ((push_count & 1) ? 0x0 : 0x8) + ((alloc_bytes & ~0xF) + 0x10);
 			LI_ASSERT(zy::encode(prologue, ZYDIS_MNEMONIC_SUB, arch::sp, alloc_bytes));
 
 			// Save vector registers.

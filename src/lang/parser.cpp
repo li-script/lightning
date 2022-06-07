@@ -1248,8 +1248,7 @@ namespace li {
 			callsite[i].first.push(scope);
 		}
 		self.push(scope);
-		func.push(scope);
-		scope.emit(bc::CALL, size);
+		scope.emit(bc::CALL, size, func.to_anyreg(scope));
 
 		// Reload all references.
 		//

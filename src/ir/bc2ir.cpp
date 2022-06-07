@@ -38,7 +38,9 @@ namespace li::ir {
 			}
 		};
 
-		bc::pos ip      = bld.blk->bc_begin;
+		int32_t stack_index = 0;
+		insn*   call_start  = nullptr;
+		bc::pos ip          = bld.blk->bc_begin;
 		bc::pos ip_end  = bld.blk->bc_end;
 		auto    opcodes = f->opcodes();
 		while (ip != ip_end) {
@@ -229,6 +231,60 @@ namespace li::ir {
 					continue;
 				}
 
+				// Virtual calls:
+				//
+				case bc::PUSHI: {
+					auto i = bld.emit<write_argument>(stack_index++, any(std::in_place, insn.xmm()));
+					if (stack_index == 1) {
+						LI_ASSERT(!call_start);
+						call_start = i;
+					} else {
+						LI_ASSERT(call_start);
+					}
+					continue;
+				}
+				case bc::PUSHR: {
+					auto i = bld.emit<write_argument>(stack_index++, get_reg(a));
+					if (stack_index == 1) {
+						LI_ASSERT(!call_start);
+						call_start = i;
+					} else {
+						LI_ASSERT(call_start);
+					}
+					continue;
+				}
+				case bc::SLOAD: {
+					LI_ASSERT(b < stack_index);
+					set_reg(a, bld.emit<reload_argument>(b));
+					continue;
+				}
+				case bc::SRST: {
+					LI_ASSERT(call_start);
+
+					// Reverse the indices of every argument.
+					//
+					for (auto it = call_start; it != bld.blk->end(); it = it->next) {
+						if (it->is<write_argument>()) {
+							it->operands[0] = launder_value(bld.blk->proc, stack_index - 1 - it->operands[0]->as<constant>()->i32);
+						} else if (it->is<reload_argument>()) {
+							it->operands[0] = launder_value(bld.blk->proc, stack_index - 1 - it->operands[0]->as<constant>()->i32);
+						}
+					}
+
+					stack_index = 0;
+					call_start  = nullptr;
+					continue;
+				}
+				case bc::CALL: {
+					auto f = get_reg(b);
+					bld.emit<write_argument>(stack_index++, f);
+					stack_index++; // Caller info.
+					bld.blk->proc->max_stack_slot = std::max<msize_t>(msize_t(stack_index), bld.blk->proc->max_stack_slot);
+					bld.emit<vcall>(a, f);
+					// TODO: Br to rethrow based on result
+					continue;
+				}
+
 				// Control flow:
 				//
 				case bc::RET: {
@@ -267,20 +323,15 @@ namespace li::ir {
 				//}
 				// _(ITER, rel, reg, reg, none) B[1,2] = C[B++].kv, JMP A if end
 
-				/*
-				Stack operators.
-				_(PUSHR, reg, ___, ___, none) PUSH(A)
-				_(PUSHI, ___, xmm, ___, none) PUSH(A)
-				_(SLOAD, reg, sp, ___, none)  A = STACK[TOP-B]
-				_(SRST, ___, ___, ___, none)  Resets the stack pos
-				Control flow.
-				_(CALL, imm, ___, ___, none)   A = Arg count
-				*/
 				default:
 					util::abort("Opcode %s NYI\n", bc::opcode_details(op).name);
 					return;
 			}
 		}
+
+		// Stack must be balanced.
+		//
+		LI_ASSERT(!stack_index);
 
 		// If terminated because of a label, jump to continuation.
 		//

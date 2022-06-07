@@ -155,6 +155,23 @@ namespace li::jit {
 		}
 		return L->ok(string::format(L, "%p", &args->as_fn()->proto->jfunc->code[0]));
 	}
+	static bool disasm(vm* L, any* args, slot_t n) {
+		if (!args->is_fn() || args->as_fn()->is_native() || !args->as_fn()->is_jit()) {
+			return L->error("expected vfunction with JIT record.");
+		}
+
+		auto*       jf     = args->as_fn()->proto->jfunc;
+
+		std::string result = {};
+		auto gen = std::span<const uint8_t>(jf->code, jf->object_bytes());
+		while (auto i = zy::decode(gen)) {
+			if (i->ins.mnemonic == ZYDIS_MNEMONIC_INT3)
+				break;
+			result += i->to_string();
+			result += '\n';
+		}
+		return L->ok(string::create(L, result));
+	}
 };
 
 
@@ -181,6 +198,7 @@ int main(int argv, const char** args) {
 	util::export_as(L, "jit.off", jit::off);
 	util::export_as(L, "jit.bp", jit::bp);
 	util::export_as(L, "jit.where", jit::where);
+	util::export_as(L, "jit.disasm", jit::disasm);
 
 	// Repl if no file given.
 	//

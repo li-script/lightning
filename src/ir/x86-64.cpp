@@ -1675,13 +1675,6 @@ namespace li::ir {
 			LI_ASSERT(int32_t(disp) == disp);
 			rel = int32_t(disp);
 		}
-
-		//auto gen = std::span<const uint8_t>(out->code, asm_length);
-		//while (auto i = zy::decode(gen)) {
-		//	if (i->ins.mnemonic == ZYDIS_MNEMONIC_INT3)
-		//		break;
-		//	puts(i->to_string().c_str());
-		//}
 		return out;
 	}
 };

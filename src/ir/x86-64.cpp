@@ -185,17 +185,10 @@ namespace li::ir {
 
 	// Erases the type into a general purpose register.
 	//
-	static void type_erase(mblock& b, value* v, mreg out) {
-		if (v->is<constant>()) {
-			b.append(vop::movi, out, v->as<constant>()->to_any());
-			return;
-		} else if (v->vt == type::nil) {
+	static void type_erase(mblock& b, mreg r, mreg out, type irty) {
+		if (irty == type::nil) {
 			b.append(vop::movi, out, none);
-			return;
-		}
-
-		auto r = REG(v);
-		if (v->vt == type::i1) {
+		} else if (irty == type::i1) {
 			auto tmp = b->next_gp();
 			// mov tmp, false
 			b.append(vop::movi, tmp, (int64_t) make_tag(type_false));
@@ -205,46 +198,62 @@ namespace li::ir {
 			SHL(b, out, 47);
 			// add out, tmp
 			ADD(b, out, tmp);
-		} else if (v->vt == type::i8) {
+		} else if (irty == type::i8) {
 			auto tg = b->next_gp();
 			auto tf = b->next_fp();
 			b.append(vop::isx8, tg, r);
 			b.append(vop::fcvt, tf, tg);
 			b.append(vop::movi, out, tf);
-		} else if (v->vt == type::i16) {
+		} else if (irty == type::i16) {
 			auto tg = b->next_gp();
 			auto tf = b->next_fp();
 			b.append(vop::isx16, tg, r);
 			b.append(vop::fcvt, tf, tg);
 			b.append(vop::movi, out, tf);
-		} else if (v->vt == type::i32) {
+		} else if (irty == type::i32) {
 			auto tg = b->next_gp();
 			auto tf = b->next_fp();
 			b.append(vop::isx32, tg, r);
 			b.append(vop::fcvt, tf, tg);
 			b.append(vop::movi, out, tf);
-		} else if (v->vt == type::i64) {
+		} else if (irty == type::i64) {
 			auto tf = b->next_fp();
 			b.append(vop::fcvt, tf, r);
 			b.append(vop::movi, out, tf);
-		} else if (v->vt == type::f32) {
+		} else if (irty == type::f32) {
 			auto tf = b->next_fp();
 			b.append(vop::fx64, tf, r);
 			b.append(vop::movi, out, tf);
-		} else if (v->vt == type::f64 || v->vt == type::unk) {
+		} else if (irty == type::f64 || irty == type::unk) {
 			b.append(vop::movi, out, r);
 		} else {
-			auto ty = v->vt == type::opq ? type_opaque : type_table + (int(v->vt) - int(type::tbl));
+			auto ty = irty == type::opq ? type_opaque : type_table + (int(irty) - int(type::tbl));
 			mreg fv;
 	#if LI_KERNEL_MODE
 			fv = b->next_gp();
 			b.append(vop::movi, out, 47);
 			BZHI(b, fv, r, out);
 	#else
-			fv = r;
+			if (out == r) {
+				fv = b->next_gp();
+				b.append(vop::movi, fv, r); // out and r are allowed to alias so we have to move beforehand.
+			} else {
+				fv = r;
+			}
 	#endif
 			b.append(vop::movi, out, (int64_t) mix_value(uint8_t(ty), 0));
 			OR(b, out, fv);
+		}
+	}
+	static void type_erase(mblock& b, value* v, mreg out) {
+		if (v->is<constant>()) {
+			b.append(vop::movi, out, v->as<constant>()->to_any());
+			return;
+		} else if (v->vt == type::nil) {
+			b.append(vop::movi, out, none);
+			return;
+		} else {
+			type_erase(b, REG(v), out, v->vt);
 		}
 	}
 
@@ -563,12 +572,26 @@ namespace li::ir {
 			// Upvalue.
 			//
 			case opcode::uval_get: {
-				auto base = REG(i->operands[0]);
-				auto idx  = RIi(i->operands[1]);
-			
-				// Add the upvalue offset and compute final offset.
+				// Handle special uvalues.
 				//
 				mmem mem;
+				auto idx = RIi(i->operands[1]);
+				if (idx.is_const() && (idx.i64 == bc::uval_env || idx.i64 == bc::uval_glb)) {
+					if (idx.i64 == bc::uval_glb) {
+						mem = {.base = mreg(vreg_vm), .disp = int32_t(offsetof(vm, globals))};
+					} else {
+						mem = {.base = REG(i->operands[0]), .disp = int32_t(offsetof(function, environment))};
+					}
+
+					auto tmp = b->next_gp();
+					b.append(vop::loadi64, tmp, mem);
+					type_erase(b, tmp, REG(i), type::tbl);
+					return;
+				}
+
+				// Compute index into function uvalue table and load from it.
+				//
+				auto base = REG(i->operands[0]);
 				if (idx.is_const()) {
 					mem = {.base = base, .disp = int32_t(offsetof(function, upvalue_array) + idx.i64 * 8)};
 				} else {
@@ -585,11 +608,14 @@ namespace li::ir {
 				auto idx  = RIi(i->operands[1]);
 				auto val  = b->next_gp();
 				type_erase(b, i->operands[2], val);
+				LI_ASSERT(idx.i64 != bc::uval_glb);
 
 				// Add the upvalue offset and compute final offset.
 				//
 				mmem mem;
 				if (idx.is_const()) {
+					// TODO: type must be a table and we have to clear the type, fix later.
+					LI_ASSERT(idx.i64 != bc::uval_env);
 					mem = {.base = base, .disp = int32_t(offsetof(function, upvalue_array) + idx.i64 * 8)};
 				} else {
 					mem = {.base = base, .index = idx.reg, .scale = 8, .disp = offsetof(function, upvalue_array)};

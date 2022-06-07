@@ -133,6 +133,7 @@ namespace li::bc {
 
 	// Define the instruction type.
 	//
+#pragma pack(push, 1)
 	struct insn {
 		opcode o;
 		reg    a = 0;
@@ -254,4 +255,5 @@ namespace li::bc {
 			printf("\n");
 		}
 	};
+#pragma pack(pop)
 };

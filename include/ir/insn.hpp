@@ -69,7 +69,7 @@ namespace li::ir {
 		// Call types.
 		//
 		ccall,
-		vcall,
+		vcall,  // Must be func typed at MIR.
 
 		// Block terminators.
 		//
@@ -532,7 +532,7 @@ namespace li::ir {
 				vt = operands[0]->vt;
 				LI_ASSERT(operands[0]->vt == operands[1]->vt);
 			}
-			LI_ASSERT(vt == type::unk || vt == type::tbl || vt == type::arr);
+			LI_ASSERT(vt == type::unk || vt == type::tbl || vt == type::arr || vt == type::str);
 		}
 		bool rec_type_check(type x) override {
 			return operands[0]->type_try_settle(x) && operands[1]->type_try_settle(x);

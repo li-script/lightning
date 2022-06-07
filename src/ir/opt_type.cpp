@@ -157,15 +157,40 @@ namespace li::ir::opt {
 				return false;
 			}
 
-			auto [arr, e0]  = split_by(i.at, 0, type_array);
+			auto [arr, e0] = split_by(i.at, 0, type_array);
 			auto [tbl, e1] = split_by(e0, 0, type_table);
-			auto [str, e2]  = split_by(e1, 0, type_string);
+			auto [str, e2] = split_by(e1, 0, type_string);
 			// TODO: ^has trait -> e2 (would also include userdata)
 
-			e2             = builder{e2}.emit_before<unreachable>(e2);  // <-- TODO: throw.
+			e2 = builder{e2}.emit_before<unreachable>(e2);  // <-- TODO: throw.
 			while (e2 != e2->parent->back())
 				e2->parent->back()->erase();
 			proc->del_jump(e2->parent, e2->parent->successors.back());
+			return false;
+		});
+		proc->validate();
+	}
+	static void specialize_vcall(procedure* proc) {
+		proc->bfs([&](basic_block* bb) {
+			auto i = range::find_if(bb->insns(), [](insn* i) {
+				if (i->is<vcall>()) {
+					i->update();
+					if (i->operands[1]->vt == type::unk) {
+						return true;
+					}
+				}
+				return false;
+			});
+			if (i == bb->end()) {
+				return false;
+			}
+
+			auto [arr, e0] = split_by(i.at, 1, type_function);
+			// TODO: ^has trait -> e0
+			e0 = builder{e0}.emit_before<unreachable>(e0);  // <-- TODO: throw.
+			while (e0 != e0->parent->back())
+				e0->parent->back()->erase();
+			proc->del_jump(e0->parent, e0->parent->successors.back());
 			return false;
 		});
 		proc->validate();
@@ -177,6 +202,7 @@ namespace li::ir::opt {
 		specialize_op(proc);
 		specialize_dup(proc);
 		specialize_len(proc);
+		specialize_vcall(proc);
 	}
 
 	// Infers constant type information and optimizes the control flow.

@@ -98,6 +98,13 @@ namespace li {
 
 		// Duplicates the function.
 		//
-		function* duplicate(vm* L) const { return L->duplicate(this); }
+		function* duplicate(vm* L, bool force = false) const {
+			// Function has no state, no need to copy anything.
+			//
+			if (!num_uval && !force)
+				return (function*) this;
+			else
+				return L->duplicate(this);
+		}
 	};
 };

@@ -27,10 +27,8 @@ namespace li::ir {
 		trait_set,
 		array_new,      // Not allowed at MIR.
 		table_new,      // Not allowed at MIR.
-		field_get,      // Not allowed at MIR.
-		field_get_raw,  // Must be typed at MIR.
-		field_set,      // Not allowed at MIR.
-		field_set_raw,  // Must be typed at MIR.
+		field_get,      // Must be typed and raw at MIR.
+		field_set,      // Must be typed and raw at MIR.
 
 		// Operators.
 		//
@@ -373,30 +371,17 @@ namespace li::ir {
 			LI_ASSERT(operands[1]->is(type::i32));
 		}
 	};
-	// unk    field_get(unk obj, unk key)
+	// unk    field_get(i1 raw, unk obj, unk key)
 	struct field_get final : insn_tag<field_get, opcode::field_get> {
-		void update() override { LI_ASSERT(operands.size() == 2); }
+		void update() override { LI_ASSERT(operands.size() == 3); }
 	};
-	// none   field_set(unk obj, unk key, unk val)
+	// none   field_set(i1 raw, unk obj, unk key, unk val)
 	struct field_set final : insn_tag<field_set, opcode::field_set> {
 		void update() override {
 			is_pure   = false;
 			sideffect = true;
 			vt = type::none;
-			LI_ASSERT(operands.size() == 3);
-		}
-	};
-	// unk    field_get_raw(unk obj, unk key)
-	struct field_get_raw final : insn_tag<field_get_raw, opcode::field_get_raw> {
-		void update() override { LI_ASSERT(operands.size() == 2); }
-	};
-	// none   field_set_raw(unk obj, unk key, unk val)
-	struct field_set_raw final : insn_tag<field_set_raw, opcode::field_set_raw> {
-		void update() override {
-			is_pure   = false;
-			sideffect = true;
-			vt = type::none;
-			LI_ASSERT(operands.size() == 3);
+			LI_ASSERT(operands.size() == 4);
 		}
 	};
 	// T      assume_cast(unk, const irtype T)

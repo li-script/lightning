@@ -131,7 +131,10 @@ namespace li::ir {
 	INSN_RW_R(SUB);
 	INSN_RW_R(OR);
 	INSN_RW_R(AND);
+	INSN_RW_R(IMUL);
 	INSN_RW_R(XOR);
+	INSN_RW_R(CRC32); // Always qword.
+	INSN_W_R(LEA, .trashes_flags = false, );
 	INSN_W_R_R(BZHI, .trashes_flags = false, );
 	INSN_W_R_R(ROUNDSD, .trashes_flags = false, );
 	INSN_W_N_R_R(VROUNDSD, .trashes_flags = false, );
@@ -255,6 +258,43 @@ namespace li::ir {
 		} else {
 			type_erase(b, REG(v), out, v->vt);
 		}
+	}
+
+	// Hashes the value as any::hash.
+	//
+	static void value_hash(mblock& b, value* v, mreg out) {
+		// Skip if constant.
+		//
+		if (v->is<constant>()) {
+			b.append(vop::movi, out, (int64_t) v->as<constant>()->to_any().hash());
+			return;
+		}
+
+		// Move with type to a temporary.
+		//
+		auto tmp = b->next_gp();
+		if (v->vt == type::unk)
+			b.append(vop::movi, tmp, REG(v));
+		else
+			type_erase(b, v, tmp);
+
+		// Replicate the hash function in-line.
+		//
+	#if LI_32 || !LI_HAS_CRC
+		auto tmp2 = b->next_gp();
+		b.append(vop::movi, out, 0xff51afd7ed558ccdll);
+		b.append(vop::movi, tmp2, tmp);
+		SHR(b, tmp2, 33);
+		XOR(b, tmp2, tmp);
+		IMUL(b, tmp2, out);
+		b.append(vop::movi, out, tmp2);
+		SHR(b, out, 33);
+		XOR(b, out, tmp2);
+	#else
+		b.append(vop::movi, out, tmp);
+		SHR(b, out, 8);
+		CRC32(b, out, tmp);
+	#endif
 	}
 
 	// Emits floating-point comparison into a flag.
@@ -505,22 +545,21 @@ namespace li::ir {
 			//
 			// TODO: None of this is right, just testing...
 			//
-			case opcode::field_set_raw: {
+			case opcode::field_set: {
 				// TODO: Inline if type known.
 				//
-				b.append(vop::movi, arch::map_gp_arg(0, 0), mreg(vreg_vm));
-				type_erase(b, i->operands[0], arch::map_gp_arg(1, 0));
-				type_erase(b, i->operands[1], arch::map_gp_arg(2, 0));
-				type_erase(b, i->operands[2], arch::map_gp_arg(3, 0));
+				b.append(vop::movi, arch::map_gp_arg(0, 0), mop(intptr_t(b->source->L)));
+				type_erase(b, i->operands[1], arch::map_gp_arg(1, 0));
+				type_erase(b, i->operands[2], arch::map_gp_arg(2, 0));
+				type_erase(b, i->operands[3], arch::map_gp_arg(3, 0));
 				b.append(vop::call, {}, (int64_t) &runtime::field_set_raw);
 				// ^ result is potentially error!
 				return;
 			}
-			case opcode::field_get:
-			case opcode::field_get_raw: {
-				b.append(vop::movi, arch::map_gp_arg(0, 0), mreg(vreg_vm));
-				type_erase(b, i->operands[0], arch::map_gp_arg(1, 0));
-				type_erase(b, i->operands[1], arch::map_gp_arg(2, 0));
+			case opcode::field_get: {
+				b.append(vop::movi, arch::map_gp_arg(0, 0), mop(intptr_t(b->source->L)));
+				type_erase(b, i->operands[1], arch::map_gp_arg(1, 0));
+				type_erase(b, i->operands[2], arch::map_gp_arg(2, 0));
 				b.append(vop::call, {}, (int64_t) &runtime::field_get_raw);
 				b.append(vop::movi, REG(i), mreg(arch::from_native(arch::gp_retval)));
 				return;
@@ -576,14 +615,10 @@ namespace li::ir {
 				//
 				mmem mem;
 				auto idx = RIi(i->operands[1]);
-				if (idx.is_const() && (idx.i64 == bc::uval_env || idx.i64 == bc::uval_glb)) {
-					if (idx.i64 == bc::uval_glb) {
-						mem = {.base = mreg(vreg_vm), .disp = int32_t(offsetof(vm, globals))};
-					} else {
-						mem = {.base = REG(i->operands[0]), .disp = int32_t(offsetof(function, environment))};
-					}
-
+				LI_ASSERT(idx.i64 != bc::uval_glb);
+				if (idx.is_const() && idx.i64 == bc::uval_env) {
 					auto tmp = b->next_gp();
+					mem = {.base = REG(i->operands[0]), .disp = int32_t(offsetof(function, environment))};
 					b.append(vop::loadi64, tmp, mem);
 					type_erase(b, tmp, REG(i), type::tbl);
 					return;
@@ -762,7 +797,7 @@ namespace li::ir {
 				int32_t gp_index = 0;
 				int32_t fp_index = 0;
 				if (i->operands[0]->as<constant>()->i1) {
-					b.append(vop::movi, arch::map_gp_arg(0, 0), mreg(vreg_vm));
+					b.append(vop::movi, arch::map_gp_arg(0, 0), mop(intptr_t(b->source->L)));
 					gp_index++;
 				}
 
@@ -810,7 +845,52 @@ namespace li::ir {
 				}
 				return;
 			}
+			case opcode::write_argument: {
+				auto idx = i->operands[0]->as<constant>()->i32;
+				mreg val;
+				if (i->operands[1]->vt != type::unk) {
+					if (i->operands[1]->vt == type::f32) {
+						auto tmp = b->next_fp();
+						b.append(vop::fx64, tmp, REG(i->operands[1]));
+						val = tmp;
+					} else if (i->operands[1]->vt != type::f64 && i->operands[1]->vt != type::unk) {
+						auto tmp = b->next_gp();
+						type_erase(b, i->operands[1], tmp);
+						val = tmp;
+					} else {
+						val = REG(i->operands[1]);
+					}
+				} else {
+					val = REG(i->operands[1]);
+				}
 
+				if (val.is_fp())
+					b.append(vop::storef64, {}, mmem{.base = vreg_tos, .disp = -8 - idx * 8}, val);
+				else
+					b.append(vop::storei64, {}, mmem{.base = vreg_tos, .disp = -8 - idx * 8}, val);
+				return;
+			}
+			case opcode::reload_argument: {
+				auto idx = i->operands[0]->as<constant>()->i32;
+				b.append(vop::loadi64, REG(i), mmem{.base = vreg_tos, .disp = -8 - idx * 8});
+				return;
+			}
+			case opcode::vcall: {
+				int32_t nargs = i->operands[0]->as<constant>()->i32;
+				b.append(vop::writecallinfo, {}, mmem{.base = vreg_tos, .disp = -8}, i->source_bc, nargs);
+
+				auto tmp = b->next_gp();
+				auto r = REG(i->operands[1]);
+				LI_ASSERT(i->operands[1]->vt == type::fn); // Type guaranteed by opt_pre.
+				b.append(vop::loadi64, tmp, mmem{.base = r, .disp = offsetof(function, invoke)});
+				b.append(vop::movi, arch::map_gp_arg(0, 0), mop(intptr_t(b->source->L)));
+				LEA(b, mreg(arch::map_gp_arg(1, 0)), mmem{.base = vreg_tos, .disp = -8 * (FRAME_SIZE + 1)});
+				b.append(vop::movi, arch::map_gp_arg(2, 0), nargs);
+				// vm, args, nargs
+				b.append(vop::call, {}, tmp);
+				b.append(vop::movi, REG(i), mreg(arch::from_native(arch::gp_retval)));
+				return;
+			}
 			// Block terminators.
 			//
 			case opcode::jcc: {
@@ -826,11 +906,19 @@ namespace li::ir {
 			//
 			case opcode::ret:
 			case opcode::thrw: {
-				auto code = i->opc == opcode::ret;
-				auto tmp  = b->next_gp();
+				// Free the stack we allocated.
+				//
+				auto tmp = b->next_gp();
+				auto tmp2 = b->next_gp();
+				b.append(vop::movi, tmp2, mop(intptr_t(b->source->L)));
+				LEA(b, tmp, mmem{.base = vreg_args, .disp = 8 * (FRAME_SIZE + 1)});
+				b.append(vop::storei64, {}, mmem{.base = tmp2, .disp = offsetof(vm, stack_top)}, tmp);
+
+				// Write the result and return the status.
+				//
 				type_erase(b, i->operands[0], tmp);
 				local_store(b, FRAME_RET, tmp);
-				b.append(vop::ret, {}, code ? 1ll : 0ll);
+				b.append(vop::ret, {}, i->opc == opcode::ret ? 1ll : 0ll);
 				return;
 			}
 			case opcode::unreachable: {
@@ -846,8 +934,11 @@ namespace li::ir {
 	// Generates crude machine IR from the SSA IR.
 	//
 	std::unique_ptr<mprocedure> lift_ir(procedure* p) {
+		// Set basic information.
+		//
 		auto m = std::make_unique<mprocedure>();
-		m->source = p;
+		m->source         = p;
+		m->max_stack_slot = p->max_stack_slot + FRAME_SIZE + 1;
 
 		// Clear all visitor state, we use both fields for mapping to machine structures.
 		//
@@ -903,8 +994,8 @@ namespace li::ir {
 			// Lift each instruction.
 			//
 			for (auto* i : b->insns()) {
-				// printf(LI_GRN "#%-5x" LI_DEF "\t\t %s\n", i->source_bc, i->to_string(true).c_str());
-				// size_t n = mb->instructions.size();
+				//printf(LI_GRN "#%-5x" LI_DEF "\t\t %s\n", i->source_bc, i->to_string(true).c_str());
+				//size_t n = mb->instructions.size();
 				mlift(*mb, i);
 				// while (n != mb->instructions.size()) {
 				//	puts(mb->instructions[n++].to_string().c_str());
@@ -1323,6 +1414,19 @@ namespace li::ir {
 				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, zy::RAX, to_op(b, i.arg[0])));
 				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_CALL, zy::RAX));
 				break;
+			case vop::writecallinfo: {
+				// TODO:
+				// can't get stack pos statically, wtf do we do?
+				// rework this bullshit
+				//call_frame tmp{.stack_pos = 0, .caller_pc = i.arg[0].i64 | FRAME_C_FLAG, .n_args = i.arg[1].i64};
+				// LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, zy::RAX, any(std::bit_cast<opaque>(tmp)).value));
+				//LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, to_op(b, i.arg[0]), zy::RAX));
+
+				auto o = to_op(b, i.arg[0]);
+				o.mem.size = 4;
+				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, o, -1));
+				break;
+			}
 			default:
 				util::abort("NYI");
 				break;
@@ -1342,6 +1446,8 @@ namespace li::ir {
 			auto& prologue = proc->assembly;
 			auto& epilogue = proc->epilogue;
 
+			//prologue.emplace_back(0xCC);
+
 			// Push non-vol GPs.
 			//
 			size_t push_count = 0;
@@ -1359,6 +1465,10 @@ namespace li::ir {
 			auto alloc_bytes = num_fp_used * 0x10 + proc->used_stack_length - 8;
 			alloc_bytes      = ((push_count & 1) ? 0x0 : 0x8) + ((alloc_bytes & ~0xF) + 0x10);
 			LI_ASSERT(zy::encode(prologue, ZYDIS_MNEMONIC_SUB, arch::sp, alloc_bytes));
+
+			// Allocate VM stack.
+			//
+			LI_ASSERT(zy::encode(prologue, ZYDIS_MNEMONIC_ADD, zy::mem{.size = 8, .base = arch::gp_argument[0], .disp = offsetof(vm, stack_top)}, (proc->max_stack_slot - FRAME_SIZE) * 8));
 
 			// Save vector registers.
 			//

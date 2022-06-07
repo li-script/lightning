@@ -237,11 +237,17 @@ namespace li::ir::opt {
 		mreg regs[3] = {};
 		for (auto& bb : proc->basic_blocks) {
 			for (auto& i : bb.instructions) {
+
+				// Alias ToS into args with offset.
+				//
+				if (i.arg[0].is_mem() && i.arg[0].mem.base == vreg_tos) {
+					i.arg[0].mem.base = vreg_args;
+					i.arg[0].mem.disp += proc->max_stack_slot * 8;
+				}
+
 				i.for_each_reg([&](const mreg& r, bool is_read) {
 					mreg* replace_with = nullptr;
-					if (r == vreg_vm)
-						replace_with = &regs[0];
-					else if (r == vreg_args)
+					if (r == vreg_args)
 						replace_with = &regs[1];
 					else if (r == vreg_nargs)
 						replace_with = &regs[2];

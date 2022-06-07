@@ -24,13 +24,14 @@ namespace li::ir {
 	};
 	using preg = arch::reg;
 	enum vreg : int32_t {
-		vreg_vm    = 1,  // arguments[0], vm*
-		vreg_args  = 2,  // arguments[1], any*
-		vreg_nargs = 3,  // arguments[2], int
+		//vreg_vm    = 1,  // arguments[0], vm*
+		vreg_args  = 1,  // arguments[1], any*
+		vreg_nargs = 2,  // arguments[2], int
+		vreg_tos   = 3,  // calculated from vreg_args + the final local size
 		vreg_cpool = 4,  // constant pool, rip-rel
 		vreg_first = 5,  // ...
 	};
-	static constexpr const char* vreg_names[] = {"$null", "$vm", "$args", "$nargs", "$cpool"};
+	static constexpr const char* vreg_names[] = {"$null", "$args", "$nargs", "$tos", "$cpool"};
 	struct mreg {
 		int32_t  id : 30 = 0;
 		regclass cl : 2  = regclass::null;
@@ -206,8 +207,10 @@ namespace li::ir {
 	//
 	enum class vop {
 		null,
+
 		movf,   // fpreg = fpreg/gpreg/const
 		movi,   // gpreg = fpreg/gpreg/const
+
 		izx8,   // gpreg = u8(gpreg)
 		izx16,  // gpreg = u16(gpreg)
 		izx32,  // gpreg = u32(gpreg)
@@ -225,21 +228,22 @@ namespace li::ir {
 		loadi64,  // gpreg = i64[mem]
 		loadf32,  // fpreg = fp32[mem]
 		loadf64,  // fpreg = fp64[mem]
-
-		storei8,   // i8[mem] = gpreg 
+		storei8,   // i8[mem] = gpreg
 		storei16,  // i16[mem] = gpreg
 		storei32,  // i32[mem] = gpreg
 		storei64,  // i64[mem] = gpreg
 		storef32,  // fp32[mem] = fpreg
-		storef64,  // fp64[mem] = fpreg 
+		storef64,  // fp64[mem] = fpreg
 
-		setcc,     // reg = flag
-		select,    // reg = flag ? reg1 : reg2
+		setcc,   // reg = flag
+		select,  // reg = flag ? reg1 : reg2
+
 		// side-effect group.
-		call,      // call i64, [implicit args & nonvol clobber]
-		js,        // cnd true block, false block
-		jmp,       // block
-		ret,       // i1
+		writecallinfo,  // i64[mem] = (BC = Const, #Arg = Const)
+		call,           // call i64, [implicit args & nonvol clobber]
+		js,             // cnd true block, false block
+		jmp,            // block
+		ret,            // i1
 		unreachable
 		// TODO: Profile instruction for PGO.
 	};
@@ -272,6 +276,7 @@ namespace li::ir {
 
 		 "setcc",
 		 "select",
+		 "writecallinfo",
 		 "call",
 		 "js",
 		 "jmp",
@@ -406,7 +411,7 @@ namespace li::ir {
 		}
 		bool has_side_effects() const {
 			if (is_virtual) {
-				return getv() >= vop::call;
+				return getv() >= vop::writecallinfo;
 			} else {
 				return target_info.side_effects;
 			}
@@ -521,6 +526,10 @@ namespace li::ir {
 		std::vector<uint8_t>                   epilogue;
 		std::vector<uint8_t>                   assembly;
 		std::vector<std::pair<size_t, size_t>> reloc_info;
+
+		// Maximum local index for VCALL.
+		//
+		msize_t max_stack_slot = 0;
 
 		// Visitor temporaries.
 		//

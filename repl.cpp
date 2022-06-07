@@ -90,6 +90,13 @@ static bool jit_on(vm* L, any* args, slot_t n) {
 		opt::dce(proc.get());
 		opt::cfg(proc.get());
 
+		// empty pass
+		opt::type_inference(proc.get());
+		opt::fold_constant(proc.get());
+		opt::fold_identical(proc.get());
+		opt::dce(proc.get());
+		opt::cfg(proc.get());
+
 		opt::prepare_for_mir(proc.get());
 		opt::type_inference(proc.get());
 		opt::fold_constant(proc.get());
@@ -99,10 +106,14 @@ static bool jit_on(vm* L, any* args, slot_t n) {
 
 		opt::finalize_for_mir(proc.get());
 
+		proc->print();
+
 		auto mp = lift_ir(proc.get());
 
 		opt::remove_redundant_setcc(mp.get());
 		opt::allocate_registers(mp.get());
+
+		mp->print();
 
 		args->as_fn()->proto->jfunc = assemble_ir(mp.get());
 		//

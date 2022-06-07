@@ -2,6 +2,8 @@
 #include <ir/opt.hpp>
 #include <ir/proc.hpp>
 #include <ir/value.hpp>
+#include <variant>
+#include <vm/traits.hpp>
 
 namespace li::ir::opt {
 	// Resolves dominating type for a value at the given instruction.
@@ -27,11 +29,15 @@ namespace li::ir::opt {
 
 	// Splits the instruction stream into two, returns two instructions in a block with only the splitting instruction, an assume cast if applicable and the jmp.
 	//
-	static std::pair<ref<insn>, ref<insn>> split_by(insn* i, size_t op, value_type check_against) {
+	static std::pair<ref<insn>, ref<insn>> split_by(insn* i, size_t op, std::variant<value_type, trait> check_against) {
 		// Insert the type check before the instruction.
 		//
 		builder b{i};
-		auto    cc = b.emit_before<test_type>(i, i->operands[op], check_against);
+		ref<insn> cc;
+		if (check_against.index() == 0)
+			cc = b.emit_before<test_type>(i, i->operands[op], std::get<0>(check_against));
+		else
+			cc = b.emit_before<test_trait>(i, i->operands[op], std::get<1>(check_against));
 
 		// Split the block after the check, add the jcc.
 		//
@@ -49,7 +55,8 @@ namespace li::ir::opt {
 		//
 		auto tunchecked        = make_ref(i->duplicate());
 		auto tchecked          = i->erase();
-		tchecked->operands[op] = builder{true_blk}.emit<assume_cast>(i->operands[op], to_ir_type(check_against));
+		if (check_against.index() == 0)
+			tchecked->operands[op] = builder{true_blk}.emit<assume_cast>(i->operands[op], to_ir_type(std::get<0>(check_against)));
 
 		// Create both blocks.
 		//
@@ -170,7 +177,7 @@ namespace li::ir::opt {
 		});
 		proc->validate();
 	}
-	static void specialize_vcall(procedure* proc) {
+	static void specialize_call(procedure* proc) {
 		proc->bfs([&](basic_block* bb) {
 			auto i = range::find_if(bb->insns(), [](insn* i) {
 				if (i->is<vcall>()) {
@@ -196,13 +203,64 @@ namespace li::ir::opt {
 		proc->validate();
 	}
 
+	static void specialize_field(procedure* proc) {
+		proc->bfs([&](basic_block* bb) {
+			auto i = range::find_if(bb->insns(), [](insn* i) {
+				if (i->is<field_get>() || i->is<field_set>()) {
+					i->update();
+					if (i->operands[1]->vt == type::unk) {
+						return true;
+					}
+				}
+				return false;
+			});
+			if (i == bb->end()) {
+				return false;
+			}
+
+			if (i->is<field_get>()) {
+				// Valid types: Table, Array, Userdata, String.
+				//
+				auto [tbl, e0] = split_by(i.at, 1, type_table);
+				auto [arr, e1] = split_by(e0, 1, type_array);
+				auto [udt, e2] = split_by(e1, 1, type_userdata);
+				auto [str, e3] = split_by(e2, 1, type_string);
+
+				arr->operands[0] = launder_value(proc, true);
+				str->operands[0] = launder_value(proc, true);
+
+				e3 = builder{e3}.emit_before<unreachable>(e3);  // <-- TODO: throw.
+				while (e3 != e3->parent->back())
+					e3->parent->back()->erase();
+				proc->del_jump(e3->parent, e3->parent->successors.back());
+			} else {
+				// Valid types: Table, Array, Userdata.
+				//
+				auto [tbl, e0] = split_by(i.at, 1, type_table);
+				auto [arr, e1] = split_by(e0, 1, type_array);
+				auto [udt, e2] = split_by(e1, 1, type_userdata);
+
+				arr->operands[0] = launder_value(proc, true);
+
+				e2 = builder{e2}.emit_before<unreachable>(e2);  // <-- TODO: throw.
+				while (e2 != e2->parent->back())
+					e2->parent->back()->erase();
+				proc->del_jump(e2->parent, e2->parent->successors.back());
+			}
+
+			return false;
+		});
+		proc->validate();
+	}
+
 	// Adds the branches for required type checks.
 	//
 	void type_split_cfg(procedure* proc) {
 		specialize_op(proc);
 		specialize_dup(proc);
 		specialize_len(proc);
-		specialize_vcall(proc);
+		specialize_call(proc);
+		specialize_field(proc);
 	}
 
 	// Infers constant type information and optimizes the control flow.

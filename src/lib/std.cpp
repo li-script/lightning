@@ -206,7 +206,7 @@ namespace li::lib {
 			}
 			auto f = args[0];
 			if (!f.is_fn()) {
-				return L->error("expected VM function.");
+				return L->error("expected function.");
 			}
 
 			auto i = args[-1];
@@ -227,7 +227,7 @@ namespace li::lib {
 			}
 			auto f = args[0];
 			if (!f.is_fn()) {
-				return L->error("expected VM function.");
+				return L->error("expected function.");
 			}
 
 			auto i = args[-1];

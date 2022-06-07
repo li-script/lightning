@@ -194,7 +194,11 @@ namespace li::ir {
 					continue;
 				}
 				case bc::UGET: {
-					set_reg(a, bld.emit<uval_get>(this_func(), b));
+					if (b == bc::uval_glb) {
+						set_reg(a, any(bld.blk->proc->L->globals));
+					} else {
+						set_reg(a, bld.emit<uval_get>(this_func(), b));
+					}
 					continue;
 				}
 				case bc::USET: {
@@ -205,29 +209,29 @@ namespace li::ir {
 				// Tables:
 				//
 				case bc::TGET: {
-					set_reg(a, bld.emit<field_get>(get_reg(c), get_reg(b)));
+					set_reg(a, bld.emit<field_get>(false, get_reg(c), get_reg(b)));
 					continue;
 				}
 				case bc::TGETR: {
-					set_reg(a, bld.emit<field_get_raw>(get_reg(c), get_reg(b)));
+					set_reg(a, bld.emit<field_get>(true, get_reg(c), get_reg(b)));
 					continue;
 				}
 				case bc::TSET: {
-					bld.emit<field_set>(get_reg(c), get_reg(a), get_reg(b));
+					bld.emit<field_set>(false, get_reg(c), get_reg(a), get_reg(b));
 					continue;
 				}
 				case bc::TSETR: {
-					bld.emit<field_set_raw>(get_reg(c), get_reg(a), get_reg(b));
+					bld.emit<field_set>(true, get_reg(c), get_reg(a), get_reg(b));
 					continue;
 				}
 				case bc::GGET: {
 					auto g = bld.emit<uval_get>(this_func(), bc::uval_env);
-					set_reg(a, bld.emit<field_get>(g, get_reg(b)));
+					set_reg(a, bld.emit<field_get>(false, g, get_reg(b)));
 					continue;
 				}
 				case bc::GSET: {
 					auto g = bld.emit<uval_get>(this_func(), bc::uval_env);
-					bld.emit<field_set>(g, get_reg(a), get_reg(b));
+					bld.emit<field_set>(false, g, get_reg(a), get_reg(b));
 					continue;
 				}
 

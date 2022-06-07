@@ -1027,9 +1027,9 @@ namespace li::ir {
 					}
 				} else if (src.i64 == -1ll) {
 					if constexpr (USE_AVX) {
-						LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_VCMPSD, dst, dst, dst, 0));
+						LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_VPCMPEQB, dst, dst, dst));
 					} else {
-						LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_CMPSD, dst, dst, 0));
+						LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_PCMPEQB, dst, dst));
 					}
 				} else {
 					auto           mem = b->add_const(i.arg[0].i64);
@@ -1180,6 +1180,7 @@ namespace li::ir {
 						LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, o, f));
 					LI_ASSERT(zy::encode(b->assembly, flags[flag].cmovs, o, t));
 				} else {
+					//VPBROADCASTB + VBLENDVPD ?
 					util::abort("FP select NYI.");
 				}
 				break;

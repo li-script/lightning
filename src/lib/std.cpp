@@ -328,6 +328,7 @@ namespace li::lib {
 			return L->ok(table::create(L, r));
 		});
 		util::export_as(L, "assert", [](vm* L, any* args, slot_t n) {
+			vm_guard _g{L, args};
 			if (!n || args->coerce_bool())
 				return L->ok();
 

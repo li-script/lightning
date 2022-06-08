@@ -224,7 +224,7 @@ namespace li::bc {
 			};
 
 			// IP: OP
-			printf(LI_PRP "%05x:" LI_BRG " %-6s", ip, d.name);
+			printf(LI_PRP "%05x:" LI_BRG " %-8s", ip, d.name);
 			// ... Operands.
 			print_op(d.a, a);
 

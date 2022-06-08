@@ -523,10 +523,6 @@ namespace li {
 		while (true) {
 			switch (scope.lex().tok.id) {
 				// Call.
-				//case '{': {
-				//	if (!is_table_init(scope))
-				//		return base;
-				//}
 				case lex::token_lstr:
 				case '(': {
 					base = parse_call(scope, base, nil);
@@ -1113,13 +1109,7 @@ namespace li {
 		// Collect arguments.
 		//
 		bool trait = false;
-		if (scope.lex().opt('{')) {
-			if (auto ex = expr_table(scope); ex.kind == expr::err) {
-				return {};
-			} else {
-				callsite[size++] = {ex, false};
-			}
-		} else if (auto lit = scope.lex().opt(lex::token_lstr)) {
+		if (auto lit = scope.lex().opt(lex::token_lstr)) {
 			callsite[size++] = {expression(any(lit->str_val)), false};
 		} else {
 			if (scope.lex().opt('!')) {

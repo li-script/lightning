@@ -259,7 +259,7 @@ namespace li::ir {
 				}
 				case bc::SLOAD: {
 					LI_ASSERT(b < stack_index);
-					set_reg(a, bld.emit<reload_argument>(b));
+					set_reg(a, bld.emit<reload_argument>(stack_index - b));
 					continue;
 				}
 				case bc::SRST: {
@@ -269,9 +269,9 @@ namespace li::ir {
 					//
 					for (auto it = call_start; it != bld.blk->end(); it = it->next) {
 						if (it->is<write_argument>()) {
-							it->operands[0] = launder_value(bld.blk->proc, stack_index - 1 - it->operands[0]->as<constant>()->i32);
+							it->operands[0] = launder_value(bld.blk->proc, -stack_index + it->operands[0]->as<constant>()->i32);
 						} else if (it->is<reload_argument>()) {
-							it->operands[0] = launder_value(bld.blk->proc, stack_index - 1 - it->operands[0]->as<constant>()->i32);
+							it->operands[0] = launder_value(bld.blk->proc, -stack_index + it->operands[0]->as<constant>()->i32);
 						}
 					}
 
@@ -390,6 +390,13 @@ namespace li::ir {
 		for (auto& block : proc->basic_blocks) {
 			lift_basic_block(block.get(), bc_to_bb);
 		}
+		for (auto it = proc->basic_blocks.begin() + 1; it != proc->basic_blocks.end();) {
+			if (it->get()->predecessors.empty()) {
+				it = proc->del_block(it->get());
+			} else {
+				++it;
+			}
+		} 
 
 		// Topologically sort and return the procedure.
 		//

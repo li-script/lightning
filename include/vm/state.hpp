@@ -51,10 +51,9 @@ namespace li {
 		// [call_frame for previous function as opaque]
 		// [locals of this func]
 		//
-		int64_t  stack_pos : 23 = 0;  // Stack position of frame (@local0).
-		uint64_t caller_pc : 18 = 0;  // Instruction pointer after the call.
-		int64_t  n_args : 6     = 0;
-		uint64_t rsvd : 17      = 0;
+		uint64_t stack_pos : 23 = 0;  // Stack position of frame (@local0).
+		uint64_t caller_pc : 23 = 0;  // Instruction pointer after the call.
+		uint64_t rsvd : 18      = 0;
 
 		inline constexpr bool multiplexed_by_c() const { return caller_pc & FRAME_C_FLAG; }
 	};
@@ -156,10 +155,9 @@ namespace li {
 			assume_unreachable();
 		}
 
-		// Caller must push all arguments in reverse order, then the self argument or none and the function itself.
-		// - Caller frame takes the caller's base of stack and the PC receives the "return pointer".
+		// Caller must push all arguments in reverse order, the self argument or none, the function itself and the caller information.
 		//
-		bool call(slot_t n_args, slot_t caller_frame, msize_t caller_pc = FRAME_C_FLAG);
+		bool call(any* args, slot_t n_args);
 
 		// Simple version of call() for user-invocation that pops all arguments and the function/self from ToS.
 		//
@@ -167,7 +165,9 @@ namespace li {
 			any* req_slot = stack_top - n_args;
 			push_stack(self);
 			push_stack(fn);
-			bool ok   = call(n_args, last_vm_caller.stack_pos, msize_t(last_vm_caller.caller_pc | FRAME_C_FLAG));
+			call_frame cf{.stack_pos = last_vm_caller.stack_pos, .caller_pc = msize_t(last_vm_caller.caller_pc | FRAME_C_FLAG)};
+			push_stack(bit_cast<opaque>(cf));
+			bool ok   = call(&this->stack_top[-1 - FRAME_SIZE], n_args);
 			*req_slot = stack_top[FRAME_RET];
 			stack_top = req_slot + 1;
 			return ok;

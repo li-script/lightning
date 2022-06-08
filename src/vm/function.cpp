@@ -24,12 +24,6 @@ namespace li {
 		return result;
 	}
 
-	bool vm_invoke(vm* L, any* args, slot_t n_args) {
-		auto caller = bit_cast<call_frame>(args[n_args + FRAME_CALLER].as_opq());
-		L->stack_top = &args[n_args + FRAME_CALLER];
-		return L->call(n_args, caller.stack_pos, caller.caller_pc);
-	}
-
 	function* function::create(vm* L, function_proto* proto) {
 		function* f = L->alloc<function>(sizeof(any) * proto->num_uval);
 		f->num_arguments = proto->num_arguments;

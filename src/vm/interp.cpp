@@ -12,24 +12,24 @@ namespace li {
 #define VM_RET(value, ex)                     \
 	do {                                       \
 		locals_begin[FRAME_RET] = value;        \
-		L->stack_top            = locals_begin; \
+		this->stack_top         = locals_begin; \
 		return !ex;                             \
 	} while (0)
-#define UNOP_HANDLE(K)                          \
-	case K: {                                    \
-		auto [r, ok] = apply_unary(L, REG(b), K); \
-		if (!ok) [[unlikely]]                     \
-			VM_RET(r, true);                       \
-		REG(a) = r;                               \
-		continue;                                 \
+#define UNOP_HANDLE(K)                             \
+	case K: {                                       \
+		auto [r, ok] = apply_unary(this, REG(b), K); \
+		if (!ok) [[unlikely]]                        \
+			VM_RET(r, true);                          \
+		REG(a) = r;                                  \
+		continue;                                    \
 	}
-#define BINOP_HANDLE(K)                                  \
-	case K: {                                             \
-		auto [r, ok] = apply_binary(L, REG(b), REG(c), K); \
-		if (!ok) [[unlikely]]                              \
-			VM_RET(r, true);                                \
-		REG(a) = r;                                        \
-		continue;                                          \
+#define BINOP_HANDLE(K)                                     \
+	case K: {                                                \
+		auto [r, ok] = apply_binary(this, REG(b), REG(c), K); \
+		if (!ok) [[unlikely]]                                 \
+			VM_RET(r, true);                                   \
+		REG(a) = r;                                           \
+		continue;                                             \
 	}
 
 #if !LI_DEBUG
@@ -38,15 +38,14 @@ namespace li {
 	#define KVAL(...) f->proto->kvals()[(__VA_ARGS__)]
 #endif
 
-	LI_NOINLINE static bool vm_loop(vm* L, call_frame frame) {
+	LI_NOINLINE bool vm::call(any* args, slot_t n_args) {
 		// Push the return frame for previous function.
 		//
-		call_frame caller       = frame;
-		slot_t     n_args       = caller.n_args;
+		auto       caller       = bit_cast<call_frame>(peek_stack().as_opq());
 		msize_t    caller_frame = caller.stack_pos;
 		msize_t    caller_pc    = caller.caller_pc;
-		L->push_stack(bit_cast<opaque>(caller));
-		any* __restrict locals_begin = L->stack_top;
+		LI_ASSERT(&args[2] == &stack_top[FRAME_TARGET]);
+		any* __restrict locals_begin = args + FRAME_SIZE + 1;
 
 		// Validate function.
 		//
@@ -56,38 +55,38 @@ namespace li {
 			vf                       = vf.as_tbl()->get_trait<trait::call>();
 		}
 		if (!vf.is_fn()) [[unlikely]] {
-			locals_begin[FRAME_RET] = string::format(L, "invoking non-function");
+			locals_begin[FRAME_RET] = string::format(this, "invoking non-function");
 			return false;
 		}
 		function* f = vf.as_fn();
 		if (f->is_native() || f->invoke != &vm_invoke) {
 			// Swap previous c-frame.
 			//
-			call_frame prevframe = L->last_vm_caller;
-			L->last_vm_caller    = call_frame{.stack_pos = caller_frame, .caller_pc = caller_pc, .n_args = n_args};
+			call_frame prevframe = this->last_vm_caller;
+			this->last_vm_caller    = call_frame{.stack_pos = caller_frame, .caller_pc = caller_pc};
 
 			// Invoke callback.
 			//
-			auto* prev = L->stack_top;
-			bool  ok   = vf.as_fn()->invoke(L, &L->stack_top[-1 - FRAME_SIZE], n_args);
-			LI_ASSERT(L->stack_top == prev);  // Must be balanced!
+			auto* prev = this->stack_top;
+			bool  ok   = vf.as_fn()->invoke(this, args, n_args);
+			LI_ASSERT(this->stack_top == prev);  // Must be balanced!
 
 			// Restore C-frame and return.
 			//
-			L->last_vm_caller = prevframe;
+			this->last_vm_caller = prevframe;
 			return ok;
 		}
 
 		// Validate argument count.
 		//
 		if (f->num_arguments > n_args) [[unlikely]] {
-			locals_begin[FRAME_RET] = string::format(L, "expected at least %u arguments, got %u", f->num_arguments, n_args);
+			locals_begin[FRAME_RET] = string::format(this, "expected at least %u arguments, got %u", f->num_arguments, n_args);
 			return false;
 		}
 
 		// Allocate stack space.
 		//
-		L->alloc_stack(f->proto->num_locals);
+		this->alloc_stack(f->proto->num_locals);
 
 		// Define debug helpers.
 		//
@@ -140,7 +139,7 @@ namespace li {
 				BINOP_HANDLE(bc::VIN)
 
 				case bc::CCAT: {
-					REG(a) = string::concat(L, &REG(a), b);
+					REG(a) = string::concat(this, &REG(a), b);
 					continue;
 				}
 				case bc::CTY: {
@@ -265,7 +264,7 @@ namespace li {
 							break;
 					}
 					if (err) [[unlikely]] {
-						VM_RET(string::format(L, "cannot iterate %s", type_names[(uint8_t) target.type()]), true);
+						VM_RET(string::format(this, "cannot iterate %s", type_names[(uint8_t) target.type()]), true);
 					}
 
 					// If we did not find any, break.
@@ -283,7 +282,7 @@ namespace li {
 					if (b == bc::uval_env) {
 						REG(a) = any(f->environment);
 					} else if (b == bc::uval_glb) {
-						REG(a) = any(L->globals);
+						REG(a) = any(this->globals);
 					} else {
 						REG(a) = UVAL(b);
 					}
@@ -293,7 +292,7 @@ namespace li {
 					if (a == bc::uval_env) {
 						auto tbl = REG(b);
 						if (tbl.type() != type_table) [[unlikely]] {
-							VM_RET(string::create(L, "can't use non-table as environment"), true);
+							VM_RET(string::create(this, "can't use non-table as environment"), true);
 						} else {
 							f->environment = tbl.as_tbl();
 						}
@@ -306,20 +305,20 @@ namespace li {
 					auto tbl = REG(c);
 					auto key = REG(b);
 					if (key == none) [[unlikely]] {
-						VM_RET(string::create(L, "indexing with null key"), true);
+						VM_RET(string::create(this, "indexing with null key"), true);
 					}
 
 					if (tbl.is_tbl()) {
-						REG(a) = tbl.as_tbl()->get(L, REG(b));
+						REG(a) = tbl.as_tbl()->get(this, REG(b));
 					} else if (tbl.is_arr()) {
 						if (!key.is_num() || key.as_num() < 0) [[unlikely]] {
-							VM_RET(string::create(L, "indexing array with non-integer or negative key"), true);
+							VM_RET(string::create(this, "indexing array with non-integer or negative key"), true);
 						}
-						REG(a) = tbl.as_arr()->get(L, msize_t(key.as_num()));
+						REG(a) = tbl.as_arr()->get(this, msize_t(key.as_num()));
 					} else if (tbl == none) {
 						REG(a) = none;
 					} else {
-						VM_RET(string::create(L, "indexing non-table"), true);
+						VM_RET(string::create(this, "indexing non-table"), true);
 					}
 					continue;
 				}
@@ -329,26 +328,26 @@ namespace li {
 					auto  val = REG(b);
 
 					if (key == none) [[unlikely]] {
-						VM_RET(string::create(L, "indexing with null key"), true);
+						VM_RET(string::create(this, "indexing with null key"), true);
 					} else if (tbl == none) [[unlikely]] {
-						tbl = any{table::create(L)};
+						tbl = any{table::create(this)};
 					}
 
 					if (tbl.is_tbl()) {
 						if (tbl.as_tbl()->trait_freeze) [[unlikely]] {
-							VM_RET(string::create(L, "modifying frozen table."), true);
+							VM_RET(string::create(this, "modifying frozen table."), true);
 						}
-						tbl.as_tbl()->set(L, key, val);
-						L->gc.tick(L);
+						tbl.as_tbl()->set(this, key, val);
+						this->gc.tick(this);
 					} else if (tbl.is_arr()) {
 						if (!key.is_num() || key.as_num() < 0) [[unlikely]] {
-							VM_RET(string::create(L, "indexing array with non-integer or negative key"), true);
+							VM_RET(string::create(this, "indexing array with non-integer or negative key"), true);
 						}
-						if (!tbl.as_arr()->set(L, msize_t(key.as_num()), val)) [[unlikely]] {
-							VM_RET(string::create(L, "out-of-boundaries array access"), true);
+						if (!tbl.as_arr()->set(this, msize_t(key.as_num()), val)) [[unlikely]] {
+							VM_RET(string::create(this, "out-of-boundaries array access"), true);
 						}
 					} else [[unlikely]] {
-						VM_RET(string::create(L, "indexing non-table"), true);
+						VM_RET(string::create(this, "indexing non-table"), true);
 					}
 					continue;
 				}
@@ -356,23 +355,23 @@ namespace li {
 					auto tbl = REG(c);
 					auto key = REG(b);
 					if (key == none) [[unlikely]] {
-						VM_RET(string::create(L, "indexing with null key"), true);
+						VM_RET(string::create(this, "indexing with null key"), true);
 					}
 
 					if (tbl.is_tbl()) {
-						auto [r, ok] = tbl.as_tbl()->tget(L, REG(b));
+						auto [r, ok] = tbl.as_tbl()->tget(this, REG(b));
 						if (!ok) [[unlikely]] {
 							VM_RET(r, true);
 						}
 						REG(a) = r;
 					} else if (tbl.is_arr()) {
 						if (!key.is_num() || key.as_num() < 0) [[unlikely]] {
-							VM_RET(string::create(L, "indexing array with non-integer or negative key"), true);
+							VM_RET(string::create(this, "indexing array with non-integer or negative key"), true);
 						}
-						REG(a) = tbl.as_arr()->get(L, msize_t(key.as_num()));
+						REG(a) = tbl.as_arr()->get(this, msize_t(key.as_num()));
 					} else if (tbl.is_str()) {
 						if (!key.is_num() || key.as_num() < 0) [[unlikely]] {
-							VM_RET(string::create(L, "indexing string with non-integer or negative key"), true);
+							VM_RET(string::create(this, "indexing string with non-integer or negative key"), true);
 						}
 						auto i = size_t(key.as_num());
 						auto v = tbl.as_str()->view();
@@ -380,7 +379,7 @@ namespace li {
 					} else if (tbl == none) {
 						REG(a) = none;
 					} else {
-						VM_RET(string::create(L, "indexing non-table"), true);
+						VM_RET(string::create(this, "indexing non-table"), true);
 					}
 					continue;
 				}
@@ -390,74 +389,74 @@ namespace li {
 					auto  val = REG(b);
 
 					if (key == none) [[unlikely]] {
-						VM_RET(string::create(L, "indexing with null key"), true);
+						VM_RET(string::create(this, "indexing with null key"), true);
 					}
 					if (tbl.is_arr()) {
 						if (!key.is_num()) [[unlikely]] {
-							VM_RET(string::create(L, "indexing array with non-integer key"), true);
+							VM_RET(string::create(this, "indexing array with non-integer key"), true);
 						}
-						if (!tbl.as_arr()->set(L, msize_t(key.as_num()), val)) [[unlikely]] {
-							VM_RET(string::create(L, "out-of-boundaries array access"), true);
+						if (!tbl.as_arr()->set(this, msize_t(key.as_num()), val)) [[unlikely]] {
+							VM_RET(string::create(this, "out-of-boundaries array access"), true);
 						}
 						continue;
 					} else if (!tbl.is_tbl()) [[unlikely]] {
 						if (tbl == none) {
-							tbl = any{table::create(L)};
+							tbl = any{table::create(this)};
 						} else [[unlikely]] {
-							VM_RET(string::create(L, "indexing non-table"), true);
+							VM_RET(string::create(this, "indexing non-table"), true);
 						}
 					}
 
-					auto [r, ok] = tbl.as_tbl()->tset(L, key, val);
+					auto [r, ok] = tbl.as_tbl()->tset(this, key, val);
 					if (!ok) [[unlikely]] {
 						VM_RET(r, true);
 					}
-					L->gc.tick(L);
+					this->gc.tick(this);
 					continue;
 				}
 				case bc::GGET: {
 					if (REG(b) == none) [[unlikely]] {
-						VM_RET(string::create(L, "indexing with null key"), true);
+						VM_RET(string::create(this, "indexing with null key"), true);
 					}
-					REG(a) = f->environment->get(L, REG(b));
+					REG(a) = f->environment->get(this, REG(b));
 					continue;
 				}
 				case bc::GSET: {
 					if (REG(a) == none) [[unlikely]] {
-						VM_RET(string::create(L, "indexing with null key"), true);
+						VM_RET(string::create(this, "indexing with null key"), true);
 					}
-					f->environment->set(L, REG(a), REG(b));
-					L->gc.tick(L);
+					f->environment->set(this, REG(a), REG(b));
+					this->gc.tick(this);
 					continue;
 				}
 				case bc::VJOIN: {
-					L->gc.tick(L);
+					this->gc.tick(this);
 					auto src = REG(c);
 					if (src.is_tbl()) {
 						if (auto dst = REG(b); dst == none) {
-							REG(a) = src.as_tbl()->duplicate(L);
+							REG(a) = src.as_tbl()->duplicate(this);
 						} else {
 							REG(a) = dst;
 							if (!dst.is_tbl()) [[unlikely]] {
-								VM_RET(string::create(L, "can't join different types, expected table"), true);
+								VM_RET(string::create(this, "can't join different types, expected table"), true);
 							}
-							dst.as_tbl()->join(L, src.as_tbl());
+							dst.as_tbl()->join(this, src.as_tbl());
 						}
 					} else if (src.is_arr()) {
 						auto dst = REG(b);
 						REG(a)   = dst;
 						if (!dst.is_arr()) [[unlikely]] {
-							VM_RET(string::create(L, "can't join different types, expected array"), true);
+							VM_RET(string::create(this, "can't join different types, expected array"), true);
 						}
-						dst.as_arr()->join(L, src.as_arr());
+						dst.as_arr()->join(this, src.as_arr());
 					} else if (src.is_str()) {
 						auto dst = REG(b);
 						if (!dst.is_str()) [[unlikely]] {
-							VM_RET(string::create(L, "can't join different types, expected string"), true);
+							VM_RET(string::create(this, "can't join different types, expected string"), true);
 						}
-						REG(a) = string::concat(L, dst.as_str(), src.as_str());
+						REG(a) = string::concat(this, dst.as_str(), src.as_str());
 					} else [[unlikely]] {
-						VM_RET(string::create(L, "join expected table, array, or string"), true);
+						VM_RET(string::create(this, "join expected table, array, or string"), true);
 					}
 					continue;
 				}
@@ -465,49 +464,49 @@ namespace li {
 					any value = REG(b);
 					if (value.is_gc() && !value.is_str()) {
 						if (value.is_arr()) {
-							value = value.as_arr()->duplicate(L);
+							value = value.as_arr()->duplicate(this);
 						} else if (value.is_tbl()) {
-							value = value.as_tbl()->duplicate(L);
+							value = value.as_tbl()->duplicate(this);
 						} else if (value.is_fn()) {
-							value = value.as_fn()->duplicate(L);
+							value = value.as_fn()->duplicate(this);
 						} else {
 							// TODO: Thread, userdata
 						}
 					}
 					REG(a) = value;
-					L->gc.tick(L);
+					this->gc.tick(this);
 					continue;
 				}
 				case bc::ANEW: {
-					L->gc.tick(L);
-					REG(a) = any{array::create(L, b)};
+					this->gc.tick(this);
+					REG(a) = any{array::create(this, b)};
 					continue;
 				}
 				case bc::ADUP: {
-					L->gc.tick(L);
+					this->gc.tick(this);
 					auto arr = KVAL(b);
 					LI_ASSERT(arr.is_arr());
-					REG(a) = arr.as_arr()->duplicate(L);
+					REG(a) = arr.as_arr()->duplicate(this);
 					continue;
 				}
 				case bc::TNEW: {
-					L->gc.tick(L);
-					REG(a) = any{table::create(L, b)};
+					this->gc.tick(this);
+					REG(a) = any{table::create(this, b)};
 					continue;
 				}
 				case bc::TDUP: {
-					L->gc.tick(L);
+					this->gc.tick(this);
 					auto tbl = KVAL(b);
 					LI_ASSERT(tbl.is_tbl());
-					REG(a) = tbl.as_tbl()->duplicate(L);
+					REG(a) = tbl.as_tbl()->duplicate(this);
 					continue;
 				}
 				case bc::FDUP: {
-					L->gc.tick(L);
+					this->gc.tick(this);
 					auto fn = KVAL(b);
 					LI_ASSERT(fn.is_fn());
 
-					function* r = fn.as_fn()->duplicate(L);
+					function* r = fn.as_fn()->duplicate(this);
 					for (msize_t i = 0; i != r->num_uval; i++) {
 						r->uvals()[i] = REG(c + i);
 					}
@@ -532,36 +531,39 @@ namespace li {
 					auto  trait  = REG(b);
 					if (!holder.is_traitful()) [[unlikely]] {
 						if (holder == none) {
-							holder = table::create(L);
+							holder = table::create(this);
 						} else [[unlikely]] {
-							VM_RET(string::create(L, "can't set traits on non-traitful type"), true);
+							VM_RET(string::create(this, "can't set traits on non-traitful type"), true);
 						}
 					}
 					auto* t = (traitful_node<>*) holder.as_gc();
-					if (auto ex = t->set_trait(L, idx, trait)) [[unlikely]] {
-						VM_RET(string::create(L, ex), true);
+					if (auto ex = t->set_trait(this, idx, trait)) [[unlikely]] {
+						VM_RET(string::create(this, ex), true);
 					}
 					continue;
 				}
 				case bc::CALL: {
-					L->push_stack(REG(b));
-					if (!L->call(a, locals_begin - L->stack, msize_t(ip - opcode_array))) {
-						VM_RET(L->stack_top[FRAME_RET], true);
+					call_frame cf{.stack_pos = msize_t(locals_begin - this->stack), .caller_pc = msize_t(ip - opcode_array)};
+					auto       argspace = this->stack_top - 2;
+					this->push_stack(REG(b));
+					this->push_stack(bit_cast<opaque>(cf));
+					if (!this->call(argspace, a)) {
+						VM_RET(this->stack_top[FRAME_RET], true);
 					}
 					continue;
 				}
 				// Size availability guaranteed by +MAX_ARGUMENTS over-allocation.
 				case bc::PUSHR:
-					L->push_stack(REG(a));
+					this->push_stack(REG(a));
 					continue;
 				case bc::PUSHI:
-					L->push_stack(any(std::in_place, insn.xmm()));
+					this->push_stack(any(std::in_place, insn.xmm()));
 					continue;
 				case bc::SLOAD:
-					REG(a) = L->stack_top[-b];
+					REG(a) = this->stack_top[-b];
 					continue;
 				case bc::SRST:
-					L->stack_top = locals_begin + f->proto->num_locals;
+					this->stack_top = locals_begin + f->proto->num_locals;
 					continue;
 				case bc::NOP:
 					continue;
@@ -575,8 +577,9 @@ namespace li {
 		}
 	}
 
-	// Caller must push all arguments in reverse order, then the self argument or none and the function itself.
-	// - Caller frame takes the caller's base of stack and the PC receives the "return pointer".
+	// nfunc_t for virtual functions.
 	//
-	LI_INLINE bool vm::call(slot_t n_args, slot_t caller_frame, msize_t caller_pc) { return vm_loop(this, call_frame{.stack_pos = caller_frame, .caller_pc = caller_pc, .n_args = n_args}); }
+	bool vm_invoke(vm* L, any* args, slot_t n_args) {
+		return L->call(args, n_args);
+	}
 };

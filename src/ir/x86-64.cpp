@@ -82,7 +82,6 @@ namespace li::ir {
 		if (i->is<constant>()) {
 			if (integer) {
 				auto c = i->as<constant>();
-				LI_ASSERT(type::i8 <= c->vt && c->vt <= type::i64);
 				return mop(c->i);
 			} else {
 				return mop(i->as<constant>()->to_any());
@@ -973,7 +972,11 @@ namespace li::ir {
 			case opcode::write_argument: {
 				auto idx = i->operands[0]->as<constant>()->i32;
 				mreg val;
-				if (i->operands[1]->vt != type::unk) {
+
+				if (i->operands[1]->is<constant>()) {
+					val = b->next_gp();
+					b.append(vop::movi, val, i->operands[1]->as<constant>()->to_any());
+				} else if (i->operands[1]->vt != type::unk) {
 					if (i->operands[1]->vt == type::f32) {
 						auto tmp = b->next_fp();
 						b.append(vop::fx64, tmp, REG(i->operands[1]));
@@ -990,23 +993,30 @@ namespace li::ir {
 				}
 
 				if (val.is_fp())
-					b.append(vop::storef64, {}, mmem{.base = vreg_tos, .disp = -8 - idx * 8}, val);
+					b.append(vop::storef64, {}, mmem{.base = vreg_tos, .disp = idx * 8}, val);
 				else
-					b.append(vop::storei64, {}, mmem{.base = vreg_tos, .disp = -8 - idx * 8}, val);
+					b.append(vop::storei64, {}, mmem{.base = vreg_tos, .disp = idx * 8}, val);
 				return;
 			}
 			case opcode::reload_argument: {
 				auto idx = i->operands[0]->as<constant>()->i32;
-				b.append(vop::loadi64, REG(i), mmem{.base = vreg_tos, .disp = -8 - idx * 8});
+				b.append(vop::loadi64, REG(i), mmem{.base = vreg_tos, .disp = idx * 8});
 				return;
 			}
 			case opcode::vcall: {
 				int32_t nargs = i->operands[0]->as<constant>()->i32;
 				b.append(vop::writecallinfo, {}, mmem{.base = vreg_tos, .disp = -8}, i->source_bc, nargs);
 
+				mreg r;
+				if (auto& t = i->operands[1]; t->is<constant>()) {
+					r = b->next_gp();
+					b.append(vop::movi, r, (int64_t) t->as<constant>()->fn);
+				} else {
+					r = REG(t);
+				}
+				LI_ASSERT(i->operands[1]->vt == type::fn);  // Type guaranteed by opt_pre.
+
 				auto tmp = b->next_gp();
-				auto r = REG(i->operands[1]);
-				LI_ASSERT(i->operands[1]->vt == type::fn); // Type guaranteed by opt_pre.
 				b.append(vop::loadi64, tmp, mmem{.base = r, .disp = offsetof(function, invoke)});
 				b.append(vop::movi, arch::map_gp_arg(0, 0), mop(intptr_t(b->source->L)));
 				LEA(b, mreg(arch::map_gp_arg(1, 0)), mmem{.base = vreg_tos, .disp = -8 * (FRAME_SIZE + 1)});
@@ -1063,7 +1073,7 @@ namespace li::ir {
 		//
 		auto m = std::make_unique<mprocedure>();
 		m->source         = p;
-		m->max_stack_slot = p->max_stack_slot + FRAME_SIZE + 1;
+		m->max_stack_slot = p->max_stack_slot + FRAME_SIZE;
 
 		// Clear all visitor state, we use both fields for mapping to machine structures.
 		//
@@ -1535,10 +1545,15 @@ namespace li::ir {
 			case vop::unreachable:
 				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_UD2));
 				break;
-			case vop::call:
-				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, zy::RAX, to_op(b, i.arg[0])));
-				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_CALL, zy::RAX));
+			case vop::call: {
+				auto target = to_op(b, i.arg[0]);
+				if (target.type == ZYDIS_OPERAND_TYPE_IMMEDIATE) {
+					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, zy::RAX, target));
+					target = zy::to_encoder_op(zy::RAX);
+				}
+				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_CALL, target));
 				break;
+			}
 			case vop::writecallinfo: {
 				// TODO:
 				// can't get stack pos statically, wtf do we do?

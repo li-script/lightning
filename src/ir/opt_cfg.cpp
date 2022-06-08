@@ -64,6 +64,12 @@ namespace li::ir::opt {
 					}
 				}
 
+				// Set cold hint if unreachable.
+				//
+				if (term->is<unreachable>()) {
+					bb->cold_hint = 100;
+				}
+
 				// Delete blocks with only jmp.
 				//
 				if (bb->front() == bb->back() && term->is<jmp>()) {

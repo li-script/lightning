@@ -242,7 +242,7 @@ namespace li::ir::opt {
 				//
 				if (i.arg[0].is_mem() && i.arg[0].mem.base == vreg_tos) {
 					i.arg[0].mem.base = vreg_args;
-					i.arg[0].mem.disp += proc->max_stack_slot * 8;
+					i.arg[0].mem.disp += 8 + proc->max_stack_slot * 8;
 				}
 
 				i.for_each_reg([&](const mreg& r, bool is_read) {

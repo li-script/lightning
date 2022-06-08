@@ -10,6 +10,7 @@
 #include <vm/table.hpp>
 #include <vm/function.hpp>
 #include <cmath>
+#include <numbers>
 
 namespace li::ir::opt {
 	// Prepares the IR to be lifted to MIR.
@@ -77,6 +78,18 @@ namespace li::ir::opt {
 				if (it->is<binop>() && it->operands[0]->as<constant>()->vmopr == bc::APOW) {
 					switch (it->vt) {
 						case type::f64:
+							if (it->operands[1]->is<constant>()) {
+								double n = it->operands[1]->as<constant>()->n;
+								if (n == 2) {
+									it = replace_with_call(
+										 it, false, type::f64, +[](double y) { return exp(y); }, it->operands[2]);
+									break;
+								} else if (n == std::numbers::e) {
+									it = replace_with_call(
+										 it, false, type::f64, +[](double y) { return exp2(y); }, it->operands[2]);
+									break;
+								}
+							}
 							it = replace_with_call(
 								 it, false, type::f64, +[](double x, double y) { return pow(x, y); }, it->operands[1], it->operands[2]);
 							break;

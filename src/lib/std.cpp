@@ -6,6 +6,7 @@
 #include <cmath>
 #include <bit>
 #include <chrono>
+#include <numbers>
 
 namespace li::lib {
 #define OPTIONAL_SELF() \
@@ -29,10 +30,8 @@ namespace li::lib {
 		return L->ok(any(name(args[0].as_num(), args[-1].as_num())));               \
 	});
 
-	static constexpr double pi = 3.14159265358979323846264338327950288;
-
-	static double rad(double x) { return x * (180 / pi); }
-	static double deg(double x) { return x * (pi / 180); }
+	static double rad(double x) { return x * (180 / std::numbers::pi); }
+	static double deg(double x) { return x * (std::numbers::pi / 180); }
 
 
 	static bool math_random_to_dbl(vm* L, any* args, slot_t n, uint64_t v) {
@@ -101,7 +100,8 @@ namespace li::lib {
 		util::export_as(L, "math.eps", std::numeric_limits<double>::epsilon());
 		util::export_as(L, "math.inf", std::numeric_limits<double>::infinity());
 		util::export_as(L, "math.nan", std::numeric_limits<double>::quiet_NaN());
-		util::export_as(L, "math.pi", pi);
+		util::export_as(L, "math.pi", std::numbers::pi);
+		util::export_as(L, "math.e",  std::numbers::e);
 
 		static constexpr auto max = [](double a, double b) { return fmax(a, b); };
 		static constexpr auto min = [](double a, double b) { return fmin(a, b); };

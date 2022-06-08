@@ -460,7 +460,6 @@ namespace li::ir {
 				}
 				return vx;
 			}
-			// TODO: APOW as CCALL
 			default:
 				return {};
 		}

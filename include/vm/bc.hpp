@@ -39,6 +39,7 @@ namespace li::bc {
 	_(VJOIN, reg, reg, reg, none) /* A=JOIN(B<-C) */                                      \
 	_(VDUP, reg, reg, ___, none)  /* A=DUP(B) */                                          \
 	_(CCAT, reg, imm, ___, none)  /* A=CONCAT(A..A+B) */                                  \
+	_(SETEH, rel, reg, ___, none) /* Exception Handler = A(Ex=B) */                       \
                                                                                          \
 	/* Trait operators. */                                                                \
 	_(TRSET, reg, reg, imm, none) /* A[Trait C] = B */                                    \

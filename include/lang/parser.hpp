@@ -70,6 +70,8 @@ namespace li {
 		std::vector<local_state> locals       = {};  // Locals declared in this scope.
 		bc::rel                  lbl_continue = 0;   // Labels.
 		bc::rel                  lbl_break    = 0;   //
+		bc::rel                  lbl_catchpad = 0;   //
+		bc::reg                  caught_value = 0;
 
 		// Emits an instruction and returns the position in stream.
 		//
@@ -157,6 +159,8 @@ namespace li {
 				reg_next     = prev->reg_next;
 				lbl_break    = prev->lbl_break;
 				lbl_continue = prev->lbl_continue;
+				lbl_catchpad = prev->lbl_catchpad;
+				caught_value = prev->caught_value;
 			}
 		}
 		func_scope(const func_scope&)            = delete;

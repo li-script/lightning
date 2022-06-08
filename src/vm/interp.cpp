@@ -9,11 +9,17 @@
 namespace li {
 	// VM helpers.
 	//
-#define VM_RET(value, ex)                     \
-	do {                                       \
-		locals_begin[FRAME_RET] = value;        \
-		L->stack_top            = locals_begin; \
-		return !ex;                             \
+#define VM_RET(value, ex)                                    \
+	do {                                                      \
+		if (ex && catchpad_i) [[unlikely]] {                   \
+			*catchpad_v  = value;                               \
+			ip           = catchpad_i;                          \
+			L->stack_top = locals_begin + f->proto->num_locals; \
+			continue;                                           \
+		}                                                      \
+		locals_begin[FRAME_RET] = value;                       \
+		L->stack_top            = locals_begin;                \
+		return !ex;                                            \
 	} while (0)
 #define UNOP_HANDLE(K)                          \
 	case K: {                                    \
@@ -91,6 +97,8 @@ namespace li {
 			return f->proto->kvals()[r];
 		};
 #endif
+		const bc::insn* __restrict catchpad_i = nullptr;
+		any* catchpad_v                       = nullptr;
 		const auto* __restrict opcode_array = &f->proto->opcode_array[0];
 		const auto* __restrict ip           = opcode_array;
 		while (true) {
@@ -525,12 +533,22 @@ namespace li {
 					}
 					continue;
 				}
+				case bc::SETEH: {
+					if (a) {
+						catchpad_i = ip + a;
+						catchpad_v = &REG(b);
+					} else {
+						catchpad_i = nullptr;
+						catchpad_v = nullptr;
+					}
+					continue;
+				}
 				case bc::CALL: {
 					call_frame cf{.stack_pos = msize_t(locals_begin - L->stack), .caller_pc = msize_t(ip - opcode_array)};
 					auto       argspace = L->stack_top - 2;
 					L->push_stack(REG(b));
 					L->push_stack(bit_cast<opaque>(cf));
-					if (!vm_invoke(L, argspace, a)) {
+					if (!vm_invoke(L, argspace, a)) [[unlikely]] {
 						VM_RET(L->stack_top[FRAME_RET], true);
 					}
 					continue;

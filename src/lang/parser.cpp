@@ -253,6 +253,7 @@ namespace li {
 	static expression parse_if(func_scope& scope);
 	static expression parse_match(func_scope& scope);
 	static expression parse_for(func_scope& scope);
+	static expression parse_try(func_scope& scope);
 	static expression parse_loop(func_scope& scope);
 	static expression parse_while(func_scope& scope);
 	static expression parse_env(func_scope& scope);
@@ -473,6 +474,9 @@ namespace li {
 		} else if (tk.id == lex::token_for) {
 			scope.lex().next();
 			base = parse_for(scope);
+		} else if (tk.id == lex::token_try) {
+			scope.lex().next();
+			base = parse_try(scope);
 		} else if (tk.id == lex::token_env) {
 			scope.lex().next();
 			base = parse_env(scope);
@@ -931,13 +935,23 @@ namespace li {
 
 				// void throw:
 				//
+				expression res;
 				if (auto& tk = scope.lex().tok; tk.id == ';' || tk.id == lex::token_eof || tk.id == '}') {
-					scope.emit(bc::THRW, expression(nil).to_anyreg(scope));
+					res = expression(nil);
 				}
-				// value return:
+				// value throw:
 				//
 				else {
-					scope.emit(bc::THRW, expr_parse(scope).to_anyreg(scope));
+					res = expr_parse(scope);
+				}
+
+				// If there is a catch pad, just jump to it, otherwise use THRW.
+				//
+				if (scope.lbl_catchpad != 0) {
+					res.to_reg(scope, scope.caught_value);
+					scope.emit(bc::JMP, scope.lbl_catchpad);
+				} else {
+					scope.emit(bc::THRW, res.to_anyreg(scope));
 				}
 				return expression(nil);
 			}
@@ -1781,6 +1795,75 @@ namespace li {
 			//
 			return tbl_reg;
 		}
+	}
+	static expression parse_try(func_scope& scope) {
+		// Allocate the labels and a register for the catchpad.
+		//
+		auto catch_pad = scope.make_label();
+		auto catch_val = scope.alloc_reg();
+		auto no_throw  = scope.make_label();
+		auto pc        = std::exchange(scope.lbl_catchpad, catch_pad);
+		auto pv        = std::exchange(scope.caught_value, catch_val);
+
+		scope.emit(bc::SETEH, catch_pad, catch_val);
+
+		// Reserve next register for block result, initialize to nil.
+		//
+		auto result = expression{any()}.to_nextreg(scope);
+
+		// Parse the try block.
+		//
+		if (scope.lex().check('{') == lex::token_error) {
+			return {};
+		}
+		if (expr_block(scope, result).kind == expr::err) {
+			return {};
+		}
+
+		// Jump to continue.
+		//
+		scope.emit(bc::JMP, no_throw);
+
+		// Set the catchpad.
+		//
+		scope.set_label_here(scope.lbl_catchpad);
+
+		// Restore the labels.
+		//
+		scope.caught_value = pv;
+		scope.lbl_catchpad = pc;
+		scope.emit(bc::SETEH, pc, pv);
+
+		// Parse the catch block.
+		//
+		if (scope.lex().check(lex::token_catch) == lex::token_error) {
+			return {};
+		} else {
+			func_scope iscope{scope.fn};
+
+			if (iscope.lex().opt('(')) {
+				if (auto errv = iscope.lex().opt(lex::token_name)) {
+					iscope.locals.push_back({errv->str_val, false, catch_val});
+				}
+				if (iscope.lex().check(')') == lex::token_error) {
+					return {};
+				}
+			}
+			if (iscope.lex().check('{') == lex::token_error) {
+				return {};
+			}
+			if (expr_block(iscope, result).kind == expr::err) {
+				return {};
+			}
+		}
+
+		// Emit the result label.
+		//
+		scope.set_label_here(no_throw);
+
+		// Return the result.
+		//
+		return result;
 	}
 	static expression parse_env(func_scope& scope) {
 		// Allocate two registers.

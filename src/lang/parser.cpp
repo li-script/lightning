@@ -407,7 +407,7 @@ namespace li {
 
 				auto tmp = scope.alloc_reg();
 				scope.set_reg(tmp, any(field.str_val));
-				scope.emit(bc::TSET, tmp, value.reg, result.reg);
+				scope.emit(bc::TSETR, tmp, value.reg, result.reg);
 				++nexpr;
 
 				if (scope.lex().opt('}'))

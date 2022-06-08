@@ -157,7 +157,7 @@ namespace li {
 			return type_table;
 		} else {
 			scope.lex().error("expected type name.");
-			return type_none;
+			return type_nil;
 		}
 	}
 
@@ -196,7 +196,7 @@ namespace li {
 		//
 		if (scope.lex().opt(lex::token_is)) {
 			auto t = parse_type(scope);
-			if (t == type_none) {
+			if (t == type_nil) {
 				return nullptr;
 			} else if (lhs.kind == expr::imm) {
 				out = expression(any(to_canonical_type_name(lhs.imm.type()) == t));
@@ -503,6 +503,9 @@ namespace li {
 		} else if (tk.id == lex::token_false) {
 			scope.lex().next();
 			base = expression(const_false);
+		} else if (tk.id == lex::token_nil) {
+			scope.lex().next();
+			base = expression(nil);
 		}
 		// Functions.
 		//
@@ -526,7 +529,7 @@ namespace li {
 				//}
 				case lex::token_lstr:
 				case '(': {
-					base = parse_call(scope, base, none);
+					base = parse_call(scope, base, nil);
 					if (base.kind == expr::err)
 						return {};
 					break;
@@ -778,7 +781,7 @@ namespace li {
 			// Push a new local and write it.
 			//
 			expression result;
-			if (ex.kind == expr::imm && is_const && ex.imm != none) {
+			if (ex.kind == expr::imm && is_const && ex.imm != nil) {
 				scope.add_local_cxpr(var.str_val, ex.imm);
 				result = ex;
 			} else {
@@ -808,10 +811,10 @@ namespace li {
 				return true;
 			}
 
-			// Push a new local and load none.
+			// Push a new local and load nil.
 			//
 			auto reg = scope.add_local(var.str_val, is_const);
-			scope.set_reg(reg, none);
+			scope.set_reg(reg, nil);
 		}
 		return true;
 	}
@@ -877,7 +880,7 @@ namespace li {
 			// Empty statement => None.
 			//
 			case ';': {
-				return expression(none);
+				return expression(nil);
 			}
 
 			// Variable declaration => None.
@@ -892,7 +895,7 @@ namespace li {
 				if (!parse_decl(scope, is_export)) {
 					return {};
 				}
-				return expression(none);
+				return expression(nil);
 			}
 
 			// Possible assignment, forward to specializer handler.
@@ -910,14 +913,14 @@ namespace li {
 				// void return:
 				//
 				if (auto& tk = scope.lex().tok; tk.id == ';' || tk.id == lex::token_eof || tk.id == '}') {
-					scope.emit(bc::RET, expression(none).to_anyreg(scope));
+					scope.emit(bc::RET, expression(nil).to_anyreg(scope));
 				}
 				// value return:
 				//
 				else {
 					scope.emit(bc::RET, expr_parse(scope).to_anyreg(scope));
 				}
-				return expression(none);
+				return expression(nil);
 			}
 
 			// Throw statement => None.
@@ -929,14 +932,14 @@ namespace li {
 				// void throw:
 				//
 				if (auto& tk = scope.lex().tok; tk.id == ';' || tk.id == lex::token_eof || tk.id == '}') {
-					scope.emit(bc::THRW, expression(none).to_anyreg(scope));
+					scope.emit(bc::THRW, expression(nil).to_anyreg(scope));
 				}
 				// value return:
 				//
 				else {
 					scope.emit(bc::THRW, expr_parse(scope).to_anyreg(scope));
 				}
-				return expression(none);
+				return expression(nil);
 			}
 
 			// Continue/Break.
@@ -950,7 +953,7 @@ namespace li {
 					return {};
 				}
 				scope.emit(bc::JMP, scope.lbl_continue);
-				return expression(none);
+				return expression(nil);
 			}
 			case lex::token_break: {
 				scope.lex().next();
@@ -980,7 +983,7 @@ namespace li {
 					expr_parse(scope).to_reg(scope, s->reg_next - 1);
 					scope.emit(bc::JMP, scope.lbl_break);
 				}
-				return expression(none);
+				return expression(nil);
 			}
 
 			// Anything else gets forward to expression parser.
@@ -1000,10 +1003,10 @@ namespace li {
 		if (pscope.lex().tok == '}') {
 			if (!no_term)
 				pscope.lex().next();
-			return none;
+			return nil;
 		}
 
-		expression last{none};
+		expression last{nil};
 		{
 			bool       fin = false;
 			func_scope scope{pscope.fn};
@@ -1025,7 +1028,7 @@ namespace li {
 				// If closed with semi-colon, clear value.
 				//
 				if (scope.lex().opt(';')) {
-					last = none;
+					last = nil;
 				}
 				if (scope.lex().tok == '}') {
 					if (!no_term)
@@ -1057,7 +1060,7 @@ namespace li {
 	// Parses script body.
 	//
 	static bool parse_body(func_scope scope) {
-		expression last{none};
+		expression last{nil};
 		bool       fin = false;
 		while (scope.lex().tok != lex::token_eof) {
 			// If finalized but block is not closed, fail.
@@ -1076,7 +1079,7 @@ namespace li {
 			// If closed with semi-colon, clear value.
 			//
 			if (scope.lex().opt(';')) {
-				last = none;
+				last = nil;
 			}
 		}
 
@@ -1111,7 +1114,7 @@ namespace li {
 		} else {
 			if (scope.lex().opt('!')) {
 				trait = true;
-				if ((self.kind == expr::imm && self.imm == none) || func.kind != expr::glb) {
+				if ((self.kind == expr::imm && self.imm == nil) || func.kind != expr::glb) {
 					scope.lex().error("traits should be used with :: operator.");
 					return {};
 				}
@@ -1178,7 +1181,7 @@ namespace li {
 						} else {
 							reg_sweeper _r{scope};
 							scope.emit(bc::TRSET, self.to_anyreg(scope), callsite[0].first.to_anyreg(scope), i);
-							return expression(none);
+							return expression(nil);
 						}
 					}
 				}
@@ -1238,7 +1241,7 @@ namespace li {
 				callsite[1].first.to_reg(scope, tmp+1); // value
 				scope.emit(bc::TSETR, tmp, tmp + 1, self.to_anyreg(scope));
 				scope.reg_next = tmp;
-				return expression(none);
+				return expression(nil);
 			}
 		}
 
@@ -1522,7 +1525,7 @@ namespace li {
 		//
 		scope.set_label_here(scope.lbl_continue);
 
-		// Reserve next register for break-with-value, initialize to none.
+		// Reserve next register for break-with-value, initialize to nil.
 		//
 		auto result = expression{any()}.to_nextreg(scope);
 
@@ -1570,7 +1573,7 @@ namespace li {
 		}
 		cc = cc.to_anyreg(scope);
 
-		// Reserve next register for break-with-value, initialize to none.
+		// Reserve next register for break-with-value, initialize to nil.
 		//
 		auto result = expression{any()}.to_nextreg(scope);
 
@@ -1645,7 +1648,7 @@ namespace li {
 
 			// Parse another value.
 			//
-			expression i2{none};
+			expression i2{nil};
 			if (scope.lex().tok != '{') {
 				i2 = expr_parse(scope);
 				if (i2.kind == expr::err) {
@@ -1660,7 +1663,7 @@ namespace li {
 			i.to_reg(scope, iter_base);
 			i2.to_reg(scope, iter_base + 1);
 			scope.set_reg(iter_base + 2, step);
-			scope.set_reg(iter_base + 4, none);
+			scope.set_reg(iter_base + 4, nil);
 
 			// Allocate new continue and break labels and the local.
 			//
@@ -1679,7 +1682,7 @@ namespace li {
 			// Parse the condition, jump to break if we reached the end.
 			//
 			scope.emit(bc::AADD, iter_base, iter_base, iter_base + 2);  // it = it + step
-			if (i2.kind != expr::imm || i2.imm != none) {
+			if (i2.kind != expr::imm || i2.imm != nil) {
 				scope.emit(inclusive ? bc::CGT : bc::CGE, iter_base + 3, iter_base, iter_base + 1);  // cc = !cmp(it, max)
 				scope.emit(bc::JS, scope.lbl_break, iter_base + 3);
 			}

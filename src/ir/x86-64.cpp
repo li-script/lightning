@@ -191,7 +191,7 @@ namespace li::ir {
 	//
 	static void type_erase(mblock& b, mreg r, mreg out, type irty) {
 		if (irty == type::nil) {
-			b.append(vop::movi, out, none);
+			b.append(vop::movi, out, nil);
 		} else if (irty == type::i1) {
 			auto tmp = b->next_gp();
 			// mov  tmp, tag
@@ -252,7 +252,7 @@ namespace li::ir {
 			b.append(vop::movi, out, v->as<constant>()->to_any());
 			return;
 		} else if (v->vt == type::nil) {
-			b.append(vop::movi, out, none);
+			b.append(vop::movi, out, nil);
 			return;
 		} else {
 			type_erase(b, REG(v), out, v->vt);
@@ -537,7 +537,7 @@ namespace li::ir {
 		// Allocate a temporary to hold the result.
 		//
 		auto tmp = b->next_gp();
-		b.append(vop::movi, tmp, none);
+		b.append(vop::movi, tmp, nil);
 		for (size_t i = 0; i != overflow_factor; i++) {
 			mmem kv{.base = base, .disp = int32_t(offsetof(table_nodes, entries) + sizeof(table_entry) * i)};
 			CMP(b, FLAG_Z, key, kv);
@@ -558,7 +558,7 @@ namespace li::ir {
 		//
 		mreg result_cc   = b->next_gp();
 		mreg result_okay = b->next_gp();
-		LEA(b, result_cc, b->add_const(none));
+		LEA(b, result_cc, b->add_const(nil));
 		if (vkey->is<constant>()) {
 			msize_t idx = msize_t(vkey->as<constant>()->to_any().as_num());
 			LEA(b, result_okay, mmem{.base = tbl_store, .disp = int32_t(idx * sizeof(any) + offsetof(array_store, entries))});
@@ -833,7 +833,7 @@ namespace li::ir {
 						return;
 					}
 					case type::unk: {
-						static_assert(type_bool == (type_none - 1), "Outdated constants.");
+						static_assert(type_bool == (type_nil - 1), "Outdated constants.");
 
 						auto tmp = REG(i);
 						b.append(vop::movi, tmp, 0x47FFFFFFFFFFF);

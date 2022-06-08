@@ -229,7 +229,7 @@ namespace li::gc {
 		// Clear stack and globals.
 		//
 		L->stack_top = L->stack;
-		fill_none(L->globals->begin(), L->globals->realsize() * 2);
+		fill_nil(L->globals->begin(), L->globals->realsize() * 2);
 
 		// GC.
 		//

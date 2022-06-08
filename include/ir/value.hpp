@@ -369,7 +369,7 @@ namespace li::ir {
 			} else if (type::f32 <= vt && vt <= type::f64) {
 				return any(n);
 			} else if (vt == type::nil) {
-				return any(none);
+				return any(nil);
 			} else if (vt == type::opq) {
 				return any(opq);
 			} else if (vt == type::tbl) {
@@ -408,7 +408,7 @@ namespace li::ir {
 		} else if (type::f32 <= vt && vt <= type::f64) {
 			return type_number;
 		} else if (vt == type::nil) {
-			return type_none;
+			return type_nil;
 		} else if (vt == type::opq) {
 			return type_opaque;
 		} else if (type::tbl <= vt && vt < type::bb) {
@@ -424,7 +424,7 @@ namespace li::ir {
 			return type::f64;
 		else if (t == type_opaque)
 			return type::opq;
-		else if (t == type_none)
+		else if (t == type_nil)
 			return type::nil;
 		else
 			return type(uint8_t(t) + uint8_t(type::tbl) - type_table);

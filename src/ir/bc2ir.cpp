@@ -98,7 +98,7 @@ namespace li::ir {
 				}
 				case bc::NCS: {
 					auto br = get_reg(b);
-					bld.emit<select>(bld.emit<compare>(bc::CEQ, br, any(none)), get_reg(c), br);
+					bld.emit<select>(bld.emit<compare>(bc::CEQ, br, any(nil)), get_reg(c), br);
 					continue;
 				}
 				case bc::CTY: {
@@ -325,7 +325,7 @@ namespace li::ir {
 				//	auto tt = bc_to_bb[ip + a];
 				//
 				//}
-				// _(ITER, rel, reg, reg, none) B[1,2] = C[B++].kv, JMP A if end
+				// _(ITER, rel, reg, reg, nil) B[1,2] = C[B++].kv, JMP A if end
 
 				default:
 					util::abort("Opcode %s NYI\n", bc::opcode_details(op).name);

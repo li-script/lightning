@@ -22,7 +22,7 @@ namespace li {
 	using nfunc_t = bool (*)(vm* L, any* args, slot_t n);
 
 	// nfunc_t for virtual functions.
-	//  Caller must push all arguments in reverse order, the self argument or none, the function itself and the caller information.
+	//  Caller must push all arguments in reverse order, the self argument or nil, the function itself and the caller information.
 	//
 	bool vm_invoke(vm* L, any* args, slot_t n_args);
 
@@ -141,11 +141,11 @@ namespace li {
 		template<typename... Tx>
 		LI_COLD bool error(const char* fmt, Tx... args);
 
-		bool error(any result = none) {
+		bool error(any result = nil) {
 			stack_top[FRAME_RET] = result;
 			return false;
 		}
-		bool ok(any result = none) {
+		bool ok(any result = nil) {
 			stack_top[FRAME_RET] = result;
 			return true;
 		}
@@ -166,7 +166,7 @@ namespace li {
 
 		// Simple call wrapping vm_invoke for user-invocation that pops all arguments and the function/self from ToS.
 		//
-		bool call(slot_t n_args, any fn, any self = none) {
+		bool call(slot_t n_args, any fn, any self = nil) {
 			any* req_slot = stack_top - n_args;
 			push_stack(self);
 			push_stack(fn);

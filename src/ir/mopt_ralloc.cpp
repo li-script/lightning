@@ -371,7 +371,7 @@ namespace li::ir::opt {
 
 		// Build the interference graph.
 		//
-		auto add_vertex = [&](mreg a, mreg b) {
+		auto add_vertex = [&](mreg a, mreg b) LI_INLINE {
 			if (!interferes_with(a, b))
 				return true;
 			auto au   = a.uid();
@@ -380,7 +380,7 @@ namespace li::ir::opt {
 			interference_graph[bu].vtx.set(au);
 			return prev;
 		};
-		auto add_set = [&](const util::bitset& b, mreg def) {
+		auto add_set = [&](const util::bitset& b, mreg def) LI_INLINE {
 			for (msize_t i = 0; i != max_reg_id; i++) {
 				if (b[i]) {
 					add_vertex(def, mreg::from_uid(i));

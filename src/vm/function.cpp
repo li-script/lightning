@@ -16,7 +16,7 @@ namespace li {
 		result->src_chunk       = string::create(L);
 		result->num_lines       = (msize_t) lines.size();
 
-		// Copy the information, initialize all upvalues to none.
+		// Copy the information, initialize all upvalues to nil.
 		//
 		std::copy_n(opcodes.data(), opcodes.size(), result->opcode_array);
 		std::copy_n(kval.data(), kval.size(), result->kvals().begin());
@@ -30,7 +30,7 @@ namespace li {
 		f->environment   = L->globals;
 		f->invoke        = &vm_invoke;
 		f->proto         = proto;
-		fill_none(f->upvalue_array, f->num_uval);
+		fill_nil(f->upvalue_array, f->num_uval);
 		return f;
 	}
 	function* function::create(vm* L, nfunc_t cb) {

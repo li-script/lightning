@@ -78,7 +78,7 @@ namespace li {
 
 	// Final tag.
 	//
-	template<typename T = void, value_type V = type_none>
+	template<typename T = void, value_type V = type_nil>
 	struct traitful_node : gc::node<T, V> {
 		trait_table* traits                  = nullptr;  // Table of traits.
 		uint32_t     trait_freeze : 1        = 0;        // Allows constant optimizations and errors on value set.
@@ -115,7 +115,7 @@ namespace li {
 			if (trait_mask & (1u << msize_t(t))) {
 				return traits->list[msize_t(t)].as_any();
 			} else {
-				return none;
+				return nil;
 			}
 		}
 
@@ -143,7 +143,7 @@ namespace li {
 
 			// Set value.
 			//
-			if (v != none) {
+			if (v != nil) {
 				// Type check.
 				//
 				if (!v.is_fn()) {

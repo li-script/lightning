@@ -16,9 +16,9 @@ namespace li::runtime {
 		any key(std::in_place, _key);
 		any val(std::in_place, _value);
 
-		if (key == none) [[unlikely]] {
+		if (key == nil) [[unlikely]] {
 			return any(string::create(L, "indexing with null key")).value;
-		} /* else if (tbl == none) [[unlikely]] { <------- TODO:
+		} /* else if (tbl == nil) [[unlikely]] { <------- TODO:
 			tbl = any{table::create(L)};
 		}*/
 
@@ -44,7 +44,7 @@ namespace li::runtime {
 	uint64_t LI_C_CC field_get_raw(vm* L, uint64_t _unk, uint64_t _key) {
 		any tbl(std::in_place, _unk);
 		any key(std::in_place, _key);
-		if (key == none) [[unlikely]] {
+		if (key == nil) [[unlikely]] {
 			// VM_RET(string::create(L, "indexing with null key"), true);
 			util::abort("indexing with null key");
 		}
@@ -56,8 +56,8 @@ namespace li::runtime {
 				util::abort("indexing array with non-integer or negative key");
 			}
 			return tbl.as_arr()->get(L, msize_t(key.as_num())).value;
-		} else if (tbl == none) {
-			return none.value;
+		} else if (tbl == nil) {
+			return nil.value;
 		} else {
 			util::abort("indexing non-table");
 		}

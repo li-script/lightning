@@ -165,7 +165,7 @@ namespace li {
 					switch (target.type()) {
 						// Alias to empty table.
 						//
-						case type_none:
+						case type_nil:
 							ip += a;
 							continue;
 
@@ -221,7 +221,7 @@ namespace li {
 							table* t = target.as_tbl();
 							auto*  e = t->begin();
 							for (; it < (t->size() + overflow_factor); it++) {
-								if (e[it].key != none) {
+								if (e[it].key != nil) {
 									// Write the pair.
 									//
 									k = e[it].key;
@@ -287,7 +287,7 @@ namespace li {
 				case bc::TGETR: {
 					auto tbl = REG(c);
 					auto key = REG(b);
-					if (key == none) [[unlikely]] {
+					if (key == nil) [[unlikely]] {
 						VM_RET(string::create(L, "indexing with null key"), true);
 					}
 
@@ -298,8 +298,8 @@ namespace li {
 							VM_RET(string::create(L, "indexing array with non-integer or negative key"), true);
 						}
 						REG(a) = tbl.as_arr()->get(L, msize_t(key.as_num()));
-					} else if (tbl == none) {
-						REG(a) = none;
+					} else if (tbl == nil) {
+						REG(a) = nil;
 					} else {
 						VM_RET(string::create(L, "indexing non-table"), true);
 					}
@@ -310,9 +310,9 @@ namespace li {
 					auto  key = REG(a);
 					auto  val = REG(b);
 
-					if (key == none) [[unlikely]] {
+					if (key == nil) [[unlikely]] {
 						VM_RET(string::create(L, "indexing with null key"), true);
-					} else if (tbl == none) [[unlikely]] {
+					} else if (tbl == nil) [[unlikely]] {
 						tbl = any{table::create(L)};
 					}
 
@@ -337,7 +337,7 @@ namespace li {
 				case bc::TGET: {
 					auto tbl = REG(c);
 					auto key = REG(b);
-					if (key == none) [[unlikely]] {
+					if (key == nil) [[unlikely]] {
 						VM_RET(string::create(L, "indexing with null key"), true);
 					}
 
@@ -358,9 +358,9 @@ namespace li {
 						}
 						auto i = size_t(key.as_num());
 						auto v = tbl.as_str()->view();
-						REG(a) = v.size() <= i ? any(none) : any(number((uint8_t) v[i]));
-					} else if (tbl == none) {
-						REG(a) = none;
+						REG(a) = v.size() <= i ? any(nil) : any(number((uint8_t) v[i]));
+					} else if (tbl == nil) {
+						REG(a) = nil;
 					} else {
 						VM_RET(string::create(L, "indexing non-table"), true);
 					}
@@ -371,7 +371,7 @@ namespace li {
 					auto  key = REG(a);
 					auto  val = REG(b);
 
-					if (key == none) [[unlikely]] {
+					if (key == nil) [[unlikely]] {
 						VM_RET(string::create(L, "indexing with null key"), true);
 					}
 					if (tbl.is_arr()) {
@@ -383,7 +383,7 @@ namespace li {
 						}
 						continue;
 					} else if (!tbl.is_tbl()) [[unlikely]] {
-						if (tbl == none) {
+						if (tbl == nil) {
 							tbl = any{table::create(L)};
 						} else [[unlikely]] {
 							VM_RET(string::create(L, "indexing non-table"), true);
@@ -398,14 +398,14 @@ namespace li {
 					continue;
 				}
 				case bc::GGET: {
-					if (REG(b) == none) [[unlikely]] {
+					if (REG(b) == nil) [[unlikely]] {
 						VM_RET(string::create(L, "indexing with null key"), true);
 					}
 					REG(a) = f->environment->get(L, REG(b));
 					continue;
 				}
 				case bc::GSET: {
-					if (REG(a) == none) [[unlikely]] {
+					if (REG(a) == nil) [[unlikely]] {
 						VM_RET(string::create(L, "indexing with null key"), true);
 					}
 					f->environment->set(L, REG(a), REG(b));
@@ -416,7 +416,7 @@ namespace li {
 					L->gc.tick(L);
 					auto src = REG(c);
 					if (src.is_tbl()) {
-						if (auto dst = REG(b); dst == none) {
+						if (auto dst = REG(b); dst == nil) {
 							REG(a) = src.as_tbl()->duplicate(L);
 						} else {
 							REG(a) = dst;
@@ -501,10 +501,10 @@ namespace li {
 					auto  holder = REG(b);
 					auto& trait  = REG(a);
 					if (!holder.is_traitful()) {
-						trait = none;
+						trait = nil;
 					} else {
 						auto* t = (traitful_node<>*) holder.as_gc();
-						trait   = t->trait_hide ? none : t->get_trait(idx);
+						trait   = t->trait_hide ? nil : t->get_trait(idx);
 					}
 					continue;
 				}
@@ -513,7 +513,7 @@ namespace li {
 					auto& holder = REG(a);
 					auto  trait  = REG(b);
 					if (!holder.is_traitful()) [[unlikely]] {
-						if (holder == none) {
+						if (holder == nil) {
 							holder = table::create(L);
 						} else [[unlikely]] {
 							VM_RET(string::create(L, "can't set traits on non-traitful type"), true);

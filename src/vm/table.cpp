@@ -32,7 +32,7 @@ namespace li {
 		// Copy fields raw.
 		//
 		for (auto& [k, v] : *other) {
-			if (k != none)
+			if (k != nil)
 				set(L, k, v);
 		}
 	}
@@ -48,11 +48,11 @@ namespace li {
 			size_t alloc_length = sizeof(table_entry) * (new_count + overflow_factor);
 			node_list           = L->alloc<table_nodes>(alloc_length);
 			mask                = compute_mask(new_count);
-			fill_none(node_list->entries, alloc_length / sizeof(any));
+			fill_nil(node_list->entries, alloc_length / sizeof(any));
 
 			if (old_list) {
 				for (msize_t i = 0; i != (old_count + overflow_factor); i++) {
-					if (old_entries[i].key != none) {
+					if (old_entries[i].key != nil) {
 						set(L, old_entries[i].key, old_entries[i].value);
 					}
 				}
@@ -64,10 +64,10 @@ namespace li {
 	// Raw table get/set.
 	//
 	LI_INLINE static bool set_if(table* t, any key, any value, size_t hash) {
-		if (value == none) {
+		if (value == nil) {
 			for (auto& entry : t->find(hash)) {
 				if (entry.key == key) {
-					entry = {none, none};
+					entry = {nil, nil};
 					t->active_count--;
 					return true;
 				}
@@ -87,7 +87,7 @@ namespace li {
 			msize_t next_count = active_count + 1;
 			while (true) {
 				for (auto& entry : find(hash)) {
-					if (entry.key == none) {
+					if (entry.key == nil) {
 						entry        = {key, value};
 						active_count = next_count;
 						return;
@@ -115,7 +115,7 @@ namespace li {
 
 		if (!has_trait<trait::set>()) [[likely]] {
 			set(L, key, value);
-			return {none, true};
+			return {nil, true};
 		}
 
 		L->push_stack(value);
@@ -125,7 +125,7 @@ namespace li {
 	}
 	std::pair<any, bool> table::tget(vm* L, any key) {
 		auto result = get(L, key);
-		if (result != none || !has_trait<trait::get>()) [[likely]] {
+		if (result != nil || !has_trait<trait::get>()) [[likely]] {
 			return {result, true};
 		}
 

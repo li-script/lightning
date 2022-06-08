@@ -20,7 +20,7 @@
 namespace li::debug {
 	static void dump_table(table* t) {
 		for (auto& [k, v] : *t) {
-			if (k != none) {
+			if (k != nil) {
 				printf("%s->%s [hash=%zx]\n", k.to_string().c_str(), v.to_string().c_str(), k.hash());
 			}
 		}
@@ -37,7 +37,7 @@ static void handle_repl_io(vm* L, std::string_view input) {
 			printf("\n" LI_DEF);
 		} else {
 			auto r = L->pop_stack();
-			if (r != none) {
+			if (r != nil) {
 				printf(LI_GRN "");
 				r.print();
 				printf("\n" LI_DEF);

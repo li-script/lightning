@@ -15,7 +15,7 @@ namespace li {
 		string* id       = nullptr;  // Local name.
 		bool    is_const = false;    // Set if declared as const.
 		bc::reg reg      = -1;       // Register mapping to it if any.
-		any     cxpr     = none;     // Constant expression if any.
+		any     cxpr     = nil;     // Constant expression if any.
 	};
 
 	// Label magic flag.
@@ -129,17 +129,10 @@ namespace li {
 		// Loads the constant given in the register in the most efficient way.
 		//
 		void set_reg(bc::reg r, any v) {
-			switch (v.type()) {
-				case type_none:
-				case type_bool:
-				case type_number: {
-					emitx(bc::KIMM, r, v.value);
-					break;
-				}
-				default: {
-					emitx(bc::KIMM, r, add_const(v).second.value);
-					break;
-				}
+			if (is_type_gc(v.type())) {
+				emitx(bc::KIMM, r, add_const(v).second.value);
+			} else {
+				emitx(bc::KIMM, r, v.value);
 			}
 		}
 
@@ -287,17 +280,10 @@ namespace li {
 					scope.emit(bc::PUSHR, reg);
 					return;
 				case expr::imm:
-					switch (imm.type()) {
-						case type_none:
-						case type_bool:
-						case type_number: {
-							scope.emitx(bc::PUSHI, 0, imm.value);
-							break;
-						}
-						default: {
-							scope.emitx(bc::PUSHI, 0, scope.add_const(imm).second.value);
-							break;
-						}
+					if (is_type_gc(imm.type())) {
+						scope.emitx(bc::PUSHI, 0, scope.add_const(imm).second.value);
+					} else {
+						scope.emitx(bc::PUSHI, 0, imm.value);
 					}
 					return;
 				case expr::uvl:

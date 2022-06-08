@@ -44,7 +44,7 @@ namespace li {
 		type_proto    = 4,  // Last traversable. | Not visible to user.
 		type_string   = 5,
 		type_bool     = 8,  // First non-GC type.
-		type_none     = 9,
+		type_nil      = 9,
 		type_opaque   = 10,  // No type/definition, unique integer part.
 		type_number   = 11,
 
@@ -68,7 +68,7 @@ namespace li {
 		result[type_proto]    = "proto";
 		result[type_string]   = "string";
 		result[type_userdata] = "userdata";
-		result[type_none]     = "none";
+		result[type_nil]      = "nil";
 		result[type_bool]     = "bool";
 		result[type_opaque]   = "opaque";
 		result[type_number]   = "number";
@@ -78,7 +78,7 @@ namespace li {
 	// Type canonicalization for user type checks.
 	//
 	LI_INLINE static constexpr value_type to_canonical_type_name(value_type t) {
-		if (t == type_none)
+		if (t == type_nil)
 			return type_table;
 		return t;
 	}
@@ -127,7 +127,7 @@ namespace li {
 
 		// Literal construction.
 		//
-		inline constexpr any() : value(make_tag(type_none)) {}
+		inline constexpr any() : value(make_tag(type_nil)) {}
 		inline constexpr any(bool v) : value(mix_value(type_bool, v?1:0)) {}
 		inline constexpr any(number v) : value(bit_cast<uint64_t>(v)) {
 			if (v != v) [[unlikely]]
@@ -206,7 +206,7 @@ namespace li {
 		// Type coercion.
 		//
 		string* coerce_str(vm* L) const { return to_string(L); }
-		bool    coerce_bool() const { return value != mix_value(type_bool, 0) && value != make_tag(type_none); }
+		bool    coerce_bool() const { return value != mix_value(type_bool, 0) && value != make_tag(type_nil); }
 		number  coerce_num() const;
 
 		// Hasher.
@@ -228,14 +228,14 @@ namespace li {
 
 	// Constants.
 	//
-	static constexpr any none{};
+	static constexpr any nil{};
 	static constexpr any const_false{false};
 	static constexpr any const_true{true};
 
 	// Fills the any[] with nones.
 	//
-	static void fill_none(void* data, size_t count) {
-		std::fill_n((uint64_t*) data, count, none.value);
+	static void fill_nil(void* data, size_t count) {
+		std::fill_n((uint64_t*) data, count, nil.value);
 	}
 };
 #pragma pack(pop)

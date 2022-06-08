@@ -5,7 +5,7 @@ namespace li {
 		array* arr = L->alloc<array>();
 		arr->storage = L->alloc<array_store>(std::bit_ceil(length + rsvd) * sizeof(any));
 		arr->length  = length;
-		fill_none(arr->begin(), length);
+		fill_nil(arr->begin(), length);
 		return arr;
 	}
 
@@ -42,7 +42,7 @@ namespace li {
 		msize_t old_count = size();
 		if (n > old_count) {
 			reserve(L, n);
-			fill_none(end(), (n - old_count));
+			fill_nil(end(), (n - old_count));
 		}
 		length = n;
 	}
@@ -62,7 +62,7 @@ namespace li {
 		if (size() != 0) {
 			return begin()[--length];
 		} else {
-			return none;
+			return nil;
 		}
 	}
 
@@ -80,6 +80,6 @@ namespace li {
 		if (idx < size())
 			return begin()[idx];
 		else
-			return none;
+			return nil;
 	}
 };

@@ -10,7 +10,7 @@
 
 namespace li::lib {
 #define OPTIONAL_SELF() \
-	if (args[1] != none) {  \
+	if (args[1] != nil) {  \
 		args++;              \
 		n++;                 \
 	}
@@ -221,7 +221,7 @@ namespace li::lib {
 			if (f.as_fn()->num_uval > idx) {
 				return L->ok(f.as_fn()->uvals()[idx]);
 			} else {
-				return L->ok(none);
+				return L->ok(nil);
 			}
 		});
 		util::export_as(L, "debug.setuval", [](vm* L, any* args, slot_t n) {

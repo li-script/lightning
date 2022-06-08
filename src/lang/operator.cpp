@@ -85,7 +85,7 @@ namespace li {
 							return {const_true, true};
 					return {const_false, true};
 				} else if (b.is_tbl()) {
-					return {any(a != none && b.as_tbl()->get(L, a) != none), true};
+					return {any(a != nil && b.as_tbl()->get(L, a) != nil), true};
 				} else if (b.is_str()) {
 					if (a.is_num()) {
 						if (auto num = uint32_t(a.as_num()); num <= 0xFF) {
@@ -104,7 +104,7 @@ namespace li {
 				}
 			}
 			case bc::NCS:
-				return {a == none ? b : a, true};
+				return {a == nil ? b : a, true};
 			case bc::LOR:
 				return {a.coerce_bool() ? a : b, true};
 			case bc::LAND:

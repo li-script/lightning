@@ -262,8 +262,8 @@ namespace li {
 	template<typename F>
 	static void format_any(any a, F&& formatter) {
 		switch (a.type()) {
-			case type_none:
-				formatter("{}");
+			case type_nil:
+				formatter("nil");
 				break;
 			case type_bool:
 				formatter(a.as_bool() ? "true" : "false");
@@ -358,7 +358,7 @@ namespace li {
 		switch (type()) {
 			case type_bool:
 				return as_bool() ? 1 : 0;
-			case type_none:
+			case type_nil:
 				return 0;
 			default:
 				return 1;

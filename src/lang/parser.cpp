@@ -256,7 +256,6 @@ namespace li {
 	static expression parse_try(func_scope& scope);
 	static expression parse_loop(func_scope& scope);
 	static expression parse_while(func_scope& scope);
-	static expression parse_env(func_scope& scope);
 
 	// Parses a "statement" expression, which considers both statements and expressions valid.
 	// Returns the expression representing the value of the statement.
@@ -477,9 +476,6 @@ namespace li {
 		} else if (tk.id == lex::token_try) {
 			scope.lex().next();
 			base = parse_try(scope);
-		} else if (tk.id == lex::token_env) {
-			scope.lex().next();
-			base = parse_env(scope);
 		}
 		// Literals.
 		//
@@ -1864,33 +1860,6 @@ namespace li {
 		// Return the result.
 		//
 		return result;
-	}
-	static expression parse_env(func_scope& scope) {
-		// Allocate two registers.
-		//
-		auto space = scope.alloc_reg(2);
-
-		// Swap environment.
-		//
-		scope.emit(bc::TNEW, space, 0);
-		scope.emit(bc::UGET, space + 1, bc::uval_env);
-		scope.emit(bc::TRSET, space, space + 1, (int)trait::get); // TODO: Buggy if recursive?
-		scope.emit(bc::USET, bc::uval_env, space);
-
-		// Parse a block and discard the result.
-		//
-		if (scope.lex().check('{') == lex::token_error) {
-			return {};
-		}
-		if (expr_block(scope).kind == expr::err) {
-			return {};
-		}
-
-		// Restore environment, free the save slot and return the table as the result.
-		//
-		scope.emit(bc::USET, bc::uval_env, space + 1);
-		scope.reg_next = space + 1;  // Discard block result without making free_reg angry.
-		return {space};
 	}
 
 	// Parses the code and returns it as a function instance with no arguments on success.

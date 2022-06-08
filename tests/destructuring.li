@@ -6,10 +6,3 @@ assert(c=="d")
 let {a:aa,b:bb} =  {a: 5, b: 6}
 assert(aa==5)
 assert(bb==6)
-
-const {test2:x} = env {
-	test = 4
-	const tmp = 4
-	test2 = tmp * test
-}
-assert(x==16)

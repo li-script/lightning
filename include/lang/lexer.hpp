@@ -40,7 +40,7 @@ namespace li::lex {
 		_(true) _(false) _(nil)  _(let) _(const) _(if) _(else) _(while) _(for) _(loop)  \
 		_(break) _(continue) _(try) _(catch) _(throw) _(return) _(in) _(is)      \
 		_(bool) _(number) _(table) _(array) _(string) _(userdata) _(function)    \
-		_(env) _(fn) _(export)
+		_(fn) _(export)
 
 	// Token identifiers.
 	//

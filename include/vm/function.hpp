@@ -5,14 +5,6 @@
 #include <vm/state.hpp>
 
 namespace li {
-	// Native callback, at most one result should be pushed on stack, if returns false, signals exception.
-	//
-	using nfunc_t = bool (*)(vm* L, any* args, slot_t n);
-
-	// nfunc_t for virtual functions.
-	//
-	bool vm_invoke(vm* L, any* args, slot_t n_args);
-
 	// JIT code.
 	//
 	struct jfunction : gc::exec_leaf<jfunction> {

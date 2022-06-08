@@ -132,6 +132,7 @@ namespace li::lib {
 		// Protected call.
 		//
 		util::export_as(L, "pcall", [](vm* L, any* args, slot_t n) {
+			vm_guard _g{L, args};
 			if (n < 2) {
 				return L->error("expected 2 or more arguments.");
 			}
@@ -145,7 +146,7 @@ namespace li::lib {
 			for (slot_t i = -(n - 1); i < -1; i++)
 				L->push_stack(L->stack[apos+i]);
 
-			bool res           = L->scall(n - 2, f);
+			bool res           = L->call(n - 2, f);
 			L->stack[apos - 1] = res;
 			return L->ok(L->pop_stack());
 		});
@@ -169,6 +170,8 @@ namespace li::lib {
 		// Debug.
 		//
 		util::export_as(L, "debug.stacktrace", [](vm* L, any* args, slot_t n) {
+			vm_guard _g{L, args};
+
 			auto result = array::create(L, 0, 10);
 			auto cstr   = string::create(L, "C");
 			auto lstr   = string::create(L, "line");
@@ -301,6 +304,7 @@ namespace li::lib {
 				return L->ok(res);
 		});
 		util::export_as(L, "eval", [](vm* L, any* args, slot_t n) {
+			vm_guard _g{L, args};
 			if (n != 1 || !args->is_str()) {
 				return L->error("expected string");
 			}
@@ -308,7 +312,7 @@ namespace li::lib {
 			if (!res.is_fn()) {
 				return L->error(res);
 			}
-			if (L->scall(0, res))
+			if (L->call(0, res))
 				return L->ok(L->pop_stack());
 			else
 				return L->error(L->pop_stack());

@@ -17,6 +17,15 @@
 namespace li {
 	struct vm;
 
+	// Native callback, at most one result should be pushed on stack, if returns false, signals exception.
+	//
+	using nfunc_t = bool (*)(vm* L, any* args, slot_t n);
+
+	// nfunc_t for virtual functions.
+	//  Caller must push all arguments in reverse order, the self argument or none, the function itself and the caller information.
+	//
+	bool vm_invoke(vm* L, any* args, slot_t n_args);
+
 	// Panic function, should not return.
 	//
 	using fn_panic = void (*)(vm* L, const char* msg);
@@ -155,19 +164,15 @@ namespace li {
 			assume_unreachable();
 		}
 
-		// Caller must push all arguments in reverse order, the self argument or none, the function itself and the caller information.
+		// Simple call wrapping vm_invoke for user-invocation that pops all arguments and the function/self from ToS.
 		//
-		bool call(any* args, slot_t n_args);
-
-		// Simple version of call() for user-invocation that pops all arguments and the function/self from ToS.
-		//
-		bool scall(slot_t n_args, any fn, any self = none) {
+		bool call(slot_t n_args, any fn, any self = none) {
 			any* req_slot = stack_top - n_args;
 			push_stack(self);
 			push_stack(fn);
 			call_frame cf{.stack_pos = last_vm_caller.stack_pos, .caller_pc = msize_t(last_vm_caller.caller_pc | FRAME_C_FLAG)};
 			push_stack(bit_cast<opaque>(cf));
-			bool ok   = call(&this->stack_top[-1 - FRAME_SIZE], n_args);
+			bool ok   = vm_invoke(this, &this->stack_top[-1 - FRAME_SIZE], n_args);
 			*req_slot = stack_top[FRAME_RET];
 			stack_top = req_slot + 1;
 			return ok;
@@ -194,5 +199,34 @@ namespace li {
 			memcpy((void*) std::next((gc::header*) result), (void*) std::next((gc::header*) gc), obj_len);
 			return result;
 		}
+	};
+
+	// RAII helper to acquire VM state if user plans on calling any virtual functions or using stack trace info.
+	//
+	struct vm_guard {
+		vm* L;
+		call_frame prev_frame;
+		any*       prev_stack;
+		vm_guard(vm* L, any* a) : L(L) {
+			if (&a[3] >= L->stack_top) {
+				// Called from C.
+				L = nullptr;
+			} else {
+				prev_frame        = L->last_vm_caller;
+				L->last_vm_caller = bit_cast<call_frame>(a[3].as_opq());
+				prev_stack        = L->stack_top;
+			}
+		}
+		~vm_guard() {
+			if (L) [[likely]] {
+				LI_ASSERT(L->stack_top == prev_stack);
+				L->last_vm_caller = prev_frame;
+			}
+		}
+
+		// No copy.
+		//
+		vm_guard(const vm_guard&) = delete;
+		vm_guard& operator=(const vm_guard&) = delete;
 	};
 }

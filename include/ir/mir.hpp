@@ -239,7 +239,6 @@ namespace li::ir {
 		select,  // reg = flag ? reg1 : reg2
 
 		// side-effect group.
-		writecallinfo,  // i64[mem] = (BC = Const, #Arg = Const)
 		call,           // call i64, [implicit args & nonvol clobber]
 		js,             // cnd true block, false block
 		jmp,            // block
@@ -276,7 +275,6 @@ namespace li::ir {
 
 		 "setcc",
 		 "select",
-		 "writecallinfo",
 		 "call",
 		 "js",
 		 "jmp",
@@ -411,7 +409,7 @@ namespace li::ir {
 		}
 		bool has_side_effects() const {
 			if (is_virtual) {
-				return getv() >= vop::writecallinfo;
+				return getv() >= vop::call;
 			} else {
 				return target_info.side_effects;
 			}

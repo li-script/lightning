@@ -119,7 +119,7 @@ namespace li {
 
 		L->push_stack(value);
 		L->push_stack(key);
-		auto ok = L->scall(2, get_trait<trait::set>(), this);
+		auto ok = L->call(2, get_trait<trait::set>(), this);
 		return {L->pop_stack(), ok};
 	}
 	std::pair<any, bool> table::tget(vm* L, any key) {
@@ -133,7 +133,7 @@ namespace li {
 			return {get.as_tbl()->get(L, key), true};
 		} else {
 			L->push_stack(key);
-			auto ok = L->scall(1, get, this);
+			auto ok = L->call(1, get, this);
 			return {L->pop_stack(), ok};
 		}
 	}

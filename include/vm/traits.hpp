@@ -192,7 +192,7 @@ namespace li {
 				} else {
 					self = any((T*) this);
 				}
-				L->scall(0, traits->list[msize_t(trait::gc)].as_any(), self);
+				L->call(0, traits->list[msize_t(trait::gc)].as_any(), self);
 				L->pop_stack();
 			}
 		}

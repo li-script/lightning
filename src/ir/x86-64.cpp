@@ -1004,9 +1004,8 @@ namespace li::ir {
 				return;
 			}
 			case opcode::vcall: {
-				int32_t nargs = i->operands[0]->as<constant>()->i32;
-				b.append(vop::writecallinfo, {}, mmem{.base = vreg_tos, .disp = -8}, i->source_bc, nargs);
-
+				// Resolve function and it's wrapper.
+				//
 				mreg r;
 				if (auto& t = i->operands[1]; t->is<constant>()) {
 					r = b->next_gp();
@@ -1015,13 +1014,27 @@ namespace li::ir {
 					r = REG(t);
 				}
 				LI_ASSERT(i->operands[1]->vt == type::fn);  // Type guaranteed by opt_pre.
-
 				auto tmp = b->next_gp();
 				b.append(vop::loadi64, tmp, mmem{.base = r, .disp = offsetof(function, invoke)});
+
+				// Push stack info.
+				//
+				call_frame cf{.stack_pos = 0, .caller_pc = i->source_bc, .rsvd = 0};
+				auto tmp2 = b->next_gp();
+				auto tmp3 = b->next_gp();
+				LEA(b, tmp2, mmem{.base = vreg_args, .disp = 8 * (FRAME_SIZE + 1)});
+				b.append(vop::movi, tmp3, mop(intptr_t(&b->source->L->stack[0])));
+				SUB(b, tmp2, tmp3);
+				SHR(b, tmp2, 3);
+				b.append(vop::movi, tmp3, mop(intptr_t(any(bit_cast<opaque>(cf)).value)));
+				OR(b, tmp2, tmp3);
+				b.append(vop::storei64, {}, mmem{.base = vreg_tos, .disp = -8}, tmp2);
+
+				// Set the arguments and call into it.
+				//
 				b.append(vop::movi, arch::map_gp_arg(0, 0), mop(intptr_t(b->source->L)));
 				LEA(b, mreg(arch::map_gp_arg(1, 0)), mmem{.base = vreg_tos, .disp = -8 * (FRAME_SIZE + 1)});
-				b.append(vop::movi, arch::map_gp_arg(2, 0), nargs);
-				// vm, args, nargs
+				b.append(vop::movi, arch::map_gp_arg(2, 0), i->operands[0]->as<constant>()->i32);
 				b.append(vop::call, {}, tmp);
 				b.append(vop::movi, REG(i), mreg(arch::from_native(arch::gp_retval)));
 				return;
@@ -1552,19 +1565,6 @@ namespace li::ir {
 					target = zy::to_encoder_op(zy::RAX);
 				}
 				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_CALL, target));
-				break;
-			}
-			case vop::writecallinfo: {
-				// TODO:
-				// can't get stack pos statically, wtf do we do?
-				// rework this bullshit
-				//call_frame tmp{.stack_pos = 0, .caller_pc = i.arg[0].i64 | FRAME_C_FLAG, .n_args = i.arg[1].i64};
-				// LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, zy::RAX, any(std::bit_cast<opaque>(tmp)).value));
-				//LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, to_op(b, i.arg[0]), zy::RAX));
-
-				auto o = to_op(b, i.arg[0]);
-				o.mem.size = 4;
-				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, o, -1));
 				break;
 			}
 			default:

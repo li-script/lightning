@@ -16,7 +16,7 @@ namespace li {
 	if (a.is_traitful()) [[unlikely]] {                 \
 		auto* ta = (traitful_node<>*) a.as_gc();         \
 		if (ta->has_trait<t>()) {                        \
-			bool ok = L->scall(0, ta->get_trait<t>(), a); \
+			bool ok = L->call(0, ta->get_trait<t>(), a); \
 			return {L->pop_stack(), ok};                  \
 		}                                                \
 	}
@@ -32,7 +32,7 @@ namespace li {
 			if (tp.pointer) {                                                            \
 				L->push_stack(b);                                                         \
 				L->push_stack(a);                                                         \
-				bool ok     = L->scall(2, tp.as_any(), self);                             \
+				bool ok     = L->call(2, tp.as_any(), self);                             \
 				any  retval = L->pop_stack();                                             \
 				return {TF(retval, ok)};                                                  \
 			}                                                                            \

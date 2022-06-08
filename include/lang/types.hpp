@@ -43,14 +43,13 @@ namespace li {
 		type_function = 3,
 		type_proto    = 4,  // Last traversable. | Not visible to user.
 		type_string   = 5,
-		type_true     = 8,  // First non-GC type.
-		type_false    = 9,
-		type_none     = 10,
-		type_opaque   = 11,  // No type/definition, unique integer part.
-		type_number   = 12,
+		type_bool     = 8,  // First non-GC type.
+		type_none     = 9,
+		type_opaque   = 10,  // No type/definition, unique integer part.
+		type_number   = 11,
 
 		// GC aliases.
-		type_gc_free = type_true,
+		type_gc_free = type_bool,
 		type_gc_private,
 		type_gc_uninit,
 		type_gc_last             = 7,
@@ -63,17 +62,16 @@ namespace li {
 	static constexpr std::array<const char*, 16> type_names = []() {
 		std::array<const char*, 16> result;
 		result.fill("invalid");
-		result[type_table]     = "table";
-		result[type_array]     = "array";
-		result[type_function]  = "function";
-		result[type_proto]     = "proto";
-		result[type_string]    = "string";
-		result[type_userdata]  = "userdata";
-		result[type_none]      = "none";
-		result[type_false]     = "bool";
-		result[type_true]      = "bool";
-		result[type_opaque]    = "opaque";
-		result[type_number]    = "number";
+		result[type_table]    = "table";
+		result[type_array]    = "array";
+		result[type_function] = "function";
+		result[type_proto]    = "proto";
+		result[type_string]   = "string";
+		result[type_userdata] = "userdata";
+		result[type_none]     = "none";
+		result[type_bool]     = "bool";
+		result[type_opaque]   = "opaque";
+		result[type_number]   = "number";
 		return result;
 	}();
 
@@ -82,8 +80,6 @@ namespace li {
 	LI_INLINE static constexpr value_type to_canonical_type_name(value_type t) {
 		if (t == type_none)
 			return type_table;
-		if (t == type_true)
-			return type_false;
 		return t;
 	}
 
@@ -132,7 +128,7 @@ namespace li {
 		// Literal construction.
 		//
 		inline constexpr any() : value(make_tag(type_none)) {}
-		inline constexpr any(bool v) : value(v ? make_tag(type_true) : make_tag(type_false)) {}
+		inline constexpr any(bool v) : value(mix_value(type_bool, v?1:0)) {}
 		inline constexpr any(number v) : value(bit_cast<uint64_t>(v)) {
 			if (v != v) [[unlikely]]
 				value = kvalue_nan;
@@ -153,7 +149,7 @@ namespace li {
 		//
 		inline constexpr value_type type() const { return (value_type) std::min(get_type(value), (uint64_t) type_number); }
 		inline constexpr bool       is(uint8_t t) const { return t == type(); }
-		inline constexpr bool       is_bool() const { return get_type(value) == type_false || get_type(value) == type_true; }
+		inline constexpr bool       is_bool() const { return get_type(value) == type_bool; }
 		inline constexpr bool       is_num() const { return is_numeric_value(value); }
 		inline constexpr bool       is_arr() const { return get_type(value) == type_array; }
 		inline constexpr bool       is_tbl() const { return get_type(value) == type_table; }
@@ -166,7 +162,7 @@ namespace li {
 
 		// Getters.
 		//
-		inline constexpr bool   as_bool() const { return get_type(value) == type_true; }
+		inline constexpr bool   as_bool() const { return value & 1; }
 		inline constexpr number as_num() const { return bit_cast<number>(value); }
 		inline constexpr opaque as_opq() const { return {.bits = mask_value(value)}; }
 		inline gc::header*      as_gc() const { return get_gc_value(value); }
@@ -210,7 +206,7 @@ namespace li {
 		// Type coercion.
 		//
 		string* coerce_str(vm* L) const { return to_string(L); }
-		bool    coerce_bool() const { return get_type(value) != type_false && get_type(value) != type_none; }
+		bool    coerce_bool() const { return value != mix_value(type_bool, 0) && value != make_tag(type_none); }
 		number  coerce_num() const;
 
 		// Hasher.

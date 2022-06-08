@@ -265,11 +265,8 @@ namespace li {
 			case type_none:
 				formatter("{}");
 				break;
-			case type_false:
-				formatter("false");
-				break;
-			case type_true:
-				formatter("true");
+			case type_bool:
+				formatter(a.as_bool() ? "true" : "false");
 				break;
 			case type_number:
 				if (a.as_num() == (int64_t) a.as_num()) {
@@ -359,8 +356,9 @@ namespace li {
 		if (is_num()) [[likely]]
 			return as_num();
 		switch (type()) {
+			case type_bool:
+				return as_bool() ? 1 : 0;
 			case type_none:
-			case type_false:
 				return 0;
 			default:
 				return 1;

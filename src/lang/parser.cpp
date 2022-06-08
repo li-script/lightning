@@ -144,7 +144,7 @@ namespace li {
 		if (scope.lex().opt(lex::token_number)) {
 			return type_number;
 		} else if (scope.lex().opt(lex::token_bool)) {
-			return type_false;
+			return type_bool;
 		} else if (scope.lex().opt(lex::token_array)) {
 			return type_array;
 		} else if (scope.lex().opt(lex::token_string)) {

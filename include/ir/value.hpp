@@ -402,7 +402,7 @@ namespace li::ir {
 	//
 	static constexpr value_type to_vm_type(type vt) {
 		if (vt == type::i1) {
-			return type_false;
+			return type_bool;
 		} else if (type::i8 <= vt && vt <= type::i64) {
 			return type_number;
 		} else if (type::f32 <= vt && vt <= type::f64) {
@@ -418,7 +418,7 @@ namespace li::ir {
 		}
 	}
 	static constexpr type to_ir_type(value_type t) {
-		if (t == type_true || t == type_false)
+		if (t == type_bool)
 			return type::i1;
 		else if (t == type_number)
 			return type::f64;

@@ -194,14 +194,12 @@ namespace li::ir {
 			b.append(vop::movi, out, none);
 		} else if (irty == type::i1) {
 			auto tmp = b->next_gp();
-			// mov tmp, false
-			b.append(vop::movi, tmp, (int64_t) make_tag(type_false));
+			// mov  tmp, tag
+			b.append(vop::movi, tmp, (int64_t)make_tag(type_bool));
 			// movzx out, r
 			b.append(vop::izx8, out, r);
-			// shl out, 47
-			SHL(b, out, 47);
-			// add out, tmp
-			ADD(b, out, tmp);
+			// or    out, tmp
+			OR(b, out, tmp);
 		} else if (irty == type::i8) {
 			auto tg = b->next_gp();
 			auto tf = b->next_fp();
@@ -792,10 +790,8 @@ namespace li::ir {
 				auto out = REG(i);
 				switch (i->vt) {
 					case type::i1: {
-						auto tmp = b->next_gp();
-						b.append(vop::movi, tmp, (int64_t) make_tag(type_true));
-						CMP(b, FLAG_Z, tmp, REG(i->operands[0]));
-						b.append(vop::setcc, out, FLAG_Z);
+						b.append(vop::movi, out, REG(i->operands[0]));
+						AND(b, out, 1);
 						return;
 					}
 					case type::i8:
@@ -838,15 +834,13 @@ namespace li::ir {
 						return;
 					}
 					case type::unk: {
-						static_assert(type_false == (type_none - 1), "Outdated constants.");
+						static_assert(type_bool == (type_none - 1), "Outdated constants.");
 
 						auto tmp = REG(i);
-						b.append(vop::movi, tmp, RIi(i->operands[0]));
-						NOT(b, tmp);
-						SHR(b, tmp, 47);
-						SUB(b, tmp, (int64_t) type_false);
-						CMP(b, FLAG_NBE, tmp, 1ll);
-						b.append(vop::setcc, tmp, FLAG_NBE);
+						b.append(vop::movi, tmp, 0x47FFFFFFFFFFF);
+						ADD(b, tmp, RIi(i->operands[0]));
+						CMP(b, FLAG_B, tmp, -2ll);
+						b.append(vop::setcc, tmp, FLAG_B);
 						return;
 					}
 					case type::i1: {

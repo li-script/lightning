@@ -131,8 +131,7 @@ namespace li {
 		void set_reg(bc::reg r, any v) {
 			switch (v.type()) {
 				case type_none:
-				case type_false:
-				case type_true:
+				case type_bool:
 				case type_number: {
 					emitx(bc::KIMM, r, v.value);
 					break;
@@ -290,8 +289,7 @@ namespace li {
 				case expr::imm:
 					switch (imm.type()) {
 						case type_none:
-						case type_false:
-						case type_true:
+						case type_bool:
 						case type_number: {
 							scope.emitx(bc::PUSHI, 0, imm.value);
 							break;

@@ -576,7 +576,7 @@ namespace li::ir {
 	// unk  reload_argument(const i32)
 	struct reload_argument final : insn_tag<load_local, opcode::reload_argument> {
 		void update() override {
-			is_pure = true;
+			is_pure = false;
 			vt      = type::unk;
 			LI_ASSERT(operands.size() == 1);
 			LI_ASSERT(operands[0]->is<constant>() && operands[0]->is(type::i32));

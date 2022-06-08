@@ -98,11 +98,12 @@ namespace li {
 		}
 	}
 	any table::get(vm* L, any key) {
+		any value = {};
 		for (auto& entry : find(key.hash())) {
 			if (entry.key == key)
-				return entry.value;
+				value = entry.value;
 		}
-		return {};
+		return value;
 	}
 
 	// Traitful table get/set.

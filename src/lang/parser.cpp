@@ -1232,26 +1232,6 @@ namespace li {
 				callsite[0].first.to_reg(scope, tmp + 1);  
 				scope.emit(bc::VJOIN, tmp, tmp, tmp + 1);
 				return expression(tmp);
-			} else if (func.glb->view() == "rawget") {
-				if (size != 1) {
-					scope.lex().error("rawget expects 1 argument.");
-					return {};
-				}
-				self.to_reg(scope, tmp);                   // tbl
-				callsite[0].first.to_reg(scope, tmp + 1);  // key
-				scope.emit(bc::TGETR, tmp, tmp + 1, tmp);
-				scope.reg_next = tmp + 1;
-				return expression(tmp);
-			} else if (func.glb->view() == "rawset") {
-				if (size != 2) {
-					scope.lex().error("rawset expects 2 arguments.");
-					return {};
-				}
-				callsite[0].first.to_reg(scope, tmp);   // key
-				callsite[1].first.to_reg(scope, tmp+1); // value
-				scope.emit(bc::TSETR, tmp, tmp + 1, self.to_anyreg(scope));
-				scope.reg_next = tmp;
-				return expression(nil);
 			}
 		}
 

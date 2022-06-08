@@ -265,13 +265,19 @@ int main(int argv, const char** args) {
 		if (!L->call(0, fn)) {
 			auto t1 = std::chrono::high_resolution_clock::now();
 			printf(LI_BLU "(%.2lf ms) " LI_RED "Exception: " LI_DEF, (t1 - t0) / std::chrono::duration<double, std::milli>(1.0));
-			L->pop_stack().print();
+			if (auto r = L->pop_stack(); r == nil)
+				printf("?");
+			else
+				r.print();
 			putchar('\n');
 		} else {
 			auto t1 = std::chrono::high_resolution_clock::now();
 			printf(LI_BLU "(%.2lf ms) " LI_GRN "Result: " LI_DEF, (t1 - t0) / std::chrono::duration<double, std::milli>(1.0));
 			auto r = L->pop_stack();
-			r.print();
+			if (r == nil)
+				printf("OK");
+			else
+				r.print();
 			putchar('\n');
 			if (r.is_tbl())
 				debug::dump_table(r.as_tbl());

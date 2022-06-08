@@ -1,3 +1,0 @@
-const x = {}
-x::rawset("k", 4)
-assert(x::rawget("k") == 4)

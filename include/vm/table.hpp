@@ -40,6 +40,12 @@ namespace li {
 		table* duplicate(vm* L) const {
 			table* tbl     = L->duplicate(this);
 			tbl->node_list = L->duplicate(tbl->node_list);
+
+			// If traits are not sealed, copy the array.
+			//
+			if (tbl->trait_seal && tbl->traits) {
+				tbl->traits = L->duplicate(tbl->traits);
+			}
 			return tbl;
 		}
 

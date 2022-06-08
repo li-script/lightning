@@ -68,11 +68,10 @@ namespace li {
 
 		// Function details.
 		//
-		nfunc_t         invoke            = nullptr;  // Common function type for all calls.
-		msize_t         num_arguments : 6 = 0;        // Number of fixed arguments.
-		msize_t         num_uval : 26     = 0;        // Number of upvalues.
-		table*          environment       = nullptr;  // Table environment.
-		function_proto* proto             = nullptr;  // Function prototype (if VM).
+		nfunc_t         invoke      = nullptr;  // Common function type for all calls.
+		msize_t         num_uval    = 0;        // Number of upvalues.
+		table*          environment = nullptr;  // Table environment.
+		function_proto* proto       = nullptr;  // Function prototype (if VM).
 		any             upvalue_array[];
 
 		// TODO: Fast function alternative with types for JIT.

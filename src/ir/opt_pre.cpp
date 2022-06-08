@@ -110,7 +110,7 @@ namespace li::ir::opt {
 		proc->topological_sort();
 
 		// Add loop hints.
-		//  TODO: Not reaaaly + move to procedure.
+		//  TODO: Not reaaaly
 		//
 		for (auto& blk : proc->basic_blocks) {
 			for (auto& s : blk->successors) {

@@ -62,8 +62,8 @@ namespace li {
 
 		// Validate argument count.
 		//
-		if (f->num_arguments > n_args) [[unlikely]] {
-			locals_begin[FRAME_RET] = string::format(L, "expected at least %u arguments, got %u", f->num_arguments, n_args);
+		if (f->proto->num_arguments > n_args) [[unlikely]] {
+			locals_begin[FRAME_RET] = string::format(L, "expected at least %u arguments, got %u", f->proto->num_arguments, n_args);
 			return false;
 		}
 

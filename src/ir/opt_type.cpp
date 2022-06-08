@@ -223,11 +223,12 @@ namespace li::ir::opt {
 				//
 				auto [tbl, e0] = split_by(i.at, 1, type_table);
 				auto [arr, e1] = split_by(e0, 1, type_array);
-				auto [udt, e2] = split_by(e1, 1, type_userdata);
+				auto [udt, e2] = split_by(e1, 1, type_userdata); // invalid if raw
 				auto [str, e3] = split_by(e2, 1, type_string);
 
 				arr->operands[0] = launder_value(proc, true);
 				str->operands[0] = launder_value(proc, true);
+				// ^if key is not int, invalid.
 
 				e3 = builder{e3}.emit_before<unreachable>(e3);  // <-- TODO: throw.
 				while (e3 != e3->parent->back())
@@ -238,9 +239,10 @@ namespace li::ir::opt {
 				//
 				auto [tbl, e0] = split_by(i.at, 1, type_table);
 				auto [arr, e1] = split_by(e0, 1, type_array);
-				auto [udt, e2] = split_by(e1, 1, type_userdata);
+				auto [udt, e2] = split_by(e1, 1, type_userdata);  // invalid if raw
 
 				arr->operands[0] = launder_value(proc, true);
+				// ^if key is not int, invalid.
 
 				e2 = builder{e2}.emit_before<unreachable>(e2);  // <-- TODO: throw.
 				while (e2 != e2->parent->back())

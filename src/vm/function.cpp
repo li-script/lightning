@@ -26,7 +26,6 @@ namespace li {
 
 	function* function::create(vm* L, function_proto* proto) {
 		function* f = L->alloc<function>(sizeof(any) * proto->num_uval);
-		f->num_arguments = proto->num_arguments;
 		f->num_uval      = proto->num_uval;
 		f->environment   = L->globals;
 		f->invoke        = &vm_invoke;
@@ -36,7 +35,6 @@ namespace li {
 	}
 	function* function::create(vm* L, nfunc_t cb) {
 		function* f = L->alloc<function>();
-		f->num_arguments                  = 0;
 		f->num_uval                       = 0;
 		f->invoke                         = cb;
 		f->environment                    = nullptr;

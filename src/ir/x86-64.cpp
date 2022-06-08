@@ -1013,7 +1013,7 @@ namespace li::ir {
 				} else {
 					r = REG(t);
 				}
-				LI_ASSERT(i->operands[1]->vt == type::fn);  // Type guaranteed by opt_pre.
+				LI_ASSERT(i->operands[1]->vt == type::fn);  // Type guaranteed by opt_type.
 				auto tmp = b->next_gp();
 				b.append(vop::loadi64, tmp, mmem{.base = r, .disp = offsetof(function, invoke)});
 

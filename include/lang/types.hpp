@@ -56,6 +56,15 @@ namespace li::ir {
 		//
 		ptr = i64,
 	};
+
+	// Forwards.
+	//
+	struct value;
+	struct insn;
+	struct constant;
+	struct basic_block;
+	struct procedure;
+	struct builder;
 };
 
 #pragma pack(push, 1)

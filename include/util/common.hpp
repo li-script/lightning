@@ -90,11 +90,7 @@
 #endif
 
 #if LI_ABI_MS64
-	#if LI_ARCH_X86 && LI_32
-		#define LI_CC __fastcall
-	#else
-		#define LI_CC
-	#endif
+	#define LI_CC __fastcall
 #else
 	#define LI_CC
 #endif

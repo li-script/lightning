@@ -59,9 +59,30 @@ namespace li {
 	};
 
 	// Native function details.
-	// - Not GC allocated @ .data/.rdata.
+	// - Not GC allocated.
 	//
+	using fn_bc2ir = bool(*)(ir::builder& bld);
+	struct nfunc_overload {
+		std::vector<ir::type> args      = {};              // Expected argument types for a valid call.
+		ir::type              ret       = ir::type::none;  // Type of return value.
+		const void*           cfunc     = nullptr;         // C function pointer. Must be LI_CC.
+		fn_bc2ir              bc2ir     = nullptr;         // Custom IR lifter if relevant.
+		// TODO: ir2mir
+	};
 	struct nfunc_info {
+		// True if function is pure / const, same definition as in ir::insn.
+		//
+		uint32_t                    is_pure : 1  = true;
+		uint32_t                    is_const : 1 = false;
+		uint32_t                    rsvd : 30    = 0;
+
+		// Friendly name.
+		//
+		std::string                 name         = {};
+
+		// Overloads with specific lifters.
+		//
+		std::vector<nfunc_overload> overloads    = {};
 	};
 
 	// "Type" erased function type.

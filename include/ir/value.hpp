@@ -9,10 +9,6 @@
 #include <vm/string.hpp>
 
 namespace li::ir {
-	struct insn;
-	struct constant;
-	struct basic_block;
-	struct procedure;
 	using operation = bc::opcode;
 
 	// Central value type.

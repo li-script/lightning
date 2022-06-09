@@ -101,6 +101,9 @@
     <ClCompile Include="..\src\lib\lichrono.cpp">
       <Filter>Library</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\lib\lijit.cpp">
+      <Filter>Library</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Language">

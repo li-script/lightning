@@ -50,6 +50,7 @@
     <ClCompile Include="..\src\lib\lifs.cpp" />
     <ClCompile Include="..\src\lib\lichrono.cpp" />
     <ClCompile Include="..\src\lib\lidebug.cpp" />
+    <ClCompile Include="..\src\lib\lijit.cpp" />
     <ClCompile Include="..\src\lib\limath.cpp" />
     <ClCompile Include="..\src\util\platform.cpp" />
     <ClCompile Include="..\src\vm\array.cpp" />

@@ -86,6 +86,7 @@ list(APPEND libli_SOURCES
 	"src/lib/lichrono.cpp"
 	"src/lib/lidebug.cpp"
 	"src/lib/lifs.cpp"
+	"src/lib/lijit.cpp"
 	"src/lib/limath.cpp"
 	"src/util/platform.cpp"
 	"src/vm/array.cpp"

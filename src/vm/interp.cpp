@@ -503,7 +503,6 @@ namespace li {
 					}
 					continue;
 				}
-				// Size availability guaranteed by +MAX_ARGUMENTS over-allocation.
 				case bc::PUSHR:
 					L->push_stack(REG(a));
 					continue;

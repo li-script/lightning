@@ -355,7 +355,7 @@ namespace li {
 
 	// Creates an index expression.
 	//
-	static expression expr_index(func_scope& scope, const expression& obj, const expression& key) {
+	static expression expr_index(func_scope& scope, const expression& obj, const expression& key, bool handle_null = false) {
 		if (obj.kind == expr::imm && key.kind == expr::imm) {
 			if (obj.imm.is_tbl()) {
 				if (obj.imm.as_tbl()->trait_freeze) {
@@ -363,7 +363,25 @@ namespace li {
 				}
 			}
 		}
-		return {obj.to_anyreg(scope), key.to_anyreg(scope)};
+		if (!handle_null)
+			return {obj.to_anyreg(scope), key.to_anyreg(scope)};
+
+		if (obj.kind == expr::imm && obj.imm == nil) {
+			return nil;
+		}
+
+		auto res = scope.alloc_reg();
+		auto cc = scope.alloc_reg();
+		auto o = obj.to_anyreg(scope);
+		auto k = key.to_anyreg(scope);
+
+		scope.set_reg(res, nil);
+		scope.emit(bc::CEQ, cc, o, res);
+		auto j = scope.emit(bc::JS, 0, cc);
+		scope.emit(bc::TGET, res, k, o);
+		scope.jump_here(j);
+		scope.reg_next = res + 1;
+		return expression{res, true};
 	}
 
 	// Parses an array literal.
@@ -591,21 +609,23 @@ namespace li {
 				}
 
 				// Index.
+				case lex::token_idxif:
 				case '[': {
-					scope.lex().next();
-					expression field = expr_parse(scope);
+					bool       nullish = scope.lex().next() == lex::token_idxif;
+					expression field   = expr_parse(scope);
 					if (field.kind == expr::err || scope.lex().check(']') == lex::token_error)
 						return {};
-					base = expr_index(scope, base, field);
+					base = expr_index(scope, base, field, nullish);
 					break;
 				}
+				case lex::token_idxlif:
 				case '.': {
-					scope.lex().next();
+					bool nullish = scope.lex().next() == lex::token_idxlif;
 					auto ftk = scope.lex().check(lex::token_name);
 					if (ftk == lex::token_error)
 						return {};
 					expression field = any(ftk.str_val);
-					base             = expr_index(scope, base, field);
+					base             = expr_index(scope, base, field, nullish);
 					break;
 				}
 				default: {

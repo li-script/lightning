@@ -1,0 +1,4 @@
+const x = nil
+const y = {a: {b: 4}}
+assert(x?.a?["b"] == nil)
+assert(y?.a?["b"] == 4)

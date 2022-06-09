@@ -32,7 +32,7 @@ namespace li::lex {
 		__(cpow, ^=) __(cnullc, ??=)                                             \
 		/* Language operators */															    \
 		__(dots, ...) __(rangei, ..=) __(range, ..) __(nullc, ??) ___(ref, '&')  \
-		__(icall, ->) __(ucall, ::)															 \
+		__(icall, ->) __(ucall, ::) __(idxlif, ?.) __(idxif, ?[)   	             \
 		/* Literal tokens */																	    \
 		____(eof, <eof>) ____(lnum, <number>) ____(name, <name>)                 \
 		____(lstr, <string>) ____(fstr, <fstring>) ____(error, <error>) 		    \

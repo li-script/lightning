@@ -217,7 +217,10 @@ namespace li::gc {
 
 		// Globals.
 		//
-		L->globals->gc_tick(s);
+		L->modules->gc_tick(s);
+		if (L->repl_scope) {
+			L->repl_scope->gc_tick(s);
+		}
 
 		// Strings.
 		//
@@ -229,7 +232,10 @@ namespace li::gc {
 		// Clear stack and globals.
 		//
 		L->stack_top = L->stack;
-		fill_nil(L->globals->begin(), L->globals->realsize() * 2);
+		L->modules->mask = 0;
+		if (L->repl_scope) {
+			L->repl_scope->mask = 0;
+		}
 
 		// GC.
 		//
@@ -256,6 +262,9 @@ namespace li::gc {
 	}
 
 	LI_COLD void state::collect(vm* L) {
+		if (suspend) [[unlikely]]
+			return;
+
 		// Reset GC tick.
 		//
 		ticks = gc_interval;

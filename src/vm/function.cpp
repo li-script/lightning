@@ -27,7 +27,6 @@ namespace li {
 	function* function::create(vm* L, function_proto* proto) {
 		function* f = L->alloc<function>(sizeof(any) * proto->num_uval);
 		f->num_uval      = proto->num_uval;
-		f->environment   = L->globals;
 		f->invoke        = &vm_invoke;
 		f->proto         = proto;
 		fill_nil(f->upvalue_array, f->num_uval);
@@ -37,7 +36,6 @@ namespace li {
 		function* f = L->alloc<function>();
 		f->num_uval                       = 0;
 		f->invoke                         = cb;
-		f->environment                    = nullptr;
 		f->proto                          = nullptr;
 		return f;
 	}
@@ -53,8 +51,6 @@ namespace li {
 	void gc::traverse(gc::stage_context s, function* o) {
 		if (o->proto)
 			o->proto->gc_tick(s);
-		if (o->environment)
-			((gc::header*) o->environment)->gc_tick(s);
 		traverse_n(s, o->upvalue_array, o->num_uval);
 	}
 };

@@ -270,26 +270,11 @@ namespace li {
 					continue;
 				}
 				case bc::UGET: {
-					if (b == bc::uval_env) {
-						REG(a) = any(f->environment);
-					} else if (b == bc::uval_glb) {
-						REG(a) = any(L->globals);
-					} else {
-						REG(a) = UVAL(b);
-					}
+					REG(a) = UVAL(b);
 					continue;
 				}
 				case bc::USET: {
-					if (a == bc::uval_env) {
-						auto tbl = REG(b);
-						if (tbl.type() != type_table) [[unlikely]] {
-							VM_RET(string::create(L, "can't use non-table as environment"), true);
-						} else {
-							f->environment = tbl.as_tbl();
-						}
-					} else {
-						UVAL(a) = REG(b);
-					}
+					UVAL(a) = REG(b);
 					continue;
 				}
 				case bc::TGETR: {
@@ -402,21 +387,6 @@ namespace li {
 					if (!ok) [[unlikely]] {
 						VM_RET(r, true);
 					}
-					L->gc.tick(L);
-					continue;
-				}
-				case bc::GGET: {
-					if (REG(b) == nil) [[unlikely]] {
-						VM_RET(string::create(L, "indexing with null key"), true);
-					}
-					REG(a) = f->environment->get(L, REG(b));
-					continue;
-				}
-				case bc::GSET: {
-					if (REG(a) == nil) [[unlikely]] {
-						VM_RET(string::create(L, "indexing with null key"), true);
-					}
-					f->environment->set(L, REG(a), REG(b));
 					L->gc.tick(L);
 					continue;
 				}

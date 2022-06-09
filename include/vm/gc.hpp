@@ -227,6 +227,7 @@ namespace li::gc {
 		//
 		size_t  debt  = 0;            // Allocations made since last GC sweep.
 		int32_t ticks = gc_interval;  // Tick counter.
+		bool    suspend = false;
 
 		// Free lists.
 		//

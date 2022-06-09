@@ -732,18 +732,8 @@ namespace li::ir {
 			// Upvalue.
 			//
 			case opcode::uval_get: {
-				// Handle special uvalues.
-				//
 				mmem mem;
 				auto idx = RIi(i->operands[1]);
-				LI_ASSERT(idx.i64 != bc::uval_glb);
-				if (idx.is_const() && idx.i64 == bc::uval_env) {
-					auto tmp = b->next_gp();
-					mem = {.base = REG(i->operands[0]), .disp = int32_t(offsetof(function, environment))};
-					b.append(vop::loadi64, tmp, mem);
-					type_erase(b, tmp, REG(i), type::tbl);
-					return;
-				}
 
 				// Compute index into function uvalue table and load from it.
 				//
@@ -764,14 +754,12 @@ namespace li::ir {
 				auto idx  = RIi(i->operands[1]);
 				auto val  = b->next_gp();
 				type_erase(b, i->operands[2], val);
-				LI_ASSERT(idx.i64 != bc::uval_glb);
 
 				// Add the upvalue offset and compute final offset.
 				//
 				mmem mem;
 				if (idx.is_const()) {
 					// TODO: type must be a table and we have to clear the type, fix later.
-					LI_ASSERT(idx.i64 != bc::uval_env);
 					mem = {.base = base, .disp = int32_t(offsetof(function, upvalue_array) + idx.i64 * 8)};
 				} else {
 					mem = {.base = base, .index = idx.reg, .scale = 8, .disp = offsetof(function, upvalue_array)};

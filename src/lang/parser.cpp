@@ -277,9 +277,17 @@ namespace li {
 		} else if (name->view() == "$F") {
 			return expression((int32_t) FRAME_TARGET, true);
 		} else if (name->view() == "$E") {
-			return expression(upvalue_t{}, bc::uval_env, true);
-		} else if (name->view() == "$G") {
-			return expression(upvalue_t{}, bc::uval_glb, true);
+			if (scope.fn.module_table) {
+				return expression(any(scope.fn.module_table));
+			} else {
+				return expression(any(scope.fn.scope_table));
+			}
+		} else if (name->view() == "$MOD") {
+			if (scope.fn.module_name) {
+				return expression(any(scope.fn.module_name));
+			} else {
+				return expression(nil);
+			}
 		}
 
 		// Try using existing local variable.
@@ -317,11 +325,21 @@ namespace li {
 			}
 		}
 
+		// Try finding a builtin.
+		//
+		auto bt = scope.fn.L->modules->get(scope.fn.L, string::create(scope.fn.L, "builtin"));
+		if (bt.is_tbl()) {
+			bt = bt.as_tbl()->get(scope.fn.L, name);
+			if (bt != nil) {
+				return bt;
+			}
+		}
+
 		// Try borrowing a value by creating an upvalue.
 		//
 		if (scope.fn.enclosing) {
 			expression ex = expr_var(*scope.fn.enclosing, name);
-			if (ex.kind != expr::glb) {
+			if (ex.kind != expr::env) {
 				if (ex.kind == expr::imm)
 					return ex;
 				bool    is_const = ex.freeze != 0;
@@ -330,8 +348,20 @@ namespace li {
 				return expression{upvalue_t{}, next_reg, is_const};
 			}
 		}
-
 		return name;  // global
+	}
+
+	// Creates an index expression.
+	//
+	static expression expr_index(func_scope& scope, const expression& obj, const expression& key) {
+		if (obj.kind == expr::imm && key.kind == expr::imm) {
+			if (obj.imm.is_tbl()) {
+				if (obj.imm.as_tbl()->trait_freeze) {
+					return obj.imm.as_tbl()->get(scope.fn.L, key.imm);
+				}
+			}
+		}
+		return {obj.to_anyreg(scope), key.to_anyreg(scope)};
 	}
 
 	// Parses an array literal.
@@ -550,8 +580,8 @@ namespace li {
 						return {};
 					expression field = any(ftk.str_val);
 					expression self = base;
-					base            = {base.to_anyreg(scope), field.to_anyreg(scope)};
-					base            = parse_call(scope, base, self);
+					base             = expr_index(scope, base, field);
+					base             = parse_call(scope, base, self);
 					if (base.kind == expr::err)
 						return {};
 					break;
@@ -563,7 +593,7 @@ namespace li {
 					expression field = expr_parse(scope);
 					if (field.kind == expr::err || scope.lex().check(']') == lex::token_error)
 						return {};
-					base = {base.to_anyreg(scope), field.to_anyreg(scope)};
+					base = expr_index(scope, base, field);
 					break;
 				}
 				case '.': {
@@ -572,7 +602,7 @@ namespace li {
 					if (ftk == lex::token_error)
 						return {};
 					expression field = any(ftk.str_val);
-					base             = {base.to_anyreg(scope), field.to_anyreg(scope)};
+					base             = expr_index(scope, base, field);
 					break;
 				}
 				default: {
@@ -619,7 +649,7 @@ namespace li {
 				return false;
 			}
 
-			auto    fn  = parse_function(scope, name.str_val);
+			auto fn = parse_function(scope, name.str_val);
 			if (fn.kind == expr::err) {
 				return {};
 			}
@@ -634,7 +664,7 @@ namespace li {
 				result = reg;
 			}
 			if (is_export)
-				expression(name.str_val).assign(scope, result);
+				expression(export_t{}, name.str_val).assign(scope, result);
 			return true;
 		}
 
@@ -733,7 +763,6 @@ namespace li {
 			}
 			ex = ex.to_anyreg(scope);
 
-
 			// If export set globals as well as locals.
 			//
 			if (is_export) {
@@ -741,8 +770,8 @@ namespace li {
 					auto        reg = scope.add_local(mappings[i].first, is_const);
 					reg_sweeper _g{scope};
 					expression(mappings[i].second).to_reg(scope, reg);
-					scope.emit(bc::TGET, reg, reg, ex.reg);
-					expression{mappings[i].first}.assign(scope, expression(reg));
+					scope.emit(is_arr ? bc::TGETR : bc::TGET, reg, reg, ex.reg);
+					expression{export_t{}, mappings[i].first}.assign(scope, expression(reg));
 				}
 			}
 			// Otherwise assign all locals.
@@ -789,7 +818,7 @@ namespace li {
 			// If export set global as well.
 			//
 			if (is_export)
-				expression(var.str_val).assign(scope, result);
+				expression(export_t{}, var.str_val).assign(scope, result);
 		}
 		// Otherwise:
 		//
@@ -890,6 +919,55 @@ namespace li {
 					scope.lex().next();
 				if (!parse_decl(scope, is_export)) {
 					return {};
+				}
+				return expression(nil);
+			}
+
+			// Import => None.
+			//
+			case lex::token_import: {
+				if (scope.fn.enclosing) {
+					scope.lex().error("import is only valid at top-level declarations.");
+					return {};
+				}
+				scope.lex().next();
+
+				auto name = scope.lex().opt(lex::token_lstr);
+				if (!name) {
+					name = scope.lex().check(lex::token_name);
+				}
+				if (*name == lex::token_error) {
+					return {};
+				}
+
+				auto mod = scope.fn.L->modules->get(scope.fn.L, name->str_val);
+				if (mod == nil) {
+					any  result = nil;
+					if (scope.fn.L->import_fn) {
+						result = scope.fn.L->import_fn(scope.fn.L, name->str_val->view());
+					}
+					if (result == nil) {
+						scope.lex().error("module '%s' not found", name->str_val->c_str());
+						return {};
+					}
+					else if (result.is_str()) {
+						scope.lex().error(result.as_str()->c_str());
+						return {};
+					}
+					mod = result;
+				}
+
+				auto alias = *name;
+				if (scope.lex().opt(lex::token_as)) {
+					alias = scope.lex().check(lex::token_name);
+					if (alias == lex::token_error) {
+						return {};
+					}
+				}
+
+				scope.add_local_cxpr(alias.str_val, mod);
+				if (scope.fn.is_repl) {
+					expression{alias.str_val}.assign(scope, mod);
 				}
 				return expression(nil);
 			}
@@ -1114,7 +1192,7 @@ namespace li {
 		} else {
 			if (scope.lex().opt('!')) {
 				trait = true;
-				if ((self.kind == expr::imm && self.imm == nil) || func.kind != expr::glb) {
+				if ((self.kind == expr::imm && self.imm == nil) || func.kind != expr::env) {
 					scope.lex().error("traits should be used with :: operator.");
 					return {};
 				}
@@ -1157,7 +1235,7 @@ namespace li {
 
 		// Handle special functions.
 		//
-		if (func.kind == expr::glb) {
+		if (func.kind == expr::env) {
 			// Handle traits.
 			//
 			if (trait) {
@@ -1171,7 +1249,7 @@ namespace li {
 				// Find trait by name.
 				//
 				for (msize_t i = 0; i != msize_t(trait::pseudo_max); i++) {
-					if (trait_names[i] == func.glb->view()) {
+					if (trait_names[i] == func.env->view()) {
 						// Emit the opcode and return.
 						//
 						if (size == 0) {
@@ -1185,26 +1263,21 @@ namespace li {
 						}
 					}
 				}
-				scope.lex().error("unknown trait name '%s'.", func.glb->c_str());
+				scope.lex().error("unknown trait name '%s'.", func.env->c_str());
 				return {};
 			}
 
 			// Handle builtins.
 			//
-			if (scope.fn.L->builtin_parser) {
-				if (auto r = scope.fn.L->builtin_parser(scope, func.glb->view(), self, std::span(callsite, size))) {
-					return *r;
-				}
-			}
-			if (func.glb->view() == "len") {
+			if (func.env->view() == "len") {
 				return emit_unop(scope, bc::VLEN, self);
-			} else if (func.glb->view() == "str") {
+			} else if (func.env->view() == "str") {
 				return emit_unop(scope, bc::TOSTR, self);
-			} else if (func.glb->view() == "num") {
+			} else if (func.env->view() == "num") {
 				return emit_unop(scope, bc::TONUM, self);
-			} else if (func.glb->view() == "int") {
+			} else if (func.env->view() == "int") {
 				return emit_unop(scope, bc::TOINT, self);
-			} else if (func.glb->view() == "dup") {
+			} else if (func.env->view() == "dup") {
 				if (self.kind == expr::reg) {
 					scope.emit(bc::VDUP, tmp, self.reg);
 				} else {
@@ -1213,7 +1286,7 @@ namespace li {
 				}
 				scope.reg_next = tmp + 1;
 				return expression(tmp);
-			} else if (func.glb->view() == "join") {
+			} else if (func.env->view() == "join") {
 				if (size != 1) {
 					scope.lex().error("join expects 1 argument.");
 					return {};
@@ -1374,9 +1447,8 @@ namespace li {
 
 		// Create the new function.
 		//
-		func_state new_fn{scope.fn.L, scope.lex()};
+		func_state new_fn{scope.fn, scope};
 		new_fn.decl_name = name;
-		new_fn.enclosing = &scope;
 		{
 			// Collect arguments.
 			//
@@ -1835,7 +1907,7 @@ namespace li {
 	// Parses the code and returns it as a function instance with no arguments on success.
 	// If code parsing fails, result is instead a string explaining the error.
 	//
-	any load_script(vm* L, std::string_view source, std::string_view source_name, bool is_repl) {
+	any load_script(vm* L, std::string_view source, std::string_view source_name, std::string_view module_name, bool is_repl) {
 		// Handle UTF input.
 		//
 		std::string temp;
@@ -1844,12 +1916,46 @@ namespace li {
 			source = temp;
 		}
 
-		// Parse the body and propagate the result.
+		// Initialize the lexer and the function state.
 		//
 		lex::state lx{L, source, source_name};
-		func_state fn{L, lx};
-		fn.is_repl = is_repl;
-		if (!parse_body(fn)) {
+		func_state fn{L, lx, is_repl};
+
+		// If module name is not empty, create an export table.
+		//
+		if (!module_name.empty() && !is_repl) {
+			auto* mod    = string::create(L, module_name);
+			any   exists = L->modules->get(L, mod);
+			if (exists != nil) {
+				return string::format(L, "module '%s' already exists.", mod->c_str());
+			} else {
+				fn.module_table = table::create(L);
+				fn.module_name  = mod;
+				L->modules->set(L, mod, fn.module_table);
+			}
+		}
+
+		// If REPL, use the REPL scope, otherwise create a temporary scope and acquire GC lock.
+		//
+		if (is_repl) {
+			if (!L->repl_scope) {
+				L->repl_scope = table::create(L);
+			}
+			fn.scope_table = L->repl_scope;
+		} else {
+			fn.scope_table = table::create(L);
+			fn.scope_table->acquire();
+		}
+
+		// Parse the body, release the scope table.
+		//
+		bool ok = parse_body(fn);
+		if (!is_repl)
+			fn.scope_table->release(L);
+
+		// Propagate the result.
+		//
+		if (!ok) {
 			return string::create(L, fn.lex.last_error.c_str());
 		} else {
 			return write_func(fn, 0);

@@ -10,7 +10,7 @@ namespace li::util {
 	// Global export helper handling nested names e.g. "mylib.test".
 	//
 	static void export_as(vm* L, std::string_view name, any value) {
-		table* tbl = L->globals;
+		table* tbl = L->modules;
 
 		while (true) {
 			auto pos = name.find('.');
@@ -24,6 +24,8 @@ namespace li::util {
 			auto it = tbl->get(L, key);
 			if (!it.is_tbl()) {
 				auto ntbl = table::create(L, 1);
+				ntbl->set_trait(L, trait::freeze, true);
+				ntbl->set_trait(L, trait::seal, true);
 				tbl->set(L, key, ntbl);
 				it = ntbl;
 			}

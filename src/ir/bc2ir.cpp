@@ -194,11 +194,7 @@ namespace li::ir {
 					continue;
 				}
 				case bc::UGET: {
-					if (b == bc::uval_glb) {
-						set_reg(a, any(bld.blk->proc->L->globals));
-					} else {
-						set_reg(a, bld.emit<uval_get>(this_func(), b));
-					}
+					set_reg(a, bld.emit<uval_get>(this_func(), b));
 					continue;
 				}
 				case bc::USET: {
@@ -222,16 +218,6 @@ namespace li::ir {
 				}
 				case bc::TSETR: {
 					bld.emit<field_set>(true, get_reg(c), get_reg(a), get_reg(b));
-					continue;
-				}
-				case bc::GGET: {
-					auto g = bld.emit<uval_get>(this_func(), bc::uval_env);
-					set_reg(a, bld.emit<field_get>(false, g, get_reg(b)));
-					continue;
-				}
-				case bc::GSET: {
-					auto g = bld.emit<uval_get>(this_func(), bc::uval_env);
-					bld.emit<field_set>(false, g, get_reg(a), get_reg(b));
 					continue;
 				}
 

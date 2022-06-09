@@ -46,6 +46,7 @@
     <ClCompile Include="..\src\lang\lexer.cpp" />
     <ClCompile Include="..\src\lang\operator.cpp" />
     <ClCompile Include="..\src\lang\parser.cpp" />
+    <ClCompile Include="..\src\lib\fs.cpp" />
     <ClCompile Include="..\src\lib\std.cpp" />
     <ClCompile Include="..\src\util\platform.cpp" />
     <ClCompile Include="..\src\vm\array.cpp" />
@@ -72,6 +73,7 @@
     <ClInclude Include="..\include\lang\operator.hpp" />
     <ClInclude Include="..\include\lang\parser.hpp" />
     <ClInclude Include="..\include\lang\types.hpp" />
+    <ClInclude Include="..\include\lib\fs.hpp" />
     <ClInclude Include="..\include\lib\std.hpp" />
     <ClInclude Include="..\include\util\bitset.hpp" />
     <ClInclude Include="..\include\util\common.hpp" />

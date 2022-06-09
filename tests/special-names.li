@@ -1,4 +1,4 @@
 
 let z = || $F
 assert(z() == z)
-assert($G == $E)
+assert($E is table)

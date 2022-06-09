@@ -70,7 +70,6 @@ namespace li {
 		//
 		nfunc_t         invoke      = nullptr;  // Common function type for all calls.
 		msize_t         num_uval    = 0;        // Number of upvalues.
-		table*          environment = nullptr;  // Table environment.
 		function_proto* proto       = nullptr;  // Function prototype (if VM).
 		any             upvalue_array[];
 
@@ -96,6 +95,33 @@ namespace li {
 				return (function*) this;
 			else
 				return L->duplicate(this);
+		}
+
+		// Prints bytecode.
+		//
+		void print_bc() {
+			LI_ASSERT(proto);
+			puts(
+				 "Dumping bytecode of the function:\n"
+				 "-------------------------------------------------------");
+			msize_t last_line = 0;
+			for (msize_t i = 0; i != proto->length; i++) {
+				if (msize_t l = proto->lookup_line(i); l != last_line) {
+					last_line = l;
+					printf("ln%-52u", l);
+					printf("|\n");
+				}
+				proto->opcode_array[i].print(i);
+			}
+			puts("-------------------------------------------------------");
+			if (num_uval) {
+				for (msize_t i = 0; i != num_uval; i++) {
+					printf(LI_CYN "u%u:   " LI_DEF, i);
+					uvals()[i].print();
+					printf("\n");
+				}
+				puts("-------------------------------------------------------");
+			}
 		}
 	};
 };

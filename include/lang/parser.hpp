@@ -4,6 +4,7 @@
 #include <lang/operator.hpp>
 #include <vm/state.hpp>
 #include <vm/string.hpp>
+#include <vm/table.hpp>
 #include <vector>
 #include <tuple>
 #include <util/format.hpp>
@@ -26,28 +27,36 @@ namespace li {
 	//
 	struct func_scope;
 	struct func_state {
-		vm*                      L;                     // VM state.
-		lex::state&              lex;                   // Lexer state.
-		func_scope*              enclosing  = nullptr;  // Enclosing function's scope.
-		std::vector<local_state> uvalues    = {};       // Upvalues mapped by name.
-		func_scope*              scope      = nullptr;  // Current scope.
-		std::vector<any>         kvalues    = {};       // Constant pool.
-		bc::reg                  max_reg_id = 1;        // Maximum register ID used.
-		std::vector<string*>     args       = {};       // Arguments.
-		bool                     is_vararg  = false;    //
-		std::vector<bc::insn>    pc         = {};       // Bytecode generated.
-		bool                     is_repl    = false;    // Disables locals.
-		string*                  decl_name  = nullptr;  // Name.
-		std::vector<line_info>   line_table = {};       // Record for each time a line changed.
-		uint32_t                 last_line  = 0;        //
-		uint32_t                 last_lexed_line;       //
+		vm*                      L;                       // VM state.
+		lex::state&              lex;                     // Lexer state.
+		func_scope*              enclosing  = nullptr;    // Enclosing function's scope.
+		std::vector<local_state> uvalues    = {};         // Upvalues mapped by name.
+		func_scope*              scope      = nullptr;    // Current scope.
+		std::vector<any>         kvalues    = {};         // Constant pool.
+		bc::reg                  max_reg_id = 1;          // Maximum register ID used.
+		std::vector<string*>     args       = {};         // Arguments.
+		std::vector<bc::insn>    pc         = {};         // Bytecode generated.
+		bool                     is_repl    = false;      // Disables locals.
+		string*                  decl_name  = nullptr;    // Name.
+		std::vector<line_info>   line_table = {};         // Record for each time a line changed.
+		uint32_t                 last_line  = 0;          //
+		uint32_t                 last_lexed_line;         //
+		table*                   scope_table  = nullptr;  // Table holding scope variables.
+		table*                   module_table = nullptr;  // Table holding exports.
+		string*                  module_name  = nullptr;  //
 
 		// Labels.
 		//
 		uint32_t                                 next_label = label_flag;  // Next label id.
 		std::vector<std::pair<bc::rel, bc::pos>> label_map  = {};          // Maps label id to position.
 
-		func_state(vm* L, lex::state& lex) : L(L), lex(lex), last_lexed_line(lex.line) {}
+		// Constructors.
+		//
+		func_state(vm* L, lex::state& lex, bool is_repl)
+			: L(L), lex(lex), last_lexed_line(lex.line) {}
+		func_state(func_state& parent, func_scope& enclosing)
+			: L(parent.L), lex(parent.lex), last_lexed_line(lex.line), enclosing(&enclosing),
+			scope_table(parent.scope_table), module_table(parent.module_table) {}
 
 		// Syncs line-table with instruction stream.
 		//
@@ -184,10 +193,12 @@ namespace li {
 		imm,  // constant
 		reg,  // local
 		uvl,  // upvalue
-		glb,  // global
+		env,  // environment
+		exp,  // export
 		idx,  // index into local with another local
 	};
 	struct upvalue_t {};
+	struct export_t {};
 	struct expression {
 		expr    kind : 7   = expr::err;
 		uint8_t freeze : 1 = false;
@@ -199,7 +210,8 @@ namespace li {
 			} idx;
 			bc::reg reg;
 			any     imm;
-			string* glb;
+			string* env;
+			string* exp;
 		};
 
 		// Default constructor maps to error.
@@ -212,7 +224,9 @@ namespace li {
 		expression(upvalue_t, bc::reg u, bool freeze = false) : kind(expr::uvl), freeze(freeze), reg(u) {}
 
 		expression(any k) : kind(expr::imm), imm(k) {}
-		expression(string* g) : kind(expr::glb), glb(g) {}
+
+		expression(string* g) : kind(expr::env), env(g) {}
+		expression(export_t, string* g) : kind(expr::exp), exp(g) {}
 		expression(bc::reg tbl, bc::reg field) : kind(expr::idx), idx{tbl, field} {}
 
 		// Default bytewise copy.
@@ -247,13 +261,21 @@ namespace li {
 				case expr::uvl:
 					scope.emit(bc::UGET, r, reg);
 					return;
-				case expr::glb:
-					scope.set_reg(r, any(glb));
-					scope.emit(bc::GGET, r, r);
+				case expr::exp:
+				case expr::env: {
+					auto tbl = scope.fn.scope_table;
+					if (kind == expr::exp && scope.fn.module_table)
+						tbl = scope.fn.module_table;
+					auto tmp = scope.alloc_reg(2);
+					scope.set_reg(tmp, any(tbl));
+					scope.set_reg(tmp + 1, any(env));
+					scope.emit(bc::TGETR, r, tmp + 1, tmp);
+					scope.free_reg(tmp, 2);
 					return;
+				}
 				case expr::idx:
 					scope.emit(bc::TGET, r, idx.field, idx.table);
-					break;
+					return;
 			}
 		}
 
@@ -292,7 +314,8 @@ namespace li {
 					return;
 				case expr::uvl:
 				case expr::idx:
-				case expr::glb:
+				case expr::env:
+				case expr::exp:
 					auto r = to_nextreg(scope);
 					scope.emit(bc::PUSHR, r);
 					scope.free_reg(r);
@@ -316,15 +339,18 @@ namespace li {
 						scope.free_reg(val);
 					return;
 				}
-				case expr::glb: {
+				case expr::exp:
+				case expr::env: {
+					auto tbl = scope.fn.scope_table;
+					if (kind == expr::exp && scope.fn.module_table)
+						tbl = scope.fn.module_table;
+					auto tmp = scope.alloc_reg(2);
 					auto val = value.to_anyreg(scope);
-					auto idx = scope.alloc_reg();
-					scope.set_reg(idx, any(glb));
-					scope.emit(bc::GSET, idx, val);
-					scope.free_reg(idx);
-					if (value.kind != expr::reg)
-						scope.free_reg(val);
-					break;
+					scope.set_reg(tmp, any(tbl));
+					scope.set_reg(tmp + 1, any(env));
+					scope.emit(bc::TSETR, tmp+1, val, tmp);
+					scope.reg_next = tmp;
+					return;
 				}
 				case expr::idx: {
 					if (value.kind == expr::reg) {
@@ -366,16 +392,13 @@ namespace li {
 					}
 					break;
 				case expr::uvl:
-					if (reg == bc::uval_env) {
-						printf(LI_GRN "$E" LI_DEF);
-					} else if (reg == bc::uval_glb) {
-						printf(LI_GRN "$G" LI_DEF);
-					} else {
-						printf(LI_GRN "u%u" LI_DEF, (uint32_t) reg);
-					}
+					printf(LI_GRN "u%u" LI_DEF, (uint32_t) reg);
 					break;
-				case expr::glb:
-					printf(LI_PRP "$G[%s]" LI_DEF, glb->c_str());
+				case expr::env:
+					printf(LI_PRP "ENV[%s]" LI_DEF, env->c_str());
+					break;
+				case expr::exp:
+					printf(LI_PRP "EXP[%s]" LI_DEF, exp->c_str());
 					break;
 				case expr::idx:
 					printf(LI_RED "r%u" LI_DEF, (uint32_t) idx.table);
@@ -397,5 +420,5 @@ namespace li {
 	// Parses the code and returns it as a function instance with no arguments on success.
 	// If code parsing fails, result is instead a string explaining the error.
 	//
-	any load_script(vm* L, std::string_view source, std::string_view source_name = "string", bool is_repl = false);
+	any load_script(vm* L, std::string_view source, std::string_view source_name = "", std::string_view module_name = "", bool is_repl = false);
 };

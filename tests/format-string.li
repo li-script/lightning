@@ -1,3 +1,5 @@
+import math
+
 const x = 4
 assert(`A{math.round(math.sqrt(x+5))}B{{}}C` == "A3B{}C")
 assert(`{ "\x61\"" + {"\x61\""} }`=="a\"a\"")

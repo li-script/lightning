@@ -1,3 +1,5 @@
+import debug
+
 fn a() { debug.stacktrace() }
 fn b() { let ok; pcall(a, &ok) }
 fn c() { b() }
@@ -9,7 +11,7 @@ const result =         f()
 
 
 const expected_funcs = [a, "C", b, c, "C", d, e, f, $F]
-const expected_lines = [1, {},  2, 3, {},  4, 5, 6, 8 ]
+const expected_lines = [3, {},  4, 5, {},  6, 7, 8, 10]
 for k,v in expected_funcs {
 	assert(result[k].func == v, `{result[k].func} != {v}`)
 }for k,v in expected_lines {

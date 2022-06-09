@@ -131,7 +131,7 @@ namespace li::lib {
 
 		// Protected call.
 		//
-		util::export_as(L, "pcall", [](vm* L, any* args, slot_t n) {
+		util::export_as(L, "builtin.pcall", [](vm* L, any* args, slot_t n) {
 			vm_guard _g{L, args};
 			if (n < 2) {
 				return L->error("expected 2 or more arguments.");
@@ -255,33 +255,14 @@ namespace li::lib {
 			if (n != 1 || !args->is_fn() || !args->as_fn()->is_virtual()) {
 				return L->error("dump expects a single vfunction");
 			}
-
 			auto f = args->as_fn();
-			puts(
-				 "Dumping bytecode of the function:\n"
-				 "-----------------------------------------------------");
-			msize_t last_line = 0;
-			for (msize_t i = 0; i != f->proto->length; i++) {
-				if (msize_t l = f->proto->lookup_line(i); l != last_line) {
-					last_line = l;
-					printf("ln%-50u", l);
-					printf("|\n");
-				}
-				f->proto->opcode_array[i].print(i);
-			}
-			puts("-----------------------------------------------------");
-			for (msize_t i = 0; i != f->num_uval; i++) {
-				printf(LI_CYN "u%u:   " LI_DEF, i);
-				f->uvals()[i].print();
-				printf("\n");
-			}
-			puts("-----------------------------------------------------");
+			f->print_bc();
 			return L->ok();
 		});
 
 		// String.
 		//
-		util::export_as(L, "print", [](vm* L, any* args, slot_t n) {
+		util::export_as(L, "builtin.print", [](vm* L, any* args, slot_t n) {
 			for (int32_t i = 0; i != n; i++) {
 				if (args[-i].is_traitful() && ((traitful_node<>*)args[-i].as_gc())->has_trait<trait::str>()) [[unlikely]] {
 					fputs(args[-i].to_string(L)->c_str(), stdout);
@@ -293,7 +274,7 @@ namespace li::lib {
 			printf("\n");
 			return L->ok();
 		});
-		util::export_as(L, "loadstring", [](vm* L, any* args, slot_t n) {
+		util::export_as(L, "builtin.loadstring", [](vm* L, any* args, slot_t n) {
 			if (n != 1 || !args->is_str()) {
 				return L->error("expected string");
 			}
@@ -303,7 +284,7 @@ namespace li::lib {
 			else
 				return L->ok(res);
 		});
-		util::export_as(L, "eval", [](vm* L, any* args, slot_t n) {
+		util::export_as(L, "builtin.eval", [](vm* L, any* args, slot_t n) {
 			vm_guard _g{L, args};
 			if (n != 1 || !args->is_str()) {
 				return L->error("expected string");
@@ -320,14 +301,14 @@ namespace li::lib {
 
 		// Misc.
 		//
-		util::export_as(L, "@table", [](vm* L, any* args, slot_t n) {
+		util::export_as(L, "builtin.@table", [](vm* L, any* args, slot_t n) {
 			uint16_t r = 0;
 			if (n && args->is_num()) {
 				r = (uint16_t) (uint64_t) std::abs(args->as_num());
 			}
 			return L->ok(table::create(L, r));
 		});
-		util::export_as(L, "assert", [](vm* L, any* args, slot_t n) {
+		util::export_as(L, "builtin.assert", [](vm* L, any* args, slot_t n) {
 			vm_guard _g{L, args};
 			if (!n || args->coerce_bool())
 				return L->ok();

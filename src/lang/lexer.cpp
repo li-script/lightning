@@ -551,6 +551,10 @@ namespace li::lex {
 	token_value state::scan() {
 		while (!input.empty()) {
 			char c = input.front();
+			if (!c) {
+				input = {};
+				break;
+			}
 
 			// If whitespace, consume and continue.
 			if (is_space(c)) {

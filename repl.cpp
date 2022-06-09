@@ -5,6 +5,7 @@
 #include <lang/operator.hpp>
 #include <lang/parser.hpp>
 #include <lib/std.hpp>
+#include <lib/fs.hpp>
 #include <optional>
 #include <thread>
 #include <tuple>
@@ -29,7 +30,7 @@ namespace li::debug {
 
 using namespace li;
 static void handle_repl_io(vm* L, std::string_view input) {
-	auto fn = li::load_script(L, input, "console", true);
+	auto fn = li::load_script(L, input, "console", {}, true);
 	if (fn.is_fn()) {
 		if (!L->call(0, fn)) {
 			printf(LI_RED "Exception: ");
@@ -249,13 +250,12 @@ int main(int argv, const char** args) {
 
 	// Read the file.
 	//
-	std::ifstream file(args[1]);
-	if (!file.good()) {
+	auto file = lib::fs::read_string(args[1]);
+	if (!file) {
 		printf(LI_RED "Failed reading file '%s'\n" LI_DEF, args[1]);
 		return 1;
 	}
-	std::string file_buf{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
-	auto        fn = li::load_script(L, file_buf, args[1]);
+	auto fn = li::load_script(L, *file, args[1]);
 
 	// Validate, print the result.
 	//

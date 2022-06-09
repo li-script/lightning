@@ -89,6 +89,9 @@
     <ClCompile Include="..\src\ir\opt_const.cpp">
       <Filter>IR\Optimizations</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\lib\fs.cpp">
+      <Filter>Library</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Language">
@@ -227,6 +230,9 @@
     </ClInclude>
     <ClInclude Include="..\include\vm\runtime.hpp">
       <Filter>VM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\lib\fs.hpp">
+      <Filter>Library</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -1,11 +1,11 @@
-const {sqrt, floor} = math
+import math
 
 const vec3 = {}
 vec3::get!({
    dot:  |a| (a.x*self.x+a.y*self.y+a.z*self.z),
    size: 3
 })
-vec3::len!(|| sqrt(self->dot(self)))
+vec3::len!(|| math.sqrt(self->dot(self)))
 vec3::neg!(|| vec3(-self.x,-self.y,-self.z))
 vec3::add!(|a,b| vec3(a.x+b.x,a.y+b.y,a.z+b.z))
 vec3::sub!(|a,b| vec3(a.x-b.x,a.y-b.y,a.z-b.z))
@@ -26,5 +26,5 @@ print(((a+b)*-a)::str())
 assert(a == vec3(1,2,0))
 assert(((a+b)*-a)::str() == "{-6,-16,-0}")
 assert(a->dot(b) == 17)
-assert(floor(a::len()) == 2)
+assert(math.floor(a::len()) == 2)
 assert(a.size == 3)

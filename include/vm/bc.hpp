@@ -52,10 +52,6 @@ namespace li::bc {
 	_(UGET, reg, uvl, ___, none) /* A=UVAL[B] */                                          \
 	_(USET, uvl, reg, ___, none) /* UVAL[A]=B */                                          \
                                                                                          \
-	/* Global operators. */                                                               \
-	_(GGET, reg, reg, ___, none) /* A=G[B] */                                             \
-	_(GSET, reg, reg, ___, none) /* G[A]=B */                                             \
-                                                                                         \
 	/* Table/Array operators. */                                                          \
 	_(ANEW, reg, imm, ___, none)  /* A=ARRAY{Size=B} */                                   \
 	_(TNEW, reg, imm, ___, none)  /* A=TABLE{Reserved=B} */                               \
@@ -104,11 +100,6 @@ namespace li::bc {
 	using rel                   = int32_t;
 	using pos                   = uint32_t;
 	static constexpr pos no_pos = UINT32_MAX;
-
-	// Magic upvalues.
-	//
-	static constexpr reg uval_env = -1;
-	static constexpr reg uval_glb = -2;
 
 	// Write all descriptors.
 	//
@@ -200,16 +191,8 @@ namespace li::bc {
 						rel_pr = (rel) value;
 						break;
 					case op_t::uvl:
-						if (value == bc::uval_env) {
-							col = LI_GRN;
-							strcpy(op, "$E");
-						} else if (value == bc::uval_glb) {
-							col = LI_GRN;
-							strcpy(op, "$G");
-						} else {
-							col = LI_CYN;
-							snprintf(op, std::size(op), "u%u", (uint32_t) value);
-						}
+						col = LI_CYN;
+						snprintf(op, std::size(op), "u%u", (uint32_t) value);
 						break;
 					case op_t::kvl:
 						col = LI_BLU;

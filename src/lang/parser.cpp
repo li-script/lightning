@@ -1195,11 +1195,31 @@ namespace li {
 		scope.emit(bc::RET, last.to_anyreg(scope));
 		return true;
 	}
+	
+	using parameter = std::pair<expression, bool>;
+
+	// Attempts to constant fold a call into a native builtin.
+	//
+	static expression parse_call_cxpr(vm* L, std::span<parameter> callsite, function* func, expression self) {
+		// Push all values and call into the handler.
+		//
+		for (size_t i = callsite.size(); i != 0; i--) {
+			L->push_stack(callsite[i-1].first.imm);
+		}
+
+		// Ignore result on error else return the result.
+		//
+		if (bool ok = L->call(callsite.size(), func, self.imm); !ok) {
+			L->pop_stack();
+			return {};
+		} else {
+			return L->pop_stack();
+		}
+	}
 
 	// Parses a call, returns the result.
 	//
 	static expression parse_call(func_scope& scope, const expression& func, const expression& self) {
-		using parameter = std::pair<expression, bool>;
 		parameter callsite[MAX_ARGS] = {};
 		msize_t   size               = 0;
 
@@ -1318,6 +1338,22 @@ namespace li {
 				callsite[0].first.to_reg(scope, tmp + 1);  
 				scope.emit(bc::VJOIN, tmp, tmp, tmp + 1);
 				return expression(tmp);
+			}
+		}
+
+		// Try to constant fold the values.
+		//
+		if (func.kind == expr::imm && self.kind == expr::imm && func.imm.is_fn()) {
+			auto  f  = func.imm.as_fn();
+			auto* nf = f->ninfo;
+			// TODO: is_const?
+			if (nf && nf->is_pure) {
+				if (std::all_of(callsite, callsite + size, [](const parameter& p) { return p.first.kind == expr::imm; })) {
+					auto res = parse_call_cxpr(scope.fn.L, std::span(callsite).subspan(0, size), f, self);
+					if (res.kind != expr::err) {
+						return res;
+					}
+				}
 			}
 		}
 

@@ -40,6 +40,7 @@ namespace li::lib {
 			return L->ok();
 		});
 		util::export_as(L, "builtin.loadstring", [](vm* L, any* args, slot_t n) {
+			vm_guard _g{L, args};
 			if (n != 1 || !args->is_str()) {
 				return L->error("expected string");
 			}

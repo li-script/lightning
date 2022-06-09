@@ -67,7 +67,7 @@ namespace li::ir {
 		// Call types.
 		//
 		ccall,
-		vcall,  // Must be func typed at MIR.
+		vcall, // Must be func typed at MIR.
 
 		// Block terminators.
 		//

@@ -293,6 +293,8 @@ namespace li {
 			case type_function:
 				if (a.as_fn()->is_virtual())
 					formatter("function @ %s", a.as_fn()->proto->src_chunk->c_str());
+				else if (auto nf = a.as_fn()->ninfo; nf && nf->name)
+					formatter(nf->name);
 				else
 					formatter("native-function @ %p", a.as_fn());
 				break;

@@ -1,5 +1,6 @@
 #pragma once
 #include <span>
+#include <util/format.hpp>
 #include <vm/bc.hpp>
 #include <vm/gc.hpp>
 #include <vm/state.hpp>
@@ -63,26 +64,33 @@ namespace li {
 	//
 	using fn_bc2ir = bool(*)(ir::builder& bld);
 	struct nfunc_overload {
-		std::vector<ir::type> args      = {};              // Expected argument types for a valid call.
-		ir::type              ret       = ir::type::none;  // Type of return value.
-		const void*           cfunc     = nullptr;         // C function pointer. Must be LI_CC.
-		fn_bc2ir              bc2ir     = nullptr;         // Custom IR lifter if relevant.
-		// TODO: ir2mir
+		const void*             cfunc      = nullptr;         // C function pointer. Must be LI_CC, invalid entry if nullptr.
+		bool                    takes_self = false;           // True if first value in args array is describing the self.
+		bool                    takes_vm   = false;           // True if function should be called with a VM pointer.
+		ir::type                ret        = ir::type::none;  // Type of return value.
+		std::array<ir::type, 8> args       = {};              // Expected argument types for a valid call, none = end.
 	};
 	struct nfunc_info {
 		// True if function is pure / const, same definition as in ir::insn.
 		//
-		uint32_t                    is_pure : 1  = true;
-		uint32_t                    is_const : 1 = false;
-		uint32_t                    rsvd : 30    = 0;
+		uint32_t is_pure : 1  = true;
+		uint32_t is_const : 1 = false;
+
+		// True if function never throws (so long as the argument types match the overload).
+		//
+		uint32_t no_throw : 1 = false;
 
 		// Friendly name.
 		//
-		std::string                 name         = {};
+		const char* name = nullptr;
+
+		// nfunc_t callback, for convenience.
+		//
+		nfunc_t invoke = nullptr;
 
 		// Overloads with specific lifters.
 		//
-		std::vector<nfunc_overload> overloads    = {};
+		std::array<nfunc_overload, 5> overloads = {};
 	};
 
 	// "Type" erased function type.
@@ -92,9 +100,10 @@ namespace li {
 		//
 		static function* create(vm* L, function_proto* proto);
 
-		// Creates a simple native function.
+		// Creates a native function.
 		//
 		static function* create(vm* L, nfunc_t cb);
+		static function* create(vm* L, const nfunc_info* info);
 
 		// Function details.
 		//
@@ -131,27 +140,32 @@ namespace li {
 		// Prints bytecode.
 		//
 		void print_bc() {
-			LI_ASSERT(proto);
-			puts(
-				 "Dumping bytecode of the function:\n"
-				 "-------------------------------------------------------");
-			msize_t last_line = 0;
-			for (msize_t i = 0; i != proto->length; i++) {
-				if (msize_t l = proto->lookup_line(i); l != last_line) {
-					last_line = l;
-					printf("ln%-52u", l);
-					printf("|\n");
-				}
-				proto->opcode_array[i].print(i);
-			}
-			puts("-------------------------------------------------------");
-			if (num_uval) {
-				for (msize_t i = 0; i != num_uval; i++) {
-					printf(LI_CYN "u%u:   " LI_DEF, i);
-					uvals()[i].print();
-					printf("\n");
+			if (proto) {
+				puts(
+					 "Dumping bytecode of the function:\n"
+					 "-------------------------------------------------------");
+				msize_t last_line = 0;
+				for (msize_t i = 0; i != proto->length; i++) {
+					if (msize_t l = proto->lookup_line(i); l != last_line) {
+						last_line = l;
+						printf("ln%-52u", l);
+						printf("|\n");
+					}
+					proto->opcode_array[i].print(i);
 				}
 				puts("-------------------------------------------------------");
+				if (num_uval) {
+					for (msize_t i = 0; i != num_uval; i++) {
+						printf(LI_CYN "u%u:   " LI_DEF, i);
+						uvals()[i].print();
+						printf("\n");
+					}
+					puts("-------------------------------------------------------");
+				}
+			} else {
+				puts(
+					 LI_RED "Can't dump native function.\n"
+					 LI_DEF "-------------------------------------------------------");
 			}
 		}
 	};

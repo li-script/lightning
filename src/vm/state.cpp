@@ -32,6 +32,7 @@ namespace li {
 		L->modules->set_trait(L, trait::seal, true);
 		strset_init(L);
 		lib::detail::register_builtin(L);
+		lib::detail::register_math(L);
 		return L;
 	}
 

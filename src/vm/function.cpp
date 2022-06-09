@@ -39,6 +39,12 @@ namespace li {
 		f->proto                          = nullptr;
 		return f;
 	}
+	function* function::create(vm* L, const nfunc_info* info) {
+		LI_ASSERT(info && info->invoke != nullptr);
+		function* f = function::create(L, info->invoke);
+		f->ninfo    = info;
+		return f;
+	}
 
 	// GC enumerator.
 	//

@@ -5,68 +5,6 @@
 #include <string>
 #include <util/common.hpp>
 
-// Define IR types here as it's used in native builtins regardless of whether or not IR is even used.
-//
-namespace li::ir {
-	// Value types.
-	//
-	enum class type : uint8_t {
-		none,
-
-		// Integers.
-		//
-		i1,
-		i8,
-		i16,
-		i32,
-		i64,
-
-		// Floating point types.
-		//
-		f32,
-		f64,
-
-		// Wrapped type (li::any).
-		//
-		unk,
-
-		// VM types.
-		//
-		nil,
-		opq,
-		tbl,  // same order as gc types
-		udt,
-		arr,
-		fn,
-		proto,
-		str,
-
-		// Instruction stream types.
-		//
-		bb,
-
-		// Enums.
-		//
-		vmopr,
-		vmtrait,
-		vmtype,
-		irtype,
-
-		// Aliases.
-		//
-		ptr = i64,
-	};
-
-	// Forwards.
-	//
-	struct value;
-	struct insn;
-	struct constant;
-	struct basic_block;
-	struct procedure;
-	struct builder;
-};
-
 #pragma pack(push, 1)
 namespace li {
 	struct vm;
@@ -296,3 +234,98 @@ namespace li {
 	}
 };
 #pragma pack(pop)
+
+// Define IR types here as it's used in native builtins regardless of whether or not IR is even used.
+//
+namespace li::ir {
+	// Value types.
+	//
+	enum class type : uint8_t {
+		none,
+
+		// Integers.
+		//
+		i1,
+		i8,
+		i16,
+		i32,
+		i64,
+
+		// Floating point types.
+		//
+		f32,
+		f64,
+
+		// Wrapped type (li::any).
+		//
+		unk,
+
+		// VM types.
+		//
+		nil,
+		opq,
+		tbl,  // same order as gc types
+		udt,
+		arr,
+		fn,
+		proto,
+		str,
+
+		// Instruction stream types.
+		//
+		bb,
+
+		// Enums.
+		//
+		vmopr,
+		vmtrait,
+		vmtype,
+		irtype,
+
+		// Aliases.
+		//
+		ptr = i64,
+	};
+
+	// Forwards.
+	//
+	struct value;
+	struct insn;
+	struct constant;
+	struct basic_block;
+	struct procedure;
+	struct builder;
+
+	// Conversion between IR and VM types.
+	//
+	static constexpr value_type to_vm_type(type vt) {
+		if (vt == type::i1)
+			return type_bool;
+		else if (type::i8 <= vt && vt <= type::i64)
+			return type_number;
+		else if (type::f32 <= vt && vt <= type::f64)
+			return type_number;
+		else if (vt == type::nil)
+			return type_nil;
+		else if (vt == type::opq)
+			return type_opaque;
+		else if (type::tbl <= vt && vt < type::bb)
+			return value_type(uint8_t(vt) - uint8_t(type::tbl) + type_table);
+		else
+			assume_unreachable();
+	}
+	static constexpr type to_ir_type(value_type t) {
+		if (t == type_bool)
+			return type::i1;
+		else if (t == type_number)
+			return type::f64;
+		else if (t == type_opaque)
+			return type::opq;
+		else if (t == type_nil)
+			return type::nil;
+		else if (t <= type_gc_last)
+			return type(uint8_t(t) + uint8_t(type::tbl) - type_table);
+		else
+			assume_unreachable();
+	}
+};

@@ -202,7 +202,6 @@ namespace li::ir::opt {
 		});
 		proc->validate();
 	}
-
 	static void specialize_field(procedure* proc) {
 		proc->bfs([&](basic_block* bb) {
 			auto i = range::find_if(bb->insns(), [](insn* i) {
@@ -255,9 +254,41 @@ namespace li::ir::opt {
 		proc->validate();
 	}
 
+	static void specialize_native(procedure* proc) {
+		//proc->print();
+
+		//proc->bfs([&](basic_block* bb) {
+		//	auto i = range::find_if(bb->insns(), [](insn* i) {
+		//		if (i->is<vcall>() && i->operands[1]->vt == type::fn && i->operands[1]->is<constant>()) {
+		//			if (auto* f = i->operands[1]->as<constant>()->fn; f->ninfo) {
+		//				return true;
+		//			}
+		//		}
+		//		return false;
+		//	});
+		//	if (i == bb->end()) {
+		//		return false;
+		//	}
+		//});
+
+		/*
+		-- Block $0
+#0     %0:? = load_local i32: -4
+#0     write_argument i32: -4, %0:?
+#1     write_argument i32: -3, nil
+#3     write_argument i32: -2, fn:  0000000000401A00
+#3     %4:i1 = vcall i32: 1, fn:  0000000000401A00
+#4     %5:? = reload_argument i32: -2
+#7     %6:? = binop APOW, %5:?, f64: 2.000000
+#9     ret %6:?
+		*/
+
+	}
+
 	// Adds the branches for required type checks.
 	//
 	void type_split_cfg(procedure* proc) {
+		specialize_native(proc);
 		specialize_op(proc);
 		specialize_dup(proc);
 		specialize_len(proc);

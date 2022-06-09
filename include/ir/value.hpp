@@ -344,36 +344,4 @@ namespace li::ir {
 		//
 		std::string to_string(bool = false) const override;
 	};
-
-	// Conversion between IR and VM types.
-	//
-	static constexpr value_type to_vm_type(type vt) {
-		if (vt == type::i1) {
-			return type_bool;
-		} else if (type::i8 <= vt && vt <= type::i64) {
-			return type_number;
-		} else if (type::f32 <= vt && vt <= type::f64) {
-			return type_number;
-		} else if (vt == type::nil) {
-			return type_nil;
-		} else if (vt == type::opq) {
-			return type_opaque;
-		} else if (type::tbl <= vt && vt < type::bb) {
-			return value_type(uint8_t(vt) - uint8_t(type::tbl) + type_table);
-		} else {
-			util::abort("IR type does not map to VM type");
-		}
-	}
-	static constexpr type to_ir_type(value_type t) {
-		if (t == type_bool)
-			return type::i1;
-		else if (t == type_number)
-			return type::f64;
-		else if (t == type_opaque)
-			return type::opq;
-		else if (t == type_nil)
-			return type::nil;
-		else
-			return type(uint8_t(t) + uint8_t(type::tbl) - type_table);
-	}
 };

@@ -38,4 +38,7 @@ namespace li::util {
 		export_as(L, name, vf);
 		return vf;
 	}
+	static void export_nf(vm* L, const nfunc_info* nf) {
+		export_as(L, nf->name, function::create(L, nf));
+	}
 };

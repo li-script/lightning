@@ -1,2 +1,0 @@
-import "export-test" as etst
-assert(etst.b.a == 4)

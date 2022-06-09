@@ -443,7 +443,6 @@ namespace li::ir {
 				return vx;
 			}
 			case bc::AMOD: {
-				// TODO: AMOD as CCALL if not fast math.
 				if constexpr (USE_AVX) {
 					VDIVSD(b, vx, vl, vr);
 					VROUNDSD(b, vx, vx, 11);  // = trunc(x/y)
@@ -985,18 +984,27 @@ namespace li::ir {
 				return;
 			}
 			case opcode::vcall: {
-				// Resolve function and it's wrapper.
+				auto& fn  = i->operands[1];
+				LI_ASSERT(fn->vt == type::fn);  // Type guaranteed by opt_type.
+
+				// If native function, the callback will not change.
 				//
-				mreg r;
-				if (auto& t = i->operands[1]; t->is<constant>()) {
-					r = b->next_gp();
-					b.append(vop::movi, r, (int64_t) t->as<constant>()->fn);
-				} else {
-					r = REG(t);
+				mop call_target;
+				if (fn->is<constant>() && fn->as<constant>()->fn->is_native()) {
+					call_target = (int64_t) fn->as<constant>()->fn->invoke;
 				}
-				LI_ASSERT(i->operands[1]->vt == type::fn);  // Type guaranteed by opt_type.
-				auto tmp = b->next_gp();
-				b.append(vop::loadi64, tmp, mmem{.base = r, .disp = offsetof(function, invoke)});
+				// Load the function::invoke from the value.
+				//
+				else if (fn->is<constant>()) {
+					mreg r = b->next_gp();
+					b.append(vop::movi, r, (int64_t) fn->as<constant>()->fn);
+					b.append(vop::loadi64, r, mmem{.base = r, .disp = offsetof(function, invoke)});
+					call_target = r;
+				} else {
+					mreg r = b->next_gp();
+					b.append(vop::loadi64, r, mmem{.base = REG(fn), .disp = offsetof(function, invoke)});
+					call_target = r;
+				}
 
 				// Push stack info.
 				//
@@ -1016,7 +1024,7 @@ namespace li::ir {
 				b.append(vop::movi, arch::map_gp_arg(0, 0), mop(intptr_t(b->source->L)));
 				LEA(b, mreg(arch::map_gp_arg(1, 0)), mmem{.base = vreg_tos, .disp = -8 * (FRAME_SIZE + 1)});
 				b.append(vop::movi, arch::map_gp_arg(2, 0), i->operands[0]->as<constant>()->i32);
-				b.append(vop::call, {}, tmp);
+				b.append(vop::call, {}, call_target);
 				b.append(vop::movi, REG(i), mreg(arch::from_native(arch::gp_retval)));
 				return;
 			}

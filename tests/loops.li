@@ -12,7 +12,7 @@ const T2 = || for i in 0..=2 {
 		break i*2
 	}
 }
-assert(T2()=={})
+assert(T2()==nil)
 
 # Enumerating loop
 const T3 = || for _,i in [1,3,4,6,5] {
@@ -34,4 +34,4 @@ const T5 = |k| while k {
 	break "x"
 }
 assert(T5(true)=="x")
-assert(T5(false)=={})
+assert(T5(false)==nil)

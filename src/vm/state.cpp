@@ -1,5 +1,6 @@
 #include <vm/state.hpp>
 #include <vm/table.hpp>
+#include <lib/std.hpp>
 
 namespace li {
 	vm* vm::create(fn_alloc alloc, void* allocu) {
@@ -30,6 +31,7 @@ namespace li {
 		L->modules->set_trait(L, trait::freeze, true);
 		L->modules->set_trait(L, trait::seal, true);
 		strset_init(L);
+		lib::detail::register_builtin(L);
 		return L;
 	}
 

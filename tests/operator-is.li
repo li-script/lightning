@@ -1,7 +1,10 @@
 assert(4 is number) # number
 assert([] is array)
+assert({} is table) # table
 assert({x:4} is table) # table
-assert({} is table) # none -> table canonicalization
+assert(nil is nil) # nil
 assert("" is string) # string
+assert(false is bool) # bool
+assert(true is bool) # bool
 assert((|| 4) is function) # function
-assert(assert is function) # nfunction -> function canonicalization
+assert(assert is function) # native function

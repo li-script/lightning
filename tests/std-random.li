@@ -16,6 +16,6 @@ const validate_random = |x,y| {
 
 for i in 0..100 {
    validate_random(0,   100)
-   validate_random(100, {})
-   validate_random({},  {})
+   validate_random(100, nil)
+   validate_random(nil, nil)
 }

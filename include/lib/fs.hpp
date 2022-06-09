@@ -5,10 +5,6 @@
 #include <string_view>
 #include <optional>
 
-namespace li {
-	struct vm;
-};
-
 namespace li::lib::fs {
 	using fn_import = any (*)(vm* L, std::string_view name);
 

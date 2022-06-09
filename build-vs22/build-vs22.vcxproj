@@ -46,8 +46,11 @@
     <ClCompile Include="..\src\lang\lexer.cpp" />
     <ClCompile Include="..\src\lang\operator.cpp" />
     <ClCompile Include="..\src\lang\parser.cpp" />
-    <ClCompile Include="..\src\lib\fs.cpp" />
-    <ClCompile Include="..\src\lib\std.cpp" />
+    <ClCompile Include="..\src\lib\libuiltin.cpp" />
+    <ClCompile Include="..\src\lib\lifs.cpp" />
+    <ClCompile Include="..\src\lib\lichrono.cpp" />
+    <ClCompile Include="..\src\lib\lidebug.cpp" />
+    <ClCompile Include="..\src\lib\limath.cpp" />
     <ClCompile Include="..\src\util\platform.cpp" />
     <ClCompile Include="..\src\vm\array.cpp" />
     <ClCompile Include="..\src\vm\runtime.cpp" />

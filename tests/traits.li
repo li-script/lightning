@@ -66,7 +66,7 @@ assert(set_list[0].k == "c" && set_list[0].v == 4)
 #
 assert(tbl::set!() is function)
 tbl::hide!(true)
-assert(tbl::set!() == {})
+assert(tbl::set!() == nil)
 
 # Freeze.
 #

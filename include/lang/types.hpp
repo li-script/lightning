@@ -55,6 +55,9 @@ namespace li {
 		type_gc_last             = 7,
 		type_gc_last_traversable = type_proto,
 		type_gc_last_traitful    = type_userdata,
+
+		// Invalid
+		type_invalid = 0xFF
 	};
 
 	// Type names.
@@ -74,14 +77,6 @@ namespace li {
 		result[type_number]   = "number";
 		return result;
 	}();
-
-	// Type canonicalization for user type checks.
-	//
-	LI_INLINE static constexpr value_type to_canonical_type_name(value_type t) {
-		if (t == type_nil)
-			return type_table;
-		return t;
-	}
 
 	// NaN boxing details.
 	//

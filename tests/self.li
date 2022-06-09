@@ -11,7 +11,7 @@ const reduce = || {
 }
 
 const getself = || self
-assert(getself() == {})
+assert(getself() == nil)
 
 const arr = [1,2,0,3]
 assert(arr::reduce()==6)

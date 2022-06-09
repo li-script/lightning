@@ -10,5 +10,5 @@ const g = |a,b,c| {
 let x = 3
 let y = {}
 let z = [0]
-g(&x, &y, &z[0])
+g(&x, y, &z[0])
 assert(x==5 && y.z == 5 && z[0] == 2)

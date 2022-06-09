@@ -155,9 +155,11 @@ namespace li {
 			return type_function;
 		} else if (scope.lex().opt(lex::token_table)) {
 			return type_table;
+		} else if (scope.lex().opt(lex::token_nil)) {
+			return type_nil;
 		} else {
 			scope.lex().error("expected type name.");
-			return type_nil;
+			return type_invalid;
 		}
 	}
 
@@ -196,10 +198,10 @@ namespace li {
 		//
 		if (scope.lex().opt(lex::token_is)) {
 			auto t = parse_type(scope);
-			if (t == type_nil) {
+			if (t == type_invalid) {
 				return nullptr;
 			} else if (lhs.kind == expr::imm) {
-				out = expression(any(to_canonical_type_name(lhs.imm.type()) == t));
+				out = expression(any(lhs.imm.type() == t));
 				return nullptr;
 			} else {
 				auto r = lhs.to_nextreg(scope);
@@ -457,7 +459,9 @@ namespace li {
 	//
 	static bool is_table_init(func_scope& scope) {
 		auto& lex = scope.lex();
-		if (lex.lookahead() != lex::token_name) {
+		if (auto lh = lex.lookahead(); lh == '}') {
+			return true;
+		} else if (lh != lex::token_name) {
 			return false;
 		}
 
@@ -468,7 +472,6 @@ namespace li {
 		auto ll   = lex.scan();
 		lex.input = pi;
 		lex.line  = pl;
-		// printf("TBL INIT SAMPLE: '%s'\n", ll.to_string().c_str());
 		return (ll.id == ':' || ll.id == ',');
 	}
 

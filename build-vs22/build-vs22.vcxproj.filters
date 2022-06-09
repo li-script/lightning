@@ -31,7 +31,7 @@
     <ClCompile Include="..\src\vm\gc.cpp">
       <Filter>VM\Types</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\lib\std.cpp">
+    <ClCompile Include="..\src\lib\limath.cpp">
       <Filter>Library</Filter>
     </ClCompile>
     <ClCompile Include="..\src\util\platform.cpp">
@@ -89,7 +89,16 @@
     <ClCompile Include="..\src\ir\opt_const.cpp">
       <Filter>IR\Optimizations</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\lib\fs.cpp">
+    <ClCompile Include="..\src\lib\lifs.cpp">
+      <Filter>Library</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\lib\libuiltin.cpp">
+      <Filter>Library</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\lib\lidebug.cpp">
+      <Filter>Library</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\lib\lichrono.cpp">
       <Filter>Library</Filter>
     </ClCompile>
   </ItemGroup>

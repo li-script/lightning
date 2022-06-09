@@ -17,7 +17,7 @@ namespace li {
 		uint8_t code[];
 	};
 
-	// VM function.
+	// VM function prototype.
 	//
 	struct line_info {
 		msize_t ip : 18         = 0;
@@ -57,6 +57,15 @@ namespace li {
 			return n;
 		}
 	};
+
+	// Native function details.
+	// - Not GC allocated @ .data/.rdata.
+	//
+	struct nfunc_info {
+	};
+
+	// "Type" erased function type.
+	//
 	struct function : gc::node<function, type_function> {
 		// Creates a new instance given the prototype.
 		//
@@ -68,10 +77,11 @@ namespace li {
 
 		// Function details.
 		//
-		nfunc_t         invoke      = nullptr;  // Common function type for all calls.
-		msize_t         num_uval    = 0;        // Number of upvalues.
-		function_proto* proto       = nullptr;  // Function prototype (if VM).
-		any             upvalue_array[];
+		nfunc_t           invoke   = nullptr;  // Common function type for all calls.
+		msize_t           num_uval = 0;        // Number of upvalues.
+		function_proto*   proto    = nullptr;  // Function prototype (if VM).
+		const nfunc_info* ninfo    = nullptr;  // Native function information.
+		any               upvalue_array[];
 
 		// TODO: Fast function alternative with types for JIT.
 		//

@@ -5,6 +5,59 @@
 #include <string>
 #include <util/common.hpp>
 
+// Define IR types here as it's used in native builtins regardless of whether or not IR is even used.
+//
+namespace li::ir {
+	// Value types.
+	//
+	enum class type : uint8_t {
+		none,
+
+		// Integers.
+		//
+		i1,
+		i8,
+		i16,
+		i32,
+		i64,
+
+		// Floating point types.
+		//
+		f32,
+		f64,
+
+		// Wrapped type (li::any).
+		//
+		unk,
+
+		// VM types.
+		//
+		nil,
+		opq,
+		tbl,  // same order as gc types
+		udt,
+		arr,
+		fn,
+		proto,
+		str,
+
+		// Instruction stream types.
+		//
+		bb,
+
+		// Enums.
+		//
+		vmopr,
+		vmtrait,
+		vmtype,
+		irtype,
+
+		// Aliases.
+		//
+		ptr = i64,
+	};
+};
+
 #pragma pack(push, 1)
 namespace li {
 	struct vm;

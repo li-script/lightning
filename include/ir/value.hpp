@@ -13,55 +13,6 @@ namespace li::ir {
 	struct constant;
 	struct basic_block;
 	struct procedure;
-
-	// Value types.
-	//
-	enum class type : uint8_t {
-		none,
-
-		// Integers.
-		//
-		i1,
-		i8,
-		i16,
-		i32,
-		i64,
-
-		// Floating point types.
-		//
-		f32,
-		f64,
-
-		// Wrapped type.
-		//
-		unk,
-
-		// VM types.
-		//
-		nil,
-		opq,
-		tbl,  // same order as gc types
-		udt,
-		arr,
-		fn,
-		proto,
-		str,
-
-		// Instruction stream types.
-		//
-		bb,
-
-		// Enums.
-		//
-		vmopr,
-		vmtrait,
-		vmtype,
-		irtype,
-
-		// Aliases.
-		//
-		ptr = i64,
-	};
 	using operation = bc::opcode;
 
 	// Central value type.

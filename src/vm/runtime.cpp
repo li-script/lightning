@@ -4,14 +4,14 @@
 #include <vm/string.hpp>
 
 namespace li::runtime {
-	array* LI_C_CC array_new(vm* L, msize_t n) {
+	array* LI_CC array_new(vm* L, msize_t n) {
 		return array::create(L, n, 0);
 	}
-	table* LI_C_CC table_new(vm* L, msize_t n) {
+	table* LI_CC table_new(vm* L, msize_t n) {
 		return table::create(L, n);
 	}
 
-	uint64_t LI_C_CC field_set_raw(vm* L, uint64_t _unk, uint64_t _key, uint64_t _value) {
+	uint64_t LI_CC field_set_raw(vm* L, uint64_t _unk, uint64_t _key, uint64_t _value) {
 		any tbl(std::in_place, _unk);
 		any key(std::in_place, _key);
 		any val(std::in_place, _value);
@@ -41,7 +41,7 @@ namespace li::runtime {
 		return 0;
 	}
 
-	uint64_t LI_C_CC field_get_raw(vm* L, uint64_t _unk, uint64_t _key) {
+	uint64_t LI_CC field_get_raw(vm* L, uint64_t _unk, uint64_t _key) {
 		any tbl(std::in_place, _unk);
 		any key(std::in_place, _key);
 		if (key == nil) [[unlikely]] {

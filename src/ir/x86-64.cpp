@@ -1795,8 +1795,10 @@ namespace li::ir {
 
 void li::gc::destroy(vm* L, jfunction* o) {
 #if LI_VTUNE
-	iJIT_Method_Id mid = {o->uid};
-	iJIT_NotifyEvent(iJVM_EVENT_TYPE_METHOD_UNLOAD_START, &mid);
+	iJIT_Method_Load mload;
+	memset(&mload, 0, sizeof(iJIT_Method_Load));
+	mload.method_id = o->uid;
+	iJIT_NotifyEvent(iJVM_EVENT_TYPE_METHOD_UNLOAD_START, &mload);
 #endif
 }
 

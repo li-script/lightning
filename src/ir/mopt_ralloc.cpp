@@ -6,6 +6,10 @@
 	#define LI_RA_TEST_PRESSURE 0
 #endif
 
+#if LI_CLANG
+	#pragma clang diagnostic ignored "-Wunused-function"
+#endif
+
 namespace li::ir::opt {
 	static constexpr float  RA_PRIO_HOT_BIAS = 12.0f;
 

@@ -247,7 +247,9 @@ namespace li::ir::opt {
 
 				i.for_each_reg([&](const mreg& r, bool is_read) {
 					mreg* replace_with = nullptr;
-					if (r == vreg_args)
+					if (r == vreg_vm)
+						replace_with = &regs[0];
+					else if (r == vreg_args)
 						replace_with = &regs[1];
 					else if (r == vreg_nargs)
 						replace_with = &regs[2];

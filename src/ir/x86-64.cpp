@@ -45,6 +45,12 @@ namespace li::ir {
 	#define REG(x) get_reg_for(b, x->as<insn>())
 	#define YIELD(x) yield_value(b, i, x)
 
+	#if VM_AS_CONST
+		#define REF_VM() mop(intptr_t(b->source->L))
+	#else
+		#define REF_VM() mop(mreg(vreg_vm))
+	#endif
+
 	static mreg get_existing_reg(insn* i) {
 		mreg r = li::bit_cast<mreg>((msize_t) i->visited);
 		return r;
@@ -656,7 +662,7 @@ namespace li::ir {
 					}
 				}
 
-				b.append(vop::movi, arch::map_gp_arg(0, 0), mop(intptr_t(b->source->L)));
+				b.append(vop::movi, arch::map_gp_arg(0, 0), REF_VM());
 				type_erase(b, i->operands[1], arch::map_gp_arg(1, 0));
 				type_erase(b, i->operands[2], arch::map_gp_arg(2, 0));
 				type_erase(b, i->operands[3], arch::map_gp_arg(3, 0));
@@ -685,7 +691,7 @@ namespace li::ir {
 					}
 				}
 
-				b.append(vop::movi, arch::map_gp_arg(0, 0), mop(intptr_t(b->source->L)));
+				b.append(vop::movi, arch::map_gp_arg(0, 0), REF_VM());
 				type_erase(b, i->operands[1], arch::map_gp_arg(1, 0));
 				type_erase(b, i->operands[2], arch::map_gp_arg(2, 0));
 				b.append(vop::call, {}, (int64_t) &runtime::field_get_raw);
@@ -909,7 +915,7 @@ namespace li::ir {
 				int32_t gp_index = 0;
 				int32_t fp_index = 0;
 				if (i->operands[0]->as<constant>()->i1) {
-					b.append(vop::movi, arch::map_gp_arg(0, 0), mop(intptr_t(b->source->L)));
+					b.append(vop::movi, arch::map_gp_arg(0, 0), REF_VM());
 					gp_index++;
 				}
 
@@ -1029,7 +1035,7 @@ namespace li::ir {
 
 				// Set the arguments and call into it.
 				//
-				b.append(vop::movi, arch::map_gp_arg(0, 0), mop(intptr_t(b->source->L)));
+				b.append(vop::movi, arch::map_gp_arg(0, 0), REF_VM());
 				LEA(b, mreg(arch::map_gp_arg(1, 0)), mmem{.base = vreg_tos, .disp = -8 * (FRAME_SIZE + 1)});
 				b.append(vop::movi, arch::map_gp_arg(2, 0), i->operands[0]->as<constant>()->i32);
 				b.append(vop::call, {}, call_target);
@@ -1055,7 +1061,7 @@ namespace li::ir {
 				//
 				auto tmp = b->next_gp();
 				auto tmp2 = b->next_gp();
-				b.append(vop::movi, tmp2, mop(intptr_t(b->source->L)));
+				b.append(vop::movi, tmp2, REF_VM());
 				LEA(b, tmp, mmem{.base = vreg_args, .disp = 8 * (FRAME_SIZE + 1)});
 				b.append(vop::storei64, {}, mmem{.base = tmp2, .disp = offsetof(vm, stack_top)}, tmp);
 

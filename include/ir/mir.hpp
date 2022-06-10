@@ -24,14 +24,14 @@ namespace li::ir {
 	};
 	using preg = arch::reg;
 	enum vreg : int32_t {
-		//vreg_vm    = 1,  // arguments[0], vm*
-		vreg_args  = 1,  // arguments[1], any*
-		vreg_nargs = 2,  // arguments[2], int
-		vreg_tos   = 3,  // calculated from vreg_args + the final local size
-		vreg_cpool = 4,  // constant pool, rip-rel
-		vreg_first = 5,  // ...
+		vreg_vm    = 1,  // arguments[0], vm*
+		vreg_args  = 2,  // arguments[1], any*
+		vreg_nargs = 3,  // arguments[2], int
+		vreg_tos   = 4,  // calculated from vreg_args + the final local size
+		vreg_cpool = 5,  // constant pool, rip-rel
+		vreg_first = 6,  // ...
 	};
-	static constexpr const char* vreg_names[] = {"$null", "$args", "$nargs", "$tos", "$cpool"};
+	static constexpr const char* vreg_names[] = {"$vm", "$null", "$args", "$nargs", "$tos", "$cpool"};
 	struct mreg {
 		int32_t  id : 30 = 0;
 		regclass cl : 2  = regclass::null;

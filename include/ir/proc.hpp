@@ -257,7 +257,6 @@ namespace li::ir {
 		container basic_blocks;        // List of basic blocks, first is entry point.
 		msize_t   next_reg_name  = 0;  // Next register name.
 		msize_t   next_block_uid = 0;  // Next block uid.
-		msize_t   local_count    = 0;  // Number of locals we need on VM stack.
 
 		// Maximum local index for VCALL.
 		//

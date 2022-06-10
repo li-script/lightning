@@ -69,29 +69,28 @@ namespace li {
 
 	// Raw table get/set.
 	//
-	LI_INLINE static bool set_if(table* t, any key, any value, size_t hash) {
-		if (value == nil) {
-			for (auto& entry : t->find(hash)) {
-				if (entry.key == key) {
-					entry = {nil, nil};
-					t->active_count--;
-					return true;
-				}
-			}
-		}
-		for (auto& entry : t->find(hash)) {
-			if (entry.key == key) {
-				entry.value     = value;
-				return true;
-			}
-		}
-		return false;
-	}
 	void table::set(vm* L, any key, any value) {
 		size_t hash = key.hash();
-		if (!set_if(this, key, value, hash)) {
-			msize_t next_count = active_count + 1;
+		if (value != nil) [[likely]] {
+			msize_t      next_count   = active_count + 1;
+			table_entry* suitable_kv = nullptr;
+			for (auto& entry : find(hash)) {
+				if (entry.key == key) {
+					suitable_kv = &entry;
+					next_count--;
+					break;
+				} else if (entry.key == nil) {
+					suitable_kv = &entry;
+				}
+			}
+			if (suitable_kv) [[likely]] {
+				*suitable_kv = {key, value};
+				active_count  = next_count;
+				return;
+			}
+
 			while (true) {
+				resize(L, size() << 1);
 				for (auto& entry : find(hash)) {
 					if (entry.key == nil) {
 						entry        = {key, value};
@@ -99,7 +98,14 @@ namespace li {
 						return;
 					}
 				}
-				resize(L, size() << 1);
+			}
+		} else {
+			for (auto& entry : find(hash)) {
+				if (entry.key == key) {
+					entry = {nil, nil};
+					active_count--;
+					break;
+				}
 			}
 		}
 	}

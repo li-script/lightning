@@ -116,6 +116,13 @@ namespace li::lib {
 		util::export_as(L, "gc.debt", [](vm* L, any* args, slot_t n) {
 			return L->ok(gc::chunk_size * (number) L->gc.debt);
 		});
+		util::export_as(L, "gc.greedy", [](vm* L, any* args, slot_t n) {
+			if (n >= 1) {
+				L->gc.greedy = args->coerce_bool();
+				L->gc.collect(L);
+			}
+			return L->ok(L->gc.greedy);
+		});
 		util::export_as(L, "gc.interval", [](vm* L, any* args, slot_t n) {
 			if (n >= 1) {
 				if (!args->is_num())

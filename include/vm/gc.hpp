@@ -39,7 +39,7 @@ namespace li::gc {
 	static constexpr size_t   chunk_size            = 1ull << chunk_shift;
 	static constexpr uint32_t default_interval      = 1 << 14;
 	static constexpr size_t   default_min_debt      = 4096 / chunk_size;
-	static constexpr msize_t  default_max_debt      = minimum_allocation / (4 * chunk_size);
+	static constexpr msize_t  default_max_debt      = (3 * minimum_allocation) / (4 * chunk_size);
 
 	static constexpr size_t chunk_ceil(size_t v) { return (v + chunk_size - 1) & ~(chunk_size - 1); }
 	static constexpr size_t chunk_floor(size_t v) { return v & ~(chunk_size - 1); }
@@ -225,9 +225,10 @@ namespace li::gc {
 
 		// Configuration.
 		//
-		msize_t interval = default_interval;
-		msize_t max_debt = default_max_debt;
-		msize_t min_debt = default_min_debt;
+		msize_t interval = default_interval;  // Interval at which the GC ticks collect.
+		msize_t max_debt = default_max_debt;  // Maximum debt after which GC collects immediately.
+		msize_t min_debt = default_min_debt;  // Minimum debt before GC ticker starts counting.
+		bool    greedy   = true;              // Holds onto pages even if there are no objects in them.
 
 		// Scheduling details.
 		//
@@ -240,10 +241,6 @@ namespace li::gc {
 		//
 		std::array<header*, std::size(size_classes)> free_lists   = {nullptr};
 		header*                                      ex_free_list = nullptr;
-
-		// Dynamic configuration.
-		//
-		bool greedy = true; // Holds onto pages even if there are no objects in them.
 
 		// Page enumerator.
 		//

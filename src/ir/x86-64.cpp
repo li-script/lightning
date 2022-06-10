@@ -1785,11 +1785,19 @@ namespace li::ir {
 		mload.method_load_address = &out->code[0];
 		mload.method_size         = (uint32_t) asm_length;
 		mload.method_name         = (char*) "Lightning JIT Code";
+		out->uid                  = mload.method_id;
 		iJIT_NotifyEvent(iJVM_EVENT_TYPE_METHOD_LOAD_FINISHED, &mload);
-		// TODO: Line info, freeing, etc.
+		// TODO: Line info.
 	#endif
 		return out;
 	}
 };
+
+void li::gc::destroy(vm* L, jfunction* o) {
+#if LI_VTUNE
+	iJIT_Method_Id mid = {o->uid};
+	iJIT_NotifyEvent(iJVM_EVENT_TYPE_METHOD_UNLOAD_START, &mid);
+#endif
+}
 
 #endif

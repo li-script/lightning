@@ -49,11 +49,13 @@ namespace li {
 		type_number   = 11,
 
 		// GC aliases.
-		type_gc_free = type_bool,
+		type_gc_last_traitful = type_userdata,
+		type_gc_last          = 7,
+
+		type_gc_free,
 		type_gc_private,
 		type_gc_uninit,
-		type_gc_last             = 7,
-		type_gc_last_traitful    = type_userdata,
+		type_gc_jfunc,
 
 		// Invalid
 		type_invalid = 0xFF

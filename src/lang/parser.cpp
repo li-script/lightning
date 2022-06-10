@@ -5,6 +5,11 @@
 #include <vm/table.hpp>
 #include <util/utf.hpp>
 
+#if LI_CLANG
+	#pragma clang diagnostic ignored "-Wunused-function"
+	#pragma clang diagnostic ignored "-Wswitch"
+#endif
+
 namespace li {
 	// Operator traits for parsing.
 	//

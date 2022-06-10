@@ -15,6 +15,7 @@ namespace li {
 	struct array;
 	struct table;
 	struct function;
+	struct jfunction;
 	struct function_proto;
 	struct string_set;
 };
@@ -31,9 +32,9 @@ namespace li::gc {
 	void traverse(stage_context s, string_set* o);
 	void traverse(stage_context s, userdata* o);
 
-	void destroy(vm* L, array* o);
 	void destroy(vm* L, table* o);
 	void destroy(vm* L, userdata* o);
+	void destroy(vm* L, jfunction* o);
 
 	// GC configuration.
 	//

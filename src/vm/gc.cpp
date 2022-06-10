@@ -209,8 +209,10 @@ namespace li::gc {
 		//
 		switch (o->gc_type) {
 			case type_table:    destroy(L, (table*) o);    break;
-			case type_array:    destroy(L, (array*) o);    break;
 			case type_userdata: destroy(L, (userdata*) o); break;
+#if LI_JIT
+			case type_gc_jfunc: destroy(L, (jfunction*) o); break;
+#endif
 			default: break;
 		}
 #if LI_DEBUG

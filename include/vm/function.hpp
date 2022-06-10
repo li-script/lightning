@@ -8,10 +8,9 @@
 namespace li {
 	// JIT code.
 	//
-	struct jfunction : gc::exec_leaf<jfunction> {
-		// For 16-byte alignment.
-		//
-		uint64_t rsvd;
+	struct jfunction : gc::exec_leaf<jfunction, type_gc_jfunc> {
+		uint32_t uid;   // For VTune.
+		uint32_t rsvd;  // Alignment to 16-bytes.
 
 		// Generated code.
 		//

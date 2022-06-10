@@ -11,8 +11,6 @@ namespace li {
 
 	// GC enumerator.
 	//
-	void gc::destroy(vm* L, array* o) {
-	}
 	void gc::traverse(gc::stage_context s, array* o) {
 		if (o->storage)
 			o->storage->gc_tick(s);

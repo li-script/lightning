@@ -19,7 +19,7 @@ namespace li::ir::opt {
 		// Helper to replace an instruction with call.
 		//
 		auto replace_with_call = [&] (instruction_iterator i, bool vm, type ret, auto* fn, auto&&... args) {
-			auto nit = builder{}.emit_after<ccall>(i.at, vm, ret, (intptr_t) bit_cast<void*>(fn), args...);
+			auto nit = builder{}.emit_after<ccall>(i.at, vm, ret, (intptr_t) li::bit_cast<void*>(fn), args...);
 			i->replace_all_uses(nit.at);
 			i->erase();
 			return instruction_iterator(nit);

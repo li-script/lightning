@@ -46,7 +46,7 @@ namespace li {
 	LI_NOINLINE bool vm_invoke(vm* L, any* args, slot_t n_args) {
 		// Push the return frame for previous function.
 		//
-		auto caller = bit_cast<call_frame>(L->peek_stack().as_opq());
+		auto caller = li::bit_cast<call_frame>(L->peek_stack().as_opq());
 		LI_ASSERT(&args[2] == &L->stack_top[FRAME_TARGET]);
 		any* __restrict locals_begin = args + FRAME_SIZE + 1;
 
@@ -497,7 +497,7 @@ namespace li {
 					call_frame cf{.stack_pos = msize_t(locals_begin - L->stack), .caller_pc = msize_t(ip - opcode_array)};
 					auto       argspace = L->stack_top - 2;
 					L->push_stack(REG(b));
-					L->push_stack(bit_cast<opaque>(cf));
+					L->push_stack(li::bit_cast<opaque>(cf));
 					if (!vm_invoke(L, argspace, a)) [[unlikely]] {
 						VM_RET(L->stack_top[FRAME_RET], true);
 					}

@@ -124,7 +124,7 @@ namespace li {
 		//
 		inline constexpr any() : value(make_tag(type_nil)) {}
 		inline constexpr any(bool v) : value(mix_value(type_bool, v?1:0)) {}
-		inline constexpr any(number v) : value(bit_cast<uint64_t>(v)) {
+		inline constexpr any(number v) : value(li::bit_cast<uint64_t>(v)) {
 			if (v != v) [[unlikely]]
 				value = kvalue_nan;
 		}
@@ -158,7 +158,7 @@ namespace li {
 		// Getters.
 		//
 		inline constexpr bool   as_bool() const { return value & 1; }
-		inline constexpr number as_num() const { return bit_cast<number>(value); }
+		inline constexpr number as_num() const { return li::bit_cast<number>(value); }
 		inline constexpr opaque as_opq() const { return {.bits = mask_value(value)}; }
 		inline gc::header*      as_gc() const { return get_gc_value(value); }
 		inline array*           as_arr() const { return (array*) as_gc(); }

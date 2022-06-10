@@ -7,6 +7,7 @@
 #include <util/platform.hpp>
 #include <vm/gc.hpp>
 #include <lib/fs.hpp>
+#include <util/fastlock.hpp>
 
 #ifndef LI_STACK_SIZE
 	#define LI_STACK_SIZE (4 * 1024 * 1024)
@@ -76,12 +77,13 @@ namespace li {
 
 		// VM state.
 		//
-		gc::state   gc           = {};                // Garbage collector.
-		string_set* strset       = nullptr;           // String interning state
-		string*     empty_string = nullptr;           // Constant "".
-		table*      modules      = nullptr;           // Module table.
-		table*      repl_scope   = nullptr;           // Repl scope.
-		uint64_t    prng_seed    = platform::srng();  // PRNG seed.
+		gc::state      gc           = {};                // Garbage collector.
+		string_set*    strset       = nullptr;           // String interning state
+		string*        empty_string = nullptr;           // Constant "".
+		table*         modules      = nullptr;           // Module table.
+		table*         repl_scope   = nullptr;           // Repl scope.
+		uint64_t       prng_seed    = platform::srng();  // PRNG seed.
+		util::fastlock lock         = {};                // Lock protecting the VM.
 
 		// VM hooks.
 		//
@@ -169,7 +171,7 @@ namespace li {
 			push_stack(self);
 			push_stack(fn);
 			call_frame cf{.stack_pos = last_vm_caller.stack_pos, .caller_pc = msize_t(last_vm_caller.caller_pc | FRAME_C_FLAG)};
-			push_stack(bit_cast<opaque>(cf));
+			push_stack(li::bit_cast<opaque>(cf));
 			bool ok   = vm_invoke(this, &this->stack_top[-1 - FRAME_SIZE], n_args);
 			*req_slot = stack_top[FRAME_RET];
 			stack_top = req_slot + 1;
@@ -199,23 +201,31 @@ namespace li {
 		}
 	};
 
+	// RAII helper to acquire VM lock if user plans using it in a multi-threaded fashion.
+	//
+	struct vm_thread_guard {
+		std::unique_lock<util::fastlock> lock;
+		vm_thread_guard() = default;
+		vm_thread_guard(vm* L) : lock(L->lock) {}
+	};
+
 	// RAII helper to acquire VM state if user plans on calling any virtual functions or using stack trace info.
 	//
-	struct vm_guard {
+	struct vm_stack_guard {
 		vm* L;
 		call_frame prev_frame;
 		any*       prev_stack;
-		vm_guard(vm* L, any* a) : L(L) {
+		vm_stack_guard(vm* L, any* a) : L(L) {
 			if (&a[3] >= L->stack_top) {
 				// Called from C.
 				L = nullptr;
 			} else {
 				prev_frame        = L->last_vm_caller;
-				L->last_vm_caller = bit_cast<call_frame>(a[3].as_opq());
+				L->last_vm_caller = li::bit_cast<call_frame>(a[3].as_opq());
 				prev_stack        = L->stack_top;
 			}
 		}
-		~vm_guard() {
+		~vm_stack_guard() {
 			if (L) [[likely]] {
 				LI_ASSERT(L->stack_top == prev_stack);
 				L->last_vm_caller = prev_frame;
@@ -224,7 +234,7 @@ namespace li {
 
 		// No copy.
 		//
-		vm_guard(const vm_guard&) = delete;
-		vm_guard& operator=(const vm_guard&) = delete;
+		vm_stack_guard(const vm_stack_guard&)      = delete;
+		vm_stack_guard& operator=(const vm_stack_guard&) = delete;
 	};
 }

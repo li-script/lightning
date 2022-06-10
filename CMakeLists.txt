@@ -116,6 +116,7 @@ list(APPEND libli_SOURCES
 	"include/util/bitset.hpp"
 	"include/util/common.hpp"
 	"include/util/enuminfo.hpp"
+	"include/util/fastlock.hpp"
 	"include/util/format.hpp"
 	"include/util/func.hpp"
 	"include/util/llist.hpp"

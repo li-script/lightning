@@ -46,7 +46,7 @@ namespace li::ir {
 	#define YIELD(x) yield_value(b, i, x)
 
 	static mreg get_existing_reg(insn* i) {
-		mreg r = std::bit_cast<mreg>((msize_t) i->visited);
+		mreg r = li::bit_cast<mreg>((msize_t) i->visited);
 		return r;
 	}
 	static mreg yield_value(mblock& b, insn* i, mop r) {
@@ -65,7 +65,7 @@ namespace li::ir {
 			} else {
 				dst = r.reg;
 			}
-			i->visited = std::bit_cast<msize_t>(dst);
+			i->visited = li::bit_cast<msize_t>(dst);
 		}
 		return get_existing_reg(i);
 	}
@@ -1015,7 +1015,7 @@ namespace li::ir {
 				b.append(vop::movi, tmp3, mop(intptr_t(&b->source->L->stack[0])));
 				SUB(b, tmp2, tmp3);
 				SHR(b, tmp2, 3);
-				b.append(vop::movi, tmp3, mop(intptr_t(any(bit_cast<opaque>(cf)).value)));
+				b.append(vop::movi, tmp3, mop(intptr_t(any(li::bit_cast<opaque>(cf)).value)));
 				OR(b, tmp2, tmp3);
 				b.append(vop::storei64, {}, mmem{.base = vreg_tos, .disp = -8}, tmp2);
 
@@ -1106,7 +1106,7 @@ namespace li::ir {
 					if (auto r2 = get_existing_reg(src)) {
 						LI_ASSERT(r == r2);
 					} else {
-						src->visited = std::bit_cast<msize_t>(r);
+						src->visited = li::bit_cast<msize_t>(r);
 					}
 				}
 			}

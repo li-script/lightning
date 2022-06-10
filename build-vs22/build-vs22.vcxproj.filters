@@ -246,6 +246,9 @@
     <ClInclude Include="..\include\lib\fs.hpp">
       <Filter>Library</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\util\fastlock.hpp">
+      <Filter>Utility</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\.clang-format" />

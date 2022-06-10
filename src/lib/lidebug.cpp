@@ -11,7 +11,7 @@ namespace li::lib {
 	//
 	void register_debug(vm* L) {
 		util::export_as(L, "debug.stacktrace", [](vm* L, any* args, slot_t n) {
-			vm_guard _g{L, args};
+			vm_stack_guard _g{L, args};
 
 			auto result = array::create(L, 0, 10);
 			auto cstr   = string::create(L, "C");
@@ -37,7 +37,7 @@ namespace li::lib {
 
 				auto ref = L->stack[frame.stack_pos + FRAME_CALLER];
 				if (ref.is_opq()) {
-					frame = bit_cast<call_frame>(ref.as_opq());
+					frame = li::bit_cast<call_frame>(ref.as_opq());
 				} else {
 					break;
 				}

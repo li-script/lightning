@@ -2,7 +2,7 @@
 #include <util/platform.hpp>
 #include <vm/state.hpp>
 
-#ifdef _WIN32
+#if LI_WINDOWS
 	#define NOMINMAX
 	#define WIN32_LEAN_AND_MEAN
 	#include <Windows.h>
@@ -21,10 +21,10 @@ extern "C" {
 namespace li::platform {
 	uint64_t srng() {
 		std::random_device dev {};
-		return bit_cast<uint64_t>(std::array<uint32_t, 2>{dev(), dev()});
+		return li::bit_cast<uint64_t>(std::array<uint32_t, 2>{dev(), dev()});
 	}
 
-#ifdef _WIN32
+#if LI_WINDOWS
 	void* page_alloc(void*, void* pointer, size_t page_count, bool executable) {
 		if (pointer) {
 			SIZE_T region_size = 0;

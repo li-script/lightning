@@ -27,7 +27,7 @@ namespace li::lib {
 		// Rotate until mantissa is at the bottom, add 0.5 to shift from [-0.5, +0.5] to [0.0, 1.0].
 		//
 		v        = std::rotl(v, mantissa_bits);
-		double r = bit_cast<double>(v) + 0.5;
+		double r = li::bit_cast<double>(v) + 0.5;
 
 		// If no args given, return.
 		//
@@ -76,7 +76,7 @@ namespace li::lib {
 			return L->ok(any(LI_STRCAT(__math_, NAME)(args[0].as_num())));				  \
 		},																									  \
 		.overloads = {nfunc_overload{																  \
-		  .cfunc = bit_cast<const void*>(&LI_STRCAT(__math_, NAME)),					  \
+		  .cfunc = li::bit_cast<const void*>(&LI_STRCAT(__math_, NAME)),				  \
 		  .ret   = ir::type::f64,																	  \
 		  .args  = {ir::type::f64},																  \
 		}}																									  \
@@ -95,7 +95,7 @@ namespace li::lib {
 			return L->ok(any(LI_STRCAT(__math_, NAME)(args[0].as_num(), args[-1].as_num())));	\
 		},																													\
 		.overloads = {nfunc_overload{																				\
-		  .cfunc = bit_cast<const void*>(&LI_STRCAT(__math_, NAME)),									\
+		  .cfunc = li::bit_cast<const void*>(&LI_STRCAT(__math_, NAME)),								\
 		  .ret   = ir::type::f64,																					\
 		  .args  = {ir::type::f64, ir::type::f64},															\
 		}}																													\

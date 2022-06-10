@@ -91,9 +91,9 @@ namespace li::ir {
 
 		// Comparison.
 		//
-		constexpr bool operator==(const mreg& o) const { return bit_cast<int32_t>(*this) == bit_cast<int32_t>(o); }
-		constexpr bool operator!=(const mreg& o) const { return bit_cast<int32_t>(*this) != bit_cast<int32_t>(o); }
-		constexpr bool operator<(const mreg& o) const { return bit_cast<int32_t>(*this) < bit_cast<int32_t>(o); }
+		constexpr bool operator==(const mreg& o) const { return li::bit_cast<int32_t>(*this) == li::bit_cast<int32_t>(o); }
+		constexpr bool operator!=(const mreg& o) const { return li::bit_cast<int32_t>(*this) != li::bit_cast<int32_t>(o); }
+		constexpr bool operator<(const mreg& o) const { return li::bit_cast<int32_t>(*this) < li::bit_cast<int32_t>(o); }
 
 		// String conversion.
 		//

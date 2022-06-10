@@ -9,7 +9,7 @@ namespace li::lib {
 	//
 	void detail::register_builtin(vm* L) {
 		util::export_as(L, "builtin.pcall", [](vm* L, any* args, slot_t n) {
-			vm_guard _g{L, args};
+			vm_stack_guard _g{L, args};
 			if (n < 2) {
 				return L->error("expected 2 or more arguments.");
 			}
@@ -40,7 +40,7 @@ namespace li::lib {
 			return L->ok();
 		});
 		util::export_as(L, "builtin.loadstring", [](vm* L, any* args, slot_t n) {
-			vm_guard _g{L, args};
+			vm_stack_guard _g{L, args};
 			if (n != 1 || !args->is_str()) {
 				return L->error("expected string");
 			}
@@ -51,7 +51,7 @@ namespace li::lib {
 				return L->ok(res);
 		});
 		util::export_as(L, "builtin.eval", [](vm* L, any* args, slot_t n) {
-			vm_guard _g{L, args};
+			vm_stack_guard _g{L, args};
 			if (n != 1 || !args->is_str()) {
 				return L->error("expected string");
 			}
@@ -72,7 +72,7 @@ namespace li::lib {
 			return L->ok(table::create(L, r));
 		});
 		util::export_as(L, "builtin.assert", [](vm* L, any* args, slot_t n) {
-			vm_guard _g{L, args};
+			vm_stack_guard _g{L, args};
 			if (!n || args->coerce_bool())
 				return L->ok();
 

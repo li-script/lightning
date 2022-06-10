@@ -45,9 +45,26 @@
 	#define LI_32 1
 #endif
 
+// Detect platform.
+//
+#if defined(_WIN64) || defined(_WIN32)
+	#define LI_WINDOWS 1
+#elif defined(__APPLE__) || defined(__MACH__)
+	#define LI_OSX 1
+#elif defined(__EMSCRIPTEN__)
+	#define LI_EMSCRIPTEN 1
+#elif defined(__linux__) || defined(__unix__) || defined(__unix)
+	#define LI_UNIX 1
+#else
+	#error "Unknown target OS."
+#endif
+
 // Detect compiler.
 //
-#if defined(__GNUC__) || defined(__clang__)
+#if defined(__clang__)
+	#define LI_GNU   1
+	#define LI_CLANG 1
+#elif defined(__GNUC__)
 	#define LI_GNU 1
 #else
 	#define LI_GNU 0
@@ -77,7 +94,7 @@
 // Detect ABI.
 //
 #if LI_ARCH_X86 && !LI_32
-	#if _WIN32
+	#if LI_WINDOWS
 		#define LI_ABI_MS64 1
 	#else
 		#define LI_ABI_SYSV64 1
@@ -189,7 +206,7 @@ namespace li {
 
 	// Implement bit-cast since many STL's lack it despite compiler support.
 	//
-	template<class To, typename From> requires(sizeof(To) == sizeof(From))
+	template<class To, typename From>
 	inline static constexpr To bit_cast(const From& x) noexcept {
 		return __builtin_bit_cast(To, x);
 	}

@@ -1041,7 +1041,7 @@ namespace li {
 				// If there is a catch pad, just jump to it, otherwise use THRW.
 				//
 				if (scope.lbl_catchpad != 0) {
-					res.to_reg(scope, scope.caught_value);
+					res.to_reg(scope, FRAME_RET);
 					scope.emit(bc::JMP, scope.lbl_catchpad);
 				} else {
 					scope.emit(bc::THRW, res.to_anyreg(scope));
@@ -1897,12 +1897,10 @@ namespace li {
 		// Allocate the labels and a register for the catchpad.
 		//
 		auto catch_pad = scope.make_label();
-		auto catch_val = scope.alloc_reg();
 		auto no_throw  = scope.make_label();
 		auto pc        = std::exchange(scope.lbl_catchpad, catch_pad);
-		auto pv        = std::exchange(scope.caught_value, catch_val);
 
-		scope.emit(bc::SETEH, catch_pad, catch_val);
+		scope.emit(bc::SETEH, catch_pad);
 
 		// Reserve next register for block result, initialize to nil.
 		//
@@ -1925,11 +1923,10 @@ namespace li {
 		//
 		scope.set_label_here(scope.lbl_catchpad);
 
-		// Restore the labels.
+		// Restore the label.
 		//
-		scope.caught_value = pv;
 		scope.lbl_catchpad = pc;
-		scope.emit(bc::SETEH, pc, pv);
+		scope.emit(bc::SETEH, pc);
 
 		// Parse the catch block.
 		//
@@ -1940,7 +1937,8 @@ namespace li {
 
 			if (iscope.lex().opt('(')) {
 				if (auto errv = iscope.lex().opt(lex::token_name)) {
-					iscope.locals.push_back({errv->str_val, false, catch_val});
+					auto r = iscope.add_local(errv->str_val, false);
+					iscope.emit(bc::MOV, r, FRAME_RET);
 				}
 				if (iscope.lex().check(')') == lex::token_error) {
 					return {};

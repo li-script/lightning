@@ -621,7 +621,7 @@ namespace li::ir {
 				return;
 			}
 			case opcode::store_local: {
-				local_store(b, RIi(i->operands[0]), REG(i->operands[1]));
+				local_store(b, RIi(i->operands[0]), RI(i->operands[1]));
 				return;
 			}
 

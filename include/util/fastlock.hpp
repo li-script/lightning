@@ -97,6 +97,7 @@ namespace li::util {
 			return true;
 		}
 		LI_COLD void try_lock_slow(uintptr_t tid) {
+			signal.store(1, std::memory_order::relaxed);
 			while (true) {
 				uintptr_t expected = 0;
 				if (!owner.compare_exchange_strong(expected, tid) && expected != tid) {

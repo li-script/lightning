@@ -11,13 +11,12 @@ namespace li {
 	//
 #define VM_RET(value, ex)                                    \
 	do {                                                      \
+		locals_begin[FRAME_RET] = value;                       \
 		if (ex && catchpad_i) [[unlikely]] {                   \
-			*catchpad_v  = value;                               \
 			ip           = catchpad_i;                          \
 			L->stack_top = locals_begin + f->proto->num_locals; \
 			continue;                                           \
 		}                                                      \
-		locals_begin[FRAME_RET] = value;                       \
 		L->stack_top            = locals_begin;                \
 		return !ex;                                            \
 	} while (0)
@@ -44,8 +43,6 @@ namespace li {
 	#define KVAL(...) f->proto->kvals()[(__VA_ARGS__)]
 #endif
 	LI_NOINLINE bool vm_invoke(vm* L, any* args, slot_t n_args) {
-		// Push the return frame for previous function.
-		//
 		auto caller = li::bit_cast<call_frame>(L->peek_stack().as_opq());
 		LI_ASSERT(&args[2] == &L->stack_top[FRAME_TARGET]);
 		any* __restrict locals_begin = args + FRAME_SIZE + 1;
@@ -98,7 +95,6 @@ namespace li {
 		};
 #endif
 		const bc::insn* __restrict catchpad_i = nullptr;
-		any* catchpad_v                       = nullptr;
 		const auto* __restrict opcode_array = &f->proto->opcode_array[0];
 		const auto* __restrict ip           = opcode_array;
 		while (true) {
@@ -486,10 +482,8 @@ namespace li {
 				case bc::SETEH: {
 					if (a) {
 						catchpad_i = ip + a;
-						catchpad_v = &REG(b);
 					} else {
 						catchpad_i = nullptr;
-						catchpad_v = nullptr;
 					}
 					continue;
 				}

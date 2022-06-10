@@ -295,9 +295,6 @@ namespace li {
 					}
 
 					if (tbl.is_tbl()) {
-						if (tbl.as_tbl()->trait_freeze) [[unlikely]] {
-							VM_RET(string::create(L, "modifying frozen table."), true);
-						}
 						tbl.as_tbl()->set(L, key, val);
 						L->gc.tick(L);
 					} else if (tbl.is_arr()) {

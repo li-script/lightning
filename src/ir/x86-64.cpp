@@ -1656,18 +1656,15 @@ namespace li::ir {
 			// Allocate space and align stack.
 			//
 			int  num_fp_used = std::popcount(proc->used_fp_mask >> std::size(arch::fp_volatile));
-			auto alloc_bytes = num_fp_used * 0x10 + proc->used_stack_length - 8;
-			alloc_bytes      = ((push_count & 1) ? 0x0 : 0x8) + ((alloc_bytes & ~0xF) + 0x10);
+			auto alloc_bytes = num_fp_used * 0x10 + ((proc->used_stack_length + 0xF) & ~0xF);
+			auto fp_save_end = alloc_bytes;
+			alloc_bytes += (push_count & 1) ? 0x0 : 0x8;
 			LI_ASSERT(zy::encode(prologue, ZYDIS_MNEMONIC_SUB, arch::sp, alloc_bytes));
-
-			// Allocate VM stack.
-			//
-			LI_ASSERT(zy::encode(prologue, ZYDIS_MNEMONIC_ADD, zy::mem{.size = 8, .base = arch::gp_argument[0], .disp = offsetof(vm, stack_top)}, (proc->max_stack_slot - FRAME_SIZE) * 8));
 
 			// Save vector registers.
 			//
-			constexpr auto vector_move = USE_AVX ? ZYDIS_MNEMONIC_VMOVUPD : ZYDIS_MNEMONIC_MOVUPD;
-			zy::mem vsave_it{.size = 0x10, .base = arch::sp, .disp = alloc_bytes};
+			constexpr auto vector_move = USE_AVX ? ZYDIS_MNEMONIC_VMOVAPS : ZYDIS_MNEMONIC_MOVAPS;
+			zy::mem vsave_it{.size = 0x10, .base = arch::sp, .disp = fp_save_end};
 			for (size_t i = std::size(arch::fp_volatile); i != arch::num_fp_reg; i++) {
 				if ((proc->used_fp_mask >> i) & 1) {
 					vsave_it.disp -= 0x10;
@@ -1675,13 +1672,16 @@ namespace li::ir {
 				}
 			}
 
+			// Allocate VM stack.
+			//
+			LI_ASSERT(zy::encode(prologue, ZYDIS_MNEMONIC_ADD, zy::mem{.size = 8, .base = arch::gp_argument[0], .disp = offsetof(vm, stack_top)}, (proc->max_stack_slot - FRAME_SIZE) * 8));
+
 			// Generate the opposite as epilogue.
 			//
-			vsave_it.disp = alloc_bytes;
+			vsave_it.disp = fp_save_end;
 			for (size_t i = std::size(arch::fp_volatile); i != arch::num_fp_reg; i++) {
 				if ((proc->used_fp_mask >> i) & 1) {
 					vsave_it.disp -= 0x10;
-					constexpr auto vector_move = USE_AVX ? ZYDIS_MNEMONIC_VMOVUPD : ZYDIS_MNEMONIC_MOVUPD;
 					LI_ASSERT(zy::encode(epilogue, vector_move, arch::fp_nonvolatile[i - std::size(arch::fp_volatile)], vsave_it));
 				}
 			}

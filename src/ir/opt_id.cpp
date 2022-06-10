@@ -5,18 +5,20 @@
 
 namespace li::ir::opt {
 
-	// TODO: Global.
-	//
 	static bool is_identical(const value* a, const value* b) {
 		if (a == b) {
 			return true;
 		}
 		if (a->is<insn>() && b->is<insn>()) {
-			//auto* ai = a->as<insn>();
-			//auto* bi = b->as<insn>();
-			//if (ai->opc == bi->opc && ai->is_pure) {
-			//
-			//}
+			auto ai = a->as<insn>();
+			auto bi = b->as<insn>();
+			if (ai->sideffect || !ai->is_pure)
+				return false;
+			if (ai->opc == bi->opc && ai->operands.size() == bi->operands.size()) {
+				if (std::equal(ai->operands.begin(), ai->operands.end(), bi->operands.begin(), is_identical)) {
+					return true;
+				}
+			}
 			// TODO: Trace until common dominator to ensure no side effects, compare by value.
 			// ^ once this is done, can also be used for PHI nodes.
 		}
@@ -28,18 +30,31 @@ namespace li::ir::opt {
 	void fold_identical(procedure* proc, bool local) {
 		for (auto& bb : proc->basic_blocks) {
 			for (insn* ins : view::reverse(bb->insns())) {
-				if (ins->is_pure && !ins->sideffect && !ins->is_volatile) {
+				if (!ins->is_volatile) {
 					insn* found = nullptr;
-
+					bool  fail  = false;
 					for (insn* ins2 : bb->before(ins)) {
-						if (ins2->opc == ins->opc && ins2->operands.size() == ins->operands.size()) {
-							if (std::equal(ins->operands.begin(), ins->operands.end(), ins2->operands.begin(), is_identical)) {
+						if (is_identical(ins, ins2)) {
+							found = ins2;
+							break;
+						}
+						if (ins2->sideffect && !ins->is_const) {
+							fail = true;
+							break;
+						}
+					}
+
+					// TODO: Global.
+					//
+					if (!fail && !found && bb->predecessors.size() == 1) {
+						for (insn* ins2 : bb->predecessors.back()->insns()) {
+							if (is_identical(ins, ins2)) {
 								found = ins2;
 								break;
 							}
-						}
-						if (ins2->sideffect && !ins->is_pure) {
-							break;
+							if (ins2->sideffect && !ins->is_const) {
+								break;
+							}
 						}
 					}
 					if (found)

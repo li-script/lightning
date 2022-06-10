@@ -10,6 +10,10 @@ namespace li::ir::opt {
 	//
 	void lift_phi(procedure* proc);
 
+	// Re-schedules GC ticks.
+	//
+	void schedule_gc(procedure* proc);
+
 	// Applies constant folding.
 	//
 	void fold_constant(procedure* proc);

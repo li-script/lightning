@@ -104,6 +104,9 @@
     <ClCompile Include="..\src\lib\lijit.cpp">
       <Filter>Library</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\ir\opt_gcsched.cpp">
+      <Filter>IR\Optimizations</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Language">

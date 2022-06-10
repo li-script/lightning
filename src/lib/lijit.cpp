@@ -28,6 +28,7 @@ namespace li::lib {
 
 			auto proc = lift_bc(L, args->as_fn()->proto);
 			opt::lift_phi(proc.get());
+			opt::schedule_gc(proc.get());
 
 			opt::fold_constant(proc.get());
 			opt::fold_identical(proc.get());

@@ -230,7 +230,7 @@ namespace li {
 	// Fills the any[] with nones.
 	//
 	static void fill_nil(void* data, size_t count) {
-		std::fill_n((uint64_t*) data, count, nil.value);
+		std::fill_n((uint64_t*) data, count, make_tag(type_nil));
 	}
 };
 #pragma pack(pop)

@@ -35,6 +35,10 @@ namespace li::ir {
 		unop,   // No traits allowed at MIR, must be typed.
 		binop,  // No traits allowed at MIR, must be typed.
 
+		// Ticks the garbage collector.
+		//
+		gc_tick,
+
 		// Upvalue.
 		//
 		uval_get,
@@ -359,6 +363,14 @@ namespace li::ir {
 			LI_ASSERT(operands.size() == 2);
 			LI_ASSERT(operands[0]->is(type::fn));
 			LI_ASSERT(operands[1]->is(type::i32));
+		}
+	};
+	// none  gc_tick()
+	struct gc_tick final : insn_tag<gc_tick, opcode::gc_tick> {
+		void update() override {
+			is_pure   = false;
+			sideffect = true;
+			LI_ASSERT(operands.size() == 0);
 		}
 	};
 	// none   uval_set(vfn, i32, unk)

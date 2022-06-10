@@ -3,8 +3,23 @@
 #include <vm/table.hpp>
 #include <vm/string.hpp>
 #include <span>
+#include <cmath>
 
 namespace li::gc {
+	static constexpr uint32_t small_class_count   = 8;
+	static constexpr uint32_t max_realistic_alloc = 2 * 1024 * 1024 / chunk_size;
+	static int size_class_of(uint32_t nchunks, bool for_alloc) {
+		if (nchunks <= small_class_count) {
+			return nchunks - 1;
+		}
+		nchunks -= small_class_count;
+		float f = std::min(1.0f, sqrtf(float(nchunks)) * sqrtf(1.0f / max_realistic_alloc));
+		if (for_alloc)
+         return small_class_count + (int) roundf((num_size_classes - small_class_count - 1) * f);
+      else
+         return small_class_count + (int) floorf((num_size_classes - small_class_count - 1) * f);
+	}
+
 	void header::gc_init(page* p, vm* L, msize_t clen, value_type t) {
 		gc_type        = t;
 		num_chunks     = clen;
@@ -44,66 +59,73 @@ namespace li::gc {
 	std::pair<page*, header*> state::allocate_uninit(vm* L, msize_t clen) {
 		LI_ASSERT(clen != 0);
 
+		// Fast path for small sizes.
+		//
+		if (clen <= small_class_count) [[likely]] {
+			auto& fl = free_lists[clen - 1];
+			if (fl) [[likely]] {
+				auto* it          = std::exchange(fl, fl->get_next_free());
+				auto* page        = it->get_page();
+				it->gc_type       = type_gc_uninit;
+				it->indep_or_free = false;
+				page->num_objects++;
+				return {page, it};
+			}
+		}
+
 		// Try allocating from a free list.
 		//
-		auto try_alloc_class = [&](size_t scl, bool excess) LI_INLINE -> std::pair<page*, header*> {
-			header* it   = free_lists[scl];
-			header* prev = nullptr;
-			while (it) {
-				if (excess || it->num_chunks >= clen) {
-					// Unlink the entry.
-					//
-					if (prev) {
-						prev->set_next_free(it->get_next_free());
-					} else {
-						free_lists[scl] = it->get_next_free();
-					}
+		auto* free_list = &free_lists[size_class_of(clen, true)];
+		if (!*free_list && free_list != &free_lists[num_size_classes-1])
+			free_list++;
 
-					// Get the page and change the type.
-					//
-					auto* page  = it->get_page();
-					it->gc_type = type_gc_uninit;
-					it->indep_or_free = false;
-					page->num_objects++;
-
-					// If we didn't allocate all of the space, re-insert into the free-list.
-					//
-					if (msize_t leftover = it->num_chunks - clen) {
-						it->num_chunks   = clen;
-						auto& free_list  = free_lists[size_class_of(leftover)];
-						auto* fh2        = it->next();
-						fh2->gc_type     = type_gc_free;
-						fh2->indep_or_free = true;
-						fh2->num_chunks  = leftover;
-						fh2->page_offset = (uintptr_t(fh2) - uintptr_t(page)) >> 12;
-						fh2->set_next_free(free_list);
-						free_list = fh2;
-					}
-
-					// Return the result.
-					//
-					return {page, it};
-				} else {
-					prev = it;
-					it   = it->get_next_free();
-				}
+		header* prev = nullptr;
+		header* it   = *free_list;
+		while (it) {
+			if (it->num_chunks < clen) [[unlikely]] {
+				prev = it;
+				it   = it->get_next_free();
+				continue;
 			}
-			return {nullptr, nullptr};
-		};
-		{
-			size_t size_class = size_class_of(clen);
-			auto   alloc      = try_alloc_class(size_class, false);
-			if (!alloc.second && ++size_class != std::size(size_classes)) {
-				alloc = try_alloc_class(size_class, true);
+
+			// Unlink the entry.
+			//
+			if (prev) {
+				prev->set_next_free(it->get_next_free());
+			} else {
+				*free_list = it->get_next_free();
 			}
-			if (alloc.second)
-				return alloc;
+
+			// Get the page and change the type.
+			//
+			auto* page        = it->get_page();
+			it->gc_type       = type_gc_uninit;
+			it->indep_or_free = false;
+			page->num_objects++;
+
+			// If we didn't allocate all of the space, re-insert into the free-list.
+			//
+			if (msize_t leftover = it->num_chunks - clen) {
+				it->num_chunks     = clen;
+				auto& free_list    = free_lists[size_class_of(leftover, false)];
+				auto* fh2          = it->next();
+				fh2->gc_type       = type_gc_free;
+				fh2->indep_or_free = true;
+				fh2->num_chunks    = leftover;
+				fh2->page_offset   = (uintptr_t(fh2) - uintptr_t(page)) >> 12;
+				fh2->set_next_free(free_list);
+				free_list = fh2;
+			}
+
+			// Return the result.
+			//
+			return {page, it};
 		}
 
 		// Find a page with enough size to fit our object or allocate one.
 		//
-		page* pg = for_each_rw([&](page* p, bool) { return p->check_space(clen); });
-		if (!pg) {
+		page* pg = initial_page->next;
+		if (!pg->check_space(clen)) {
 			pg = add_page<false>(L, size_t(clen) << chunk_shift);
 			if (!pg)
 				return {nullptr, nullptr};
@@ -196,9 +218,13 @@ namespace li::gc {
 
 		// Insert into the free list or adjust arena.
 		//
-		if (o->next() != page->end()) {
-			auto& free_list  = page->is_exec ? ex_free_list : free_lists[size_class_of(o->num_chunks)];
-			o->gc_type      = type_gc_free;
+		bool at_arena_end = o->next() == page->end();
+		if (at_arena_end && !page->is_exec) {
+			at_arena_end = page == initial_page->next;
+		}
+		if (!at_arena_end) {
+			auto& free_list  = page->is_exec ? ex_free_list : free_lists[size_class_of(o->num_chunks, false)];
+			o->gc_type       = type_gc_free;
 			o->indep_or_free = true;
 			o->set_next_free(free_list);
 			free_list = o;

@@ -33,41 +33,24 @@ namespace li::gc {
 
 	// GC configuration.
 	//
-	static constexpr size_t   minimum_allocation    = 512 * 1024;
-	static constexpr size_t   minimum_allocation_ex = 64 * 1024;
+	static constexpr size_t   minimum_allocation    = 2 * 1024 * 1024;
+	static constexpr size_t   minimum_allocation_ex = 512 * 1024;
 	static constexpr size_t   chunk_shift           = 5;
 	static constexpr size_t   chunk_size            = 1ull << chunk_shift;
-	static constexpr uint32_t default_interval      = 1 << 14;
+	static constexpr uint32_t default_interval      = 1 << 10;
 	static constexpr size_t   default_min_debt      = 4096 / chunk_size;
-	static constexpr msize_t  default_max_debt      = (3 * minimum_allocation) / (4 * chunk_size);
+	static constexpr msize_t  default_max_debt      = minimum_allocation / (4 * chunk_size);
+	static constexpr msize_t  num_size_classes      = 16;
 
 	static constexpr size_t chunk_ceil(size_t v) { return (v + chunk_size - 1) & ~(chunk_size - 1); }
 	static constexpr size_t chunk_floor(size_t v) { return v & ~(chunk_size - 1); }
-
-	// Size classes.
-	//
-	static constexpr msize_t  size_classes[] = {
-		32 >> chunk_shift,
-		256 >> chunk_shift,
-		4096 >> chunk_shift,
-		65536 >> chunk_shift,
-		UINT32_MAX
-	};
-	static constexpr size_t   size_class_of(msize_t nchunks) {
-		  for (size_t sc = 0; sc != std::size(size_classes); sc++) {
-			if (nchunks <= size_classes[sc]) {
-				return sc;
-			}
-		}
-		assume_unreachable();
-	}
 
 	// GC header for all types.
 	//
 	struct page;
 
 	struct header {
-		uint32_t gc_type : 4       = type_gc_uninit;  // Type, bit size == chunk_shift :).
+		uint32_t gc_type : 4       = type_gc_uninit;  // Type.
 		uint32_t num_chunks : 28   = 0;               // Number of chunks in this block.
 		uint32_t rsvd : 6          = 0;               // Reserved.
 		uint32_t indep_or_free : 1 = 0;               // If not garbage collected, also set for free blocks.
@@ -239,8 +222,8 @@ namespace li::gc {
 
 		// Free lists.
 		//
-		std::array<header*, std::size(size_classes)> free_lists   = {nullptr};
-		header*                                      ex_free_list = nullptr;
+		std::array<header*, num_size_classes> free_lists   = {nullptr};
+		header*                               ex_free_list = nullptr;
 
 		// Page enumerator.
 		//

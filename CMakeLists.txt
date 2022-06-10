@@ -71,6 +71,7 @@ list(APPEND libli_SOURCES
 	"src/ir/opt_cfg.cpp"
 	"src/ir/opt_const.cpp"
 	"src/ir/opt_dce.cpp"
+	"src/ir/opt_gcsched.cpp"
 	"src/ir/opt_id.cpp"
 	"src/ir/opt_phi.cpp"
 	"src/ir/opt_pre.cpp"

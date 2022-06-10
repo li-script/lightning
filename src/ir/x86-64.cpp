@@ -1058,6 +1058,18 @@ namespace li::ir {
 				return;
 			}
 
+			// Specials.
+			//
+			case opcode::gc_tick: {
+				// TODO: Inline tick, move collect to unlikely.
+				//
+				//b.append(vop::movi, arch::map_gp_arg(0, 0), REF_VM());
+				//b.append(vop::call, {}, (int64_t) bit_cast<uintptr_t>(+[](vm* L) {
+				//	return L->gc.tick(L);
+				//}));
+				return;
+			}
+
 			// Procedure terminators.
 			//
 			case opcode::ret:

@@ -122,27 +122,33 @@ namespace li::ir {
 					continue;
 				}
 				case bc::VJOIN: {
+					bld.emit<gc_tick>();
 					set_reg(a, bld.emit<vjoin>(get_reg(b), get_reg(c)));
 					continue;
 				}
 				case bc::ANEW: {
+					bld.emit<gc_tick>();
 					set_reg(a, bld.emit<array_new>(b));
 					continue;
 				}
 				case bc::TNEW: {
+					bld.emit<gc_tick>();
 					set_reg(a, bld.emit<table_new>(b));
 					continue;
 				}
 				case bc::VDUP: {
+					bld.emit<gc_tick>();
 					set_reg(a, bld.emit<vdup>(get_reg(b)));
 					continue;
 				}
 				case bc::ADUP:
 				case bc::TDUP: {
+					bld.emit<gc_tick>();
 					set_reg(a, bld.emit<vdup>(any(std::in_place, insn.xmm())));
 					continue;
 				}
 				case bc::CCAT: {
+					bld.emit<gc_tick>();
 					auto tmp = get_reg(a);
 					for (msize_t i = 1; i != b; i++) {
 						tmp = bld.emit<vjoin>(std::move(tmp), get_reg(a + i));
@@ -154,6 +160,7 @@ namespace li::ir {
 				// Casts:
 				//
 				case bc::TOSTR: {
+					bld.emit<gc_tick>();
 					set_reg(a, bld.emit<coerce_cast>(get_reg(b), type::str));
 					continue;
 				}
@@ -184,6 +191,7 @@ namespace li::ir {
 				// Upvalue and closures:
 				//
 				case bc::FDUP: {
+					bld.emit<gc_tick>();
 					auto bf     = get_kval(b);
 					auto r  = bld.emit<vdup>(bf);
 					r           = bld.emit<assume_cast>(r, type::fn);
@@ -213,10 +221,12 @@ namespace li::ir {
 					continue;
 				}
 				case bc::TSET: {
+					bld.emit<gc_tick>();
 					bld.emit<field_set>(false, get_reg(c), get_reg(a), get_reg(b));
 					continue;
 				}
 				case bc::TSETR: {
+					bld.emit<gc_tick>();
 					bld.emit<field_set>(true, get_reg(c), get_reg(a), get_reg(b));
 					continue;
 				}

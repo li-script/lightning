@@ -547,6 +547,19 @@ namespace li::ir {
 			util::abort("invalid index value.");
 		}
 	}
+	static void local_store(mblock& b, mop idx, value* in) {
+		mop type_erased;
+		if (in->is<constant>()) {
+			type_erased = in->as<constant>()->to_any();
+		} else if (in->vt != type::f64) {
+			mreg out = b->next_gp();
+			type_erase(b, in, out);
+			type_erased = out;
+		} else {
+			type_erased = RI(in);
+		}
+		local_store(b, idx, type_erased);
+	}
 
 	// Looks up a value from a table without using traits.
 	//
@@ -654,15 +667,7 @@ namespace li::ir {
 				return;
 			}
 			case opcode::store_local: {
-				mop type_erased;
-				if (i->operands[1]->is<constant>()) {
-					type_erased = i->operands[1]->as<constant>()->to_any();
-				} else {
-					mreg out = b->next_gp();
-					type_erase(b, i->operands[1], out);
-					type_erased = out;
-				}
-				local_store(b, RIi(i->operands[0]), type_erased);
+				local_store(b, RIi(i->operands[0]), i->operands[1]);
 				return;
 			}
 
@@ -792,9 +797,17 @@ namespace li::ir {
 			case opcode::uval_set: {
 				auto base = REG(i->operands[0]);
 				auto idx  = RIi(i->operands[1]);
-				auto val  = b->next_gp();
-				type_erase(b, i->operands[2], val);
-
+				mreg val;
+				vop  store;
+				if (i->operands[2]->vt == type::f64) {
+					val = REG(i->operands[2]);
+					store = vop::storef64;
+				} else {
+					val = b->next_gp();
+					type_erase(b, i->operands[2], val);
+					store = vop::storei64;
+				}
+				
 				// Add the upvalue offset and compute final offset.
 				//
 				mmem mem;
@@ -807,7 +820,7 @@ namespace li::ir {
 			
 				// Write the result.
 				//
-				b.append(vop::storei64, {}, mem, val);
+				b.append(store, {}, mem, val);
 				return;
 			}
 
@@ -1106,8 +1119,7 @@ namespace li::ir {
 
 				// Write the result and return the status.
 				//
-				type_erase(b, i->operands[0], tmp);
-				local_store(b, FRAME_RET, tmp);
+				local_store(b, FRAME_RET, i->operands[0]);
 				b.append(vop::ret, {}, i->opc == opcode::ret ? 1ll : 0ll);
 				return;
 			}

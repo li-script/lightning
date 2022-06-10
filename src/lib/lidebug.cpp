@@ -88,10 +88,6 @@ namespace li::lib {
 				return L->ok(false);
 			}
 		});
-		util::export_as(L, "debug.gc", [](vm* L, any* args, slot_t n) {
-			L->gc.collect(L);
-			return L->ok();
-		});
 		util::export_as(L, "debug.dump", [](vm* L, any* args, slot_t n) {
 			if (n != 1 || !args->is_fn() || !args->as_fn()->is_virtual()) {
 				return L->error("dump expects a single vfunction");
@@ -99,6 +95,43 @@ namespace li::lib {
 			auto f = args->as_fn();
 			f->print_bc();
 			return L->ok();
+		});
+		
+		util::export_as(L, "gc.collect", [](vm* L, any* args, slot_t n) {
+			L->gc.collect(L);
+			return L->ok();
+		});
+		util::export_as(L, "gc.tick", [](vm* L, any* args, slot_t n) {
+			L->gc.tick(L);
+			return L->ok();
+		});
+		util::export_as(L, "gc.used_memory", [](vm* L, any* args, slot_t n) {
+			number result = 0;
+			L->gc.for_each([&](gc::page* p, bool) {
+				result += p->num_pages * ((4096.0) / (1024.0 * 1024.0));
+				return false;
+			});
+			return L->ok(result);
+		});
+		util::export_as(L, "gc.interval", [](vm* L, any* args, slot_t n) {
+			if (n >= 1) {
+				if (!args->is_num())
+					return L->error("expected one number");
+				L->gc.interval = (msize_t) args->as_num();
+				L->gc.ticks    = L->gc.interval;
+			}
+			return L->ok((number)L->gc.interval);
+		});
+		util::export_as(L, "gc.max_debt", [](vm* L, any* args, slot_t n) {
+			if (n >= 1) {
+				if (!args->is_num())
+					return L->error("expected one number");
+				L->gc.max_debt = (msize_t) args->as_num();
+			}
+			return L->ok((number)L->gc.max_debt);
+		});
+		util::export_as(L, "gc.counter", [](vm* L, any* args, slot_t n) {
+			return L->ok((number)L->gc.collect_counter);
 		});
 	}
 };

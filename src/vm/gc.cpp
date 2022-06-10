@@ -102,16 +102,18 @@ namespace li::gc {
 
 		// Find a page with enough size to fit our object or allocate one.
 		//
-		auto* pg = for_each_rw([&](page* p, bool) { return p->check_space(clen); });
+		page* pg = for_each_rw([&](page* p, bool) { return p->check_space(clen); });
 		if (!pg) {
 			pg = add_page<false>(L, size_t(clen) << chunk_shift);
 			if (!pg)
 				return {nullptr, nullptr};
 		}
 
-		// Increment GC depth, return the result.
+		// Increment GC debt, return the result.
 		//
 		debt += clen;
+		if (debt >= max_debt)
+			ticks = 0;
 		return {pg, pg->alloc_arena(clen)};
 	}
 	std::pair<page*, header*> state::allocate_uninit_ex(vm* L, msize_t clen) {
@@ -163,16 +165,12 @@ namespace li::gc {
 
 		// Find a page with enough size to fit our object or allocate one.
 		//
-		auto* pg = for_each_ex([&](page* p, bool exec) { return p->check_space(clen); });
+		page* pg = for_each_ex([&](page* p, bool exec) { return p->check_space(clen); });
 		if (!pg) {
 			pg = add_page<true>(L, size_t(clen) << chunk_shift);
 			if (!pg)
 				return {nullptr, nullptr};
 		}
-
-		// Increment GC depth, return the result.
-		//
-		debt += clen;
 		return {pg, pg->alloc_arena(clen)};
 	}
 	void state::free(vm* L, header* o, bool within_gc) {
@@ -267,8 +265,9 @@ namespace li::gc {
 
 		// Reset GC tick.
 		//
-		ticks = gc_interval;
+		ticks = interval;
 		debt  = 0;
+		collect_counter++;
 
 		// Clear alive counter in all pages.
 		//

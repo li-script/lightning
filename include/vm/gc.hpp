@@ -34,12 +34,11 @@ namespace li::gc {
 	// GC configuration.
 	//
 	static constexpr size_t   minimum_allocation    = 512 * 1024;
-	static constexpr size_t   minimum_allocation_ex = 64  * 1024;
+	static constexpr size_t   minimum_allocation_ex = 64 * 1024;
 	static constexpr size_t   chunk_shift           = 5;
 	static constexpr size_t   chunk_size            = 1ull << chunk_shift;
-	static constexpr uint32_t gc_interval           = 1 << 14;
-	static constexpr size_t   gc_min_debt           = 4096 / chunk_size;
-	static constexpr size_t   gc_max_debt           = minimum_allocation / 4;
+	static constexpr uint32_t default_interval      = 1 << 14;
+	static constexpr msize_t  default_max_debt      = minimum_allocation / 4;
 
 	static constexpr size_t chunk_ceil(size_t v) { return (v + chunk_size - 1) & ~(chunk_size - 1); }
 	static constexpr size_t chunk_floor(size_t v) { return v & ~(chunk_size - 1); }
@@ -223,10 +222,16 @@ namespace li::gc {
 		page* initial_page    = nullptr;
 		page* initial_ex_page = nullptr;
 
+		// Configuration.
+		//
+		msize_t interval = default_interval;
+		msize_t max_debt = default_max_debt;
+
 		// Scheduling details.
 		//
-		size_t  debt  = 0;            // Allocations made since last GC sweep.
-		int32_t ticks = gc_interval;  // Tick counter.
+		size_t  debt    = 0;                 // Allocations made since last GC sweep.
+		int32_t ticks   = default_interval;  // Tick counter.
+		msize_t collect_counter = 0;
 		bool    suspend = false;
 
 		// Free lists.
@@ -285,10 +290,8 @@ namespace li::gc {
 		void collect(vm* L);
 		void tick(vm* L) {
 			--ticks;
-			if (debt > gc_min_debt) [[unlikely]] {
-				if (ticks < 0 || debt > gc_max_debt) {
-					collect(L);
-				}
+			if (ticks <= 0) [[unlikely]] {
+				collect(L);
 			}
 		}
 

@@ -114,6 +114,8 @@ namespace li::gc {
 		debt += clen;
 		if (debt >= max_debt)
 			ticks = 0;
+		else if (debt >= min_debt)
+			ticks = interval;
 		return {pg, pg->alloc_arena(clen)};
 	}
 	std::pair<page*, header*> state::allocate_uninit_ex(vm* L, msize_t clen) {
@@ -265,7 +267,7 @@ namespace li::gc {
 
 		// Reset GC tick.
 		//
-		ticks = interval;
+		ticks = min_debt ? INT64_MAX : interval;
 		debt  = 0;
 		collect_counter++;
 

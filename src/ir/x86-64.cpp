@@ -1706,7 +1706,7 @@ namespace li::ir {
 		memset(&mload, 0, sizeof(iJIT_Method_Load));
 		mload.method_id           = iJIT_GetNewMethodID();
 		mload.method_load_address = &out->code[0];
-		mload.method_size         = asm_length;
+		mload.method_size         = (uint32_t) asm_length;
 		mload.method_name         = (char*) "Lightning JIT Code";
 		iJIT_NotifyEvent(iJVM_EVENT_TYPE_METHOD_LOAD_FINISHED, &mload);
 		// TODO: Line info, freeing, etc.

@@ -38,7 +38,8 @@ namespace li::gc {
 	static constexpr size_t   chunk_shift           = 5;
 	static constexpr size_t   chunk_size            = 1ull << chunk_shift;
 	static constexpr uint32_t default_interval      = 1 << 14;
-	static constexpr msize_t  default_max_debt      = minimum_allocation / 4;
+	static constexpr size_t   default_min_debt      = 4096 / chunk_size;
+	static constexpr msize_t  default_max_debt      = minimum_allocation / (4 * chunk_size);
 
 	static constexpr size_t chunk_ceil(size_t v) { return (v + chunk_size - 1) & ~(chunk_size - 1); }
 	static constexpr size_t chunk_floor(size_t v) { return v & ~(chunk_size - 1); }
@@ -226,13 +227,14 @@ namespace li::gc {
 		//
 		msize_t interval = default_interval;
 		msize_t max_debt = default_max_debt;
+		msize_t min_debt = default_min_debt;
 
 		// Scheduling details.
 		//
-		size_t  debt    = 0;                 // Allocations made since last GC sweep.
-		int32_t ticks   = default_interval;  // Tick counter.
+		msize_t debt            = 0;                                // Allocations made since last GC sweep.
+		int64_t ticks           = min_debt ? INT64_MAX : interval;  // Tick counter.
 		msize_t collect_counter = 0;
-		bool    suspend = false;
+		bool    suspend         = false;
 
 		// Free lists.
 		//

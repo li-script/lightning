@@ -113,12 +113,15 @@ namespace li::lib {
 			});
 			return L->ok(result);
 		});
+		util::export_as(L, "gc.debt", [](vm* L, any* args, slot_t n) {
+			return L->ok(gc::chunk_size * (number) L->gc.debt);
+		});
 		util::export_as(L, "gc.interval", [](vm* L, any* args, slot_t n) {
 			if (n >= 1) {
 				if (!args->is_num())
 					return L->error("expected one number");
 				L->gc.interval = (msize_t) args->as_num();
-				L->gc.ticks    = L->gc.interval;
+				L->gc.collect(L);
 			}
 			return L->ok((number)L->gc.interval);
 		});
@@ -126,9 +129,19 @@ namespace li::lib {
 			if (n >= 1) {
 				if (!args->is_num())
 					return L->error("expected one number");
-				L->gc.max_debt = (msize_t) args->as_num();
+				L->gc.max_debt = (msize_t) args->as_num() / gc::chunk_size;
+				L->gc.collect(L);
 			}
-			return L->ok((number)L->gc.max_debt);
+			return L->ok(gc::chunk_size * (number) L->gc.max_debt);
+		});
+		util::export_as(L, "gc.min_debt", [](vm* L, any* args, slot_t n) {
+			if (n >= 1) {
+				if (!args->is_num())
+					return L->error("expected one number");
+				L->gc.min_debt = (msize_t) args->as_num() / gc::chunk_size;
+				L->gc.collect(L);
+			}
+			return L->ok(gc::chunk_size * (number) L->gc.min_debt);
 		});
 		util::export_as(L, "gc.counter", [](vm* L, any* args, slot_t n) {
 			return L->ok((number)L->gc.collect_counter);

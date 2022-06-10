@@ -311,6 +311,9 @@ namespace li::ir::opt {
 
 					if (is_read) {
 						if (!bb.df_def[r.uid()]) {
+							// Ignore call arguments that are not defined in this block.
+							if (r.is_phys() && i.is(vop::call))
+								return;
 							bb.df_ref.set(r.uid());
 						}
 					} else {
@@ -409,11 +412,25 @@ namespace li::ir::opt {
 				});
 				i.for_each_reg_w_implicit([&](mreg r, bool is_read) {
 					if (is_read) {
+						// Ignore call arguments that are not defined in this block.
+						if (r.is_phys() && i.is(vop::call)) {
+							auto written = &i != std::find_if(b.instructions.data(), &i, [&](minsn& i) {
+								return i.writes_to_register(r);
+							});
+							if (!written)
+								return;
+						}
 						live.set(r.uid());
 					}
 				});
 				i.for_each_reg_w_implicit([&](mreg r, bool is_read) {
 					if (is_read) {
+						// Ignore call arguments that are not defined in this block.
+						if (r.is_phys() && i.is(vop::call)) {
+							auto written = &i != std::find_if(b.instructions.data(), &i, [&](minsn& i) { return i.writes_to_register(r); });
+							if (!written)
+								return;
+						}
 						add_set(live, r);
 					}
 				});
@@ -560,7 +577,7 @@ namespace li::ir::opt {
 			interference_graph = build_graph(proc, &interference_graph);
 			interference_graph_copy = interference_graph;
 		}
-		proc->used_stack_length = ((num_spill_slots + 1) & ~1) * 8;
+		proc->used_stack_length = num_spill_slots * 8;
 
 		// Swap the registers in the IR.
 		//

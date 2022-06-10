@@ -5,6 +5,11 @@
 #include <vm/array.hpp>
 #include <vm/table.hpp>
 
+#if LI_VTUNE
+	#include <jitprofiling.h>
+	#pragma comment(lib, "jitprofiling.lib")
+#endif
+
 #if __AVX__
 	static constexpr bool USE_AVX = true;
 #else
@@ -1089,7 +1094,7 @@ namespace li::ir {
 		//
 		auto m = std::make_unique<mprocedure>();
 		m->source         = p;
-		m->max_stack_slot = p->local_count + p->max_stack_slot + FRAME_SIZE;
+		m->max_stack_slot = p->max_stack_slot + FRAME_SIZE;
 
 		// Clear all visitor state, we use both fields for mapping to machine structures.
 		//
@@ -1693,6 +1698,19 @@ namespace li::ir {
 			LI_ASSERT(int32_t(disp) == disp);
 			rel = int32_t(disp);
 		}
+
+		// Notify VTune.
+		//
+	#if LI_VTUNE
+		iJIT_Method_Load mload;
+		memset(&mload, 0, sizeof(iJIT_Method_Load));
+		mload.method_id           = iJIT_GetNewMethodID();
+		mload.method_load_address = &out->code[0];
+		mload.method_size         = asm_length;
+		mload.method_name         = (char*) "Lightning JIT Code";
+		iJIT_NotifyEvent(iJVM_EVENT_TYPE_METHOD_LOAD_FINISHED, &mload);
+		// TODO: Line info, freeing, etc.
+	#endif
 		return out;
 	}
 };

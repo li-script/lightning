@@ -9,24 +9,24 @@ Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
 		Debug|x86 = Debug|x86
-		Release|x64 = Release|x64
-		Release|x86 = Release|x86
 		Release-LLVM|x64 = Release-LLVM|x64
 		Release-LLVM|x86 = Release-LLVM|x86
+		Release-MSVC-VTune|x64 = Release-MSVC-VTune|x64
+		Release-MSVC-VTune|x86 = Release-MSVC-VTune|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{799B1E13-631D-4F5F-8B5D-88F54CDCF7B1}.Debug|x64.ActiveCfg = Debug|x64
 		{799B1E13-631D-4F5F-8B5D-88F54CDCF7B1}.Debug|x64.Build.0 = Debug|x64
 		{799B1E13-631D-4F5F-8B5D-88F54CDCF7B1}.Debug|x86.ActiveCfg = Debug|Win32
 		{799B1E13-631D-4F5F-8B5D-88F54CDCF7B1}.Debug|x86.Build.0 = Debug|Win32
-		{799B1E13-631D-4F5F-8B5D-88F54CDCF7B1}.Release|x64.ActiveCfg = Release|x64
-		{799B1E13-631D-4F5F-8B5D-88F54CDCF7B1}.Release|x64.Build.0 = Release|x64
-		{799B1E13-631D-4F5F-8B5D-88F54CDCF7B1}.Release|x86.ActiveCfg = Release|Win32
-		{799B1E13-631D-4F5F-8B5D-88F54CDCF7B1}.Release|x86.Build.0 = Release|Win32
 		{799B1E13-631D-4F5F-8B5D-88F54CDCF7B1}.Release-LLVM|x64.ActiveCfg = Release-LLVM|x64
 		{799B1E13-631D-4F5F-8B5D-88F54CDCF7B1}.Release-LLVM|x64.Build.0 = Release-LLVM|x64
 		{799B1E13-631D-4F5F-8B5D-88F54CDCF7B1}.Release-LLVM|x86.ActiveCfg = Release-LLVM|Win32
 		{799B1E13-631D-4F5F-8B5D-88F54CDCF7B1}.Release-LLVM|x86.Build.0 = Release-LLVM|Win32
+		{799B1E13-631D-4F5F-8B5D-88F54CDCF7B1}.Release-MSVC-VTune|x64.ActiveCfg = Release-MSVC-VTune|x64
+		{799B1E13-631D-4F5F-8B5D-88F54CDCF7B1}.Release-MSVC-VTune|x64.Build.0 = Release-MSVC-VTune|x64
+		{799B1E13-631D-4F5F-8B5D-88F54CDCF7B1}.Release-MSVC-VTune|x86.ActiveCfg = Release-MSVC-VTune|Win32
+		{799B1E13-631D-4F5F-8B5D-88F54CDCF7B1}.Release-MSVC-VTune|x86.Build.0 = Release-MSVC-VTune|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

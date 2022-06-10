@@ -621,7 +621,15 @@ namespace li::ir {
 				return;
 			}
 			case opcode::store_local: {
-				local_store(b, RIi(i->operands[0]), RI(i->operands[1]));
+				mop type_erased;
+				if (i->operands[1]->is<constant>()) {
+					type_erased = i->operands[1]->as<constant>()->to_any();
+				} else {
+					mreg out = b->next_gp();
+					type_erase(b, i->operands[1], out);
+					type_erased = out;
+				}
+				local_store(b, RIi(i->operands[0]), type_erased);
 				return;
 			}
 
@@ -1075,7 +1083,7 @@ namespace li::ir {
 		//
 		auto m = std::make_unique<mprocedure>();
 		m->source         = p;
-		m->max_stack_slot = p->max_stack_slot + FRAME_SIZE;
+		m->max_stack_slot = p->local_count + p->max_stack_slot + FRAME_SIZE;
 
 		// Clear all visitor state, we use both fields for mapping to machine structures.
 		//

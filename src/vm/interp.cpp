@@ -45,7 +45,7 @@ namespace li {
 	LI_NOINLINE bool vm_invoke(vm* L, any* args, slot_t n_args) {
 		auto caller = li::bit_cast<call_frame>(L->peek_stack().as_opq());
 		LI_ASSERT(&args[2] == &L->stack_top[FRAME_TARGET]);
-		any* __restrict locals_begin = args + FRAME_SIZE + 1;
+		any* const __restrict locals_begin = args + FRAME_SIZE + 1;
 
 		// Validate function.
 		//

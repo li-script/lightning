@@ -41,11 +41,11 @@ namespace li {
 		type_userdata = 1,  // Last traitful.
 		type_array    = 2,
 		type_function = 3,
-		type_proto    = 4,  // Last traversable. | Not visible to user.
+		type_proto    = 4,  // Not visible to user.
 		type_string   = 5,
 		type_bool     = 8,  // First non-GC type.
 		type_nil      = 9,
-		type_opaque   = 10,  // No type/definition, unique integer part.
+		type_opaque   = 10,  // Not visible to user, unique integer part.
 		type_number   = 11,
 
 		// GC aliases.
@@ -53,7 +53,6 @@ namespace li {
 		type_gc_private,
 		type_gc_uninit,
 		type_gc_last             = 7,
-		type_gc_last_traversable = type_proto,
 		type_gc_last_traitful    = type_userdata,
 
 		// Invalid
@@ -103,10 +102,8 @@ namespace li {
 	//
 	LI_INLINE static constexpr bool is_type_gc(uint8_t t) { return t <= type_gc_last; }
 	LI_INLINE static constexpr bool is_type_traitful(uint8_t t) { return t <= type_gc_last_traitful; }
-	LI_INLINE static constexpr bool is_type_gc_traversable(uint8_t t) { return t <= type_gc_last_traversable; }
 	LI_INLINE static constexpr bool is_gc_value(uint64_t value) { return value > (make_tag(type_gc_last + 1) + 1); }
 	LI_INLINE static constexpr bool is_traitful_value(uint64_t value) { return value > (make_tag(type_gc_last_traitful + 1) + 1); }
-	LI_INLINE static constexpr bool is_gc_traversable_value(uint64_t value) { return value > (make_tag(type_gc_last_traversable + 1) + 1); }
 	LI_INLINE static constexpr bool is_numeric_value(uint64_t value) { return value <= make_tag(type_number); }
 
 	// Forward for auto-typing.

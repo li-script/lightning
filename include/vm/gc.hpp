@@ -31,6 +31,10 @@ namespace li::gc {
 	void traverse(stage_context s, string_set* o);
 	void traverse(stage_context s, userdata* o);
 
+	void destroy(vm* L, array* o);
+	void destroy(vm* L, table* o);
+	void destroy(vm* L, userdata* o);
+
 	// GC configuration.
 	//
 	static constexpr size_t   minimum_allocation    = 2 * 1024 * 1024;

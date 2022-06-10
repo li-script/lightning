@@ -39,15 +39,13 @@ namespace li::gc {
 		// Update stage, recurse.
 		//
 		stage = s;
-		if (gc_type <= type_gc_last_traversable) {
-			if (gc_type == type_array)
-				traverse(s, (array*) this);
-			else if (gc_type == type_table)
-				traverse(s, (table*) this);
-			else if (gc_type == type_function)
-				traverse(s, (function*) this);
-			else if (gc_type == type_proto)
-				traverse(s, (function_proto*) this);
+		switch (gc_type) {
+			case type_table:    traverse(s, (table*) this);          break;
+			case type_array:    traverse(s, (array*) this);          break;
+			case type_userdata: traverse(s, (userdata*) this);       break;
+			case type_function: traverse(s, (function*) this);       break;
+			case type_proto:    traverse(s, (function_proto*) this); break;
+			default: break;
 		}
 
 		// Increment counter.
@@ -189,7 +187,7 @@ namespace li::gc {
 
 		// Find a page with enough size to fit our object or allocate one.
 		//
-		page* pg = for_each_ex([&](page* p, bool exec) { return p->check_space(clen); });
+		page* pg = for_each_ex([&](page* p, bool exec) LI_INLINE { return p->check_space(clen); });
 		if (!pg) {
 			pg = add_page<true>(L, size_t(clen) << chunk_shift);
 			if (!pg)
@@ -209,8 +207,11 @@ namespace li::gc {
 
 		// Run destructor if relevant.
 		//
-		if (is_type_traitful(o->gc_type)) {
-			((traitful_node<>*) o)->gc_destroy(L);
+		switch (o->gc_type) {
+			case type_table:    destroy(L, (table*) o);    break;
+			case type_array:    destroy(L, (array*) o);    break;
+			case type_userdata: destroy(L, (userdata*) o); break;
+			default: break;
 		}
 #if LI_DEBUG
 		memset(o + 1, 0xCC, o->object_bytes());
@@ -313,9 +314,9 @@ namespace li::gc {
 		// Free all dead objects.
 		//
 		page* dead_page_list = nullptr;
-		for_each([&](page* it, bool ex) {
+		for_each([&](page* it, bool ex) LI_INLINE {
 			if (it->alive_objects != it->num_objects) {
-				it->for_each([&](header* obj) {
+				it->for_each([&](header* obj) LI_INLINE {
 					if (!obj->indep_or_free && obj->stage != ms) {
 						free(L, obj, true);
 					}

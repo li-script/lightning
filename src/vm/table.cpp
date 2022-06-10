@@ -3,14 +3,22 @@
 #include <vm/string.hpp>
 
 namespace li {
-	table* table::create(vm* L, msize_t reserved_entry_count) {
-		table* tbl = L->alloc<table>();
-		tbl->resize(L, std::max(reserved_entry_count, 4u));
+	table* table::create(vm* L, msize_t rsvd) {
+		rsvd                      = std::max(rsvd, 2u);
+		size_t       alloc_length = sizeof(table_entry) * (rsvd + overflow_factor);
+		table*       tbl          = L->alloc<table>();
+		table_nodes* nl           = L->alloc<table_nodes>(alloc_length);
+		tbl->mask                 = compute_mask(rsvd);
+		tbl->node_list            = nl;
+		fill_nil(nl->entries, alloc_length / sizeof(any));
 		return tbl;
 	}
 
-	// GC enumerator.
+	// GC details.
 	//
+	void gc::destroy(vm* L, table* o) {
+		o->gc_destroy(L);
+	}
 	void gc::traverse(gc::stage_context s, table* o) {
 		if (auto* nl = o->node_list) {
 			nl->gc_tick(s);
@@ -22,18 +30,17 @@ namespace li {
 	// Joins another table into this.
 	//
 	void table::join(vm* L, table* other) {
-		// Copy every trait except freeze.
-		//
-		trait_seal = other->trait_seal;
-		trait_hide = other->trait_hide;
-		trait_mask = other->trait_mask;
-		traits     = other->traits;
-
-		// Copy fields raw.
-		//
-		for (auto& [k, v] : *other) {
-			if (k != nil)
-				set(L, k, v);
+		if (!trait_seal) {
+			trait_seal = other->trait_seal;
+			trait_hide = other->trait_hide;
+			trait_mask = other->trait_mask;
+			traits     = other->traits;
+		}
+		if (!trait_freeze) {
+			for (auto& [k, v] : *other) {
+				if (k != nil)
+					set(L, k, v);
+			}
 		}
 	}
 
@@ -46,9 +53,10 @@ namespace li {
 			auto*  old_list     = node_list;
 			auto*  old_entries  = begin();
 			size_t alloc_length = sizeof(table_entry) * (new_count + overflow_factor);
-			node_list           = L->alloc<table_nodes>(alloc_length);
+			auto*  new_list     = L->alloc<table_nodes>(alloc_length);
 			mask                = compute_mask(new_count);
-			fill_nil(node_list->entries, alloc_length / sizeof(any));
+			node_list           = new_list;
+			fill_nil(new_list->entries, alloc_length / sizeof(any));
 
 			if (old_list) {
 				for (msize_t i = 0; i != (old_count + overflow_factor); i++) {

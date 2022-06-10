@@ -4,7 +4,7 @@
 
 namespace li {
 	table* table::create(vm* L, msize_t rsvd) {
-		rsvd                      = std::max(rsvd, 2u);
+		rsvd                      = std::bit_ceil(rsvd | 2);
 		size_t       alloc_length = sizeof(table_entry) * (rsvd + overflow_factor);
 		table*       tbl          = L->alloc<table>();
 		table_nodes* nl           = L->alloc<table_nodes>(alloc_length);
@@ -20,9 +20,7 @@ namespace li {
 		o->gc_destroy(L);
 	}
 	void gc::traverse(gc::stage_context s, table* o) {
-		if (auto* nl = o->node_list) {
-			nl->gc_tick(s);
-		}
+		o->node_list->gc_tick(s);
 		o->trait_traverse(s);
 		traverse_n(s, (any*) o->begin(), 2 * o->realsize());
 	}

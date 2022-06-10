@@ -10,6 +10,14 @@
 	#pragma comment(lib, "jitprofiling.lib")
 #endif
 
+#if LI_CLANG
+	#pragma clang diagnostic ignored "-Wunneeded-internal-declaration"
+	#pragma clang diagnostic ignored "-Wunused-function"
+	#pragma clang diagnostic ignored "-Wunused-const-variable"
+	#pragma clang diagnostic ignored "-Winvalid-offsetof"
+	#pragma clang diagnostic ignored "-Wswitch"
+#endif
+
 // Compiler options.
 //
 #if __AVX__

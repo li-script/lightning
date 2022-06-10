@@ -407,9 +407,7 @@ namespace li::gc {
 		return base + 1;
 	}
 	void mem_free(vm* L, void* p) {
-		if (p) {
-			L->gc.free(L, std::prev((header*) p));
-		}
+		L->gc.free(L, std::prev((header*) p));
 	}
 	void* mem_realloc(vm* L, void* p, size_t n, bool independent) {
 		if (!p) {

@@ -15,13 +15,17 @@ namespace li::util {
 	#if LI_MSVC
 		return _readgsbase_u64();
 	#else
-		return __builtin_ia32_rdgsbase64();
+		uint64_t value;
+		asm( "rdgsbase %0" : "=r" ( value ) :: );
+		return value;
 	#endif
 #else
 	#if LI_MSVC
 		return _readgsbase_u32();
 	#else
-		return __builtin_ia32_rdgsbase32();
+		uint32_t value;
+		asm( "rdgsbase %0" : "=r" ( value ) :: );
+		return value;
 	#endif
 #endif
 	}
@@ -30,13 +34,17 @@ namespace li::util {
 	#if LI_MSVC
 		return _readfsbase_u64();
 	#else
-		return __builtin_ia32_rdfsbase64();
+		uint64_t value;
+		asm( "rdfsbase %0" : "=r" ( value ) :: );
+		return value;
 	#endif
 #else
 	#if LI_MSVC
 		return _readfsbase_u32();
 	#else
-		return __builtin_ia32_rdfsbase32();
+		uint32_t value;
+		asm( "rdfsbase %0" : "=r" ( value ) :: );
+		return value;
 	#endif
 #endif
 	}

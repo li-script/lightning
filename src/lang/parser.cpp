@@ -1201,15 +1201,13 @@ namespace li {
 		return true;
 	}
 	
-	using parameter = std::pair<expression, bool>;
-
 	// Attempts to constant fold a call into a native builtin.
 	//
-	static expression parse_call_cxpr(vm* L, std::span<parameter> callsite, function* func, expression self) {
+	static expression parse_call_cxpr(vm* L, std::span<expression> callsite, function* func, expression self) {
 		// Push all values and call into the handler.
 		//
 		for (size_t i = callsite.size(); i != 0; i--) {
-			L->push_stack(callsite[i-1].first.imm);
+			L->push_stack(callsite[i-1].imm);
 		}
 
 		// Ignore result on error else return the result.
@@ -1225,8 +1223,8 @@ namespace li {
 	// Parses a call, returns the result.
 	//
 	static expression parse_call(func_scope& scope, const expression& func, const expression& self) {
-		parameter callsite[MAX_ARGS] = {};
-		msize_t   size               = 0;
+		expression callsite[MAX_ARGS] = {};
+		msize_t    size               = 0;
 
 		// Allocate temporary site for result.
 		//
@@ -1236,7 +1234,7 @@ namespace li {
 		//
 		bool trait = false;
 		if (auto lit = scope.lex().opt(lex::token_lstr)) {
-			callsite[size++] = {expression(any(lit->str_val)), false};
+			callsite[size++] = expression(any(lit->str_val));
 		} else {
 			if (scope.lex().opt('!')) {
 				trait = true;
@@ -1257,21 +1255,10 @@ namespace li {
 
 					// If reference:
 					//
-					if (scope.lex().opt(lex::token_ref)) {
-						if (auto ex = expr_parse(scope); ex.kind == expr::err)
-							return {};
-						else if (ex.is_lvalue()) {
-							callsite[size++] = {ex, true};
-						} else {
-							scope.lex().error("expected lvalue to reference argument");
-							return {};
-						}
-					} else {
-						if (auto ex = expr_parse(scope); ex.kind == expr::err)
-							return {};
-						else
-							callsite[size++] = {ex, false};
-					}
+					if (auto ex = expr_parse(scope); ex.kind == expr::err)
+						return {};
+					else
+						callsite[size++] = ex;
 
 					if (scope.lex().opt(')'))
 						break;
@@ -1306,7 +1293,7 @@ namespace li {
 							return expression(r);
 						} else {
 							reg_sweeper _r{scope};
-							scope.emit(bc::TRSET, self.to_anyreg(scope), callsite[0].first.to_anyreg(scope), i);
+							scope.emit(bc::TRSET, self.to_anyreg(scope), callsite[0].to_anyreg(scope), i);
 							return expression(nil);
 						}
 					}
@@ -1340,7 +1327,7 @@ namespace li {
 					return {};
 				}
 				self.to_reg(scope, tmp);
-				callsite[0].first.to_reg(scope, tmp + 1);  
+				callsite[0].to_reg(scope, tmp + 1);  
 				scope.emit(bc::VJOIN, tmp, tmp, tmp + 1);
 				return expression(tmp);
 			}
@@ -1353,7 +1340,7 @@ namespace li {
 			auto* nf = f->ninfo;
 			// TODO: is_const?
 			if (nf && nf->is_pure) {
-				if (std::all_of(callsite, callsite + size, [](const parameter& p) { return p.first.kind == expr::imm; })) {
+				if (std::all_of(callsite, callsite + size, [](const expression& p) { return p.kind == expr::imm; })) {
 					auto res = parse_call_cxpr(scope.fn.L, std::span(callsite).subspan(0, size), f, self);
 					if (res.kind != expr::err) {
 						return res;
@@ -1365,24 +1352,10 @@ namespace li {
 		// Create the callsite.
 		//
 		for (bc::reg i = (size - 1); i >= 0; i--) {
-			callsite[i].first.push(scope);
+			callsite[i].push(scope);
 		}
 		self.push(scope);
 		scope.emit(bc::CALL, size, func.to_anyreg(scope));
-
-		// Reload all references.
-		//
-		for (bc::reg i = 0; i != size; i++) {
-			if (callsite[i].second) {
-				auto stack_slot = FRAME_SIZE + i + 1;
-				if (callsite[i].first.kind == expr::reg) {
-					scope.emit(bc::SLOAD, callsite[i].first.reg, (int32_t) stack_slot);
-				} else {
-					scope.emit(bc::SLOAD, tmp + 1, (int32_t) stack_slot);
-					callsite[i].first.assign(scope, tmp + 1);
-				}
-			}
-		}
 
 		// Load the result, reset the frame, free all temporaries and return.
 		//

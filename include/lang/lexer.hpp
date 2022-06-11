@@ -31,7 +31,7 @@ namespace li::lex {
 		__(cadd, +=) __(csub, -=) __(cmul, *=) __(cdiv, /=) __(cmod, %=)         \
 		__(cpow, ^=) __(cnullc, ??=)                                             \
 		/* Language operators */															    \
-		__(dots, ...) __(rangei, ..=) __(range, ..) __(nullc, ??) ___(ref, '&')  \
+		__(dots, ...) __(rangei, ..=) __(range, ..) __(nullc, ??)                \
 		__(icall, ->) __(ucall, ::) __(idxlif, ?.) __(idxif, ?[)   	             \
 		/* Literal tokens */																	    \
 		____(eof, <eof>) ____(lnum, <number>) ____(name, <name>)                 \

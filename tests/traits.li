@@ -71,15 +71,19 @@ assert(tbl::set!() == nil)
 # Freeze.
 #
 tbl::freeze!(true);
-const T1 = || { tbl.z = 45 }
-let ok;
-const ex = pcall(T1, &ok)
-assert("modifying frozen table" in ex && !ok)
+try {
+   tbl.z = 45
+   assert(false)
+} catch(ex) {
+   assert("modifying frozen" in ex)
+}
 
 # Seal.
 #
 tbl::seal!(true);
-const T1 = || {tbl::seal!(false)}
-let ok;
-const ex = pcall(T1, &ok)
-assert("modifying sealed traits" in ex && !ok)
+try {
+   tbl::seal!(false);
+   assert(false)
+} catch(ex) {
+   assert("modifying sealed" in ex)
+}

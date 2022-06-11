@@ -8,25 +8,6 @@ namespace li::lib {
 	// Registers the builtins, this is called by the VM creation as it is required.
 	//
 	void detail::register_builtin(vm* L) {
-		util::export_as(L, "builtin.pcall", [](vm* L, any* args, slot_t n) {
-			vm_stack_guard _g{L, args};
-			if (n < 2) {
-				return L->error("expected 2 or more arguments.");
-			}
-			auto f = args[0];
-			if (!f.is_fn()) {
-				args[-1] = any(false);
-				return L->error("invoking non-function");
-			}
-
-			auto apos = &args[0] - L->stack;
-			for (slot_t i = -(n - 1); i < -1; i++)
-				L->push_stack(L->stack[apos + i]);
-
-			bool res           = L->call(n - 2, f);
-			L->stack[apos - 1] = res;
-			return L->ok(L->pop_stack());
-		});
 		util::export_as(L, "builtin.print", [](vm* L, any* args, slot_t n) {
 			for (int32_t i = 0; i != n; i++) {
 				if (args[-i].is_traitful() && ((traitful_node<>*) args[-i].as_gc())->has_trait<trait::str>()) [[unlikely]] {

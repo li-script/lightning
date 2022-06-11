@@ -84,9 +84,9 @@ namespace li::util {
 	// Finally define the lock.
 	//
 	struct fastlock {
-		std::atomic<uintptr_t> owner = 0;
-		uint16_t               depth = 0;
+		std::atomic<uintptr_t> owner  = 0;
 		std::atomic<uint16_t>  signal = 0;
+		uint16_t               depth  = 0;
 
 		LI_INLINE bool try_lock_fast(uintptr_t tid) {
 			while (true) {
@@ -109,7 +109,6 @@ namespace li::util {
 			while (true) {
 				uintptr_t expected = 0;
 				if (!owner.compare_exchange_strong(expected, tid) && expected != tid) {
-					uint8_t yield_counter = 0;
 					while (expected != 0) {
 						signal.store(1, std::memory_order::relaxed);
 						owner.wait(expected);

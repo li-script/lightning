@@ -1,3 +1,0 @@
-let ok;
-assert(pcall(|x| { throw x }, &ok, "A") == "A" && !ok)
-assert(pcall(|x| x,           &ok, "B") == "B" && ok)

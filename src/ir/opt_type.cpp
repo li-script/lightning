@@ -372,6 +372,7 @@ namespace li::ir::opt {
 			proc->del_jump(i->parent, i->parent->successors.back());
 			return false;
 		});
+		proc->validate();
 	}
 
 	// Adds the branches for required type checks.
@@ -383,6 +384,7 @@ namespace li::ir::opt {
 		specialize_len(proc);
 		specialize_call(proc);
 		specialize_field(proc);
+		// TODO: remove y:f64 = assumecase f64:x, f64
 	}
 
 	// Infers constant type information and optimizes the control flow.

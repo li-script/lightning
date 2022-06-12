@@ -133,6 +133,13 @@ namespace li {
 		inline constexpr any(std::in_place_t, uint64_t value) : value(value) {}
 		inline constexpr any(opaque v) : value(mix_value(type_opaque, (uint64_t) v.bits)) {}
 
+		// Trivially copyable.
+		//
+		inline constexpr any(any&&) noexcept            = default;
+		inline constexpr any(const any&)                = default;
+		inline constexpr any& operator=(any&&) noexcept = default;
+		inline constexpr any& operator=(const any&)     = default;
+
 		// GC types.
 		//
 		inline any(array* v) : value(mix_value(type_array, (uint64_t) v)) {}
@@ -183,15 +190,9 @@ namespace li {
 			return value == other.value;
 #endif
 		}
-		inline constexpr void copy_from(const any& other) { value = other.value; }
 
 		// Define copy and comparison operators.
 		//
-		inline constexpr any(const any& other) { copy_from(other); }
-		inline constexpr any& operator=(const any& other) {
-			copy_from(other);
-			return *this;
-		}
 		inline constexpr bool operator==(const any& other) const { return equals(other); }
 		inline constexpr bool operator!=(const any& other) const { return !equals(other); }
 

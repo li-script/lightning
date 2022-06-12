@@ -501,7 +501,7 @@ namespace li {
 					call_frame cf{.caller_pc = msize_t(ip - 1 - opcode_array), .stack_pos = msize_t(locals_begin - L->stack)};
 					auto       argspace = L->stack_top - 3;
 				
-					L->push_stack(li::bit_cast<any>(cf));
+					L->push_stack(any(std::in_place, li::bit_cast<uint64_t>(cf)));
 					any result;
 					if (result.value = vm_invoke(L, argspace, b); result.is_exc()) [[unlikely]] {
 						VM_RETHROW();

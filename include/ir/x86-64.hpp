@@ -112,8 +112,16 @@ namespace li::ir {
 	INSN_RW_R(ADDSD, .trashes_flags = false, );
 	INSN_RW_R(SQRTSD, .trashes_flags = false, );
 	INSN_RW_R(SUBSD, .trashes_flags = false, );
-	INSN_RW_R(XORPS, .trashes_flags = false, );
-	INSN_W_R_R(VXORPS, .trashes_flags = false, );
+	INSN_RW_R(ORPD, .trashes_flags = false, .fullsize = true, );
+	INSN_RW_R(ANDPD, .trashes_flags = false, .fullsize = true, );
+	INSN_RW_R(XORPD, .trashes_flags = false, .fullsize = true, );
+	INSN_RW_R(MINSD, .trashes_flags = false, );
+	INSN_RW_R(MAXSD, .trashes_flags = false, );
+	INSN_W_R_R(VORPD, .trashes_flags = false, .fullsize = true, );
+	INSN_W_R_R(VANDPD, .trashes_flags = false, .fullsize = true, );
+	INSN_W_R_R(VXORPD, .trashes_flags = false, .fullsize = true, );
+	INSN_W_R_R(VMINSD, .trashes_flags = false, );
+	INSN_W_R_R(VMAXSD, .trashes_flags = false, );
 	INSN_RW_R(PCMPEQB, .trashes_flags = false, );
 	INSN_W_R_R(VPCMPEQB, .trashes_flags = false, );
 	INSN_W_R_R(VDIVSD, .trashes_flags = false, );
@@ -134,6 +142,7 @@ namespace li::ir {
 	#define RIi(x)   get_ri_for(b, x, true)
 	#define RM(x)    get_rm_for(b, x)
 	#define REG(x)   get_reg_for(b, x->as<insn>())
+	#define REGV(x)   get_reg_for(b, x)
 	#define YIELD(x) yield_value(b, i, x)
 
 	#if !LI_DEBUG
@@ -175,6 +184,19 @@ namespace li::ir {
 			return YIELD(b->next_gp());
 		}
 	}
+	inline static mreg get_reg_for(mblock& b, value* i) {
+		if (i->is<insn>()) {
+			return get_reg_for(b, i->as<insn>());
+		} else if (i->vt == type::f32 || i->vt == type::f64) {
+			auto r = b->next_fp();
+			b.append(vop::movf, r, (int64_t)i->as<constant>()->i);
+			return r;
+		} else {
+			auto r = b->next_gp();
+			b.append(vop::movi, r, (int64_t) i->as<constant>()->i);
+			return r;
+		}
+	}
 	inline static mop get_ri_for(mblock& b, value* i, bool integer) {
 		if (i->is<constant>()) {
 			if (integer) {
@@ -193,10 +215,10 @@ namespace li::ir {
 				auto dst = b->next_fp();
 				if (c->i == 0) {
 					if constexpr (USE_AVX) {
-						VXORPS(b, dst, dst, dst);
+						VXORPD(b, dst, dst, dst);
 						return dst;
 					} else {
-						XORPS(b, dst, dst);
+						XORPD(b, dst, dst);
 						return dst;
 					}
 				} else if (c->i == -1ll) {

@@ -139,14 +139,14 @@ namespace li::lib {
 	void detail::register_math(vm* L) {
 		// Constants.
 		//
-		util::export_as(L, "math.FAST", bool(LI_FAST_MATH));
-		util::export_as(L, "math.EPS", std::numeric_limits<double>::epsilon());
-		util::export_as(L, "math.INF", std::numeric_limits<double>::infinity());
-		util::export_as(L, "math.NaN", std::numeric_limits<double>::quiet_NaN());
-		util::export_as(L, "math.MAX", std::numeric_limits<double>::max());
-		util::export_as(L, "math.MIN", std::numeric_limits<double>::min());
-		util::export_as(L, "math.PI", std::numbers::pi);
-		util::export_as(L, "math.E",  std::numbers::e);
+		util::export_as(L, "math.fast", bool(LI_FAST_MATH));
+		util::export_as(L, "math.epsilon", std::numeric_limits<double>::epsilon());
+		util::export_as(L, "math.inf", std::numeric_limits<double>::infinity());
+		util::export_as(L, "math.nan", std::numeric_limits<double>::quiet_NaN());
+		util::export_as(L, "math.huge", std::numeric_limits<double>::max());
+		util::export_as(L, "math.small", std::numeric_limits<double>::min());
+		util::export_as(L, "math.pi", std::numbers::pi);
+		util::export_as(L, "math.e",  std::numbers::e);
 
 		// Random.
 		//
@@ -190,11 +190,128 @@ namespace li::lib {
 #if LI_JIT && LI_ARCH_X86 && !LI_32
 		using namespace ir;
 		math_sqrt_info.overloads.front().mir_lifter = [](mblock& b, insn* i) {
-			auto in = REG(i->operands[2]);
+			auto in = REGV(i->operands[2]);
 			if constexpr (USE_AVX)
 				VSQRTSD(b, REG(i), in, in);
 			else
 				SQRTSD(b, REG(i), in);
+			return true;
+		};
+		math_floor_info.overloads.front().mir_lifter = [](mblock& b, insn* i) {
+			auto in = REGV(i->operands[2]);
+			if constexpr (USE_AVX)
+				VROUNDSD(b, REG(i), in, 9);
+			else
+				ROUNDSD(b, REG(i), in, 9);
+			return true;
+		};
+		math_ceil_info.overloads.front().mir_lifter = [](mblock& b, insn* i) {
+			auto in = REGV(i->operands[2]);
+			if constexpr (USE_AVX)
+				VROUNDSD(b, REG(i), in, 10);
+			else
+				ROUNDSD(b, REG(i), in, 10);
+			return true;
+		};
+		math_trunc_info.overloads.front().mir_lifter = [](mblock& b, insn* i) {
+			auto in = REGV(i->operands[2]);
+			if constexpr (USE_AVX)
+				VROUNDSD(b, REG(i), in, 11);
+			else
+				ROUNDSD(b, REG(i), in, 11);
+			return true;
+		};
+		math_round_info.overloads.front().mir_lifter = [](mblock& b, insn* i) {
+			auto tmp      = b->next_fp();
+			auto sign_bit = b->add_const(1ull << 63);
+			auto dot_five = b->add_const(any(0.5));
+
+			auto in = REGV(i->operands[2]);
+			if constexpr (USE_AVX) {
+				VANDPD(b, tmp, in, sign_bit);
+				VORPD(b, tmp, tmp, dot_five);
+				VADDSD(b, tmp, in, tmp);
+				VROUNDSD(b, REG(i), tmp, 3);
+			} else {
+				b.append(vop::movf, tmp, sign_bit);
+				ANDPD(b, tmp, in);
+				ORPD(b, tmp, dot_five);
+				ADDSD(b, tmp, in);
+				ROUNDSD(b, REG(i), tmp, 3);
+			}
+			return true;
+		};
+		math_abs_info.overloads.front().mir_lifter = [](mblock& b, insn* i) {
+			auto value_bits = b->add_const((1ull << 63) - 1);
+
+			auto in = REGV(i->operands[2]);
+			if constexpr (USE_AVX) {
+				VANDPD(b, REG(i), in, value_bits);
+			} else {
+				auto out = REG(i);
+				b.append(vop::movf, out, in);
+				ANDPD(b, out, value_bits);
+			}
+			return true;
+		};
+		math_min_info.overloads.front().mir_lifter = [](mblock& b, insn* i) {
+			auto x = REGV(i->operands[2]);
+			auto y = REGV(i->operands[3]);
+			if constexpr (USE_AVX) {
+				VMINSD(b, REG(i), x, y);
+			} else {
+				auto out = REG(i);
+				b.append(vop::movf, out, x);
+				MINSD(b, out, y);
+			}
+			return true;
+		};
+		math_max_info.overloads.front().mir_lifter = [](mblock& b, insn* i) {
+			auto x = REGV(i->operands[2]);
+			auto y = REGV(i->operands[3]);
+			if constexpr (USE_AVX) {
+				VMAXSD(b, REG(i), x, y);
+			} else {
+				auto out = REG(i);
+				b.append(vop::movf, out, x);
+				MAXSD(b, out, y);
+			}
+			return true;
+		};
+		math_copysign_info.overloads.front().mir_lifter = [](mblock& b, insn* i) {
+			auto sign_bit   = b->add_const((1ull << 63));
+			auto value_bits = b->add_const((1ull << 63) - 1);
+
+			auto x   = REGV(i->operands[2]);
+			auto y   = REGV(i->operands[3]);
+			auto o   = REG(i);
+			auto tmp = b->next_fp();
+			if constexpr (USE_AVX) {
+				VANDPD(b, tmp, y, sign_bit);
+				VANDPD(b, o, x, value_bits);
+				VORPD(b, o, tmp, o);
+			} else {
+				b.append(vop::movf, tmp, y);
+				ANDPD(b, tmp, sign_bit);
+				b.append(vop::movf, o, x);
+				ANDPD(b, o, value_bits);
+				ORPD(b, o, tmp);
+			}
+			return true;
+		};
+		math_sgn_info.overloads.front().mir_lifter = [](mblock& b, insn* i) {
+			auto sign_bit = b->add_const((1ull << 63));
+			auto one      = b->add_const(any(1.0));
+			auto x   = REGV(i->operands[2]);
+			auto o   = REG(i);
+			if constexpr (USE_AVX) {
+				VANDPD(b, o, x, sign_bit);
+				VORPD(b, o, o, one);
+			} else {
+				b.append(vop::movf, o, x);
+				ANDPD(b, o, sign_bit);
+				ORPD(b, o, one);
+			}
 			return true;
 		};
 #endif

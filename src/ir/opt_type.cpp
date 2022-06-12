@@ -357,7 +357,10 @@ namespace li::ir::opt {
 					builder b{replace};
 					auto    call = b.emit_before<ccall>(replace, ninfo, int32_t(&ovl - &ninfo->overloads[0]));
 					for (size_t n = 0; n != expected_args.size(); n++) {
-						call->operands.emplace_back(b.emit_before<assume_cast>(call, i->operands[n + arg_off], expected_args[n]));
+						if (i->operands[n + arg_off]->vt != expected_args[n])
+							call->operands.emplace_back(b.emit_before<assume_cast>(call, i->operands[n + arg_off], expected_args[n]));
+						else
+							call->operands.emplace_back(i->operands[n + arg_off]);
 					}
 					replace->replace_all_uses(call);
 					replace->erase();

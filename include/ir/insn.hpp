@@ -82,7 +82,6 @@ namespace li::ir {
 		// Procedure terminators.
 		//
 		ret,
-		thrw,
 		unreachable,
 	};
 
@@ -417,14 +416,6 @@ namespace li::ir {
 	};
 	// none   ret(unk val)
 	struct ret final : insn_tag<ret, opcode::ret> {
-		void update() override {
-			sideffect = true;
-			vt = type::none;
-			LI_ASSERT(operands.size() == 1);
-		}
-	};
-	// none   thrw(unk val)
-	struct thrw final : insn_tag<thrw, opcode::thrw> {
 		void update() override {
 			sideffect = true;
 			vt = type::none;

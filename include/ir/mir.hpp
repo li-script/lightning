@@ -200,7 +200,8 @@ namespace li::ir {
 	struct ins_target_info {
 		uint64_t side_effects : 1  = false;
 		uint64_t trashes_flags : 1 = true;
-		int64_t  rsvd : 62         = 0;
+		uint64_t fullsize : 1      = false;
+		int64_t  rsvd : 61         = 0;
 	};
 
 	// Machine instruction.

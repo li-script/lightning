@@ -79,10 +79,10 @@ namespace li::ir {
 			case bc::ANEG: {
 				auto c = b->add_const(1ull << 63);
 				if constexpr (USE_AVX) {
-					VXORPS(b, vx, vr, c);
+					VXORPD(b, vx, vr, c);
 				} else {
 					b.append(vop::movf, vx, vr);
-					XORPS(b, vx, c);
+					XORPD(b, vx, c);
 				}
 				return vx;
 			}
@@ -811,8 +811,7 @@ namespace li::ir {
 
 			// Procedure terminators.
 			//
-			case opcode::ret:
-			case opcode::thrw: {
+			case opcode::ret: {
 				// Free the stack we allocated.
 				//
 				auto tmp = b->next_gp();
@@ -820,8 +819,8 @@ namespace li::ir {
 				b.append(vop::movi, tmp2, REF_VM());
 				LEA(b, tmp, mmem{.base = vreg_args, .disp = 8 * (FRAME_SIZE + 1)});
 				b.append(vop::storei64, {}, mmem{.base = tmp2, .disp = offsetof(vm, stack_top)}, tmp);
-			
-				// Return the reuslt.
+
+				// Return the result.
 				//
 				auto r = mreg(arch::from_native(arch::gp_retval));
 				type_erase(b, i->operands[0], r);
@@ -968,7 +967,10 @@ namespace li::ir {
 
 		auto push_operand = [&](const mop& op) {
 			//printf(" %s", op.to_string().c_str());
-			req.operands[req.operand_count++] = to_op(b, op);
+			auto o                            = to_op(b, op);
+			if (i.target_info.fullsize && o.type == ZYDIS_OPERAND_TYPE_MEMORY)
+				o.mem.size = 0x10;
+			req.operands[req.operand_count++] = o;
 		};
 		//printf("\t%s ", arch::name_mnemonic(req.mnemonic));
 		switch (i.target_info.rsvd) {
@@ -1019,9 +1021,9 @@ namespace li::ir {
 					}
 				} else if (src.i64 == 0) {
 					if constexpr (USE_AVX) {
-						LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_VXORPS, dst, dst, dst));
+						LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_VXORPD, dst, dst, dst));
 					} else {
-						LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_XORPS, dst, dst));
+						LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_XORPD, dst, dst));
 					}
 				} else if (src.i64 == -1ll) {
 					if constexpr (USE_AVX) {

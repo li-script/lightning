@@ -8,10 +8,10 @@ namespace li {
 	struct vm;
 
 	// Applies the unary/binary operator the values given. On failure (e.g. type mismatch),
-	// returns the exception as the result and false for the second return.
+	// returns the exception as the result.
 	//
-	LI_INLINE std::pair<any, bool> apply_unary(vm* L, any a, bc::opcode op);
-	LI_INLINE std::pair<any, bool> apply_binary(vm* L, any a, any b, bc::opcode op);
+	LI_INLINE any apply_unary(vm* L, any a, bc::opcode op);
+	LI_INLINE any apply_binary(vm* L, any a, any b, bc::opcode op);
 
 	// List of operators with their traits.
 	//

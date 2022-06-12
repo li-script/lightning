@@ -64,7 +64,7 @@ namespace li {
 
 		// Traitful table get/set.
 		//
-		std::pair<any, bool> tset(vm* L, any key, any value);
-		std::pair<any, bool> tget(vm* L, any key);
+		any tset(vm* L, any key, any value);
+		any tget(vm* L, any key);
 	};
 };

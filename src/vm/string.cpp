@@ -301,6 +301,9 @@ namespace li {
 			case type_opaque:
 				formatter("opaque %llx", (uint64_t) a.as_opq().bits);
 				break;
+			case type_exception:
+				formatter("((exception marker))");
+				break;
 			default:
 				util::abort("invalid type");
 				break;
@@ -312,9 +315,8 @@ namespace li {
 		if (is_traitful()) {
 			auto* t = (traitful_node<>*) as_gc();
 			if (t->has_trait<trait::str>()) {
-				bool ok = L->call(0, t->get_trait<trait::str>(), *this);
-				auto res = L->pop_stack();
-				if (ok && res.is_str()) {
+				auto res = L->call(0, t->get_trait<trait::str>(), *this);
+				if (res.is_str()) {
 					return res.as_str();
 				}
 			}

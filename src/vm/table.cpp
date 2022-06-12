@@ -120,34 +120,33 @@ namespace li {
 
 	// Traitful table get/set.
 	//
-	std::pair<any, bool> table::tset(vm* L, any key, any value) {
+	any table::tset(vm* L, any key, any value) {
 		if (trait_freeze) [[unlikely]] {
-			return {string::create(L, "modifying frozen table."), false};
+			L->error(string::create(L, "modifying frozen table."));
+			return exception_marker;
 		}
 
 		if (!has_trait<trait::set>()) [[likely]] {
 			set(L, key, value);
-			return {nil, true};
+			return nil;
 		}
 
 		L->push_stack(value);
 		L->push_stack(key);
-		auto ok = L->call(2, get_trait<trait::set>(), this);
-		return {L->pop_stack(), ok};
+		return L->call(2, get_trait<trait::set>(), this);
 	}
-	std::pair<any, bool> table::tget(vm* L, any key) {
+	any table::tget(vm* L, any key) {
 		auto result = get(L, key);
 		if (result != nil || !has_trait<trait::get>()) [[likely]] {
-			return {result, true};
+			return result;
 		}
 
 		auto get = get_trait<trait::get>();
 		if (get.is_tbl()) {
-			return {get.as_tbl()->get(L, key), true};
+			return get.as_tbl()->get(L, key);
 		} else {
 			L->push_stack(key);
-			auto ok = L->call(1, get, this);
-			return {L->pop_stack(), ok};
+			return L->call(1, get, this);
 		}
 	}
 };

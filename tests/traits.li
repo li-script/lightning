@@ -74,7 +74,7 @@ tbl::freeze!(true);
 try {
    tbl.z = 45
    assert(false)
-} catch(ex) {
+} catch ex {
    assert("modifying frozen" in ex)
 }
 
@@ -84,6 +84,6 @@ tbl::seal!(true);
 try {
    tbl::seal!(false);
    assert(false)
-} catch(ex) {
+} catch ex {
    assert("modifying sealed" in ex)
 }

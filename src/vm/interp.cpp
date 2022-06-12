@@ -9,32 +9,41 @@
 namespace li {
 	// VM helpers.
 	//
-#define VM_RET(value, ex)                                    \
-	do {                                                      \
-		locals_begin[FRAME_RET] = value;                       \
-		if (ex && catchpad_i) [[unlikely]] {                   \
+#define VM_RETHROW()                                         \
+	{                                                         \
+		if (catchpad_i) {                                      \
 			ip           = catchpad_i;                          \
 			L->stack_top = locals_begin + f->proto->num_locals; \
 			continue;                                           \
 		}                                                      \
-		L->stack_top            = locals_begin;                \
-		return !ex;                                            \
-	} while (0)
-#define UNOP_HANDLE(K)                          \
-	case K: {                                    \
-		auto [r, ok] = apply_unary(L, REG(b), K); \
-		if (!ok) [[unlikely]]                     \
-			VM_RET(r, true);                       \
-		REG(a) = r;                               \
-		continue;                                 \
+		L->stack_top = locals_begin;                           \
+		return exception_marker.value;                         \
 	}
-#define BINOP_HANDLE(K)                                  \
-	case K: {                                             \
-		auto [r, ok] = apply_binary(L, REG(b), REG(c), K); \
-		if (!ok) [[unlikely]]                              \
-			VM_RET(r, true);                                \
-		REG(a) = r;                                        \
-		continue;                                          \
+#define VM_RET(value, ex)          \
+	{                               \
+		if (ex) [[unlikely]] {       \
+			L->last_ex = value;       \
+			VM_RETHROW();             \
+		}                            \
+		L->stack_top = locals_begin; \
+		return L->ok(value);         \
+	}																					
+
+#define UNOP_HANDLE(K)                    \
+	case K: {                              \
+		auto r = apply_unary(L, REG(b), K); \
+		if (r.is_exc()) [[unlikely]]        \
+			VM_RETHROW();                    \
+		REG(a) = r;                         \
+		continue;                           \
+	}
+#define BINOP_HANDLE(K)                            \
+	case K: {                                       \
+		auto r = apply_binary(L, REG(b), REG(c), K); \
+		if (r.is_exc()) [[unlikely]]                 \
+			VM_RETHROW();                             \
+		REG(a) = r;                                  \
+		continue;                                    \
 	}
 
 #if !LI_DEBUG
@@ -42,7 +51,7 @@ namespace li {
 	#define UVAL(...) f->upvalue_array[(__VA_ARGS__)]
 	#define KVAL(...) f->proto->kvals()[(__VA_ARGS__)]
 #endif
-	LI_NOINLINE bool vm_invoke(vm* L, any* args, slot_t n_args) {
+	LI_NOINLINE uint64_t vm_invoke(vm* L, any* args, slot_t n_args) {
 		LI_ASSERT(&args[2] == &L->stack_top[FRAME_TARGET]);
 		any* const __restrict locals_begin = args + FRAME_SIZE + 1;
 
@@ -54,8 +63,7 @@ namespace li {
 			vf                       = vf.as_tbl()->get_trait<trait::call>();
 		}
 		if (!vf.is_fn()) [[unlikely]] {
-			locals_begin[FRAME_RET] = string::format(L, "invoking non-function");
-			return false;
+			return L->error(string::format(L, "invoking non-function"));
 		}
 		function* f = vf.as_fn();
 		if (f->invoke != &vm_invoke) {
@@ -65,8 +73,7 @@ namespace li {
 		// Validate argument count.
 		//
 		if (f->proto->num_arguments > n_args) [[unlikely]] {
-			locals_begin[FRAME_RET] = string::format(L, "expected at least %u arguments, got %u", f->proto->num_arguments, n_args);
-			return false;
+			return L->error(string::format(L, "expected at least %u arguments, got %u", f->proto->num_arguments, n_args));
 		}
 
 		// Allocate stack space.
@@ -136,8 +143,6 @@ namespace li {
 					REG(a) = REG(b);
 					continue;
 				}
-				case bc::THRW:
-					VM_RET(REG(a), true);
 				case bc::RET:
 					VM_RET(REG(a), false);
 				case bc::JNS:
@@ -317,9 +322,9 @@ namespace li {
 					}
 
 					if (tbl.is_tbl()) {
-						auto [r, ok] = tbl.as_tbl()->tget(L, REG(b));
-						if (!ok) [[unlikely]] {
-							VM_RET(r, true);
+						auto r = tbl.as_tbl()->tget(L, REG(b));
+						if (r.is_exc()) [[unlikely]] {
+							VM_RETHROW();
 						}
 						REG(a) = r;
 					} else if (tbl.is_arr()) {
@@ -359,9 +364,9 @@ namespace li {
 						VM_RET(string::create(L, "indexing non-table"), true);
 					}
 
-					auto [r, ok] = tbl.as_tbl()->tset(L, key, val);
-					if (!ok) [[unlikely]] {
-						VM_RET(r, true);
+					auto r = tbl.as_tbl()->tset(L, key, val);
+					if (r.is_exc()) [[unlikely]] {
+						VM_RETHROW();
 					}
 					L->gc.tick(L);
 					continue;
@@ -483,14 +488,25 @@ namespace li {
 					}
 					continue;
 				}
+				case bc::SETEX: {
+					L->last_ex = REG(a);
+					continue;
+				}
+				case bc::GETEX: {
+					REG(a) = L->last_ex;
+					continue;
+				}
 				case bc::CALL: {
 					call_frame cf{.stack_pos = msize_t(locals_begin - L->stack), .caller_pc = msize_t(ip - opcode_array)};
-					auto       argspace = L->stack_top - 2;
-					L->push_stack(REG(b));
+					auto       argspace = L->stack_top - 3;
+				
 					L->push_stack(li::bit_cast<opaque>(cf));
-					if (!vm_invoke(L, argspace, a)) [[unlikely]] {
-						VM_RET(L->stack_top[FRAME_RET], true);
+					any result;
+					if (result.value = vm_invoke(L, argspace, b); result.is_exc()) [[unlikely]] {
+						VM_RETHROW();
 					}
+					REG(a)       = result;
+					L->stack_top = locals_begin + f->proto->num_locals;
 					continue;
 				}
 				case bc::PUSHR:
@@ -498,12 +514,6 @@ namespace li {
 					continue;
 				case bc::PUSHI:
 					L->push_stack(any(std::in_place, insn.xmm()));
-					continue;
-				case bc::SLOAD:
-					REG(a) = L->stack_top[-b];
-					continue;
-				case bc::SRST:
-					L->stack_top = locals_begin + f->proto->num_locals;
 					continue;
 				case bc::NOP:
 					continue;

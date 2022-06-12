@@ -17,7 +17,7 @@
 namespace li::lib {
 	using namespace ir;
 
-	static bool jit_on(vm* L, any* args, slot_t n) {
+	static uint64_t jit_on(vm* L, any* args, slot_t n) {
 		if (!args->is_fn() || args->as_fn()->is_native()) {
 			return L->error("expected vfunction.");
 		}
@@ -84,27 +84,27 @@ namespace li::lib {
 		args->as_fn()->invoke = (nfunc_t) &args->as_fn()->proto->jfunc->code[0];
 		return L->ok();
 	}
-	static bool jit_off(vm* L, any* args, slot_t n) {
+	static uint64_t jit_off(vm* L, any* args, slot_t n) {
 		if (!args->is_fn() || args->as_fn()->is_native()) {
 			return L->error("expected vfunction.");
 		}
 		args->as_fn()->invoke = &vm_invoke;
 		return L->ok();
 	}
-	static bool jit_bp(vm* L, any* args, slot_t n) {
+	static uint64_t jit_bp(vm* L, any* args, slot_t n) {
 		if (!args->is_fn() || args->as_fn()->is_native() || !args->as_fn()->is_jit()) {
 			return L->error("expected vfunction with JIT record.");
 		}
 		args->as_fn()->proto->jfunc->code[0] = 0xCC;
 		return L->ok();
 	}
-	static bool jit_where(vm* L, any* args, slot_t n) {
+	static uint64_t jit_where(vm* L, any* args, slot_t n) {
 		if (!args->is_fn() || args->as_fn()->is_native() || !args->as_fn()->is_jit()) {
 			return L->ok("N/A");
 		}
 		return L->ok(string::format(L, "%p", &args->as_fn()->proto->jfunc->code[0]));
 	}
-	static bool jit_disasm(vm* L, any* args, slot_t n) {
+	static uint64_t jit_disasm(vm* L, any* args, slot_t n) {
 		if (!args->is_fn() || args->as_fn()->is_native() || !args->as_fn()->is_jit()) {
 			return L->error("expected vfunction with JIT record.");
 		}

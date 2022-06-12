@@ -1,2 +1,2 @@
-assert(eval("2+3") == 5)
 assert(loadstring("2+3")() == 5)
+assert(eval("2+3") == 5)

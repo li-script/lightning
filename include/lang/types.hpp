@@ -37,16 +37,17 @@ namespace li {
 	//
 	enum value_type : uint8_t /*:4*/ {
 		// - first gc type
-		type_table    = 0,
-		type_userdata = 1,  // Last traitful.
-		type_array    = 2,
-		type_function = 3,
-		type_proto    = 4,  // Not visible to user.
-		type_string   = 5,
-		type_bool     = 8,  // First non-GC type.
-		type_nil      = 9,
-		type_opaque   = 10,  // Not visible to user, unique integer part.
-		type_number   = 11,
+		type_table     = 0,
+		type_userdata  = 1,  // Last traitful.
+		type_array     = 2,
+		type_function  = 3,
+		type_proto     = 4,  // Not visible to user.
+		type_string    = 5,
+		type_bool      = 8,  // First non-GC type.
+		type_nil       = 9,
+		type_opaque    = 10,  // Not visible to user, unique integer part.
+		type_exception = 11,  // Not visible to user, marker.
+		type_number    = 12,  // Not a real enumerator, everything below this is also a number.
 
 		// GC aliases.
 		type_gc_last_traitful = type_userdata,
@@ -66,16 +67,17 @@ namespace li {
 	static constexpr std::array<const char*, 16> type_names = []() {
 		std::array<const char*, 16> result;
 		result.fill("invalid");
-		result[type_table]    = "table";
-		result[type_array]    = "array";
-		result[type_function] = "function";
-		result[type_proto]    = "proto";
-		result[type_string]   = "string";
-		result[type_userdata] = "userdata";
-		result[type_nil]      = "nil";
-		result[type_bool]     = "bool";
-		result[type_opaque]   = "opaque";
-		result[type_number]   = "number";
+		result[type_table]     = "table";
+		result[type_array]     = "array";
+		result[type_function]  = "function";
+		result[type_proto]     = "proto";
+		result[type_string]    = "string";
+		result[type_userdata]  = "userdata";
+		result[type_nil]       = "nil";
+		result[type_bool]      = "bool";
+		result[type_opaque]    = "opaque";
+		result[type_exception] = "exception";
+		result[type_number]    = "number";
 		return result;
 	}();
 
@@ -124,6 +126,7 @@ namespace li {
 		inline constexpr any() : value(make_tag(type_nil)) {}
 		inline constexpr any(bool v) : value(mix_value(type_bool, v?1:0)) {}
 		inline constexpr any(number v) : value(li::bit_cast<uint64_t>(v)) {
+			// TODO: Might be optimized out if compiled with -ffast-math.
 			if (v != v) [[unlikely]]
 				value = kvalue_nan;
 		}
@@ -151,6 +154,7 @@ namespace li {
 		inline constexpr bool       is_udt() const { return get_type(value) == type_userdata; }
 		inline constexpr bool       is_fn() const { return get_type(value) == type_function; }
 		inline constexpr bool       is_opq() const { return get_type(value) == type_opaque; }
+		inline constexpr bool       is_exc() const { return value == make_tag(type_exception); }
 		inline constexpr bool       is_gc() const { return is_gc_value(value); }
 		inline constexpr bool       is_traitful() const { return is_traitful_value(value); }
 
@@ -225,6 +229,7 @@ namespace li {
 	static constexpr any nil{};
 	static constexpr any const_false{false};
 	static constexpr any const_true{true};
+	static constexpr any exception_marker{std::in_place, make_tag(type_exception)};
 
 	// Fills the any[] with nones.
 	//
@@ -263,6 +268,7 @@ namespace li::ir {
 		//
 		nil,
 		opq,
+		exc,
 		tbl,  // same order as gc types
 		udt,
 		arr,
@@ -308,6 +314,8 @@ namespace li::ir {
 			return type_nil;
 		else if (vt == type::opq)
 			return type_opaque;
+		else if (vt == type::exc)
+			return type_exception;
 		else if (type::tbl <= vt && vt < type::bb)
 			return value_type(uint8_t(vt) - uint8_t(type::tbl) + type_table);
 		else
@@ -320,6 +328,8 @@ namespace li::ir {
 			return type::f64;
 		else if (t == type_opaque)
 			return type::opq;
+		else if (t == type_exception)
+			return type::exc;
 		else if (t == type_nil)
 			return type::nil;
 		else if (t <= type_gc_last)

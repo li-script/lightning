@@ -243,6 +243,8 @@ namespace li::gc {
 			if (e.is_gc())
 				e.as_gc()->gc_tick(s);
 		}
+		if (L->last_ex.is_gc())
+			L->last_ex.as_gc()->gc_tick(s);
 
 		// Globals.
 		//

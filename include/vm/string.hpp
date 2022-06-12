@@ -29,12 +29,12 @@ namespace li {
 	// Define forwarded vm::error.
 	//
 	template<typename... Tx>
-	LI_COLD inline bool vm::error(const char* fmt, Tx... args) {
+	LI_COLD inline uint64_t vm::error(const char* fmt, Tx... args) {
 		if constexpr (sizeof...(Tx) != 0) {
-			stack_top[FRAME_RET] = string::format(this, fmt, args...);
+			last_ex = string::format(this, fmt, args...);
 		} else {
-			stack_top[FRAME_RET] = string::create(this, fmt);
+			last_ex = string::create(this, fmt);
 		}
-		return false;
+		return exception_marker.value;
 	}
 };

@@ -242,7 +242,7 @@ namespace li::ir {
 		call,           // call i64, [implicit args & nonvol clobber]
 		js,             // cnd true block, false block
 		jmp,            // block
-		ret,            // i1
+		ret,            // gpreg
 		unreachable
 		// TODO: Profile instruction for PGO.
 	};

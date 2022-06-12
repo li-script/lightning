@@ -182,7 +182,7 @@ namespace li::ir::opt {
 			auto i = range::find_if(bb->insns(), [](insn* i) {
 				if (i->is<vcall>()) {
 					i->update();
-					if (i->operands[1]->vt == type::unk) {
+					if (i->operands[0]->vt == type::unk) {
 						return true;
 					}
 				}
@@ -192,7 +192,7 @@ namespace li::ir::opt {
 				return false;
 			}
 
-			auto [arr, e0] = split_by(i.at, 1, type_function);
+			auto [arr, e0] = split_by(i.at, 0, type_function);
 			// TODO: ^has trait -> e0
 			e0 = builder{e0}.emit_before<unreachable>(e0);  // <-- TODO: throw.
 			while (e0 != e0->parent->back())

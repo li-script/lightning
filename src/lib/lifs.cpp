@@ -29,18 +29,17 @@ namespace li::lib::fs {
 		// Suspend GC and invoke it.
 		//
 		auto psuspend = std::exchange(L->gc.suspend, true); // TODO: Not okay.
-		bool ok = L->call(0, res);
+		auto val = L->call(0, res);
 		L->gc.suspend = psuspend;
 
-		// If it threw an exception, convert to string and return.
+		// If it threw an exception, rethrow.
 		//
-		if (!ok) {
-			return L->pop_stack().to_string(L);
+		if (val.is_exc()) {
+			return val;
 		}
 
 		// Otherwise, discard the result, return the module entry.
 		//
-		L->pop_stack();
 		auto result = L->modules->get(L, string::create(L, name));
 		LI_ASSERT(result.is_tbl());
 		return result;

@@ -101,8 +101,8 @@ namespace li {
 		// Basic constant folding.
 		//
 		if (rhs.kind == expr::imm) {
-			auto [v, ok] = apply_unary(scope.fn.L, rhs.imm, op);
-			if (ok) {
+			auto v = apply_unary(scope.fn.L, rhs.imm, op);
+			if (!v.is_exc()) {
 				return expression(v);
 			}
 		}
@@ -122,8 +122,8 @@ namespace li {
 		// Basic constant folding.
 		//
 		if (lhs.kind == expr::imm && rhs.kind == expr::imm) {
-			auto [v, ok] = apply_binary(scope.fn.L, lhs.imm, rhs.imm, op);
-			if (ok) {
+			auto v = apply_binary(scope.fn.L, lhs.imm, rhs.imm, op);
+			if (!v.is_exc()) {
 				return expression(v);
 			}
 		}
@@ -978,8 +978,8 @@ namespace li {
 						scope.lex().error("module '%s' not found", name->str_val->c_str());
 						return {};
 					}
-					else if (result.is_str()) {
-						scope.lex().error(result.as_str()->c_str());
+					else if (result.is_exc()) {
+						scope.lex().error(scope.fn.L->last_ex.coerce_str(scope.fn.L)->c_str());
 						return {};
 					}
 					mod = result;
@@ -1043,14 +1043,24 @@ namespace li {
 					res = expr_parse(scope);
 				}
 
-				// If there is a catch pad, just jump to it, otherwise use THRW.
+				// If there is a catch pad, just jump to it, otherwise return.
 				//
+				auto tmp = scope.alloc_reg();
+				if (res.kind == expr::reg) {
+					scope.emit(bc::SETEX, res.reg);
+				} else {
+					res.to_reg(scope, tmp);
+					scope.emit(bc::SETEX, tmp);
+				}
+
 				if (scope.lbl_catchpad != 0) {
-					res.to_reg(scope, FRAME_RET);
 					scope.emit(bc::JMP, scope.lbl_catchpad);
 				} else {
-					scope.emit(bc::THRW, res.to_anyreg(scope));
+
+					scope.set_reg(tmp, exception_marker);
+					scope.emit(bc::RET, tmp);
 				}
+				scope.free_reg(tmp);
 				return expression(nil);
 			}
 
@@ -1212,11 +1222,10 @@ namespace li {
 
 		// Ignore result on error else return the result.
 		//
-		if (bool ok = L->call(callsite.size(), func, self.imm); !ok) {
-			L->pop_stack();
+		if (any val = L->call(callsite.size(), func, self.imm); val.is_exc()) {
 			return {};
 		} else {
-			return L->pop_stack();
+			return val;
 		}
 	}
 
@@ -1355,12 +1364,8 @@ namespace li {
 			callsite[i].push(scope);
 		}
 		self.push(scope);
-		scope.emit(bc::CALL, size, func.to_anyreg(scope));
-
-		// Load the result, reset the frame, free all temporaries and return.
-		//
-		scope.emit(bc::SLOAD, tmp, -FRAME_RET);
-		scope.emit(bc::SRST);
+		func.push(scope);
+		scope.emit(bc::CALL, tmp, size);
 		scope.reg_next = tmp + 1;
 		return expression(tmp);
 	}
@@ -1913,14 +1918,9 @@ namespace li {
 		} else {
 			func_scope iscope{scope.fn};
 
-			if (iscope.lex().opt('(')) {
-				if (auto errv = iscope.lex().opt(lex::token_name)) {
-					auto r = iscope.add_local(errv->str_val, false);
-					iscope.emit(bc::MOV, r, FRAME_RET);
-				}
-				if (iscope.lex().check(')') == lex::token_error) {
-					return {};
-				}
+			if (auto errv = iscope.lex().opt(lex::token_name)) {
+				auto r = iscope.add_local(errv->str_val, false);
+				iscope.emit(bc::GETEX, r);
 			}
 			if (iscope.lex().check('{') == lex::token_error) {
 				return {};

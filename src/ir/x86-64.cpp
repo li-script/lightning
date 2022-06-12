@@ -1034,43 +1034,52 @@ namespace li::ir {
 				}
 				return;
 			}
-			case opcode::write_argument: {
-				auto idx = i->operands[0]->as<constant>()->i32;
-				mreg val;
 
-				if (i->operands[1]->is<constant>()) {
-					val = b->next_gp();
-					b.append(vop::movi, val, i->operands[1]->as<constant>()->to_any());
-				} else if (i->operands[1]->vt != type::unk) {
-					if (i->operands[1]->vt == type::f32) {
-						auto tmp = b->next_fp();
-						b.append(vop::fx64, tmp, REG(i->operands[1]));
-						val = tmp;
-					} else if (i->operands[1]->vt != type::f64 && i->operands[1]->vt != type::unk) {
-						auto tmp = b->next_gp();
-						type_erase(b, i->operands[1], tmp);
-						val = tmp;
-					} else {
-						val = REG(i->operands[1]);
-					}
-				} else {
-					val = REG(i->operands[1]);
-				}
-
-				if (val.is_fp())
-					b.append(vop::storef64, {}, mmem{.base = vreg_tos, .disp = idx * 8}, val);
-				else
-					b.append(vop::storei64, {}, mmem{.base = vreg_tos, .disp = idx * 8}, val);
-				return;
+			/*case opcode::get_exception : {
 			}
-			case opcode::reload_argument: {
-				auto idx = i->operands[0]->as<constant>()->i32;
-				b.append(vop::loadi64, REG(i), mmem{.base = vreg_tos, .disp = idx * 8});
-				return;
-			}
+			case opcode::set_exception: {
+			}*/
 			case opcode::vcall: {
-				auto& fn  = i->operands[1];
+				// Define helper to dispatch arguments to stack.
+				//
+				int32_t next_index = FRAME_TARGET;
+				auto write_arg = [&](value* v) {
+               int32_t idx = next_index--;
+					mreg val;
+					if (v->is<constant>()) {
+						val = b->next_gp();
+						b.append(vop::movi, val, v->as<constant>()->to_any());
+					} else if (v->vt != type::unk) {
+						if (v->vt == type::f32) {
+							auto tmp = b->next_fp();
+							b.append(vop::fx64, tmp, REG(v));
+							val = tmp;
+						} else if (v->vt != type::f64 && v->vt != type::unk) {
+							auto tmp = b->next_gp();
+							type_erase(b, v, tmp);
+							val = tmp;
+						} else {
+							val = REG(v);
+						}
+					} else {
+						val = REG(v);
+					}
+
+					if (val.is_fp())
+						b.append(vop::storef64, {}, mmem{.base = vreg_tos, .disp = idx * 8}, val);
+					else
+						b.append(vop::storei64, {}, mmem{.base = vreg_tos, .disp = idx * 8}, val);
+				};
+
+				// Make sure it's a function.
+				//
+				auto& fn  = i->operands[0];
 				LI_ASSERT(fn->vt == type::fn);  // Type guaranteed by opt_type.
+
+				// Write all arguments on stack.
+				//
+				for (auto& op : i->operands)
+					write_arg(op);
 
 				// If native function, the callback will not change.
 				//
@@ -1108,7 +1117,7 @@ namespace li::ir {
 				//
 				b.append(vop::movi, arch::map_gp_arg(0, 0), REF_VM());
 				LEA(b, mreg(arch::map_gp_arg(1, 0)), mmem{.base = vreg_tos, .disp = -8 * (FRAME_SIZE + 1)});
-				b.append(vop::movi, arch::map_gp_arg(2, 0), i->operands[0]->as<constant>()->i32);
+				b.append(vop::movi, arch::map_gp_arg(2, 0), int32_t(i->operands.size() - 2 /*-self+fn*/));
 				b.append(vop::call, {}, call_target);
 				b.append(vop::movi, REG(i), mreg(arch::from_native(arch::gp_retval)));
 				return;
@@ -1147,11 +1156,12 @@ namespace li::ir {
 				b.append(vop::movi, tmp2, REF_VM());
 				LEA(b, tmp, mmem{.base = vreg_args, .disp = 8 * (FRAME_SIZE + 1)});
 				b.append(vop::storei64, {}, mmem{.base = tmp2, .disp = offsetof(vm, stack_top)}, tmp);
-
-				// Write the result and return the status.
+			
+				// Return the reuslt.
 				//
-				local_store(b, FRAME_RET, i->operands[0]);
-				b.append(vop::ret, {}, i->opc == opcode::ret ? 1ll : 0ll);
+				auto r = mreg(arch::from_native(arch::gp_retval));
+				type_erase(b, i->operands[0], r);
+				b.append(vop::ret, {}, mop(r));
 				return;
 			}
 			case opcode::unreachable: {
@@ -1624,18 +1634,9 @@ namespace li::ir {
 				}
 				break;
 			case vop::ret: {
+				LI_ASSERT(i.arg[0].reg == preg(arch::from_native(arch::gp_retval)));
 				b->assembly.insert(b->assembly.end(), b->epilogue.begin(), b->epilogue.end());
-				if (i.arg[0].is_const()) {
-					if (i.arg[0]) {
-						LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, zy::RAX, i.arg[0].i64));
-					} else {
-						LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_XOR, zy::EAX, zy::EAX));
-					}
-					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_RET));
-				} else if (i.arg[0].is_reg()) {
-					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, zy::RAX, to_op(b, i.arg[0])));
-					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_RET));
-				}
+				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_RET));
 				break;
 			}
 			case vop::null:

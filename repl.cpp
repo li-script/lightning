@@ -32,19 +32,16 @@ using namespace li;
 static void handle_repl_io(vm* L, std::string_view input) {
 	auto fn = li::load_script(L, input, "console", {}, true);
 	if (fn.is_fn()) {
-		if (!L->call(0, fn)) {
+		if (auto r = L->call(0, fn); r.is_exc()) {
 			printf(LI_RED "Exception: ");
-			L->pop_stack().print();
+			L->last_ex.print();
 			printf("\n" LI_DEF);
-		} else {
-			auto r = L->pop_stack();
-			if (r != nil) {
-				printf(LI_GRN "");
-				r.print();
-				printf("\n" LI_DEF);
-				if (r.is_tbl())
-					debug::dump_table(r.as_tbl());
-			}
+		} else if (r != nil) {
+			printf(LI_GRN "");
+			r.print();
+			printf("\n" LI_DEF);
+			if (r.is_tbl())
+				debug::dump_table(r.as_tbl());
 		}
 	} else {
 		printf(LI_RED "Parser error: " LI_DEF);
@@ -134,10 +131,10 @@ int main(int argv, const char** args) {
 	int retval = 1;
 	if (fn.is_fn()) {
 		auto t0 = std::chrono::high_resolution_clock::now();
-		if (!L->call(0, fn)) {
+		if (auto r = L->call(0, fn); r.is_exc()) {
 			auto t1 = std::chrono::high_resolution_clock::now();
 			printf(LI_BLU "(%.2lf ms) " LI_RED "Exception: " LI_DEF, (t1 - t0) / std::chrono::duration<double, std::milli>(1.0));
-			if (auto r = L->pop_stack(); r == nil)
+			if (r = L->last_ex; r == nil)
 				printf("?");
 			else
 				r.print();
@@ -145,7 +142,6 @@ int main(int argv, const char** args) {
 		} else {
 			auto t1 = std::chrono::high_resolution_clock::now();
 			printf(LI_BLU "(%.2lf ms) " LI_GRN "Result: " LI_DEF, (t1 - t0) / std::chrono::duration<double, std::milli>(1.0));
-			auto r = L->pop_stack();
 			if (r == nil)
 				printf("OK");
 			else

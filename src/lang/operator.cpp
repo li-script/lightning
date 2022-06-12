@@ -7,68 +7,70 @@
 
 namespace li {
 
-	LI_COLD static any arg_error(vm* L, any a, const char* expected) { return string::format(L, "expected '%s', got '%s'", expected, type_names[a.type()]); }
+	LI_COLD static any arg_error(vm* L, any a, const char* expected)
+	{
+		L->last_ex = string::format(L, "expected '%s', got '%s'", expected, type_names[a.type()]);
+		return exception_marker;
+	}
 #define TYPE_ASSERT(v, t)     \
 	if (!v.is(t)) [[unlikely]] \
-		return {arg_error(L, v, type_names[t]), false};
+		return arg_error(L, v, type_names[t]);
 
 #define UNARY_APPLY_TRAIT(t)                           \
 	if (a.is_traitful()) [[unlikely]] {                 \
 		auto* ta = (traitful_node<>*) a.as_gc();         \
 		if (ta->has_trait<t>()) {                        \
-			bool ok = L->call(0, ta->get_trait<t>(), a); \
-			return {L->pop_stack(), ok};                  \
+			return L->call(0, ta->get_trait<t>(), a);     \
 		}                                                \
 	}
-#define BINARY_APPLY_TRAIT_AND(t, TF)                                                 \
-	if (a.is_traitful() || b.is_traitful()) [[unlikely]]                               \
-		do {                                                                            \
-			trait_pointer tp = {};                                                       \
-			any           self;                                                          \
-			if (a.is_traitful() && ((traitful_node<>*) a.as_gc())->has_trait<t>())       \
-				tp = ((traitful_node<>*) a.as_gc())->traits->list[msize_t(t)], self = a;  \
-			else if (b.is_traitful() && ((traitful_node<>*) b.as_gc())->has_trait<t>())  \
-				tp = ((traitful_node<>*) b.as_gc())->traits->list[msize_t(t)], self = b;  \
-			if (tp.pointer) {                                                            \
-				L->push_stack(b);                                                         \
-				L->push_stack(a);                                                         \
-				bool ok     = L->call(2, tp.as_any(), self);                             \
-				any  retval = L->pop_stack();                                             \
-				return {TF(retval, ok)};                                                  \
-			}                                                                            \
+#define BINARY_APPLY_TRAIT_AND(t, TF)                                                \
+	if (a.is_traitful() || b.is_traitful()) [[unlikely]]                              \
+		do {                                                                           \
+			trait_pointer tp = {};                                                      \
+			any           self;                                                         \
+			if (a.is_traitful() && ((traitful_node<>*) a.as_gc())->has_trait<t>())      \
+				tp = ((traitful_node<>*) a.as_gc())->traits->list[msize_t(t)], self = a; \
+			else if (b.is_traitful() && ((traitful_node<>*) b.as_gc())->has_trait<t>()) \
+				tp = ((traitful_node<>*) b.as_gc())->traits->list[msize_t(t)], self = b; \
+			if (tp.pointer) {                                                           \
+				L->push_stack(b);                                                        \
+				L->push_stack(a);                                                        \
+				any res = L->call(2, tp.as_any(), self);                                 \
+				return TF(res);                                                          \
+			}                                                                           \
 		} while (0);
 #define BINARY_APPLY_TRAIT(t) BINARY_APPLY_TRAIT_AND(t, LI_IDENTITY)
 
 	// Applies the unary/binary operator the values given. On failure (e.g. type mismatch),
-	// returns the exception as the result and false for the second return.
+	// returns the exception as the result.
 	//
-	LI_INLINE std::pair<any, bool> apply_unary(vm* L, any a, bc::opcode op) {
+	LI_INLINE any apply_unary(vm* L, any a, bc::opcode op) {
 		switch (op) {
 			case bc::TOSTR:
-				return {any(a.coerce_str(L)), true};
+				return any(a.coerce_str(L));
 			case bc::TONUM:
-				return {any(a.coerce_num()), true};
+				return any(a.coerce_num());
 			case bc::TOINT:
-				return {any(trunc(a.coerce_num())), true};
+				return any(trunc(a.coerce_num()));
 			case bc::TOBOOL:
-				return {any(a.coerce_bool()), true};
+				return any(a.coerce_bool());
 			case bc::LNOT:
-				return {any(!a.coerce_bool()), true};
+				return any(!a.coerce_bool());
 			case bc::ANEG: {
 				UNARY_APPLY_TRAIT(trait::neg);
 				TYPE_ASSERT(a, type_number);
-				return {any(-a.as_num()), true};
+				return any(-a.as_num());
 			}
 			case bc::VLEN: {
 				UNARY_APPLY_TRAIT(trait::len);
 				if (a.is_arr()) {
-					return {any(number(a.as_arr()->length)), true};
+					return any(number(a.as_arr()->length));
 				} else if (a.is_tbl()) {
-					return {any(number(a.as_tbl()->active_count)), true};
+					return any(number(a.as_tbl()->active_count));
 				} else if (a.is_str()) {
-					return {any(number(a.as_str()->length)), true};
+					return any(number(a.as_str()->length));
 				} else [[unlikely]] {
-					return {arg_error(L, a, "iterable"), false};
+					return arg_error(L, a, "iterable");
 				}
 			}
 
@@ -76,67 +78,67 @@ namespace li {
 				assume_unreachable();
 		}
 	}
-	LI_INLINE std::pair<any, bool> apply_binary(vm* L, any a, any b, bc::opcode op) {
+	LI_INLINE any apply_binary(vm* L, any a, any b, bc::opcode op) {
 		switch (op) {
 			case bc::VIN: {
 				if (b.is_arr()) {
 					for (auto& k : *b.as_arr())
 						if (k == a)
-							return {const_true, true};
-					return {const_false, true};
+							return const_true;
+					return const_false;
 				} else if (b.is_tbl()) {
-					return {any(a != nil && b.as_tbl()->get(L, a) != nil), true};
+					return any(a != nil && b.as_tbl()->get(L, a) != nil);
 				} else if (b.is_str()) {
 					if (a.is_num()) {
 						if (auto num = uint32_t(a.as_num()); num <= 0xFF) {
 							for (auto& k : b.as_str()->view())
 								if (uint8_t(k) == num)
-									return {const_true, true};
+									return const_true;
 						}
-						return {const_false, true};
+						return const_false;
 					} else if (a.is_str()) {
-						return { bool(b.as_str()->view().find(a.as_str()->view())!=std::string::npos), true };
+						return bool(b.as_str()->view().find(a.as_str()->view())!=std::string::npos);
 					} else {
-						return {arg_error(L, b, "string or character"), false};
+						return arg_error(L, b, "string or character");
 					}
 				} else [[unlikely]] {
-					return {arg_error(L, b, "iterable"), false};
+					return arg_error(L, b, "iterable");
 				}
 			}
 			case bc::NCS:
-				return {a == nil ? b : a, true};
+				return a == nil ? b : a;
 			case bc::LOR:
-				return {a.coerce_bool() ? a : b, true};
+				return a.coerce_bool() ? a : b;
 			case bc::LAND:
-				return {a.coerce_bool() ? b : a, true};
+				return a.coerce_bool() ? b : a;
 			case bc::AADD:
 				BINARY_APPLY_TRAIT(trait::add);
 				if (a.is_arr()) {
 					a.as_arr()->push(L, b);
-					return {any(a), true};
+					return any(a);
 				} else if (a.is_str()) {
 					TYPE_ASSERT(b, type_string);
-					return {any(string::concat(L, a.as_str(), b.as_str())), true};
+					return any(string::concat(L, a.as_str(), b.as_str()));
 				} else {
 					TYPE_ASSERT(a, type_number);
 					TYPE_ASSERT(b, type_number);
-					return {any(a.as_num() + b.as_num()), true};
+					return any(a.as_num() + b.as_num());
 				}
 			case bc::ASUB:
 				BINARY_APPLY_TRAIT(trait::sub);
 				TYPE_ASSERT(a, type_number);
 				TYPE_ASSERT(b, type_number);
-				return {any(a.as_num() - b.as_num()), true};
+				return any(a.as_num() - b.as_num());
 			case bc::AMUL:
 				BINARY_APPLY_TRAIT(trait::mul);
 				TYPE_ASSERT(a, type_number);
 				TYPE_ASSERT(b, type_number);
-				return {any(a.as_num() * b.as_num()), true};
+				return any(a.as_num() * b.as_num());
 			case bc::ADIV:
 				BINARY_APPLY_TRAIT(trait::div);
 				TYPE_ASSERT(a, type_number);
 				TYPE_ASSERT(b, type_number);
-				return {any(a.as_num() / b.as_num()), true};
+				return any(a.as_num() / b.as_num());
 			case bc::AMOD: {
 				BINARY_APPLY_TRAIT(trait::mod);
 				TYPE_ASSERT(a, type_number);
@@ -145,33 +147,33 @@ namespace li {
 				double x = a.as_num();
 				double y = b.as_num();
 				#if LI_FAST_MATH
-				return {any(x - trunc(x / y) * y), true};
+				return any(x - trunc(x / y) * y);
 				#else
-				return {any(fmod(x, y)), true};
+				return any(fmod(x, y));
 				#endif
 			}
 			case bc::APOW:
 				BINARY_APPLY_TRAIT(trait::pow);
 				TYPE_ASSERT(a, type_number);
 				TYPE_ASSERT(b, type_number);
-				return {any(pow(a.as_num(), b.as_num())), true};
+				return any(pow(a.as_num(), b.as_num()));
 			case bc::CEQ:
 				if (a == b)
-					return {true, true};
+					return true;
 				BINARY_APPLY_TRAIT(trait::eq);
-				return {false, true};
+				return false;
 			case bc::CNE:
 				if (a == b)
-					return {false, true};
-				#define NEGATE(res, ok) ok?any(!res.as_bool()):res, ok
+					return false;
+				#define NEGATE(res) (!res.is_exc())?any(!res.as_bool()):res
 				BINARY_APPLY_TRAIT_AND(trait::eq, NEGATE);
 				#undef NEGATE
-				return {true, true};
+				return true;
 			case bc::CLT:
 				BINARY_APPLY_TRAIT(trait::lt);
 				TYPE_ASSERT(a, type_number);
 				TYPE_ASSERT(b, type_number);
-				return {any(a.as_num() < b.as_num()), true};
+				return any(a.as_num() < b.as_num());
 			case bc::CGT:
 				{
 					auto x=a,y=b;
@@ -180,12 +182,12 @@ namespace li {
 				}
 				TYPE_ASSERT(a, type_number);
 				TYPE_ASSERT(b, type_number);
-				return {any(a.as_num() > b.as_num()), true};
+				return any(a.as_num() > b.as_num());
 			case bc::CLE:
 				BINARY_APPLY_TRAIT(trait::le);
 				TYPE_ASSERT(a, type_number);
 				TYPE_ASSERT(b, type_number);
-				return {any(a.as_num() <= b.as_num()), true};
+				return any(a.as_num() <= b.as_num());
 			case bc::CGE:
 				{
 					auto x=a,y=b;
@@ -194,7 +196,7 @@ namespace li {
 				}
 				TYPE_ASSERT(a, type_number);
 				TYPE_ASSERT(b, type_number);
-				return {any(a.as_num() >= b.as_num()), true};
+				return any(a.as_num() >= b.as_num());
 			default:
 				assume_unreachable();
 		}

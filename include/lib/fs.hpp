@@ -9,8 +9,6 @@ namespace li::lib::fs {
 	using fn_import = any (*)(vm* L, std::string_view name);
 
 	// Import hook, uses fs::read_string.
-	// - String/Nil return means exception.
-	// - Everything else is loaded module result.
 	//
 	any default_import(vm* L, std::string_view name);
 };

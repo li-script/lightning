@@ -40,6 +40,8 @@ namespace li::bc {
 	_(VDUP, reg, reg, ___, none)  /* A=DUP(B) */                                          \
 	_(CCAT, reg, imm, ___, none)  /* A=CONCAT(A..A+B) */                                  \
 	_(SETEH, rel, ___, ___, none) /* Exception Handler = A */                             \
+	_(SETEX, reg, ___, ___, none) /* Last exception = A */                                \
+	_(GETEX, reg, ___, ___, none) /* A = Last exception */                                \
                                                                                          \
 	/* Trait operators. */                                                                \
 	_(TRSET, reg, reg, imm, none) /* A[Trait C] = B */                                    \
@@ -68,8 +70,6 @@ namespace li::bc {
 	/* Stack operators. */                                                                \
 	_(PUSHR, reg, ___, ___, none) /* PUSH(A) */                                           \
 	_(PUSHI, ___, xmm, ___, none) /* PUSH(A) */                                           \
-	_(SLOAD, reg, sp, ___, none)  /* A = STACK[TOP-B] */                                  \
-	_(SRST, ___, ___, ___, none)  /* Resets the stack pos */                              \
                                                                                          \
 	/* Type coercion. */                                                                  \
 	_(TOSTR, reg, reg, ___, none) /* A = str(B) */                                        \
@@ -78,9 +78,8 @@ namespace li::bc {
 	_(TOBOOL, reg, reg, ___, none) /* A = bool(B) */                                      \
                                                                                          \
 	/* Control flow. */                                                                   \
-	_(CALL, imm, reg, ___, none) /* A = Arg count, B = function */                        \
+	_(CALL, reg, imm, ___, none)   /* A = Call(w/ B Args) */                              \
 	_(RET, reg, ___, ___, none)  /* RETURN A */                                           \
-	_(THRW, reg, ___, ___, none) /* THROW A */                                            \
 	_(JMP, rel, ___, ___, none)  /* JMP A */                                              \
 	_(JS, rel, reg, ___, none)   /* JMP A if B */                                         \
 	_(JNS, rel, reg, ___, none)  /* JMP A if !B */                                        \
@@ -172,9 +171,6 @@ namespace li::bc {
 						if (value > FRAME_SIZE) {
 							col = LI_YLW;
 							snprintf(op, std::size(op), "@a%u", (uint32_t) (value - FRAME_SIZE));
-						} else if (value == -FRAME_RET) {
-							col = LI_YLW;
-							snprintf(op, std::size(op), "@ret");
 						} else {
 							col = LI_RED;
 							snprintf(op, std::size(op), "@undef");

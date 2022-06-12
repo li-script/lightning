@@ -21,12 +21,12 @@ namespace li {
 
 	// Native callback, at most one result should be pushed on stack, if returns false, signals exception.
 	//
-	using nfunc_t = bool (*)(vm* L, any* args, slot_t n);
+	using nfunc_t = uint64_t(*)(vm* L, any* args, slot_t n);
 
 	// nfunc_t for virtual functions.
 	//  Caller must push all arguments in reverse order, the self argument or nil, the function itself and the caller information.
 	//
-	bool vm_invoke(vm* L, any* args, slot_t n_args);
+	uint64_t vm_invoke(vm* L, any* args, slot_t n_args);
 
 	// Panic function, should not return.
 	//
@@ -44,7 +44,6 @@ namespace li {
 	static constexpr msize_t  MAX_ARGS     = 32;
 	static constexpr slot_t   FRAME_SELF   = -3;  // specials relative to local 0
 	static constexpr slot_t   FRAME_TARGET = -2;
-	static constexpr slot_t   FRAME_RET    = -2;
 	static constexpr slot_t   FRAME_CALLER = -1;
 	static constexpr slot_t   FRAME_SIZE   = 3;
 	static constexpr uint64_t FRAME_C_FLAG = (1ll << 17);
@@ -84,6 +83,10 @@ namespace li {
 		table*         repl_scope   = nullptr;           // Repl scope.
 		uint64_t       prng_seed    = platform::srng();  // PRNG seed.
 		util::fastlock lock         = {};                // Lock protecting the VM.
+
+		// Exception temporaries.
+		//
+		any            last_ex      = {};
 
 		// VM hooks.
 		//
@@ -139,15 +142,14 @@ namespace li {
 		// Error/OK helper.
 		//
 		template<typename... Tx>
-		LI_COLD bool error(const char* fmt, Tx... args);
+		LI_COLD uint64_t error(const char* fmt, Tx... args);
 
-		bool error(any result = nil) {
-			stack_top[FRAME_RET] = result;
-			return false;
+		uint64_t error(any result = nil) {
+			last_ex = result;
+			return exception_marker.value;
 		}
-		bool ok(any result = nil) {
-			stack_top[FRAME_RET] = result;
-			return true;
+		uint64_t ok(any result = nil) {
+			return result.value;
 		}
 
 		// Gets next random.
@@ -166,16 +168,12 @@ namespace li {
 
 		// Simple call wrapping vm_invoke for user-invocation that pops all arguments and the function/self from ToS.
 		//
-		bool call(slot_t n_args, any fn, any self = nil) {
-			any* req_slot = stack_top - n_args;
+		LI_INLINE any call(slot_t n_args, any fn, any self = nil) {
 			push_stack(self);
 			push_stack(fn);
 			call_frame cf{.stack_pos = last_vm_caller.stack_pos, .caller_pc = msize_t(last_vm_caller.caller_pc | FRAME_C_FLAG)};
 			push_stack(li::bit_cast<opaque>(cf));
-			bool ok   = vm_invoke(this, &this->stack_top[-1 - FRAME_SIZE], n_args);
-			*req_slot = stack_top[FRAME_RET];
-			stack_top = req_slot + 1;
-			return ok;
+			return {std::in_place, vm_invoke(this, &this->stack_top[-1 - FRAME_SIZE], n_args)};
 		}
 
 		// Allocation helper.

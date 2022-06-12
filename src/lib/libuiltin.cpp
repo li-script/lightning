@@ -40,10 +40,7 @@ namespace li::lib {
 			if (!res.is_fn()) {
 				return L->error(res);
 			}
-			if (L->call(0, res))
-				return L->ok(L->pop_stack());
-			else
-				return L->error(L->pop_stack());
+			return L->call(0, res).value;
 		});
 		util::export_as(L, "builtin.@table", [](vm* L, any* args, slot_t n) {
 			uint16_t r = 0;

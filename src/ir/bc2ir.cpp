@@ -38,11 +38,10 @@ namespace li::ir {
 			}
 		};
 
-		int32_t stack_index = 0;
-		insn*   call_start  = nullptr;
-		bc::pos ip          = bld.blk->bc_begin;
-		bc::pos ip_end  = bld.blk->bc_end;
-		auto    opcodes = f->opcodes();
+		std::vector<use<>> call_args  = {};
+		bc::pos            ip        = bld.blk->bc_begin;
+		bc::pos            ip_end    = bld.blk->bc_end;
+		auto               opcodes    = f->opcodes();
 		while (ip != ip_end) {
 			bld.current_bc      = ip;
 			auto& insn          = opcodes[ip++];
@@ -234,54 +233,33 @@ namespace li::ir {
 				// Virtual calls:
 				//
 				case bc::PUSHI: {
-					auto i = bld.emit<write_argument>(stack_index++, any(std::in_place, insn.xmm()));
-					if (stack_index == 1) {
-						LI_ASSERT(!call_start);
-						call_start = i;
-					} else {
-						LI_ASSERT(call_start);
-					}
+					call_args.emplace_back(launder_value(bld.blk->proc, any(std::in_place, insn.xmm())));
 					continue;
 				}
 				case bc::PUSHR: {
-					auto i = bld.emit<write_argument>(stack_index++, get_reg(a));
-					if (stack_index == 1) {
-						LI_ASSERT(!call_start);
-						call_start = i;
-					} else {
-						LI_ASSERT(call_start);
-					}
-					continue;
-				}
-				case bc::SLOAD: {
-					LI_ASSERT(b < stack_index);
-					set_reg(a, bld.emit<reload_argument>(stack_index - b));
-					continue;
-				}
-				case bc::SRST: {
-					LI_ASSERT(call_start);
-
-					// Reverse the indices of every argument.
-					//
-					for (auto it = call_start; it != bld.blk->end(); it = it->next) {
-						if (it->is<write_argument>()) {
-							it->operands[0] = launder_value(bld.blk->proc, -stack_index + it->operands[0]->as<constant>()->i32);
-						} else if (it->is<reload_argument>()) {
-							it->operands[0] = launder_value(bld.blk->proc, -stack_index + it->operands[0]->as<constant>()->i32);
-						}
-					}
-
-					stack_index = 0;
-					call_start  = nullptr;
+					call_args.emplace_back(get_reg(a));
 					continue;
 				}
 				case bc::CALL: {
-					auto f = get_reg(b);
-					bld.emit<write_argument>(stack_index++, f);
-					stack_index++; // Caller info.
-					bld.blk->proc->max_stack_slot = std::max<msize_t>(msize_t(stack_index), bld.blk->proc->max_stack_slot);
-					bld.emit<vcall>(a, f);
+					LI_ASSERT(call_args.size() == (b + 2));
+					bld.blk->proc->max_stack_slot = std::max<msize_t>(msize_t(call_args.size() + 1), bld.blk->proc->max_stack_slot);
+					auto vc                       = bld.emit<vcall>(std::move(call_args.back()));
+					call_args.pop_back();
+					vc->operands.insert(vc->operands.end(), std::make_move_iterator(call_args.rbegin()), std::make_move_iterator(call_args.rend()));
+					set_reg(a, std::move(vc));
+					call_args.clear();
 					// TODO: Br to rethrow based on result
+					continue;
+				}
+				// TODO:
+				// case bc::SETEH: {
+				//}
+				case bc::SETEX: {
+					bld.emit<set_exception>(get_reg(a));
+					continue;
+				}
+				case bc::GETEX: {
+					set_reg(a, bld.emit<get_exception>());
 					continue;
 				}
 
@@ -289,10 +267,6 @@ namespace li::ir {
 				//
 				case bc::RET: {
 					bld.emit<ret>(get_reg(a));
-					return;
-				}
-				case bc::THRW: {
-					bld.emit<thrw>(get_reg(a));
 					return;
 				}
 				case bc::JS:
@@ -331,7 +305,7 @@ namespace li::ir {
 
 		// Stack must be balanced.
 		//
-		LI_ASSERT(!stack_index);
+		LI_ASSERT(call_args.empty());
 
 		// If terminated because of a label, jump to continuation.
 		//

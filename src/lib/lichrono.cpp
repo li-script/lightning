@@ -1,8 +1,8 @@
-#include <lib/std.hpp>
-#include <util/user.hpp>
-#include <lang/parser.hpp>
 #include <bit>
 #include <chrono>
+#include <lang/parser.hpp>
+#include <lib/std.hpp>
+#include <util/user.hpp>
 
 namespace li::lib {
 	// Registers the chrono library.

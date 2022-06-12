@@ -65,8 +65,8 @@ namespace li::ir {
 
 		// VCALL utilities.
 		//
-		reload_argument,
-		write_argument,
+		set_exception,
+		get_exception,
 
 		// Call types.
 		//
@@ -585,33 +585,30 @@ namespace li::ir {
 			vt = operands[1]->as<constant>()->irtype;
 		}
 	};
-	// unk  reload_argument(const i32)
-	struct reload_argument final : insn_tag<load_local, opcode::reload_argument> {
-		void update() override {
-			is_pure = false;
-			vt      = type::unk;
-			LI_ASSERT(operands.size() == 1);
-			LI_ASSERT(operands[0]->is<constant>() && operands[0]->is(type::i32));
-		}
-	};
-	// none write_argument(const i32, unk)
-	struct write_argument final : insn_tag<write_argument, opcode::write_argument> {
+	// none set_exception(unk)
+	struct set_exception final : insn_tag<set_exception, opcode::set_exception> {
 		void update() override {
 			is_pure   = false;
 			sideffect = true;
-			vt        = type::none;
-			LI_ASSERT(operands.size() == 2);
-			LI_ASSERT(operands[0]->is<constant>() && operands[0]->is(type::i32));
+			vt      = type::none;
+			LI_ASSERT(operands.size() == 1);
 		}
 	};
-	// i1  vcall(const i32 fixedargs, unk target)
+	// unk  get_exception()
+	struct get_exception final : insn_tag<get_exception, opcode::get_exception> {
+		void update() override {
+			is_pure   = false;
+			vt        = type::unk;
+			LI_ASSERT(operands.size() == 0);
+		}
+	};
+	// unk vcall(unk target, unk... args)
 	struct vcall final : insn_tag<vcall, opcode::vcall> {
 		void update() override {
 			is_pure   = false;
 			sideffect = true;
-			LI_ASSERT(operands.size() == 2);
-			LI_ASSERT(operands[0]->is<constant>() && operands[0]->is(type::i32));
-			vt = type::i1;
+			LI_ASSERT(operands.size() >= 1);
+			vt = type::unk;
 		}
 	};
 };

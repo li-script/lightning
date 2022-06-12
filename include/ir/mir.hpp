@@ -198,10 +198,12 @@ namespace li::ir {
 	// Target specific information.
 	//
 	struct ins_target_info {
+		uint16_t implicit_gp_write = 0;
+		uint16_t implicit_gp_read  = 0;
 		uint64_t side_effects : 1  = false;
 		uint64_t trashes_flags : 1 = true;
 		uint64_t fullsize : 1      = false;
-		int64_t  rsvd : 61         = 0;
+		uint64_t rsvd : 61         = 0;
 	};
 
 	// Machine instruction.
@@ -373,7 +375,23 @@ namespace li::ir {
 				for (auto r : arch::fp_volatile)
 					fn(mreg(arch::from_native(r)), false);
 			} else {
+				if (target_info.implicit_gp_read) {
+					for (int i = 0; i != 16; i++) {
+						if (target_info.implicit_gp_read & (1 << i)) {
+							fn(mreg(preg(1 + i)), true);
+						}
+					}
+				}
+
 				for_each_reg(std::forward<F>(fn));
+
+				if (target_info.implicit_gp_write) {
+					for (int i = 0; i != 16; i++) {
+						if (target_info.implicit_gp_write & (1 << i)) {
+							fn(mreg(preg(1 + i)), false);
+						}
+					}
+				}
 			}
 		}
 

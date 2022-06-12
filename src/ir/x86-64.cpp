@@ -374,7 +374,7 @@ namespace li::ir {
 						case type::arr: {
 							auto val = b->next_gp();
 							type_erase(b, i->operands[3], val);
-							array_write(b, i->operands[2], REG(i->operands[1]), val);
+							array_write(b, i->operands[2], REGV(i->operands[1]), val);
 							return;
 						}
 						case type::tbl: {
@@ -400,11 +400,11 @@ namespace li::ir {
 				{
 					switch (i->operands[1]->vt) {
 						case type::tbl: {
-							table_lookup_raw(b, i->operands[2], REG(i->operands[1]), REG(i));
+							table_lookup_raw(b, i->operands[2], REGV(i->operands[1]), REG(i));
 							return;
 						}
 						case type::arr: {
-							array_lookup(b, i->operands[2], REG(i->operands[1]), REG(i));
+							array_lookup(b, i->operands[2], REGV(i->operands[1]), REG(i));
 							return;
 						}
 						case type::str: {
@@ -974,6 +974,8 @@ namespace li::ir {
 		};
 		//printf("\t%s ", arch::name_mnemonic(req.mnemonic));
 		switch (i.target_info.rsvd) {
+			case ENC_NOP:
+				break;
 			case ENC_W_R:
 				push_operand(i.out);
 				push_operand(i.arg[0]);

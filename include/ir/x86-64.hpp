@@ -69,6 +69,7 @@ namespace li::ir {
 	// Instructions.
 	//
 	enum encoding_directive : msize_t {
+		ENC_NOP,
 		ENC_W_R,
 		ENC_RW_R,
 		ENC_RW,
@@ -76,7 +77,9 @@ namespace li::ir {
 		ENC_W_N_R_R,
 		ENC_F_R_R,
 	};
-
+	
+	#define INSN_NOP(name, ...) \
+		static void name(mblock& blk) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__.rsvd = ENC_NOP}, {}}); }
 	#define INSN_W_R(name, ...) \
 		static void name(mblock& blk, mreg a, mop b) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__.rsvd = ENC_W_R}, a, b}); }
 	#define INSN_RW_R(name, ...) \
@@ -90,6 +93,7 @@ namespace li::ir {
 	#define INSN_F_R_R(name, ...) \
 		static void name(mblock& blk, flag_id flag, mreg a, mop b) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__ .rsvd=ENC_F_R_R}, flag, a, b}); }
 
+	INSN_NOP(RDTSC, .implicit_gp_write = ((1u << (arch::from_native(zy::RAX) - 1)) | (1u << (arch::from_native(zy::RDX) - 1))), );
 	INSN_RW(NEG);
 	INSN_RW(NOT, .trashes_flags = false, );
 	INSN_RW_R(SHR);

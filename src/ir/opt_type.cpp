@@ -122,8 +122,8 @@ namespace li::ir::opt {
 
 	// Each specialization.
 	//
-	static void specialize_op(procedure* proc) {
-		proc->bfs([&](basic_block* bb) {
+	static bool specialize_op(procedure* proc) {
+		return proc->bfs([&](basic_block* bb) {
 			// Find the first numeric operation with an unknown type.
 			//
 			auto i = range::find_if(bb->insns(), [](insn* i) {
@@ -157,12 +157,11 @@ namespace li::ir::opt {
 				i->update();
 				return false;
 			});
-			return false;
+			return true;
 		});
-		proc->validate();
 	}
-	static void specialize_dup(procedure* proc) {
-		proc->bfs([&](basic_block* bb) {
+	static bool specialize_dup(procedure* proc) {
+		return proc->bfs([&](basic_block* bb) {
 			auto i = range::find_if(bb->insns(), [](insn* i) {
 				if (i->is<vdup>()) {
 					i->update();
@@ -183,12 +182,11 @@ namespace li::ir::opt {
 			// Simple move.
 			e2->replace_all_uses(op);
 			e2->erase();
-			return false;
+			return true;
 		});
-		proc->validate();
 	}
-	static void specialize_len(procedure* proc) {
-		proc->bfs([&](basic_block* bb) {
+	static bool specialize_len(procedure* proc) {
+		return proc->bfs([&](basic_block* bb) {
 			auto i = range::find_if(bb->insns(), [](insn* i) {
 				if (i->is<vlen>()) {
 					i->update();
@@ -211,12 +209,11 @@ namespace li::ir::opt {
 			while (e2 != e2->parent->back())
 				e2->parent->back()->erase();
 			proc->del_jump(e2->parent, e2->parent->successors.back());
-			return false;
+			return true;
 		});
-		proc->validate();
 	}
-	static void specialize_call(procedure* proc) {
-		proc->bfs([&](basic_block* bb) {
+	static bool specialize_call(procedure* proc) {
+		return proc->bfs([&](basic_block* bb) {
 			auto i = range::find_if(bb->insns(), [](insn* i) {
 				if (i->is<vcall>()) {
 					i->update();
@@ -236,12 +233,11 @@ namespace li::ir::opt {
 			while (e0 != e0->parent->back())
 				e0->parent->back()->erase();
 			proc->del_jump(e0->parent, e0->parent->successors.back());
-			return false;
+			return true;
 		});
-		proc->validate();
 	}
-	static void specialize_field(procedure* proc) {
-		proc->bfs([&](basic_block* bb) {
+	static bool specialize_field(procedure* proc) {
+		return proc->bfs([&](basic_block* bb) {
 			auto i = range::find_if(bb->insns(), [](insn* i) {
 				if (i->is<field_get>() || i->is<field_set>()) {
 					i->update();
@@ -286,14 +282,11 @@ namespace li::ir::opt {
 					e2->parent->back()->erase();
 				proc->del_jump(e2->parent, e2->parent->successors.back());
 			}
-
-			return false;
+			return true;
 		});
-		proc->validate();
 	}
-
-	static void specialize_native(procedure* proc) {
-		proc->bfs([&](basic_block* bb) {
+	static bool specialize_native(procedure* proc) {
+		return proc->bfs([&](basic_block* bb) {
 			insn* i = range::find_if(bb->insns(), [](insn* i) {
 				if (i->is<vcall>() && i->operands[0]->vt == type::fn && i->operands[0]->is<constant>()) {
 					if (auto* f = i->operands[0]->as<constant>()->fn; f->ninfo && f->ninfo->overloads[0].cfunc != nullptr) {
@@ -365,28 +358,40 @@ namespace li::ir::opt {
 					replace->replace_all_uses(call);
 					replace->erase();
 				}
+
+				if (!cc) {
+					i = nullptr;
+					break;
+				}
 			}
 
 			// Finally replace i with unreachable.
 			//
-			i = builder{i}.emit_before<unreachable>(i);  // <-- TODO: throw.
-			while (i != i->parent->back())
-				i->parent->back()->erase();
-			proc->del_jump(i->parent, i->parent->successors.back());
-			return false;
+			if (i) {
+				i = builder{i}.emit_before<unreachable>(i);  // <-- TODO: throw.
+				while (i != i->parent->back())
+					i->parent->back()->erase();
+				proc->del_jump(i->parent, i->parent->successors.back());
+			}
+			return true;
 		});
-		proc->validate();
 	}
 
 	// Adds the branches for required type checks.
 	//
 	void type_split_cfg(procedure* proc) {
-		specialize_native(proc);
-		specialize_op(proc);
-		specialize_dup(proc);
-		specialize_len(proc);
-		specialize_call(proc);
-		specialize_field(proc);
+		while (specialize_native(proc))
+			proc->validate();
+		while (specialize_op(proc))
+			proc->validate();
+		while (specialize_dup(proc))
+			proc->validate();
+		while (specialize_len(proc))
+			proc->validate();
+		while (specialize_call(proc))
+			proc->validate();
+		while (specialize_field(proc))
+			proc->validate();
 		// TODO: remove y:f64 = assumecase f64:x, f64
 	}
 

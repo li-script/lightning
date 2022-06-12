@@ -575,7 +575,7 @@ namespace li::ir {
 			vt         = nf->ret;
 			is_pure    = nf->is_pure;
 			is_const   = nf->is_const;
-			sideffect  = nf->is_pure == 0;
+			sideffect  = nf->sideeffect;
 		}
 	};
 	// none set_exception(unk)
@@ -608,7 +608,7 @@ namespace li::ir {
 				if (auto* nf = c->fn->ninfo) {
 					is_pure  = nf->is_pure;
 					is_const  = nf->is_const;
-					sideffect = nf->is_pure == 0;
+					sideffect = nf->sideeffect;
 					//vt        = nf->ret;
 				}
 			}

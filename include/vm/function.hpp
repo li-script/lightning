@@ -87,6 +87,7 @@ namespace li {
 		//
 		uint32_t is_pure : 1    = true;   // True if function is pure, same definition as in ir::insn.
 		uint32_t is_const : 1   = false;  // True if function is const, same definition as in ir::insn.
+		uint32_t sideeffect : 1 = false;  // True if function has sideeffects, same definition as in ir::insn.
 		uint32_t no_throw : 1   = false;  // True if function never throws (so long as the argument types match the overload).
 		uint32_t takes_self : 1 = false;  // True if first value in args array is describing the self.
 		uint32_t takes_vm : 1   = false;  // True if function should be called with a VM pointer.

@@ -9,15 +9,15 @@
 namespace li {
 	// VM helpers.
 	//
-#define VM_RETHROW()                                         \
-	{                                                         \
-		if (catchpad_i) {                                      \
-			ip           = catchpad_i;                          \
-			L->stack_top = locals_begin + f->proto->num_locals; \
-			continue;                                           \
-		}                                                      \
-		L->stack_top = locals_begin;                           \
-		return exception_marker.value;                         \
+#define VM_RETHROW()                 \
+	{                                 \
+		if (catchpad_i) {              \
+			ip           = catchpad_i;  \
+			L->stack_top = reset_point; \
+			continue;                   \
+		}                              \
+		L->stack_top = locals_begin;   \
+		return exception_marker.value; \
 	}
 #define VM_RET(value, ex)          \
 	{                               \
@@ -78,7 +78,8 @@ namespace li {
 
 		// Allocate stack space.
 		//
-		L->alloc_stack(f->proto->num_locals);
+		msize_t num_locals = f->proto->num_locals;
+		auto reset_point = L->alloc_stack(num_locals) + num_locals;
 
 		// Define debug helpers.
 		//
@@ -497,16 +498,16 @@ namespace li {
 					continue;
 				}
 				case bc::CALL: {
-					call_frame cf{.stack_pos = msize_t(locals_begin - L->stack), .caller_pc = msize_t(ip - opcode_array)};
+					call_frame cf{.caller_pc = msize_t(ip - 1 - opcode_array), .stack_pos = msize_t(locals_begin - L->stack)};
 					auto       argspace = L->stack_top - 3;
 				
-					L->push_stack(li::bit_cast<opaque>(cf));
+					L->push_stack(li::bit_cast<any>(cf));
 					any result;
 					if (result.value = vm_invoke(L, argspace, b); result.is_exc()) [[unlikely]] {
 						VM_RETHROW();
 					}
 					REG(a)       = result;
-					L->stack_top = locals_begin + f->proto->num_locals;
+					L->stack_top = reset_point;
 					continue;
 				}
 				case bc::PUSHR:

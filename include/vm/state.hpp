@@ -58,16 +58,16 @@ namespace li {
 		// arg0
 		// self
 		// fn <=> retval
-		// [call_frame for previous function as opaque]
+		// [call_frame for previous function as any [will be number typed]]
 		// [locals of this func]
 		//
-		uint64_t stack_pos : 23 = 0;  // Stack position of frame (@local0).
 		uint64_t caller_pc : 23 = 0;  // Instruction pointer after the call.
+		uint64_t stack_pos : 23 = 0;  // Stack position of frame (@local0).
 		uint64_t rsvd : 18      = 0;
 
 		inline constexpr bool multiplexed_by_c() const { return caller_pc & FRAME_C_FLAG; }
 	};
-	static_assert(sizeof(call_frame) == sizeof(opaque), "Invalid call frame size.");
+	static_assert(sizeof(call_frame) == sizeof(any), "Invalid call frame size.");
 
 	// VM state.
 	//
@@ -169,11 +169,14 @@ namespace li {
 		// Simple call wrapping vm_invoke for user-invocation that pops all arguments and the function/self from ToS.
 		//
 		LI_INLINE any call(slot_t n_args, any fn, any self = nil) {
+			any* stack_reset_pos = stack_top - n_args;
 			push_stack(self);
 			push_stack(fn);
-			call_frame cf{.stack_pos = last_vm_caller.stack_pos, .caller_pc = msize_t(last_vm_caller.caller_pc | FRAME_C_FLAG)};
-			push_stack(li::bit_cast<opaque>(cf));
-			return {std::in_place, vm_invoke(this, &this->stack_top[-1 - FRAME_SIZE], n_args)};
+			call_frame cf{.caller_pc = msize_t(last_vm_caller.caller_pc | FRAME_C_FLAG), .stack_pos = last_vm_caller.stack_pos};
+			push_stack(any(std::in_place, li::bit_cast<uint64_t>(cf)));
+			any result{std::in_place, vm_invoke(this, &this->stack_top[-1 - FRAME_SIZE], n_args)};
+			stack_top = stack_reset_pos;
+			return result;
 		}
 
 		// Allocation helper.
@@ -219,7 +222,7 @@ namespace li {
 				L = nullptr;
 			} else {
 				prev_frame        = L->last_vm_caller;
-				L->last_vm_caller = li::bit_cast<call_frame>(a[3].as_opq());
+				L->last_vm_caller = li::bit_cast<call_frame>(a[3].value);
 				prev_stack        = L->stack_top;
 			}
 		}

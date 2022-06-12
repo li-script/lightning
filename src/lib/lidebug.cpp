@@ -36,11 +36,7 @@ namespace li::lib {
 				result->push(L, tbl);
 
 				auto ref = L->stack[frame.stack_pos + FRAME_CALLER];
-				if (ref.is_opq()) {
-					frame = li::bit_cast<call_frame>(ref.as_opq());
-				} else {
-					break;
-				}
+				frame    = li::bit_cast<call_frame>(ref);
 			}
 			return L->ok(result);
 		});

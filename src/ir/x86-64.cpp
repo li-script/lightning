@@ -1102,16 +1102,13 @@ namespace li::ir {
 
 				// Push stack info.
 				//
-				call_frame cf{.stack_pos = 0, .caller_pc = i->source_bc, .rsvd = 0};
-				auto tmp2 = b->next_gp();
-				auto tmp3 = b->next_gp();
-				LEA(b, tmp2, mmem{.base = vreg_args, .disp = 8 * (FRAME_SIZE + 1)});
-				b.append(vop::movi, tmp3, mop(intptr_t(&b->source->L->stack[0])));
-				SUB(b, tmp2, tmp3);
-				SHR(b, tmp2, 3);
-				b.append(vop::movi, tmp3, mop(intptr_t(any(li::bit_cast<opaque>(cf)).value)));
-				OR(b, tmp2, tmp3);
-				b.append(vop::storei64, {}, mmem{.base = vreg_tos, .disp = -8}, tmp2);
+				call_frame cf{.caller_pc = i->source_bc, .stack_pos = 0, .rsvd = 0};
+				auto tmp = b->next_gp();
+				b.append(vop::movi, tmp, mop(-intptr_t(&b->source->L->stack[0])));
+				LEA(b, tmp, mmem{.base = vreg_args, .index = tmp, .scale = 1, .disp = 8 * (FRAME_SIZE + 1)});
+				SHL(b, tmp, 23 - 3);
+				OR(b, tmp, i->source_bc);
+				b.append(vop::storei64, {}, mmem{.base = vreg_tos, .disp = -8}, tmp);
 
 				// Set the arguments and call into it.
 				//

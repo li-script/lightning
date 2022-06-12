@@ -15,6 +15,10 @@ namespace li::lib {
 		uint64_t cycles = 0;
 #if __has_builtin(__builtin_readcyclecounter)
 		cycles = __builtin_readcyclecounter();
+#elif LI_ARCH_X86 && LI_GNU
+		uint32_t low, high;
+		asm("rdtsc" : "=a"(low), "=d"(high)::);
+		cycles = low | (uint64_t(high) << 32);
 #elif LI_ARCH_X86 && LI_MSVC
 		cycles = __rdtsc();
 #endif

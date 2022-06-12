@@ -628,6 +628,24 @@ namespace li::ir {
 				b.append(vop::select, REG(i), cc, lhs, rhs);
 				return;
 			}
+			case opcode::bool_xor:
+			case opcode::bool_or:
+			case opcode::bool_and: {
+				auto lhs = RI(i->operands[0]);
+				auto rhs = RI(i->operands[1]);
+				auto out = REG(i);
+				if (lhs.is_const())
+					std::swap(lhs, rhs);
+				b.append(vop::movi, out, lhs);
+
+				if (i->opc == opcode::bool_and)
+					AND(b, out, rhs);
+				else if (i->opc == opcode::bool_xor)
+					XOR(b, out, rhs);
+				else if (i->opc == opcode::bool_or)
+					OR(b, out, rhs);
+				return;
+			}
 			case opcode::phi: {
 				auto r = get_existing_reg(i->operands[0]->as<insn>());
 				for (auto& op : i->operands) {

@@ -330,7 +330,7 @@ namespace li::ir::opt {
 						auto pcc = cc;
 						cc       = b.emit_before<test_type>(i, given_args[n], to_vm_type(expected_args[n]));
 						if (pcc) {
-							cc = b.emit_before<binop>(i, operation::LAND, cc, pcc);
+							cc = b.emit_before<bool_and>(i, pcc, cc);
 						}
 					}
 				}

@@ -35,6 +35,9 @@ namespace li::ir {
 		//
 		unop,   // No traits allowed at MIR, must be typed.
 		binop,  // No traits allowed at MIR, must be typed.
+		bool_and,
+		bool_or,
+		bool_xor,
 
 		// Ticks the garbage collector.
 		//
@@ -472,6 +475,36 @@ namespace li::ir {
 					return false;
 			}
 			return true;
+		}
+	};
+	// iN   bool_and(iN a, iN b)
+	struct bool_and final : insn_tag<bool_and, opcode::bool_and> {
+		void update() override {
+			is_const = true;
+			LI_ASSERT(operands.size() == 2);
+			LI_ASSERT(operands[0]->vt <= type::i64);
+			LI_ASSERT(operands[1]->vt <= type::i64);
+			vt = operands[0]->vt;
+		}
+	};
+	// iN   bool_or(iN a, iN b)
+	struct bool_or final : insn_tag<bool_or, opcode::bool_or> {
+		void update() override {
+			is_const = true;
+			LI_ASSERT(operands.size() == 2);
+			LI_ASSERT(operands[0]->vt <= type::i64);
+			LI_ASSERT(operands[1]->vt <= type::i64);
+			vt = operands[0]->vt;
+		}
+	};
+	// iN   bool_xor(iN a, iN b)
+	struct bool_xor final : insn_tag<bool_xor, opcode::bool_xor> {
+		void update() override {
+			is_const = true;
+			LI_ASSERT(operands.size() == 2);
+			LI_ASSERT(operands[0]->vt <= type::i64);
+			LI_ASSERT(operands[1]->vt <= type::i64);
+			vt = operands[0]->vt;
 		}
 	};
 	// unk   phi(unk...)

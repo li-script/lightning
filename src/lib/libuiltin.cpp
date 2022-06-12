@@ -5,6 +5,64 @@
 #include <vm/function.hpp>
 
 namespace li::lib {
+	static table* LI_CC    builtin_dup_table(vm* L, table* a) { return a->duplicate(L); }
+	static array* LI_CC    builtin_dup_array(vm* L, array* a) { return a->duplicate(L); }
+	static function* LI_CC builtin_dup_function(vm* L, function* a) { return a->duplicate(L); }
+	static array* LI_CC    builtin_new_array(vm* L, msize_t n) { return array::create(L, n, 0); }
+	static table* LI_CC    builtin_new_table(vm* L, msize_t n) { return table::create(L, n); }
+	
+	nfunc_info detail::builtin_new_array_info = {
+		 .is_pure   = false,
+		 .is_const  = false,
+		 .no_throw  = true,
+		 .takes_vm  = true,
+		 .name      = nullptr,  // Private.
+		 .invoke    = nullptr,
+		 .ret       = ir::type::arr,
+		 .overloads = {nfunc_overload{li::bit_cast<const void*>(&builtin_new_array), {ir::type::i32}}}
+	};
+	nfunc_info detail::builtin_new_table_info = {
+		 .is_pure   = false,
+		 .is_const  = false,
+		 .no_throw  = true,
+		 .takes_vm  = true,
+		 .name      = nullptr,  // Private.
+		 .invoke    = nullptr,
+		 .ret       = ir::type::tbl,
+		 .overloads = {nfunc_overload{li::bit_cast<const void*>(&builtin_new_table), {ir::type::i32}}}
+	};
+	nfunc_info detail::builtin_dup_table_info = {
+		 .is_pure   = false,
+		 .is_const  = false,
+		 .no_throw  = true,
+		 .takes_vm  = true,
+		 .name      = nullptr,  // Private.
+		 .invoke    = nullptr,
+		 .ret       = ir::type::tbl,
+		 .overloads = {nfunc_overload{li::bit_cast<const void*>(&builtin_dup_table), {ir::type::tbl}}}
+	};
+	nfunc_info detail::builtin_dup_array_info = {
+		 .is_pure   = false,
+		 .is_const  = false,
+		 .no_throw  = true,
+		 .takes_vm  = true,
+		 .name      = nullptr,  // Private.
+		 .invoke    = nullptr,
+		 .ret       = ir::type::arr,
+		 .overloads = {nfunc_overload{li::bit_cast<const void*>(&builtin_dup_array), {ir::type::arr}}}
+	};
+	nfunc_info detail::builtin_dup_function_info = {
+		 .is_pure   = false,
+		 .is_const  = false,
+		 .no_throw  = true,
+		 .takes_vm  = true,
+		 .name      = nullptr,  // Private.
+		 .invoke    = nullptr,
+		 .ret       = ir::type::fn,
+		 .overloads = {nfunc_overload{li::bit_cast<const void*>(&builtin_dup_function), {ir::type::fn}}}
+	};
+
+
 	// Registers the builtins, this is called by the VM creation as it is required.
 	//
 	void detail::register_builtin(vm* L) {

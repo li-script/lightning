@@ -4,13 +4,6 @@
 #include <vm/string.hpp>
 
 namespace li::runtime {
-	array* LI_CC array_new(vm* L, msize_t n) {
-		return array::create(L, n, 0);
-	}
-	table* LI_CC table_new(vm* L, msize_t n) {
-		return table::create(L, n);
-	}
-
 	// v--- Completely wrong.
 	//
 	uint64_t LI_CC field_set_raw(vm* L, uint64_t _unk, uint64_t _key, uint64_t _value) {

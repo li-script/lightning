@@ -107,6 +107,7 @@ list(APPEND libli_SOURCES
 	"include/ir/opt.hpp"
 	"include/ir/proc.hpp"
 	"include/ir/value.hpp"
+	"include/ir/x86-64.hpp"
 	"include/ir/zydis.hpp"
 	"include/lang/lexer.hpp"
 	"include/lang/operator.hpp"

@@ -281,6 +281,10 @@ namespace li::ir {
 		//
 		bb,
 
+		// Native function info.
+		//
+		nfni,
+
 		// Enums.
 		//
 		vmopr,

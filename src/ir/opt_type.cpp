@@ -29,6 +29,46 @@ namespace li::ir::opt {
 
 	// Splits the instruction stream into two, returns two instructions in a block with only the splitting instruction, an assume cast if applicable and the jmp.
 	//
+	static std::pair<ref<insn>, ref<insn>> split_by(insn* i, insn* cc) {
+		// Split the block after the check, add the jcc.
+		//
+		basic_block* at        = i->parent;
+		insn*        spoint    = i->prev;
+		auto         cont_blk  = at->split_at(spoint);
+		auto         true_blk  = at->proc->add_block();
+		auto         false_blk = at->proc->add_block();
+		builder{spoint}.emit<jcc>(cc, true_blk, false_blk);
+		at->proc->add_jump(at, true_blk);
+		at->proc->add_jump(at, false_blk);
+
+		// Copy instruction into two.
+		//
+		auto tunchecked = make_ref(i->duplicate());
+		auto tchecked   = i->erase();
+
+		// Create both blocks.
+		//
+		auto v1 = true_blk->push_back(tchecked);
+		auto v2 = false_blk->push_back(tunchecked);
+		tchecked->update();
+		builder{true_blk}.emit<jmp>(cont_blk);
+		builder{false_blk}.emit<jmp>(cont_blk);
+		true_blk->proc->add_jump(true_blk, cont_blk);
+		false_blk->proc->add_jump(false_blk, cont_blk);
+
+		// Create a PHI at the destination if there is a result and replace all uses.
+		//
+		if (v1.at->vt != type::none) {
+			auto ph = builder{cont_blk}.emit_front<phi>(v1.at, v2.at);
+			tchecked->for_each_user_outside_block([&](insn* i, size_t op) {
+				if (i != ph)
+					i->operands[op].reset(ph);
+				return false;
+			});
+		}
+		i->parent->validate();
+		return {std::move(tchecked), std::move(tunchecked)};
+	}
 	static std::pair<ref<insn>, ref<insn>> split_by(insn* i, size_t op, std::variant<value_type, trait> check_against) {
 		// Insert the type check before the instruction.
 		//
@@ -48,8 +88,6 @@ namespace li::ir::opt {
 		b.emit<jcc>(cc, true_blk, false_blk);
 		at->proc->add_jump(at, true_blk);
 		at->proc->add_jump(at, false_blk);
-		//true_blk->visited  = at->visited;
-		//false_blk->visited = at->visited;
 
 		// Copy type into two.
 		//
@@ -255,34 +293,85 @@ namespace li::ir::opt {
 	}
 
 	static void specialize_native(procedure* proc) {
-		//proc->print();
+		proc->bfs([&](basic_block* bb) {
+			insn* i = range::find_if(bb->insns(), [](insn* i) {
+				if (i->is<vcall>() && i->operands[0]->vt == type::fn && i->operands[0]->is<constant>()) {
+					if (auto* f = i->operands[0]->as<constant>()->fn; f->ninfo && f->ninfo->overloads[0].cfunc != nullptr) {
+						return true;
+					}
+				}
+				return false;
+			}).at;
+			if (i == bb->end()) {
+				return false;
+			}
 
-		//proc->bfs([&](basic_block* bb) {
-		//	auto i = range::find_if(bb->insns(), [](insn* i) {
-		//		if (i->is<vcall>() && i->operands[1]->vt == type::fn && i->operands[1]->is<constant>()) {
-		//			if (auto* f = i->operands[1]->as<constant>()->fn; f->ninfo) {
-		//				return true;
-		//			}
-		//		}
-		//		return false;
-		//	});
-		//	if (i == bb->end()) {
-		//		return false;
-		//	}
-		//});
+			auto*  fn         = i->operands[0]->as<constant>()->fn;
+			auto*  ninfo      = fn->ninfo;
+			size_t arg_off    = ninfo->takes_self ? 1 : 2;
+			auto   given_args = std::span{i->operands}.subspan(arg_off);
 
-		/*
-		-- Block $0
-#0     %0:? = load_local i32: -4
-#0     write_argument i32: -4, %0:?
-#1     write_argument i32: -3, nil
-#3     write_argument i32: -2, fn:  0000000000401A00
-#3     %4:i1 = vcall i32: 1, fn:  0000000000401A00
-#4     %5:? = reload_argument i32: -2
-#7     %6:? = binop APOW, %5:?, f64: 2.000000
-#9     ret %6:?
-		*/
+			for (auto& ovl : ninfo->get_overloads()) {
+				// Skip if arguments will never match.
+				//
+				auto expected_args = ovl.get_args();
+				if (expected_args.size() < given_args.size()) {
+					continue;
+				}
+				bool never_match = false;
+				for (size_t i = 0; i != expected_args.size(); i++) {
+					if (given_args[i]->vt != type::unk && to_vm_type(given_args[i]->vt) != to_vm_type(expected_args[i])) {
+						never_match = true;
+						break;
+					}
+				}
+				if (never_match)
+					continue;
 
+				// Create the comparison.
+				//
+				insn*   cc = nullptr;
+				builder b{i};
+				for (size_t n = 0; n != expected_args.size(); n++) {
+					if (given_args[n]->vt == type::unk && expected_args[n] != type::unk) {
+						auto pcc = cc;
+						cc       = b.emit_before<test_type>(i, given_args[n], to_vm_type(expected_args[n]));
+						if (pcc) {
+							cc = b.emit_before<binop>(i, operation::LAND, cc, pcc);
+						}
+					}
+				}
+
+				// If we did need the comparison, split by it.
+				//
+				insn* replace = i;
+				if (cc) {
+					auto [checked, unchecked] = split_by(i, cc);
+					i                         = unchecked;
+					replace                   = checked;
+				}
+
+				// Fix arguments with assume_cast in the checked block since we passed all checks and replace with ccall.
+				//
+				{
+					builder b{replace};
+					auto    call = b.emit_before<ccall>(replace, ninfo, int32_t(&ovl - &ninfo->overloads[0]));
+					for (size_t n = 0; n != expected_args.size(); n++) {
+						call->operands.emplace_back(b.emit_before<assume_cast>(call, i->operands[n + arg_off], expected_args[n]));
+					}
+					replace->replace_all_uses(call);
+					replace->erase();
+				}
+			}
+
+			// Finally replace i with unreachable.
+			//
+			i = builder{i}.emit_before<unreachable>(i);  // <-- TODO: throw.
+			while (i != i->parent->back())
+				i->parent->back()->erase();
+			proc->del_jump(i->parent, i->parent->successors.back());
+			return false;
+		});
 	}
 
 	// Adds the branches for required type checks.

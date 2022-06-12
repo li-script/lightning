@@ -73,6 +73,7 @@
     <ClInclude Include="..\include\ir\opt.hpp" />
     <ClInclude Include="..\include\ir\proc.hpp" />
     <ClInclude Include="..\include\ir\value.hpp" />
+    <ClInclude Include="..\include\ir\x86-64.hpp" />
     <ClInclude Include="..\include\ir\zydis.hpp" />
     <ClInclude Include="..\include\lang\lexer.hpp" />
     <ClInclude Include="..\include\lang\operator.hpp" />

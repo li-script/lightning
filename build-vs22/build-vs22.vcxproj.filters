@@ -252,6 +252,9 @@
     <ClInclude Include="..\include\util\fastlock.hpp">
       <Filter>Utility</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\ir\x86-64.hpp">
+      <Filter>IR\Machine\x86-64</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\.clang-format" />

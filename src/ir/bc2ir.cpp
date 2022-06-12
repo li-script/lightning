@@ -243,9 +243,8 @@ namespace li::ir {
 				case bc::CALL: {
 					LI_ASSERT(call_args.size() == (b + 2));
 					bld.blk->proc->max_stack_slot = std::max<msize_t>(msize_t(call_args.size() + 1), bld.blk->proc->max_stack_slot);
-					auto vc                       = bld.emit<vcall>(std::move(call_args.back()));
-					call_args.pop_back();
-					vc->operands.insert(vc->operands.end(), std::make_move_iterator(call_args.rbegin()), std::make_move_iterator(call_args.rend()));
+					auto vc                       = bld.emit<vcall>(std::move(*call_args.rbegin()), std::move(*std::next(call_args.rbegin())));
+					vc->operands.insert(vc->operands.end(), std::make_move_iterator(std::next(call_args.rbegin(), 2)), std::make_move_iterator(call_args.rend()));
 					set_reg(a, std::move(vc));
 					call_args.clear();
 					// TODO: Br to rethrow based on result

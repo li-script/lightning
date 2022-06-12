@@ -61,23 +61,35 @@ namespace li {
 	// Native function details.
 	// - Not GC allocated.
 	//
-	using fn_bc2ir = bool(*)(ir::builder& bld);
+	namespace ir {
+		struct mblock;
+		struct insn;
+	};
+	using fn_ir2mir = bool(*)(ir::mblock& b, ir::insn* i);
 	struct nfunc_overload {
 		const void*             cfunc      = nullptr;         // C function pointer. Must be LI_CC, invalid entry if nullptr.
-		bool                    takes_self = false;           // True if first value in args array is describing the self.
-		bool                    takes_vm   = false;           // True if function should be called with a VM pointer.
-		ir::type                ret        = ir::type::none;  // Type of return value.
 		std::array<ir::type, 8> args       = {};              // Expected argument types for a valid call, none = end.
+
+		// TODO: BC->IR Lifter?
+		// MIR lifter.
+		//
+		fn_ir2mir mir_lifter = nullptr;
+
+		// Span conversion.
+		//
+		std::span<const ir::type> get_args() const {
+			auto it = std::find(args.data(), args.data() + args.size(), ir::type::none);
+			return {args.data(), it};
+		}
 	};
 	struct nfunc_info {
-		// True if function is pure / const, same definition as in ir::insn.
+		// Function flags.
 		//
-		uint32_t is_pure : 1  = true;
-		uint32_t is_const : 1 = false;
-
-		// True if function never throws (so long as the argument types match the overload).
-		//
-		uint32_t no_throw : 1 = false;
+		uint32_t is_pure : 1    = true;   // True if function is pure, same definition as in ir::insn.
+		uint32_t is_const : 1   = false;  // True if function is const, same definition as in ir::insn.
+		uint32_t no_throw : 1   = false;  // True if function never throws (so long as the argument types match the overload).
+		uint32_t takes_self : 1 = false;  // True if first value in args array is describing the self.
+		uint32_t takes_vm : 1   = false;  // True if function should be called with a VM pointer.
 
 		// Friendly name.
 		//
@@ -87,9 +99,20 @@ namespace li {
 		//
 		nfunc_t invoke = nullptr;
 
+		// Return type.
+		//
+		ir::type ret = ir::type::nil;
+
 		// Overloads with specific lifters.
 		//
 		std::array<nfunc_overload, 5> overloads = {};
+
+		// Span conversion.
+		//
+		std::span<const nfunc_overload> get_overloads() const {
+			auto it = std::find_if(overloads.data(), overloads.data() + overloads.size(), [](auto& o) { return o.cfunc == nullptr; });
+			return {overloads.data(), it};
+		}
 	};
 
 	// "Type" erased function type.

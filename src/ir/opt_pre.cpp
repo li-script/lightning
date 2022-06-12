@@ -5,6 +5,7 @@
 #include <ir/opt.hpp>
 #include <ir/proc.hpp>
 #include <ir/value.hpp>
+#include <lib/std.hpp>
 #include <vm/runtime.hpp>
 #include <vm/array.hpp>
 #include <vm/table.hpp>
@@ -18,8 +19,8 @@ namespace li::ir::opt {
 	void prepare_for_mir(procedure* proc) {
 		// Helper to replace an instruction with call.
 		//
-		auto replace_with_call = [&] (instruction_iterator i, bool vm, type ret, auto* fn, auto&&... args) {
-			auto nit = builder{}.emit_after<ccall>(i.at, vm, ret, (intptr_t) li::bit_cast<void*>(fn), args...);
+		auto replace_with_call = [&] (instruction_iterator i, const nfunc_info* nf, int32_t oidx, auto&&... args) {
+			auto nit = builder{}.emit_after<ccall>(i.at, nf, oidx, args...);
 			i->replace_all_uses(nit.at);
 			i->erase();
 			return instruction_iterator(nit);
@@ -31,10 +32,10 @@ namespace li::ir::opt {
 				// Array/Table new.
 				//
 				if (it->is<array_new>()) {
-					it = replace_with_call(it, true, type::arr, &runtime::array_new, it->operands[0]);
+					it = replace_with_call(it, &lib::detail::builtin_new_array_info, 0, it->operands[0]);
 					continue;
 				} else if (it->is<table_new>()) {
-					it = replace_with_call(it, true, type::tbl, &runtime::table_new, it->operands[0]);
+					it = replace_with_call(it, &lib::detail::builtin_new_table_info, 0, it->operands[0]);
 					continue;
 				}
 
@@ -43,16 +44,13 @@ namespace li::ir::opt {
 				if (it->is<vdup>()) {
 					switch (it->operands[0]->vt) {
 						case type::arr:
-							it = replace_with_call(
-								 it, true, it->operands[0]->vt, +[](vm* L, array* a) { return a->duplicate(L); }, it->operands[0]);
+							it = replace_with_call(it, &lib::detail::builtin_dup_array_info, 0, it->operands[0]);
 							break;
 						case type::tbl:
-							it = replace_with_call(
-								 it, true, it->operands[0]->vt, +[](vm* L, table* a) { return a->duplicate(L); }, it->operands[0]);
+							it = replace_with_call(it, &lib::detail::builtin_dup_table_info, 0, it->operands[0]);
 							break;
 						case type::fn:
-							it = replace_with_call(
-								 it, true, it->operands[0]->vt, +[](vm* L, function* a) { return a->duplicate(L); }, it->operands[0]);
+							it = replace_with_call(it, &lib::detail::builtin_dup_function_info, 0, it->operands[0]);
 							break;
 						default:
 							util::abort("unexpected dup with invalid or unknown type.");
@@ -66,8 +64,7 @@ namespace li::ir::opt {
 				if (it->is<binop>() && it->operands[0]->as<constant>()->vmopr == bc::AMOD) {
 					switch (it->vt) {
 						case type::f64:
-							it = replace_with_call(
-								 it, false, type::f64, +[](double x, double y) { return fmod(x, y); }, it->operands[1], it->operands[2]);
+							it = replace_with_call(it, &lib::detail::math_mod_info, 0, it->operands[1], it->operands[2]);
 							break;
 						default:
 							util::abort("unexpected AMOD with invalid or unknown type.");
@@ -76,22 +73,30 @@ namespace li::ir::opt {
 				}
 #endif
 				if (it->is<binop>() && it->operands[0]->as<constant>()->vmopr == bc::APOW) {
+					// TODO: Prob better if we moved it out of here?
 					switch (it->vt) {
 						case type::f64:
 							if (it->operands[1]->is<constant>()) {
 								double n = it->operands[1]->as<constant>()->n;
 								if (n == 2) {
-									it = replace_with_call(
-										 it, false, type::f64, +[](double y) { return exp(y); }, it->operands[2]);
+									it = replace_with_call(it, &lib::detail::math_exp2_info, 0, it->operands[2]);
 									break;
 								} else if (n == std::numbers::e) {
-									it = replace_with_call(
-										 it, false, type::f64, +[](double y) { return exp2(y); }, it->operands[2]);
+									it = replace_with_call(it, &lib::detail::math_exp_info, 0, it->operands[2]);
 									break;
 								}
 							}
-							it = replace_with_call(
-								 it, false, type::f64, +[](double x, double y) { return pow(x, y); }, it->operands[1], it->operands[2]);
+							if (it->operands[2]->is<constant>()) {
+								double n = it->operands[2]->as<constant>()->n;
+								if (n == (1.0 / 2)) {
+									it = replace_with_call(it, &lib::detail::math_sqrt_info, 0, it->operands[1]);
+									break;
+								} else if (n == (1.0 / 3)) {
+									it = replace_with_call(it, &lib::detail::math_cbrt_info, 0, it->operands[1]);
+									break;
+								}
+							}
+							it = replace_with_call(it, &lib::detail::math_pow_info, 0, it->operands[1], it->operands[2]);
 							break;
 						default:
 							util::abort("unexpected APOW with invalid or unknown type.");

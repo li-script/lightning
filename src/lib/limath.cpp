@@ -5,6 +5,12 @@
 #include <bit>
 #include <numbers>
 
+// Include arch-specific header if relevant for optimizations.
+//
+#if LI_JIT && LI_ARCH_X86 && !LI_32
+	#include <ir/x86-64.hpp>
+#endif
+
 namespace li::lib {
 	static uint64_t math_random_to_dbl(vm* L, any* args, slot_t n, uint64_t v) {
 		constexpr uint32_t mantissa_bits = 52;
@@ -63,8 +69,8 @@ namespace li::lib {
 	// Unary/Binary functions.
 	//
 #define REMAP_MATH_UNARY(NAME, ...)																  \
-	static double LI_CC LI_STRCAT(__math_, NAME)(double x) { return __VA_ARGS__; }  \
-	static const nfunc_info LI_STRCAT(LI_STRCAT(__math_, NAME), _info) = {			  \
+	static double LI_CC LI_STRCAT(math_, NAME)(double x) { return __VA_ARGS__; }    \
+	nfunc_info detail::LI_STRCAT(LI_STRCAT(math_, NAME), _info) = {			        \
 		.is_pure   = true,																			  \
 		.is_const  = true,																			  \
 		.no_throw  = true,																			  \
@@ -73,17 +79,17 @@ namespace li::lib {
 			if (n == 0 || !args[0].is_num()) {													  \
 			  return L->error("expected number");												  \
 			}																								  \
-			return L->ok(any(LI_STRCAT(__math_, NAME)(args[0].as_num())));				  \
+			return L->ok(any(LI_STRCAT(math_, NAME)(args[0].as_num())));				  \
 		},																									  \
+		.ret       = ir::type::f64,																  \
 		.overloads = {nfunc_overload{																  \
-		  .cfunc = li::bit_cast<const void*>(&LI_STRCAT(__math_, NAME)),				  \
-		  .ret   = ir::type::f64,																	  \
+		  .cfunc = li::bit_cast<const void*>(&LI_STRCAT(math_, NAME)),				     \
 		  .args  = {ir::type::f64},																  \
 		}}																									  \
 	};
 #define REMAP_MATH_BINARY(NAME, ...)																         \
-	static double LI_CC LI_STRCAT(__math_, NAME)(double x, double y) { return __VA_ARGS__; }  \
-	static const nfunc_info LI_STRCAT(LI_STRCAT(__math_, NAME), _info) = {							\
+	static double LI_CC LI_STRCAT(math_, NAME)(double x, double y) { return __VA_ARGS__; }    \
+	nfunc_info detail::LI_STRCAT(LI_STRCAT(math_, NAME), _info) = {						         \
 		.is_pure   = true,																							\
 		.is_const  = true,																							\
 		.no_throw  = true,																			            \
@@ -92,18 +98,16 @@ namespace li::lib {
 			if (n <= 1 || !args[0].is_num() || !args[-1].is_num()) {										\
 			  return L->error("expected two numbers");														\
 			}																												\
-			return L->ok(any(LI_STRCAT(__math_, NAME)(args[0].as_num(), args[-1].as_num())));	\
+			return L->ok(any(LI_STRCAT(math_, NAME)(args[0].as_num(), args[-1].as_num())));   	\
 		},																													\
+		.ret       = ir::type::f64,																            \
 		.overloads = {nfunc_overload{																				\
-		  .cfunc = li::bit_cast<const void*>(&LI_STRCAT(__math_, NAME)),								\
-		  .ret   = ir::type::f64,																					\
+		  .cfunc = li::bit_cast<const void*>(&LI_STRCAT(math_, NAME)),								   \
 		  .args  = {ir::type::f64, ir::type::f64},															\
 		}}																													\
 	};
 	REMAP_MATH_UNARY(rad, x*(180/std::numbers::pi))
 	REMAP_MATH_UNARY(deg, x*(std::numbers::pi/180))
-	REMAP_MATH_UNARY(rcp, 1/x)
-	REMAP_MATH_UNARY(rsqrt, 1/sqrt(x))
 	REMAP_MATH_UNARY(sqrt, sqrt(x))
 	REMAP_MATH_UNARY(cbrt, cbrt(x))
 	REMAP_MATH_UNARY(abs, abs(x))
@@ -127,6 +131,8 @@ namespace li::lib {
 	REMAP_MATH_BINARY(max, fmax(x, y))
 	REMAP_MATH_BINARY(copysign, copysign(x, y))
 	REMAP_MATH_BINARY(atan2, atan2(x, y))
+	REMAP_MATH_BINARY(pow, pow(x, y))
+	REMAP_MATH_BINARY(mod, fmod(x, y))
 
 	// Registers the math library.
 	//
@@ -149,32 +155,48 @@ namespace li::lib {
 
 		// Misc functions.
 		//
-		util::export_nf(L, &__math_rad_info);
-		util::export_nf(L, &__math_deg_info);
-		util::export_nf(L, &__math_rcp_info);
-		util::export_nf(L, &__math_rsqrt_info);
-		util::export_nf(L, &__math_sqrt_info);
-		util::export_nf(L, &__math_cbrt_info);
-		util::export_nf(L, &__math_abs_info);
-		util::export_nf(L, &__math_sgn_info);
-		util::export_nf(L, &__math_cos_info);
-		util::export_nf(L, &__math_sin_info);
-		util::export_nf(L, &__math_tan_info);
-		util::export_nf(L, &__math_acos_info);
-		util::export_nf(L, &__math_asin_info);
-		util::export_nf(L, &__math_atan_info);
-		util::export_nf(L, &__math_floor_info);
-		util::export_nf(L, &__math_ceil_info);
-		util::export_nf(L, &__math_trunc_info);
-		util::export_nf(L, &__math_round_info);
-		util::export_nf(L, &__math_log_info);
-		util::export_nf(L, &__math_log2_info);
-		util::export_nf(L, &__math_log10_info);
-		util::export_nf(L, &__math_exp_info);
-		util::export_nf(L, &__math_exp2_info);
-		util::export_nf(L, &__math_min_info);
-		util::export_nf(L, &__math_max_info);
-		util::export_nf(L, &__math_copysign_info);
-		util::export_nf(L, &__math_atan2_info);
+		util::export_nf(L, &math_rad_info);
+		util::export_nf(L, &math_deg_info);
+		util::export_nf(L, &math_sqrt_info);
+		util::export_nf(L, &math_cbrt_info);
+		util::export_nf(L, &math_abs_info);
+		util::export_nf(L, &math_sgn_info);
+		util::export_nf(L, &math_cos_info);
+		util::export_nf(L, &math_sin_info);
+		util::export_nf(L, &math_tan_info);
+		util::export_nf(L, &math_acos_info);
+		util::export_nf(L, &math_asin_info);
+		util::export_nf(L, &math_atan_info);
+		util::export_nf(L, &math_floor_info);
+		util::export_nf(L, &math_ceil_info);
+		util::export_nf(L, &math_trunc_info);
+		util::export_nf(L, &math_round_info);
+		util::export_nf(L, &math_log_info);
+		util::export_nf(L, &math_log2_info);
+		util::export_nf(L, &math_log10_info);
+		util::export_nf(L, &math_exp_info);
+		util::export_nf(L, &math_exp2_info);
+		util::export_nf(L, &math_min_info);
+		util::export_nf(L, &math_max_info);
+		util::export_nf(L, &math_copysign_info);
+		util::export_nf(L, &math_atan2_info);
+		util::export_nf(L, &math_pow_info);
+		util::export_nf(L, &math_mod_info);
+
+		// TODO: BC lifter for math_rad/math_deg?
+
+		// Arch specific optimization.
+		//
+#if LI_JIT && LI_ARCH_X86 && !LI_32
+		using namespace ir;
+		math_sqrt_info.overloads.front().mir_lifter = [](mblock& b, insn* i) {
+			auto in = REG(i->operands[2]);
+			if constexpr (USE_AVX)
+				VSQRTSD(b, REG(i), in, in);
+			else
+				SQRTSD(b, REG(i), in);
+			return true;
+		};
+#endif
 	}
 };

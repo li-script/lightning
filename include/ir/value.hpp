@@ -7,6 +7,7 @@
 #include <vector>
 #include <vm/bc.hpp>
 #include <vm/string.hpp>
+#include <vm/function.hpp>
 
 namespace li::ir {
 	using operation = bc::opcode;
@@ -235,24 +236,25 @@ namespace li::ir {
 	//
 	struct constant final : value_tag<constant> {
 		union {
-			uint64_t        u;
-			bool            i1;
-			int32_t         i32;
-			int64_t         i;
-			operation       vmopr;
-			trait           vmtrait;
-			value_type      vmtype;
-			type            irtype;
-			double          n;
-			gc::header*     gc;
-			table*          tbl;
-			array*          arr;
-			userdata*       udt;
-			string*         str;
-			function*       fn;
-			function_proto* proto;
-			opaque          opq;
-			basic_block*    bb;
+			uint64_t          u;
+			bool              i1;
+			int32_t           i32;
+			int64_t           i;
+			operation         vmopr;
+			trait             vmtrait;
+			value_type        vmtype;
+			type              irtype;
+			double            n;
+			gc::header*       gc;
+			table*            tbl;
+			array*            arr;
+			userdata*         udt;
+			string*           str;
+			function*         fn;
+			function_proto*   proto;
+			opaque            opq;
+			basic_block*      bb;
+			const nfunc_info* nfni;
 		};
 
 		// Default construction and copy.
@@ -280,6 +282,7 @@ namespace li::ir {
 		constexpr constant(string* v) : str(v) { vt = type::str; }
 		constexpr constant(function* v) : fn(v) { vt = type::fn; }
 		constexpr constant(function_proto* v) : proto(v) { vt = type::proto; }
+		constexpr constant(const nfunc_info* v) : nfni(v) { vt = type::nfni; }
 		constexpr constant(opaque v) : opq(v) { vt = type::opq; }
 		constexpr constant(basic_block* v) : bb(v) { vt = type::bb; }
 		constexpr constant(operation v) : vmopr(v) { vt = type::vmopr; }

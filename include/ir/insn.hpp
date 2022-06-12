@@ -5,6 +5,7 @@
 #include <util/format.hpp>
 #include <util/llist.hpp>
 #include <util/func.hpp>
+#include <vm/function.hpp>
 
 namespace li::ir {
 	// Instruction opcodes.
@@ -573,16 +574,17 @@ namespace li::ir {
 			vt = type::unk;
 		}
 	};
-	// T ccall(i1 has_vm, irtype rettype, ptr target, ...)
+	// T ccall(nfni target, i32 overloadid, unk... args)
 	struct ccall final : insn_tag<ccall, opcode::ccall> {
 		void update() override {
-			is_pure   = false;
-			sideffect = true;
-			LI_ASSERT(operands.size() >= 3);
-			LI_ASSERT(operands[0]->is<constant>() && operands[0]->is(type::i1));
-			LI_ASSERT(operands[1]->is<constant>() && operands[1]->is(type::irtype));
-			LI_ASSERT(operands[2]->is(type::ptr));
-			vt = operands[1]->as<constant>()->irtype;
+			LI_ASSERT(operands.size() >= 2);
+			LI_ASSERT(operands[0]->is<constant>() && operands[0]->is(type::nfni));
+			LI_ASSERT(operands[1]->is<constant>() && operands[1]->is(type::i32));
+			auto* nf   = operands[0]->as<constant>()->nfni;
+			vt         = nf->ret;
+			is_pure    = nf->is_pure;
+			is_const   = nf->is_const;
+			sideffect  = nf->is_pure == 0;
 		}
 	};
 	// none set_exception(unk)
@@ -602,13 +604,23 @@ namespace li::ir {
 			LI_ASSERT(operands.size() == 0);
 		}
 	};
-	// unk vcall(unk target, unk... args)
+	// unk vcall(unk target, unk self, unk... args)
 	struct vcall final : insn_tag<vcall, opcode::vcall> {
 		void update() override {
 			is_pure   = false;
 			sideffect = true;
-			LI_ASSERT(operands.size() >= 1);
-			vt = type::unk;
+			vt        = type::unk;
+			LI_ASSERT(operands.size() >= 2);
+			if (operands[0]->is<constant>()) {
+				auto* c = operands[0]->as<constant>();
+				LI_ASSERT(c->is(type::fn));
+				if (auto* nf = c->fn->ninfo) {
+					is_pure  = nf->is_pure;
+					is_const  = nf->is_const;
+					sideffect = nf->is_pure == 0;
+					//vt        = nf->ret;
+				}
+			}
 		}
 	};
 };

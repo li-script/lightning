@@ -1361,16 +1361,18 @@ namespace li {
 		// Parse format string.
 		//
 		auto fmt = scope.lex().next().str_val->view();
-		auto add = [&](const expression& e) -> bool {
-			// If string literal:
+		auto add = [&](expression e) -> bool {
+			// If literal, coerce to string:
 			//
-			if (e.kind == expr::imm && e.imm.is_str() && size) {
-				// Try merging with the previous instance.
-				//
-				if (parts[size - 1].kind == expr::imm && parts[size - 1].imm.is_str()) {
-					parts[size - 1] = any(string::concat(scope.fn.L, parts[size - 1].imm.as_str(), e.imm.as_str()));
-					return true;
-				}
+			if (e.kind == expr::imm && !e.imm.is_str()) {
+				e.imm = e.imm.to_string(scope.fn.L);
+			}
+
+			// Try merging with the previous instance.
+			//
+			if (e.kind == expr::imm && size && parts[size - 1].kind == expr::imm) {
+				parts[size - 1] = any(string::concat(scope.fn.L, parts[size - 1].imm.as_str(), e.imm.as_str()));
+				return true;
 			}
 
 			// Size check.
@@ -1443,7 +1445,7 @@ namespace li {
 			scope.lex().tok           = pt;
 			scope.lex().tok_lookahead = std::move(pl);
 
-			if (expr.kind == expr::err || !add(expr))
+			if (expr.kind == expr::err || !add(std::move(expr)))
 				return {};
 		}
 

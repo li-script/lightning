@@ -6,11 +6,11 @@
 #include <optional>
 
 namespace li::lib::fs {
-	using fn_import = any (*)(vm* L, std::string_view name);
+	using fn_import = any (*)(vm* L, std::string_view importer, std::string_view name);
 
 	// Import hook, uses fs::read_string.
 	//
-	any default_import(vm* L, std::string_view name);
+	any default_import(vm* L, std::string_view importer, std::string_view name);
 };
 
 // If LI_NO_STD_FS is set, the functions below will have no definitions and

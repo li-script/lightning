@@ -31,7 +31,7 @@ namespace li::debug {
 using namespace li;
 static void handle_repl_io(vm* L, std::string_view input) {
 	auto fn = li::load_script(L, input, "console", {}, true);
-	if (fn.is_fn()) {
+	if (!fn.is_exc()) {
 		if (auto r = L->call(0, fn); r.is_exc()) {
 			printf(LI_RED "Exception: ");
 			L->last_ex.print();
@@ -45,7 +45,7 @@ static void handle_repl_io(vm* L, std::string_view input) {
 		}
 	} else {
 		printf(LI_RED "Parser error: " LI_DEF);
-		fn.print();
+		L->last_ex.print();
 		putchar('\n');
 	}
 }
@@ -129,7 +129,7 @@ int main(int argv, const char** args) {
 	// Validate, print the result.
 	//
 	int retval = 1;
-	if (fn.is_fn()) {
+	if (!fn.is_exc()) {
 		auto t0 = std::chrono::high_resolution_clock::now();
 		if (auto r = L->call(0, fn); r.is_exc()) {
 			auto t1 = std::chrono::high_resolution_clock::now();
@@ -153,7 +153,7 @@ int main(int argv, const char** args) {
 		}
 	} else {
 		printf(LI_RED "Parser error: " LI_DEF);
-		fn.print();
+		L->last_ex.print();
 		putchar('\n');
 	}
 	L->close();

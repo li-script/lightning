@@ -970,19 +970,17 @@ namespace li {
 
 				auto mod = scope.fn.L->modules->get(scope.fn.L, name->str_val);
 				if (mod == nil) {
-					any  result = nil;
 					if (scope.fn.L->import_fn) {
-						result = scope.fn.L->import_fn(scope.fn.L, name->str_val->view());
+						mod = scope.fn.L->import_fn(scope.fn.L, scope.lex().source_name, name->str_val->view());
 					}
-					if (result == nil) {
+					if (mod == nil) {
 						scope.lex().error("module '%s' not found", name->str_val->c_str());
 						return {};
 					}
-					else if (result.is_exc()) {
+					else if (mod.is_exc()) {
 						scope.lex().error(scope.fn.L->last_ex.coerce_str(scope.fn.L)->c_str());
 						return {};
 					}
-					mod = result;
 				}
 
 				auto alias = *name;
@@ -1940,7 +1938,6 @@ namespace li {
 	}
 
 	// Parses the code and returns it as a function instance with no arguments on success.
-	// If code parsing fails, result is instead a string explaining the error.
 	//
 	any load_script(vm* L, std::string_view source, std::string_view source_name, std::string_view module_name, bool is_repl) {
 		// Handle UTF input.
@@ -1962,7 +1959,8 @@ namespace li {
 			auto* mod    = string::create(L, module_name);
 			any   exists = L->modules->get(L, mod);
 			if (exists != nil) {
-				return string::format(L, "module '%s' already exists.", mod->c_str());
+				L->error(string::format(L, "module '%s' already exists.", mod->c_str()));
+				return exception_marker;
 			} else {
 				fn.module_table = table::create(L);
 				fn.module_name  = mod;
@@ -1991,7 +1989,8 @@ namespace li {
 		// Propagate the result.
 		//
 		if (!ok) {
-			return string::create(L, fn.lex.last_error.c_str());
+			L->error(string::create(L, fn.lex.last_error.c_str()));
+			return exception_marker;
 		} else {
 			return write_func(fn, 0);
 		}

@@ -5,7 +5,7 @@
 #include <numeric>
 
 namespace li::lib::fs {
-	any default_import(vm* L, std::string_view name) {
+	any default_import(vm* L, std::string_view importer, std::string_view name) {
 		// Get the file name.
 		//
 		std::string file_name{name};
@@ -16,14 +16,20 @@ namespace li::lib::fs {
 		// Read the file.
 		//
 		auto file = read_string(file_name.c_str());
+		if (!file && !importer.empty()) {
+			auto        pos = importer.find_last_of("/\\");
+			file_name.insert(file_name.begin(), importer.begin(), importer.begin() + (pos + 1));
+			file = read_string(file_name.c_str());
+		}
 		if (!file) {
-			return string::format(L, "failed reading file '%s'", file_name.c_str());
+			L->error(string::format(L, "failed reading file '%s'", file_name.c_str()));
+			return exception_marker;
 		}
 
 		// Load the script, throw as is on failure.
 		// 
 		any res = load_script(L, *file, file_name, name);
-		if (res.is_str())
+		if (res.is_exc())
 			return res;
 
 		// Suspend GC and invoke it.

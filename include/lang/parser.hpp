@@ -416,7 +416,6 @@ namespace li {
 	expression emit_binop(func_scope& scope, const expression& lhs, bc::opcode op, const expression& rhs);
 
 	// Parses the code and returns it as a function instance with no arguments on success.
-	// If code parsing fails, result is instead a string explaining the error.
 	//
 	any load_script(vm* L, std::string_view source, std::string_view source_name = "", std::string_view module_name = "", bool is_repl = false);
 };

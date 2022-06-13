@@ -83,11 +83,12 @@ namespace li::lib {
 			if (n != 1 || !args->is_str()) {
 				return L->error("expected string");
 			}
+
 			auto res = load_script(L, args->as_str()->view());
-			if (!res.is_fn())
-				return L->error(res);
-			else
-				return L->ok(res);
+			if (res.is_exc()) {
+				return res.value;
+			}
+			return L->ok(res);
 		});
 		util::export_as(L, "builtin.eval", [](vm* L, any* args, slot_t n) {
 			vm_stack_guard _g{L, args};
@@ -95,8 +96,8 @@ namespace li::lib {
 				return L->error("expected string");
 			}
 			auto res = load_script(L, args->as_str()->view());
-			if (!res.is_fn()) {
-				return L->error(res);
+			if (res.is_exc()) {
+				return res.value;
 			}
 			return L->call(0, res).value;
 		});

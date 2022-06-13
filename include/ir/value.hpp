@@ -351,7 +351,7 @@ namespace li::ir {
 			} else if (type::i8 <= vt && vt <= type::i64) {
 				return i;
 			} else if (type::f32 <= vt && vt <= type::f64) {
-				return (int64_t) trunc(n);
+				return (int64_t) n;
 			} else if (vt == type::nil) {
 				return 0;
 			} else if (vt == type::exc) {

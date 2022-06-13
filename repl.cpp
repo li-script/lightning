@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <fstream>
 #include <iostream>
+#include <cstring>
 #include <lang/lexer.hpp>
 #include <lang/operator.hpp>
 #include <lang/parser.hpp>
@@ -61,6 +62,7 @@ extern "C" {
 #endif
 
 #include <util/user.hpp>
+
 int main(int argv, const char** args) {
 	platform::setup_ansi_escapes();
 
@@ -70,9 +72,25 @@ int main(int argv, const char** args) {
 	auto* L = vm::create();
 	lib::register_std(L);
 
+	// Parse the arguments.
+	//
+	const char* file_path = nullptr;
+	for (int i = 1; i < argv; ++i) {
+		if (!strcmp(args[i], "--no-gc")) {
+			L->gc.suspend = true;
+		} else if (!strcmp(args[i], "--jit")) {
+			L->jit_all = true;
+		} else if (!strcmp(args[i], "--jit-verbose")) {
+			L->jit_all = true;
+			L->jit_verbose = true;
+		} else if (!file_path) {
+			file_path = args[i];
+		}
+	}
+
 	// Repl if no file given.
 	//
-	if (argv < 2) {
+	if (!file_path) {
 		// clang-format off
 		static constexpr const char hdr[] =
 		LI_YLW "                 @          " LI_CYN "                                          \n"
@@ -119,32 +137,12 @@ int main(int argv, const char** args) {
 
 	// Read the file.
 	//
-	auto file = lib::fs::read_string(args[1]);
+	auto file = lib::fs::read_string(file_path);
 	if (!file) {
-		printf(LI_RED "Failed reading file '%s'\n" LI_DEF, args[1]);
+		printf(LI_RED "Failed reading file '%s'\n" LI_DEF, file_path);
 		return 1;
 	}
-	auto fn = li::load_script(L, *file, args[1]);
-
-#if LI_JIT
-	// Handle JIT arguments:
-	//
-	for (int i = 2; i < argv; ++i) {
-		if (!strcmp(args[i], "--jit")) {
-			li::lib::jit_on(L, fn.as_fn(), false);
-		} else if (!strcmp(args[i], "--jit-verbose")) {
-			li::lib::jit_on(L, fn.as_fn(), true);
-		}
-	}
-#endif
-
-	// Handle GC arguments.
-	//
-	for (int i = 2; i < argv; ++i) {
-		if (!strcmp(args[i], "--no-gc")) {
-			L->gc.suspend = true;
-		}
-	}
+	auto fn = li::load_script(L, *file, file_path);
 
 	// Validate, print the result.
 	//

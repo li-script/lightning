@@ -5,6 +5,7 @@
 #include <vm/function.hpp>
 #include <vm/table.hpp>
 #include <vm/string.hpp>
+#include <cmath>
 
 // Include arch-specific header if relevant for optimizations.
 //

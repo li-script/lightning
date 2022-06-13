@@ -507,7 +507,7 @@ namespace li::ir {
 					}
 					case type::f32:
 					case type::f64: {
-						LI_ASSERT(type::f32 <= op->vt && op->vt <= type::f64);
+						LI_ASSERT((type::f32 <= op->vt && op->vt <= type::f64) || op->vt == type::unk);
 						b.append(vop::movf, out, REG(op));
 						if (i->vt == type::f32)
 							b.append(vop::fx32, out, out);
@@ -798,7 +798,7 @@ namespace li::ir {
 				// TODO: Inline tick, move collect to unlikely.
 				//
 				//b.append(vop::movi, arch::map_gp_arg(0, 0), REF_VM());
-				//b.append(vop::call, {}, (int64_t) bit_cast<uintptr_t>(+[](vm* L) {
+				//b.append(vop::call, {}, (int64_t) li::bit_cast<uintptr_t>(+[](vm* L) {
 				//	return L->gc.tick(L);
 				//}));
 				return;

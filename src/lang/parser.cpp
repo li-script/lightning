@@ -1,9 +1,9 @@
-
 #include <lang/parser.hpp>
 #include <vm/function.hpp>
 #include <vm/string.hpp>
 #include <vm/table.hpp>
 #include <util/utf.hpp>
+#include <lib/std.hpp>
 
 #if LI_CLANG
 	#pragma clang diagnostic ignored "-Wunused-function"
@@ -75,11 +75,10 @@ namespace li {
 			fn.pc.push_back({bc::RET, *implicit_ret});
 		}
 
-		// Create the function value.
+		// Create the function prototype.
 		//
 		if (!fn.line_table.empty())
 			fn.line_table.front().line_delta -= line;
-
 		function_proto* f = function_proto::create(fn.L, fn.pc, fn.kvalues, fn.line_table);
 		f->num_locals    = fn.max_reg_id + 1;
 		f->num_uval       = (msize_t) fn.uvalues.size();
@@ -92,7 +91,16 @@ namespace li {
 			f->src_chunk = string::format(fn.L, "'%.*s'", (uint32_t) fn.lex.source_name.size(), fn.lex.source_name.data());
 		}
 		f->src_line      = line;
-		return function::create(fn.L, f);
+
+		// Create the function value.
+		//
+		function* res = function::create(fn.L, f);
+#if LI_JIT
+		if (fn.L->jit_all) {
+			lib::jit_on(fn.L, res, fn.L->jit_verbose);
+		}
+#endif
+		return res;
 	}
 
 	// Applies an operator to the expressions handling constant folding, returns the resulting expression.

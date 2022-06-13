@@ -84,17 +84,16 @@ namespace li {
 		uint64_t       prng_seed    = platform::srng();  // PRNG seed.
 		util::fastlock lock         = {};                // Lock protecting the VM.
 
-		// Exception temporaries.
+		// Configuration.
 		//
-		any            last_ex      = {};
+		lib::fs::fn_import import_fn       = &lib::fs::default_import;  // Import function.
+		fn_panic           panic_fn        = &default_panic;            // Panic function.
+		uint32_t           jit_all : 1     = false;                     // JITs every parsed function.
+		uint32_t           jit_verbose : 1 = false;                     // JIT compilation prints debug information.
 
-		// VM hooks.
+		// Stack.
 		//
-		lib::fs::fn_import import_fn = &lib::fs::default_import;  // Import function.
-		fn_panic           panic_fn  = &default_panic;            // Panic function.
-
-		// VM stack.
-		//
+		any        last_ex        = {};       // Last exception thrown.
 		call_frame last_vm_caller = {};       // Last valid VM frame that called into C.
 		any*       stack_top      = nullptr;  // Top of the stack.
 		any        stack[];                   // Stack base.

@@ -323,7 +323,7 @@ namespace li::ir::opt {
 								call->operands.emplace_back(proc->add_const(constant{(int64_t) c->to_any().value}));
 								continue;
 							} else if (expected_args[n] == type::f32) {
-								call->operands.emplace_back(proc->add_const(constant{(int64_t) bit_cast<uint32_t>(float(c->n))}));
+								call->operands.emplace_back(proc->add_const(constant{(int64_t) li::bit_cast<uint32_t>(float(c->n))}));
 								continue;
 							} else {
 								call->operands.emplace_back(proc->add_const(constant{c->to_i64()}));

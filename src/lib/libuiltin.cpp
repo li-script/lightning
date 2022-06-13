@@ -207,9 +207,9 @@ namespace li::lib {
 		 .name       = "builtin.join",
 		 .invoke     = &builtin_join_vm,
 		 .overloads  = {
-			nfunc_overload{li::bit_cast<const void*>(&builtin_join_array), {ir::type::arr, ir::type::arr}, ir::type::i32},
-			nfunc_overload{li::bit_cast<const void*>(&builtin_join_table), {ir::type::tbl, ir::type::tbl}, ir::type::i32},
-			nfunc_overload{li::bit_cast<const void*>(&builtin_join_string), {ir::type::str, ir::type::str}, ir::type::i32},
+			nfunc_overload{li::bit_cast<const void*>(&builtin_join_array), {ir::type::arr, ir::type::arr}, ir::type::arr},
+			nfunc_overload{li::bit_cast<const void*>(&builtin_join_table), {ir::type::tbl, ir::type::tbl}, ir::type::tbl},
+			nfunc_overload{li::bit_cast<const void*>(&builtin_join_string), {ir::type::str, ir::type::str}, ir::type::str},
 			nfunc_overload{li::bit_cast<const void*>(&builtin_join_else), {ir::type::unk, ir::type::unk}, ir::type::exc},
 		}
 	};

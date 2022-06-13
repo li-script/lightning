@@ -142,10 +142,20 @@ namespace li::ir {
 					continue;
 				}
 				case bc::CCAT: {
+					auto to_str = [&](ref<value> i) {
+						if (i->vt != type::str) {
+							if (i->vt != type::unk) {
+								i = bld.emit<erase_type>(std::move(i));
+							}
+							i = bld.emit<ccall>(&lib::detail::builtin_str_info, 0, std::move(i));
+						}
+						return i;
+					};
+
 					bld.emit<gc_tick>();
-					auto tmp = get_reg(a);
+					auto tmp = to_str(get_reg(a));
 					for (msize_t i = 1; i != b; i++) {
-						tmp = bld.emit<ccall>(&lib::detail::builtin_join_info, 2, std::move(tmp), get_reg(a + i));
+						tmp = bld.emit<ccall>(&lib::detail::builtin_join_info, 2, std::move(tmp), to_str(get_reg(a + i)));
 					}
 					set_reg(a, std::move(tmp));
 					continue;

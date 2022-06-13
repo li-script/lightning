@@ -14,7 +14,7 @@ namespace li {
 		return exception_marker;
 	}
 #define TYPE_ASSERT(v, t)     \
-	if (!v.is(t)) [[unlikely]] \
+	if (!v.is<t>()) [[unlikely]] \
 		return arg_error(L, v, type_names[t]);
 
 #define UNARY_APPLY_TRAIT(t)                           \

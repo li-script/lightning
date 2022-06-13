@@ -521,7 +521,7 @@ namespace li::ir {
 					}
 					// GC types.
 					default: {
-						type_clear(b, out, REG(op));
+						gc_type_clear(b, out, REG(op));
 						return;
 					}
 					// Invalid types.
@@ -585,10 +585,7 @@ namespace li::ir {
 			case opcode::test_traitful: {
 				auto vt = i->operands[1]->as<constant>()->vmtype;
 				LI_ASSERT(i->operands[0]->vt == type::unk);
-
-				auto tmp = REG(i);
-				b.append(vop::movi, tmp, REG(i->operands[0]));
-				check_traitful(b, vt, tmp);
+				check_type_traitful(b, vt, REG(i), REG(i->operands[0]));
 				return;
 			}
 			case opcode::compare: {

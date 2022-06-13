@@ -93,22 +93,34 @@ namespace li {
 		return ((~uint64_t(type)) << 47) | value;
 	}
 	LI_INLINE static constexpr uint64_t make_tag(uint8_t type) { return ((~uint64_t(type)) << 47) | mask_value(~0ull); }
-	LI_INLINE static constexpr uint64_t get_type(uint64_t value) { return ((~value) >> 47); }
-	LI_INLINE static gc::header*        get_gc_value(uint64_t value) {
-		value = mask_value(value);
+	LI_INLINE static gc::header* get_gc_value(uint64_t value) {
 #if LI_KERNEL_MODE
 		value |= ~0ull << 47;
+#else
+		value = mask_value(value);
 #endif
 		return (gc::header*) value;
 	}
 
 	// Type and value traits.
 	//
+	LI_INLINE static constexpr uint64_t get_type(uint64_t value) { return ((~value) >> 47); }
+	template<value_type Type>
+	LI_INLINE static constexpr bool is_value_of_type(uint64_t value) {
+		if constexpr (Type == type_exception || Type == type_nil) {
+			return value == make_tag(Type);
+		} else if constexpr (Type == type_number) {
+			constexpr uint32_t expected = uint32_t(make_tag(type_number + 1) >> 47);
+			return (value >> 47) < expected;
+		} else {
+			constexpr uint32_t expected = uint32_t(make_tag(Type) >> 47);
+			return (value >> 47) == expected;
+		}
+	}
 	LI_INLINE static constexpr bool is_type_gc(uint8_t t) { return t <= type_gc_last; }
 	LI_INLINE static constexpr bool is_type_traitful(uint8_t t) { return t <= type_gc_last_traitful; }
-	LI_INLINE static constexpr bool is_gc_value(uint64_t value) { return value > (make_tag(type_gc_last + 1) + 1); }
-	LI_INLINE static constexpr bool is_traitful_value(uint64_t value) { return value > (make_tag(type_gc_last_traitful + 1) + 1); }
-	LI_INLINE static constexpr bool is_numeric_value(uint64_t value) { return value <= make_tag(type_number); }
+	LI_INLINE static constexpr bool is_value_gc(uint64_t value) { return value > (make_tag(type_gc_last + 1) + 1); }
+	LI_INLINE static constexpr bool is_value_traitful(uint64_t value) { return value > (make_tag(type_gc_last_traitful + 1) + 1); }
 
 	// Forward for auto-typing.
 	//
@@ -119,22 +131,22 @@ namespace li {
 	// Boxed object type, fixed 8-bytes.
 	//
 	struct LI_TRIVIAL_ABI any {
-		uint64_t value;
+		uint64_t value = make_tag(type_nil);
 
 		// Literal construction.
 		//
-		inline constexpr any() : value(make_tag(type_nil)) {}
-		inline constexpr any(bool v) : value(mix_value(type_bool, v?1:0)) {}
-		inline constexpr any(number v) : value(li::bit_cast<uint64_t>(v)) {
+		LI_INLINE inline constexpr any(bool v) : value(mix_value(type_bool, v?1:0)) {}
+		LI_INLINE inline constexpr any(number v) : value(li::bit_cast<uint64_t>(v)) {
 			// TODO: Might be optimized out if compiled with -ffast-math.
 			if (v != v) [[unlikely]]
 				value = kvalue_nan;
 		}
-		inline constexpr any(std::in_place_t, uint64_t value) : value(value) {}
-		inline constexpr any(opaque v) : value(mix_value(type_opaque, (uint64_t) v.bits)) {}
+		LI_INLINE inline constexpr any(std::in_place_t, uint64_t value) : value(value) {}
+		LI_INLINE inline constexpr any(opaque v) : value(mix_value(type_opaque, (uint64_t) v.bits)) {}
 
-		// Trivially copyable.
+		// Trivially copyable and default constructable.
 		//
+		inline constexpr any()                          = default;
 		inline constexpr any(any&&) noexcept            = default;
 		inline constexpr any(const any&)                = default;
 		inline constexpr any& operator=(any&&) noexcept = default;
@@ -142,44 +154,48 @@ namespace li {
 
 		// GC types.
 		//
-		inline any(array* v) : value(mix_value(type_array, (uint64_t) v)) {}
-		inline any(table* v) : value(mix_value(type_table, (uint64_t) v)) {}
-		inline any(string* v) : value(mix_value(type_string, (uint64_t) v)) {}
-		inline any(userdata* v) : value(mix_value(type_userdata, (uint64_t) v)) {}
-		inline any(function* v) : value(mix_value(type_function, (uint64_t) v)) {}
-		inline any(gc::header* v) : value(mix_value(gc::identify(v), (uint64_t) v)) {}
+		LI_INLINE inline any(array* v) : value(mix_value(type_array, (uint64_t) v)) {}
+		LI_INLINE inline any(table* v) : value(mix_value(type_table, (uint64_t) v)) {}
+		LI_INLINE inline any(string* v) : value(mix_value(type_string, (uint64_t) v)) {}
+		LI_INLINE inline any(userdata* v) : value(mix_value(type_userdata, (uint64_t) v)) {}
+		LI_INLINE inline any(function* v) : value(mix_value(type_function, (uint64_t) v)) {}
+		LI_INLINE inline any(gc::header* v) : value(mix_value(gc::identify(v), (uint64_t) v)) {}
 
 		// Type check.
 		//
-		inline constexpr value_type type() const { return (value_type) std::min(get_type(value), (uint64_t) type_number); }
-		inline constexpr bool       is(uint8_t t) const { return t == type(); }
-		inline constexpr bool       is_bool() const { return get_type(value) == type_bool; }
-		inline constexpr bool       is_num() const { return is_numeric_value(value); }
-		inline constexpr bool       is_arr() const { return get_type(value) == type_array; }
-		inline constexpr bool       is_tbl() const { return get_type(value) == type_table; }
-		inline constexpr bool       is_str() const { return get_type(value) == type_string; }
-		inline constexpr bool       is_udt() const { return get_type(value) == type_userdata; }
-		inline constexpr bool       is_fn() const { return get_type(value) == type_function; }
-		inline constexpr bool       is_opq() const { return get_type(value) == type_opaque; }
-		inline constexpr bool       is_exc() const { return value == make_tag(type_exception); }
-		inline constexpr bool       is_gc() const { return is_gc_value(value); }
-		inline constexpr bool       is_traitful() const { return is_traitful_value(value); }
+		LI_INLINE inline constexpr value_type type() const { return (value_type) std::min(get_type(value), (uint64_t) type_number); }
+
+		template<value_type Type>
+		LI_INLINE inline constexpr bool is() const {
+			return is_value_of_type<Type>(value);
+		}
+		LI_INLINE inline constexpr bool is_num() const { return is<type_number>(); }
+		LI_INLINE inline constexpr bool is_bool() const { return is<type_bool>(); }
+		LI_INLINE inline constexpr bool is_arr() const { return is<type_array>(); }
+		LI_INLINE inline constexpr bool is_tbl() const { return is<type_table>(); }
+		LI_INLINE inline constexpr bool is_str() const { return is<type_string>(); }
+		LI_INLINE inline constexpr bool is_udt() const { return is<type_userdata>(); }
+		LI_INLINE inline constexpr bool is_fn() const { return is<type_function>(); }
+		LI_INLINE inline constexpr bool is_opq() const { return is<type_opaque>(); }
+		LI_INLINE inline constexpr bool is_exc() const { return is<type_exception>(); }
+		LI_INLINE inline constexpr bool is_gc() const { return is_value_gc(value); }
+		LI_INLINE inline constexpr bool is_traitful() const { return is_value_traitful(value); }
 
 		// Getters.
 		//
-		inline constexpr bool   as_bool() const { return value & 1; }
-		inline constexpr number as_num() const { return li::bit_cast<number>(value); }
-		inline constexpr opaque as_opq() const { return {.bits = mask_value(value)}; }
-		inline gc::header*      as_gc() const { return get_gc_value(value); }
-		inline array*           as_arr() const { return (array*) as_gc(); }
-		inline table*           as_tbl() const { return (table*) as_gc(); }
-		inline string*          as_str() const { return (string*) as_gc(); }
-		inline userdata*        as_udt() const { return (userdata*) as_gc(); }
-		inline function*        as_fn() const { return (function*) as_gc(); }
+		LI_INLINE inline constexpr bool   as_bool() const { return value & 1; }
+		LI_INLINE inline constexpr number as_num() const { return li::bit_cast<number>(value); }
+		LI_INLINE inline constexpr opaque as_opq() const { return {.bits = mask_value(value)}; }
+		LI_INLINE inline gc::header*      as_gc() const { return get_gc_value(value); }
+		LI_INLINE inline array*           as_arr() const { return (array*) as_gc(); }
+		LI_INLINE inline table*           as_tbl() const { return (table*) as_gc(); }
+		LI_INLINE inline string*          as_str() const { return (string*) as_gc(); }
+		LI_INLINE inline userdata*        as_udt() const { return (userdata*) as_gc(); }
+		LI_INLINE inline function*        as_fn() const { return (function*) as_gc(); }
 
 		// Bytewise equal comparsion.
 		//
-		inline constexpr bool equals(const any& other) const {
+		LI_INLINE inline constexpr bool equals(const any& other) const {
 #if !LI_FAST_MATH
 			uint64_t x = value ^ other.value;
 			if (!(value << 1)) {
@@ -193,8 +209,8 @@ namespace li {
 
 		// Define copy and comparison operators.
 		//
-		inline constexpr bool operator==(const any& other) const { return equals(other); }
-		inline constexpr bool operator!=(const any& other) const { return !equals(other); }
+		LI_INLINE inline constexpr bool operator==(const any& other) const { return equals(other); }
+		LI_INLINE inline constexpr bool operator!=(const any& other) const { return !equals(other); }
 
 		// String conversion.
 		//

@@ -250,38 +250,56 @@ namespace li::ir {
 
 	// Emits a type check of the temporary given into a flag and sets the condition flag on the temporary.
 	//
-	inline static mreg check_type(mblock& b, value_type t, mreg tmp, mreg val) {
+	inline static void check_type(mblock& b, value_type t, mreg out, mreg val) {
+		LI_ASSERT(out != val);
 		if (t == type_nil || t == type_exception) {
-			RORX(b, tmp, val, 47);
-			CMP(b, FLAG_Z, tmp, (int64_t) std::rotr(make_tag(t), 47));
-			b.append(vop::setcc, tmp, FLAG_Z);
+			RORX(b, out, val, 47);
+			CMP(b, FLAG_Z, out, (int64_t) std::rotr(make_tag(t), 47));
+			b.append(vop::setcc, out, FLAG_Z);
 		} else if (t == type_number) {
-			RORX(b, tmp, val, 47);
-			AND(b, tmp, 0x1FFFF).target_info.force_size                                  = 4;
-			CMP(b, FLAG_B, tmp, int64_t((make_tag(t) + 1) >> 47)).target_info.force_size = 4;
-			b.append(vop::setcc, tmp, FLAG_B);
+			RORX(b, out, val, 47);
+			AND(b, out, 0x1FFFF).target_info.force_size                                  = 4;
+			CMP(b, FLAG_B, out, int64_t((make_tag(t) + 1) >> 47)).target_info.force_size = 4;
+			b.append(vop::setcc, out, FLAG_B);
 		} else {
-			RORX(b, tmp, val, 47);
-			AND(b, tmp, 0x1FFFF).target_info.force_size                            = 4;
-			CMP(b, FLAG_Z, tmp, int64_t(make_tag(t) >> 47)).target_info.force_size = 4;
-			b.append(vop::setcc, tmp, FLAG_Z);
+			RORX(b, out, val, 47);
+			AND(b, out, 0x1FFFF).target_info.force_size                            = 4;
+			CMP(b, FLAG_Z, out, int64_t(make_tag(t) >> 47)).target_info.force_size = 4;
+			b.append(vop::setcc, out, FLAG_Z);
 		}
-		return tmp;
 	}
-	inline static mreg check_traitful(mblock& b, value_type t, mreg tmp) {
-		uint64_t cmp = (make_tag(type_gc_last_traitful + 1) + 1);
-		b.append(vop::movi, tmp, (int64_t)cmp);
-		CMP(b, FLAG_NBE, tmp, cmp);
-		b.append(vop::setcc, tmp, FLAG_NBE);
-		return tmp;
+	inline static void check_type_traitful(mblock& b, value_type t, mreg out, mreg val) {
+		LI_ASSERT(out != val);
+		constexpr uint64_t cmp = make_tag(type_gc_last_traitful + 1);
+		b.append(vop::movi, out, (int64_t) cmp);
+		CMP(b, FLAG_NBE, val, out);
+		b.append(vop::setcc, out, FLAG_NBE);
+	}
+	inline static void check_type_gc(mblock& b, value_type t, mreg out, mreg val) {
+		LI_ASSERT(out != val);
+		constexpr uint64_t cmp = make_tag(type_gc_last + 1);
+		b.append(vop::movi, out, (int64_t) cmp);
+		CMP(b, FLAG_NBE, val, out);
+		b.append(vop::setcc, out, FLAG_NBE);
 	}
 
-	// Clears type tag, should not be a number.
+	// Clears type tag, should be a pointer type.
 	//
-	inline static void type_clear(mblock& b, mreg dst, mreg src) {
+	inline static void gc_type_clear(mblock& b, mreg dst, mreg src) {
+	#if !LI_KERNEL_MODE
 		auto tmp = b->next_gp();
 		b.append(vop::movi, tmp, 47);
 		BZHI(b, dst, src, tmp);
+	#else
+		if (dst != src) {
+			b.append(vop::movi, dst, -1ll << 47);
+			OR(b, dst, src);
+		} else {
+			auto tmp = b->next_gp();
+			b.append(vop::movi, tmp, -1ll << 47);
+			OR(b, dst, tmp);
+		}
+	#endif
 	}
 
 	// Erases the type into a general purpose register.

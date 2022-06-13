@@ -140,7 +140,7 @@ namespace li {
 		// Loads the constant given in the register in the most efficient way.
 		//
 		void set_reg(bc::reg r, any v) {
-			if (is_type_gc(v.type())) {
+			if (v.is_gc()) {
 				emitx(bc::KIMM, r, add_const(v).second.value);
 			} else {
 				emitx(bc::KIMM, r, v.value);
@@ -305,7 +305,7 @@ namespace li {
 					scope.emit(bc::PUSHR, reg);
 					return;
 				case expr::imm:
-					if (is_type_gc(imm.type())) {
+					if (imm.is_gc()) {
 						scope.emitx(bc::PUSHI, 0, scope.add_const(imm).second.value);
 					} else {
 						scope.emitx(bc::PUSHI, 0, imm.value);

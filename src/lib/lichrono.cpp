@@ -24,16 +24,14 @@ namespace li::lib {
 #endif
 		return (double)cycles;
 	}
-	static uint64_t chrono_cycles(vm* L, any* args, slot_t n) {
-		return L->ok(chrono_cycles_c());
-	}
+	static uint64_t   chrono_cycles(vm* L, any* args, slot_t n) { return L->ok(chrono_cycles_c()); }
 	static nfunc_info chrono_cycles_info = {
 		 .is_pure   = false,
 		 .no_throw  = true,
 		 .takes_vm  = false,
 		 .name      = "chrono.cycles",
 		 .invoke    = &chrono_cycles,
-		 .overloads = {{li::bit_cast<const void*>(&chrono_cycles_c), {}, ir::type::f64}}
+		 .overloads = {nfunc_overload{li::bit_cast<const void*>(&chrono_cycles_c), {}, ir::type::f64}},
 	};
 
 	// Registers the chrono library.

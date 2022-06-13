@@ -39,25 +39,6 @@ namespace li::ir::opt {
 					continue;
 				}
 
-				// Duplication.
-				//
-				if (it->is<vdup>()) {
-					switch (it->operands[0]->vt) {
-						case type::arr:
-							it = replace_with_call(it, &lib::detail::builtin_dup_array_info, 0, it->operands[0]);
-							break;
-						case type::tbl:
-							it = replace_with_call(it, &lib::detail::builtin_dup_table_info, 0, it->operands[0]);
-							break;
-						case type::fn:
-							it = replace_with_call(it, &lib::detail::builtin_dup_function_info, 0, it->operands[0]);
-							break;
-						default:
-							util::abort("unexpected dup with invalid or unknown type.");
-					}
-					continue;
-				}
-
 				// Mod and pow.
 				//
 #if !LI_FAST_MATH

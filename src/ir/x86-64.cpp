@@ -420,34 +420,6 @@ namespace li::ir {
 				b.append(vop::movi, REG(i), mreg(arch::from_native(arch::gp_retval)));
 				return;
 			}
-			case opcode::vlen: {
-				// Pick the field.
-				//
-				int32_t offset;
-				switch (i->operands[0]->vt) {
-					case type::str:
-						offset = offsetof(string, length);
-						break;
-					case type::tbl:
-						offset = offsetof(table, active_count);
-						break;
-					case type::arr:
-						offset = offsetof(array, length);
-						break;
-					default:
-						util::abort("unexpected vlen with invalid or unknown type.");
-				}
-
-				// Load the result.
-				//
-				auto tg = b->next_gp();
-				auto tf = b->next_fp();
-				b.append(vop::loadi32, tg, mmem{.base = REG(i->operands[0]), .disp = offset});
-				b.append(vop::izx32, tg, tg);
-				b.append(vop::fcvt, tf, tg);
-				b.append(vop::movi, REG(i), tf);
-				return;
-			}
 
 			// Operators.
 			//
@@ -555,8 +527,7 @@ namespace li::ir {
 					}
 				}
 			}
-			case opcode::coerce_cast: {
-				LI_ASSERT(i->operands[1]->as<constant>()->irtype == type::i1);
+			case opcode::coerce_bool: {
 				switch (i->operands[0]->vt) {
 					case type::none:
 					case type::nil: {
@@ -713,7 +684,7 @@ namespace li::ir {
 
 				// Read the result.
 				//
-				if (auto ty = nfni->ret; (ty == type::f32 || ty == type::f64)) {
+				if (auto ty = nfni->overloads[oidx].ret; (ty == type::f32 || ty == type::f64)) {
 					b.append(vop::movf, REG(i), mreg(arch::from_native(arch::fp_retval)));
 				} else if (ty != type::none) {
 					b.append(vop::movi, REG(i), mreg(arch::from_native(arch::gp_retval)));

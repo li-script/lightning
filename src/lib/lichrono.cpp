@@ -33,8 +33,7 @@ namespace li::lib {
 		 .takes_vm  = false,
 		 .name      = "chrono.cycles",
 		 .invoke    = &chrono_cycles,
-		 .ret       = ir::type::f64,
-		 .overloads = {nfunc_overload{li::bit_cast<const void*>(&chrono_cycles_c), {}}}
+		 .overloads = {{li::bit_cast<const void*>(&chrono_cycles_c), {}, ir::type::f64}}
 	};
 
 	// Registers the chrono library.

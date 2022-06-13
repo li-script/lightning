@@ -67,8 +67,9 @@ namespace li {
 	};
 	using fn_ir2mir = bool(*)(ir::mblock& b, ir::insn* i);
 	struct nfunc_overload {
-		const void*             cfunc      = nullptr;         // C function pointer. Must be LI_CC, invalid entry if nullptr.
-		std::array<ir::type, 8> args       = {};              // Expected argument types for a valid call, none = end.
+		const void*             cfunc = nullptr;        // C function pointer. Must be LI_CC, invalid entry if nullptr.
+		std::array<ir::type, 8> args  = {};             // Expected argument types for a valid call, none = end.
+		ir::type                ret   = ir::type::nil;  // Return type, if not ir::type::unk/type::exc, automatically no-except.
 
 		// TODO: BC->IR Lifter?
 		// MIR lifter.
@@ -99,10 +100,6 @@ namespace li {
 		// nfunc_t callback, for convenience.
 		//
 		nfunc_t invoke = nullptr;
-
-		// Return type.
-		//
-		ir::type ret = ir::type::nil;
 
 		// Overloads with specific lifters.
 		//

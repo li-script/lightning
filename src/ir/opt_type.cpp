@@ -160,58 +160,6 @@ namespace li::ir::opt {
 			return true;
 		});
 	}
-	static bool specialize_dup(procedure* proc) {
-		return proc->bfs([&](basic_block* bb) {
-			auto i = range::find_if(bb->insns(), [](insn* i) {
-				if (i->is<vdup>()) {
-					i->update();
-					if (i->vt == type::unk) {
-						return true;
-					}
-				}
-				return false;
-			});
-			if (i == bb->end()) {
-				return false;
-			}
-
-			ref<> op        = i.at->operands[0];
-			auto [arr, e0] = split_by(i.at, 0, type_array);
-			auto [tbl, e1] = split_by(e0, 0, type_table);
-			auto [fn, e2]  = split_by(e1, 0, type_function);
-			// Simple move.
-			e2->replace_all_uses(op);
-			e2->erase();
-			return true;
-		});
-	}
-	static bool specialize_len(procedure* proc) {
-		return proc->bfs([&](basic_block* bb) {
-			auto i = range::find_if(bb->insns(), [](insn* i) {
-				if (i->is<vlen>()) {
-					i->update();
-					if (i->operands[0]->vt == type::unk) {
-						return true;
-					}
-				}
-				return false;
-			});
-			if (i == bb->end()) {
-				return false;
-			}
-
-			auto [arr, e0] = split_by(i.at, 0, type_array);
-			auto [tbl, e1] = split_by(e0, 0, type_table);
-			auto [str, e2] = split_by(e1, 0, type_string);
-			// TODO: ^has trait -> e2 (would also include userdata)
-
-			e2 = builder{e2}.emit_before<unreachable>(e2);  // <-- TODO: throw.
-			while (e2 != e2->parent->back())
-				e2->parent->back()->erase();
-			proc->del_jump(e2->parent, e2->parent->successors.back());
-			return true;
-		});
-	}
 	static bool specialize_call(procedure* proc) {
 		return proc->bfs([&](basic_block* bb) {
 			auto i = range::find_if(bb->insns(), [](insn* i) {
@@ -383,10 +331,6 @@ namespace li::ir::opt {
 		while (specialize_native(proc))
 			proc->validate();
 		while (specialize_op(proc))
-			proc->validate();
-		while (specialize_dup(proc))
-			proc->validate();
-		while (specialize_len(proc))
 			proc->validate();
 		while (specialize_call(proc))
 			proc->validate();

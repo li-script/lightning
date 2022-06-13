@@ -81,10 +81,9 @@ namespace li::lib {
 			}																								  \
 			return L->ok(any(LI_STRCAT(math_, NAME)(args[0].as_num())));				  \
 		},																									  \
-		.ret       = ir::type::f64,																  \
 		.overloads = {nfunc_overload{																  \
-		  .cfunc = li::bit_cast<const void*>(&LI_STRCAT(math_, NAME)),				     \
-		  .args  = {ir::type::f64},																  \
+		  li::bit_cast<const void*>(&LI_STRCAT(math_, NAME)),								  \
+		  {ir::type::f64}, ir::type::f64										                 \
 		}}																									  \
 	};
 #define REMAP_MATH_BINARY(NAME, ...)																         \
@@ -100,10 +99,9 @@ namespace li::lib {
 			}																												\
 			return L->ok(any(LI_STRCAT(math_, NAME)(args[0].as_num(), args[-1].as_num())));   	\
 		},																													\
-		.ret       = ir::type::f64,																            \
 		.overloads = {nfunc_overload{																				\
-		  .cfunc = li::bit_cast<const void*>(&LI_STRCAT(math_, NAME)),								   \
-		  .args  = {ir::type::f64, ir::type::f64},															\
+		  li::bit_cast<const void*>(&LI_STRCAT(math_, NAME)),								            \
+		  {ir::type::f64, ir::type::f64}, ir::type::f64														\
 		}}																													\
 	};
 	REMAP_MATH_UNARY(rad, x*(180/std::numbers::pi))

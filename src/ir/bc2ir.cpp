@@ -2,6 +2,9 @@
 #include <ir/value.hpp>
 #include <ir/proc.hpp>
 #include <ir/insn.hpp>
+#include <lib/std.hpp>
+#include <vm/table.hpp>
+#include <vm/string.hpp>
 
 namespace li::ir {
 	static void lift_basic_block(builder bld, const std::vector<basic_block*>& bc_to_bb) {
@@ -55,10 +58,6 @@ namespace li::ir {
 					set_reg(a, bld.emit<unop>(op, get_reg(b)));
 					continue;
 				}
-				case bc::VLEN: {
-					set_reg(a, bld.emit<vlen>(get_reg(b)));
-					continue;
-				}
 
 				// Binop.
 				//
@@ -87,12 +86,12 @@ namespace li::ir {
 				//
 				case bc::LAND: {
 					auto br = get_reg(b);
-					bld.emit<select>(bld.emit<coerce_cast>(br, type::i1), get_reg(c), br);
+					bld.emit<select>(bld.emit<coerce_bool>(br), get_reg(c), br);
 					continue;
 				}
 				case bc::LOR: {
 					auto br = get_reg(b);
-					bld.emit<select>(bld.emit<coerce_cast>(br, type::i1), br, get_reg(c));
+					bld.emit<select>(bld.emit<coerce_bool>(br), br, get_reg(c));
 					continue;
 				}
 				case bc::NCS: {
@@ -117,12 +116,9 @@ namespace li::ir {
 				// Type specials.
 				//
 				case bc::VIN: {
-					set_reg(a, bld.emit<vin>(get_reg(b), get_reg(c)));
-					continue;
-				}
-				case bc::VJOIN: {
-					bld.emit<gc_tick>();
-					set_reg(a, bld.emit<vjoin>(get_reg(b), get_reg(c)));
+					auto* L   = bld.blk->proc->L;
+					auto  vin = L->modules->get(L, string::create(L, "builtin")).as_tbl()->get(L, string::create(L, "in"));
+					set_reg(a, bld.emit<vcall>(vin.as_fn(), get_reg(c), get_reg(b)));
 					continue;
 				}
 				case bc::ANEW: {
@@ -135,22 +131,21 @@ namespace li::ir {
 					set_reg(a, bld.emit<table_new>(b));
 					continue;
 				}
-				case bc::VDUP: {
+				case bc::ADUP: {
 					bld.emit<gc_tick>();
-					set_reg(a, bld.emit<vdup>(get_reg(b)));
+					set_reg(a, bld.emit<ccall>(&lib::detail::builtin_dup_info, 0, any(std::in_place, insn.xmm())));
 					continue;
 				}
-				case bc::ADUP:
 				case bc::TDUP: {
 					bld.emit<gc_tick>();
-					set_reg(a, bld.emit<vdup>(any(std::in_place, insn.xmm())));
+					set_reg(a, bld.emit<ccall>(&lib::detail::builtin_dup_info, 1, any(std::in_place, insn.xmm())));
 					continue;
 				}
 				case bc::CCAT: {
 					bld.emit<gc_tick>();
 					auto tmp = get_reg(a);
 					for (msize_t i = 1; i != b; i++) {
-						tmp = bld.emit<vjoin>(std::move(tmp), get_reg(a + i));
+						tmp = bld.emit<ccall>(&lib::detail::builtin_join_info, 2, std::move(tmp), get_reg(a + i));
 					}
 					set_reg(a, std::move(tmp));
 					continue;
@@ -158,21 +153,8 @@ namespace li::ir {
 
 				// Casts:
 				//
-				case bc::TOSTR: {
-					bld.emit<gc_tick>();
-					set_reg(a, bld.emit<coerce_cast>(get_reg(b), type::str));
-					continue;
-				}
-				case bc::TONUM: {
-					set_reg(a, bld.emit<coerce_cast>(get_reg(b), type::f64));
-					continue;
-				}
-				case bc::TOINT: {
-					set_reg(a, bld.emit<coerce_cast>(get_reg(b), type::i32));
-					continue;
-				}
 				case bc::TOBOOL: {
-					set_reg(a, bld.emit<coerce_cast>(get_reg(b), type::i1));
+					set_reg(a, bld.emit<coerce_bool>(get_reg(b)));
 					continue;
 				}
 
@@ -192,7 +174,7 @@ namespace li::ir {
 				case bc::FDUP: {
 					bld.emit<gc_tick>();
 					auto bf     = get_kval(b);
-					auto r  = bld.emit<vdup>(bf);
+					auto r      = bld.emit<ccall>(&lib::detail::builtin_dup_info, 2, bf);
 					r           = bld.emit<assume_cast>(r, type::fn);
 					for (bc::reg i = 0; i != bf.as_fn()->num_uval; i++) {
 						bld.emit<uval_set>(r, i, get_reg(c + i));
@@ -277,7 +259,7 @@ namespace li::ir {
 					spill();
 					auto cnd = get_reg(b);
 					if (!cnd->is(type::i1))
-						cnd = bld.emit<coerce_cast>(cnd, type::i1);
+						cnd = bld.emit<coerce_bool>(cnd);
 					bld.emit<jcc>(cnd, tt, tf);
 					bld.blk->proc->add_jump(bld.blk, tt);
 					bld.blk->proc->add_jump(bld.blk, tf);

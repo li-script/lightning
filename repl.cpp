@@ -126,6 +126,26 @@ int main(int argv, const char** args) {
 	}
 	auto fn = li::load_script(L, *file, args[1]);
 
+#if LI_JIT
+	// Handle JIT arguments:
+	//
+	for (int i = 2; i < argv; ++i) {
+		if (!strcmp(args[i], "--jit")) {
+			li::lib::jit_on(L, fn.as_fn(), false);
+		} else if (!strcmp(args[i], "--jit-verbose")) {
+			li::lib::jit_on(L, fn.as_fn(), true);
+		}
+	}
+#endif
+
+	// Handle GC arguments.
+	//
+	for (int i = 2; i < argv; ++i) {
+		if (!strcmp(args[i], "--no-gc")) {
+			L->gc.suspend = true;
+		}
+	}
+
 	// Validate, print the result.
 	//
 	int retval = 1;

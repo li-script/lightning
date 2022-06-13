@@ -108,13 +108,9 @@ namespace li {
 			const auto& __restrict insn = *ip++;
 			auto [op, a, b, c]          = insn;
 			switch (op) {
-				UNOP_HANDLE(bc::TOSTR)
-				UNOP_HANDLE(bc::TONUM)
-				UNOP_HANDLE(bc::TOINT)
 				UNOP_HANDLE(bc::TOBOOL)
 				UNOP_HANDLE(bc::LNOT)
 				UNOP_HANDLE(bc::ANEG)
-				UNOP_HANDLE(bc::VLEN)
 				BINOP_HANDLE(bc::AADD)
 				BINOP_HANDLE(bc::ASUB)
 				BINOP_HANDLE(bc::AMUL)
@@ -369,54 +365,6 @@ namespace li {
 					if (r.is_exc()) [[unlikely]] {
 						VM_RETHROW();
 					}
-					L->gc.tick(L);
-					continue;
-				}
-				case bc::VJOIN: {
-					L->gc.tick(L);
-					auto src = REG(c);
-					if (src.is_tbl()) {
-						if (auto dst = REG(b); dst == nil) {
-							REG(a) = src.as_tbl()->duplicate(L);
-						} else {
-							REG(a) = dst;
-							if (!dst.is_tbl()) [[unlikely]] {
-								VM_RET(string::create(L, "can't join different types, expected table"), true);
-							}
-							dst.as_tbl()->join(L, src.as_tbl());
-						}
-					} else if (src.is_arr()) {
-						auto dst = REG(b);
-						REG(a)   = dst;
-						if (!dst.is_arr()) [[unlikely]] {
-							VM_RET(string::create(L, "can't join different types, expected array"), true);
-						}
-						dst.as_arr()->join(L, src.as_arr());
-					} else if (src.is_str()) {
-						auto dst = REG(b);
-						if (!dst.is_str()) [[unlikely]] {
-							VM_RET(string::create(L, "can't join different types, expected string"), true);
-						}
-						REG(a) = string::concat(L, dst.as_str(), src.as_str());
-					} else [[unlikely]] {
-						VM_RET(string::create(L, "join expected table, array, or string"), true);
-					}
-					continue;
-				}
-				case bc::VDUP: {
-					any value = REG(b);
-					if (value.is_gc() && !value.is_str()) {
-						if (value.is_arr()) {
-							value = value.as_arr()->duplicate(L);
-						} else if (value.is_tbl()) {
-							value = value.as_tbl()->duplicate(L);
-						} else if (value.is_fn()) {
-							value = value.as_fn()->duplicate(L);
-						} else {
-							// TODO: Thread, userdata
-						}
-					}
-					REG(a) = value;
 					L->gc.tick(L);
 					continue;
 				}

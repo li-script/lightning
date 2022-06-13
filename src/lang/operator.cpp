@@ -3,6 +3,7 @@
 #include <vm/state.hpp>
 #include <vm/string.hpp>
 #include <vm/table.hpp>
+#include <lib/std.hpp>
 #include <cmath>
 
 namespace li {
@@ -46,12 +47,6 @@ namespace li {
 	//
 	LI_INLINE any apply_unary(vm* L, any a, bc::opcode op) {
 		switch (op) {
-			case bc::TOSTR:
-				return any(a.coerce_str(L));
-			case bc::TONUM:
-				return any(a.coerce_num());
-			case bc::TOINT:
-				return any(trunc(a.coerce_num()));
 			case bc::TOBOOL:
 				return any(a.coerce_bool());
 			case bc::LNOT:
@@ -61,19 +56,6 @@ namespace li {
 				TYPE_ASSERT(a, type_number);
 				return any(-a.as_num());
 			}
-			case bc::VLEN: {
-				UNARY_APPLY_TRAIT(trait::len);
-				if (a.is_arr()) {
-					return any(number(a.as_arr()->length));
-				} else if (a.is_tbl()) {
-					return any(number(a.as_tbl()->active_count));
-				} else if (a.is_str()) {
-					return any(number(a.as_str()->length));
-				} else [[unlikely]] {
-					return arg_error(L, a, "iterable");
-				}
-			}
-
 			default:
 				assume_unreachable();
 		}
@@ -81,29 +63,8 @@ namespace li {
 	LI_INLINE any apply_binary(vm* L, any a, any b, bc::opcode op) {
 		switch (op) {
 			case bc::VIN: {
-				if (b.is_arr()) {
-					for (auto& k : *b.as_arr())
-						if (k == a)
-							return const_true;
-					return const_false;
-				} else if (b.is_tbl()) {
-					return any(a != nil && b.as_tbl()->get(L, a) != nil);
-				} else if (b.is_str()) {
-					if (a.is_num()) {
-						if (auto num = uint32_t(a.as_num()); num <= 0xFF) {
-							for (auto& k : b.as_str()->view())
-								if (uint8_t(k) == num)
-									return const_true;
-						}
-						return const_false;
-					} else if (a.is_str()) {
-						return bool(b.as_str()->view().find(a.as_str()->view())!=std::string::npos);
-					} else {
-						return arg_error(L, b, "string or character");
-					}
-				} else [[unlikely]] {
-					return arg_error(L, b, "iterable");
-				}
+				any tmp[] = {a, b};
+				return any(std::in_place, lib::detail::builtin_in_info.invoke(L, tmp, 1));
 			}
 			case bc::NCS:
 				return a == nil ? b : a;

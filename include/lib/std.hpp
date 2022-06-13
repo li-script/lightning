@@ -37,11 +37,15 @@ namespace li::lib {
 
 		extern nfunc_info builtin_array_new_info;
 		extern nfunc_info builtin_table_new_info;
-		extern nfunc_info builtin_dup_table_info;
-		extern nfunc_info builtin_dup_array_info;
-		extern nfunc_info builtin_dup_function_info;
 		extern nfunc_info builtin_new_table_info;
 		extern nfunc_info builtin_new_array_info;
+		extern nfunc_info builtin_len_info;   // Overloads: [Arr, tbl, str, ?]
+		extern nfunc_info builtin_join_info;  // Overloads: [Arr, tbl, str, ?]
+		extern nfunc_info builtin_in_info;  // Overloads: [Arr, tbl, str-num, str-str ?]
+		extern nfunc_info builtin_dup_info;   // Overloads: [Arr, tbl, fn, ?]
+		extern nfunc_info builtin_str_info;
+		extern nfunc_info builtin_num_info;
+		extern nfunc_info builtin_int_info;
 
 		void register_builtin(vm* L);
 		void register_math(vm* L);
@@ -56,6 +60,11 @@ namespace li::lib {
 	void register_debug(vm* L);
 
 #if LI_JIT
+	// Turns jit on or off.
+	//
+	void jit_on(vm* L, function* f, bool verbose);
+	void jit_off(vm* L, function* f);
+
 	// Registers the JIT library.
 	//
 	void register_jit(vm* L);

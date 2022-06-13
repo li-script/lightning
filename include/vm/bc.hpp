@@ -14,7 +14,6 @@ namespace li::bc {
 	_(LNOT, reg, reg, ___, none) /* A=!B */                                               \
 	_(ANEG, reg, reg, ___, neg)  /* A=-B */                                               \
 	_(MOV, reg, reg, ___, none)  /* A=B */                                                \
-	_(VLEN, reg, reg, ___, len)  /* A=LEN(B) */                                           \
                                                                                          \
 	/* Binary operators.  */                                                              \
 	_(AADD, reg, reg, reg, add)  /* A=B+C */                                              \
@@ -36,8 +35,6 @@ namespace li::bc {
 	_(VIN, reg, reg, reg, none)  /* A=C Includes B */                                     \
                                                                                          \
 	/* Helpers */                                                                         \
-	_(VJOIN, reg, reg, reg, none) /* A=JOIN(B<-C) */                                      \
-	_(VDUP, reg, reg, ___, none)  /* A=DUP(B) */                                          \
 	_(CCAT, reg, imm, ___, none)  /* A=CONCAT(A..A+B) */                                  \
 	_(SETEH, rel, ___, ___, none) /* Exception Handler = A */                             \
 	_(SETEX, reg, ___, ___, none) /* Last exception = A */                                \
@@ -72,9 +69,6 @@ namespace li::bc {
 	_(PUSHI, ___, xmm, ___, none) /* PUSH(A) */                                           \
                                                                                          \
 	/* Type coercion. */                                                                  \
-	_(TOSTR, reg, reg, ___, none) /* A = str(B) */                                        \
-	_(TONUM, reg, reg, ___, none) /* A = num(B) */                                        \
-	_(TOINT, reg, reg, ___, none) /* A = int(B) */                                        \
 	_(TOBOOL, reg, reg, ___, none) /* A = bool(B) */                                      \
                                                                                          \
 	/* Control flow. */                                                                   \
@@ -85,7 +79,8 @@ namespace li::bc {
 	_(JNS, rel, reg, ___, none)  /* JMP A if !B */                                        \
 	_(ITER, rel, reg, reg, none) /* B[1,2] = C[B++].kv, JMP A if end */                   \
 	/* Misc. */                                                                           \
-	_(NOP, ___, ___, ___, none)  /* No-op */                                                                                      
+	_(NOP, ___, ___, ___, none)  /* No-op */                                              \
+	_(UD,  ___, ___, ___, none)  /* Undefined */                                                                                      
 
 	// Opcodes.
 	//

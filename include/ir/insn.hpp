@@ -20,10 +20,6 @@ namespace li::ir {
 
 		// Complex types.
 		//
-		vdup,  // Not allowed at MIR, handled by pre-pass.
-		vlen,  // Not traits allowed at MIR, must be typed.
-		vin,
-		vjoin,
 		trait_get,
 		trait_set,
 		array_new,      // Not allowed at MIR.
@@ -51,7 +47,7 @@ namespace li::ir {
 		// Casts.
 		//
 		assume_cast,
-		coerce_cast,
+		coerce_bool,
 
 		// Helpers used before transitioning to MIR.
 		//
@@ -349,17 +345,6 @@ namespace li::ir {
 			LI_ASSERT(operands[0]->is(type::i32));
 		}
 	};
-	// T     vdup(T)
-	struct vdup final : insn_tag<vdup, opcode::vdup> {
-		void update() override {
-			is_pure = false;
-			LI_ASSERT(operands.size() == 1);
-			vt = operands[0]->vt;
-		}
-		bool rec_type_check(type x) override {
-			return operands[0]->type_try_settle(x);
-		}
-	};
 	// unk   uval_get(vfn, i32)
 	struct uval_get final : insn_tag<uval_get, opcode::uval_get> {
 		void update() override {
@@ -408,13 +393,12 @@ namespace li::ir {
 			vt        = operands[1]->as<constant>()->irtype;
 		}
 	};
-	// T      coerce_cast(unk, const irtype T)
-	struct coerce_cast final : insn_tag<coerce_cast, opcode::coerce_cast> {
+	// i1     coerce_bool(unk)
+	struct coerce_bool final : insn_tag<coerce_bool, opcode::coerce_bool> {
 		void update() override {
 			is_const = true;
-			LI_ASSERT(operands.size() == 2);
-			LI_ASSERT(operands[1]->is<constant>() && operands[1]->is(type::irtype));
-			vt = operands[1]->as<constant>()->irtype;
+			LI_ASSERT(operands.size() == 1);
+			vt = type::i1;
 		}
 	};
 	// none   ret(unk val)
@@ -531,35 +515,6 @@ namespace li::ir {
 			return true;
 		}
 	};
-	// unk  vlen(unk obj)
-	struct vlen final : insn_tag<vlen, opcode::vlen> {
-		void update() override { LI_ASSERT(operands.size() == 1); }
-	};
-	// i1   vin(unk obj, unk collection)
-	struct vin final : insn_tag<vin, opcode::vin> {
-		void update() override {
-			vt = type::i1;
-			LI_ASSERT(operands.size() == 2);
-		}
-	};
-	// unk  vjoin(unk a, unk b)
-	struct vjoin final : insn_tag<vjoin, opcode::vjoin> {
-		void update() override {
-			LI_ASSERT(operands.size() == 2);
-			if (operands[0]->is(type::unk)) {
-				vt = operands[1]->vt;
-			} else if (operands[1]->is(type::unk)) {
-				vt = operands[0]->vt;
-			} else {
-				vt = operands[0]->vt;
-				LI_ASSERT(operands[0]->vt == operands[1]->vt);
-			}
-			LI_ASSERT(vt == type::unk || vt == type::tbl || vt == type::arr || vt == type::str);
-		}
-		bool rec_type_check(type x) override {
-			return operands[0]->type_try_settle(x) && operands[1]->type_try_settle(x);
-		}
-	};
 	// unk  load_local(i32)
 	struct load_local final : insn_tag<load_local, opcode::load_local> {
 		void update() override {
@@ -605,7 +560,8 @@ namespace li::ir {
 			LI_ASSERT(operands[0]->is<constant>() && operands[0]->is(type::nfni));
 			LI_ASSERT(operands[1]->is<constant>() && operands[1]->is(type::i32));
 			auto* nf   = operands[0]->as<constant>()->nfni;
-			vt         = nf->ret;
+			auto  ovl  = operands[1]->as<constant>()->i32;
+			vt         = nf->overloads[ovl].ret;
 			is_pure    = nf->is_pure;
 			is_const   = nf->is_const;
 			sideffect  = nf->sideeffect;

@@ -17,16 +17,11 @@
 namespace li::lib {
 	using namespace ir;
 
-	static uint64_t jit_on(vm* L, any* args, slot_t n) {
-		if (!args->is_fn() || args->as_fn()->is_native()) {
-			return L->error("expected vfunction.");
-		}
-
-		if (!args->as_fn()->proto->jfunc) {
-
-			bool verbose = n > 1 && args[-1].coerce_bool();
-
-			auto proc = lift_bc(L, args->as_fn()->proto);
+	// Turns jit on or off.
+	//
+	void jit_on(vm* L, function* f, bool verbose) {
+		if (!f->proto->jfunc) {
+			auto proc = lift_bc(L, f->proto);
 			opt::lift_phi(proc.get());
 			opt::schedule_gc(proc.get());
 
@@ -67,7 +62,7 @@ namespace li::lib {
 			if (verbose)
 				mp->print();
 
-			args->as_fn()->proto->jfunc = assemble_ir(mp.get());
+			f->proto->jfunc = assemble_ir(mp.get());
 			//
 			//
 
@@ -81,14 +76,24 @@ namespace li::lib {
 			// handling of frozen tables + add builtin tables
 		}
 
-		args->as_fn()->invoke = (nfunc_t) &args->as_fn()->proto->jfunc->code[0];
+		f->invoke = (nfunc_t) &f->proto->jfunc->code[0];
+	}
+	void jit_off(vm* L, function* f) { f->invoke = &vm_invoke; }
+
+	static uint64_t jit_on_v(vm* L, any* args, slot_t n) {
+		if (!args->is_fn() || args->as_fn()->is_native()) {
+			return L->error("expected vfunction.");
+		}
+		bool verbose = n > 1 && args[-1].coerce_bool();
+		jit_on(L, args->as_fn(), verbose);
 		return L->ok();
 	}
-	static uint64_t jit_off(vm* L, any* args, slot_t n) {
+	static uint64_t jit_off_v(vm* L, any* args, slot_t n) {
 		if (!args->is_fn() || args->as_fn()->is_native()) {
 			return L->error("expected vfunction.");
 		}
 		args->as_fn()->invoke = &vm_invoke;
+		jit_off(L, args->as_fn());
 		return L->ok();
 	}
 	static uint64_t jit_bp(vm* L, any* args, slot_t n) {
@@ -109,7 +114,7 @@ namespace li::lib {
 			return L->error("expected vfunction with JIT record.");
 		}
 
-		auto*       jf     = args->as_fn()->proto->jfunc;
+		auto* jf = args->as_fn()->proto->jfunc;
 
 		std::string result = {};
 		auto gen = std::span<const uint8_t>(jf->code, jf->object_bytes());
@@ -125,8 +130,8 @@ namespace li::lib {
 	// Registers the JIT library.
 	//
 	void register_jit(vm* L) {
-		util::export_as(L, "jit.on", jit_on);
-		util::export_as(L, "jit.off", jit_off);
+		util::export_as(L, "jit.on", jit_on_v);
+		util::export_as(L, "jit.off", jit_off_v);
 		util::export_as(L, "jit.bp", jit_bp);
 		util::export_as(L, "jit.where", jit_where);
 		util::export_as(L, "jit.disasm", jit_disasm);

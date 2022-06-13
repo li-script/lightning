@@ -276,7 +276,13 @@ namespace li {
 
 	// Creates a variable expression.
 	//
-	static expression expr_var(func_scope& scope, string* name) {
+	static expression expr_var(func_scope& scope, string* name, bool is_ucall = false) {
+		// If UCALL and next token is '!', ignore.
+		//
+		if (is_ucall && scope.lex().tok == '!') {
+			return name;
+		}
+
 		// Handle special names.
 		//
 		if (name->view() == "self") {
@@ -591,7 +597,7 @@ namespace li {
 					auto ftk = scope.lex().check(lex::token_name);
 					if (ftk == lex::token_error)
 						return {};
-					expression func = expr_var(scope, ftk.str_val);
+					expression func = expr_var(scope, ftk.str_val, true);
 					if (func.kind == expr::err)
 						return {};
 					base = parse_call(scope, func, base);
@@ -1307,36 +1313,6 @@ namespace li {
 				}
 				scope.lex().error("unknown trait name '%s'.", func.env->c_str());
 				return {};
-			}
-
-			// Handle builtins.
-			//
-			if (func.env->view() == "len") {
-				return emit_unop(scope, bc::VLEN, self);
-			} else if (func.env->view() == "str") {
-				return emit_unop(scope, bc::TOSTR, self);
-			} else if (func.env->view() == "num") {
-				return emit_unop(scope, bc::TONUM, self);
-			} else if (func.env->view() == "int") {
-				return emit_unop(scope, bc::TOINT, self);
-			} else if (func.env->view() == "dup") {
-				if (self.kind == expr::reg) {
-					scope.emit(bc::VDUP, tmp, self.reg);
-				} else {
-					self.to_reg(scope, tmp);
-					scope.emit(bc::VDUP, tmp, tmp);
-				}
-				scope.reg_next = tmp + 1;
-				return expression(tmp);
-			} else if (func.env->view() == "join") {
-				if (size != 1) {
-					scope.lex().error("join expects 1 argument.");
-					return {};
-				}
-				self.to_reg(scope, tmp);
-				callsite[0].to_reg(scope, tmp + 1);  
-				scope.emit(bc::VJOIN, tmp, tmp, tmp + 1);
-				return expression(tmp);
 			}
 		}
 

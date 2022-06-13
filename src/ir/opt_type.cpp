@@ -247,12 +247,12 @@ namespace li::ir::opt {
 				return false;
 			}
 
-			auto*  fn         = i->operands[0]->as<constant>()->fn;
-			auto*  ninfo      = fn->ninfo;
+			auto*  ninfo      = i->operands[0]->as<constant>()->fn->ninfo;
 			size_t arg_off    = ninfo->takes_self ? 1 : 2;
-			auto   given_args = std::span{i->operands}.subspan(arg_off);
 
 			for (auto& ovl : ninfo->get_overloads()) {
+				auto given_args = std::span{i->operands}.subspan(arg_off);
+
 				// Skip if arguments will never match.
 				//
 				auto expected_args = ovl.get_args();
@@ -261,7 +261,7 @@ namespace li::ir::opt {
 				}
 				bool never_match = false;
 				for (size_t i = 0; i != expected_args.size(); i++) {
-					if (given_args[i]->vt != type::unk && to_vm_type(given_args[i]->vt) != to_vm_type(expected_args[i])) {
+					if (given_args[i]->vt != type::unk && expected_args[i] != type::unk && to_vm_type(given_args[i]->vt) != to_vm_type(expected_args[i])) {
 						never_match = true;
 						break;
 					}
@@ -298,10 +298,42 @@ namespace li::ir::opt {
 					builder b{replace};
 					auto    call = b.emit_before<ccall>(replace, ninfo, int32_t(&ovl - &ninfo->overloads[0]));
 					for (size_t n = 0; n != expected_args.size(); n++) {
-						if (i->operands[n + arg_off]->vt != expected_args[n])
-							call->operands.emplace_back(b.emit_before<assume_cast>(call, i->operands[n + arg_off], expected_args[n]));
-						else
-							call->operands.emplace_back(i->operands[n + arg_off]);
+						auto& op = i->operands[n + arg_off];
+
+						// Matching type.
+						//
+						if (op->vt == expected_args[n]) {
+							call->operands.emplace_back(op);
+							continue;
+						}
+
+						// Constant.
+						//
+						if (op->is<constant>()) {
+							auto* c = op->as<constant>();
+							if (type::i1 == expected_args[n]) {
+								call->operands.emplace_back(proc->add_const(constant{c->to_bool()}));
+								continue;
+							} else if (type::i8 <= expected_args[n] && expected_args[n] <= type::i64) {
+								constant ic{c->to_i64()};
+								ic.vt = expected_args[n];
+								call->operands.emplace_back(proc->add_const(ic));
+								continue;
+							} else if (expected_args[n] == type::unk || expected_args[n] == type::f64) {
+								call->operands.emplace_back(proc->add_const(constant{(int64_t) c->to_any().value}));
+								continue;
+							} else if (expected_args[n] == type::f32) {
+								call->operands.emplace_back(proc->add_const(constant{(int64_t) bit_cast<uint32_t>(float(c->n))}));
+								continue;
+							} else {
+								call->operands.emplace_back(proc->add_const(constant{c->to_i64()}));
+								continue;
+							}
+						}
+
+						// Otherwise, insert cast.
+						//
+						call->operands.emplace_back(b.emit_before<assume_cast>(call, op, expected_args[n]));
 					}
 					replace->replace_all_uses(call);
 					replace->erase();

@@ -155,6 +155,13 @@ namespace li::ir {
 		#define REF_VM() mop(mreg(vreg_vm))
 	#endif
 
+	inline static int64_t extract_constant(value* v) {
+		auto* c = v->as<constant>();
+		if (c->vt == type::f32)
+			return li::bit_cast<uint32_t>(float(c->n));
+		else
+			return c->i;
+	}
 	inline static mreg get_existing_reg(insn* i) {
 		mreg r = li::bit_cast<mreg>((msize_t) i->visited);
 		return r;
@@ -191,9 +198,9 @@ namespace li::ir {
 	inline static mreg get_reg_for(mblock& b, value* i) {
 		if (i->is<insn>()) {
 			return get_reg_for(b, i->as<insn>());
-		} else if (i->vt == type::f32 || i->vt == type::f64) {
+		} else if (i->vt == type::f64 || i->vt == type::f32) {
 			auto r = b->next_fp();
-			b.append(vop::movf, r, (int64_t)i->as<constant>()->i);
+			b.append(vop::movf, r, extract_constant(i));
 			return r;
 		} else {
 			auto r = b->next_gp();
@@ -203,9 +210,8 @@ namespace li::ir {
 	}
 	inline static mop get_ri_for(mblock& b, value* i, bool integer) {
 		if (i->is<constant>()) {
-			if (integer) {
-				auto c = i->as<constant>();
-				return mop(c->i);
+			if (integer || i->vt == type::f32) {
+				return mop(extract_constant(i));
 			} else {
 				return mop(i->as<constant>()->to_any());
 			}
@@ -235,7 +241,7 @@ namespace li::ir {
 					}
 				}
 			}
-			return b->add_const(i->as<constant>()->to_any());
+			return b->add_const(extract_constant(i));
 		} else {
 			return get_reg_for(b, i->as<insn>());
 		}
@@ -277,10 +283,12 @@ namespace li::ir {
 	inline static void type_erase(mblock& b, mreg r, mreg out, type irty) {
 		if (irty == type::nil) {
 			b.append(vop::movi, out, nil);
+		} else if (irty == type::exc) {
+			b.append(vop::movi, out, exception_marker);
 		} else if (irty == type::i1) {
 			auto tmp = b->next_gp();
 			// mov  tmp, tag
-			b.append(vop::movi, tmp, (int64_t)make_tag(type_bool));
+			b.append(vop::movi, tmp, (int64_t)mix_value(type_bool, 0));
 			// movzx out, r
 			b.append(vop::izx8, out, r);
 			// or    out, tmp
@@ -338,6 +346,9 @@ namespace li::ir {
 			return;
 		} else if (v->vt == type::nil) {
 			b.append(vop::movi, out, nil);
+			return;
+		} else if (v->vt == type::exc) {
+			b.append(vop::movi, out, exception_marker);
 			return;
 		} else {
 			type_erase(b, REG(v), out, v->vt);

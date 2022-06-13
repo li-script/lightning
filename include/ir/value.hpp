@@ -304,6 +304,8 @@ namespace li::ir {
 				LI_ASSERT(type_table <= t && t <= type_string);
 				vt = type(uint8_t(t) + uint8_t(type::tbl) - type_table);
 				gc = a.as_gc();
+			} else if (a.is_exc()) {
+				vt = type::exc;
 			} else {
 				vt = type::nil;
 			}
@@ -320,6 +322,8 @@ namespace li::ir {
 				return any(n);
 			} else if (vt == type::nil) {
 				return any(nil);
+			} else if (vt == type::exc) {
+				return any(exception_marker);
 			} else if (vt == type::opq) {
 				return any(opq);
 			} else if (vt == type::tbl) {
@@ -336,6 +340,37 @@ namespace li::ir {
 				return any(str);
 			} else {
 				util::abort("cannot coerce %s to any", to_string().c_str());
+			}
+		}
+
+		// Conversion to integer (not VM rules).
+		//
+		int64_t to_i64() const {
+			if (vt == type::i1) {
+				return i1;
+			} else if (type::i8 <= vt && vt <= type::i64) {
+				return i;
+			} else if (type::f32 <= vt && vt <= type::f64) {
+				return (int64_t) trunc(n);
+			} else if (vt == type::nil) {
+				return 0;
+			} else if (vt == type::exc) {
+				return 0;
+			} else {
+				return (uintptr_t) gc;
+			}
+		}
+		bool to_bool() const {
+			if (type::i1 <= vt && vt <= type::i64) {
+				return bool(i & 1);
+			} else if (type::f32 <= vt && vt <= type::f64) {
+				return true;
+			} else if (vt == type::nil) {
+				return false;
+			} else if (vt == type::exc) {
+				return false;
+			} else {
+				return gc != nullptr;
 			}
 		}
 

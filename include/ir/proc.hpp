@@ -282,6 +282,16 @@ namespace li::ir {
 		size_t   size() { return basic_blocks.size(); }
 		bool     empty() { return basic_blocks.empty(); }
 
+		// Adds a new constant.
+		//
+		ref<constant> add_const(constant c) {
+			auto it = consts.find(c);
+			if (it == consts.end()) {
+				it = consts.emplace(c, make_value<constant>(c)).first;
+			}
+			return it->second;
+		}
+
 		// Clears visitor state.
 		//
 		void clear_block_visitor_state() const {
@@ -466,12 +476,7 @@ namespace li::ir {
 		if constexpr (std::is_convertible_v<Tv, const insn*>) {
 			return make_ref((insn*)v);
 		} else if constexpr (!std::is_convertible_v<Tv, ref<>>) {
-			constant c{std::forward<Tv>(v)};
-			auto     it = proc->consts.find(c);
-			if (it == proc->consts.end()) {
-				it = proc->consts.emplace(c, make_value<constant>(c)).first;
-			}
-			return it->second;
+			return proc->add_const(constant{std::forward<Tv>(v)});
 		} else {
 			return ref<>(v);
 		}

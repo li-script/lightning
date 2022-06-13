@@ -489,10 +489,12 @@ namespace li::ir {
 			// Casts.
 			//
 			case opcode::assume_cast: {
-				auto out = REG(i);
+				auto* op  = i->operands[0].get();
+				auto  out = REG(i);
 				switch (i->vt) {
 					case type::i1: {
-						b.append(vop::movi, out, REG(i->operands[0]));
+						LI_ASSERT(type::i8 <= op->vt && op->vt <= type::i64);
+						b.append(vop::movi, out, REG(op));
 						AND(b, out, 1);
 						return;
 					}
@@ -500,29 +502,32 @@ namespace li::ir {
 					case type::i16:
 					case type::i32:
 					case type::i64: {
-						b.append(vop::icvt, out, REG(i->operands[0]));
+						b.append(vop::icvt, out, REG(op));
 						return;
 					}
 					case type::f32:
 					case type::f64: {
-						b.append(vop::movf, out, REG(i->operands[0]));
+						LI_ASSERT(type::f32 <= op->vt && op->vt <= type::f64);
+						b.append(vop::movf, out, REG(op));
 						if (i->vt == type::f32)
 							b.append(vop::fx32, out, out);
 						return;
 					}
 					case type::opq: {
-						b.append(vop::movi, out, REG(i->operands[0]));
+						b.append(vop::movi, out, REG(op));
 						return;
 					}
 					// GC types.
 					default: {
-						type_clear(b, out, REG(i->operands[0]));
+						type_clear(b, out, REG(op));
 						return;
 					}
 					// Invalid types.
 					//
+					case type::exc:
 					case type::nil:
 					case type::unk: {
+						util::abort("invalid assume_cast");
 						break;
 					}
 				}
@@ -530,6 +535,7 @@ namespace li::ir {
 			case opcode::coerce_bool: {
 				switch (i->operands[0]->vt) {
 					case type::none:
+					case type::exc:
 					case type::nil: {
 						b.append(vop::movi, REG(i), 0);
 						return;

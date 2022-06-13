@@ -497,7 +497,7 @@ namespace li {
 	static bool is_table_init(func_scope& scope) {
 		auto& lex = scope.lex();
 		if (auto lh = lex.lookahead(); lh == '}') {
-			return true;
+			return !scope.first_scope;
 		} else if (lh != lex::token_name) {
 			return false;
 		}
@@ -1502,6 +1502,7 @@ namespace li {
 
 			// Parse the result expression.
 			//
+			ns.first_scope = true;
 			expression e = expr_parse(ns);
 			if (e.kind == expr::err)
 				return {};

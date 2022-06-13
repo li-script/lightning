@@ -73,13 +73,14 @@ namespace li {
 	// Local scope state.
 	//
 	struct func_scope {
-		func_state&              fn;                 // Function that scope belongs to.
-		func_scope*              prev;               // Outer scope.
-		bc::reg                  reg_next     = 0;   // Next free register.
-		std::vector<local_state> locals       = {};  // Locals declared in this scope.
-		bc::rel                  lbl_continue = 0;   // Labels.
-		bc::rel                  lbl_break    = 0;   //
-		bc::rel                  lbl_catchpad = 0;   //
+		func_state&              fn;                    // Function that scope belongs to.
+		func_scope*              prev;                  // Outer scope.
+		bc::reg                  reg_next     = 0;      // Next free register.
+		std::vector<local_state> locals       = {};     // Locals declared in this scope.
+		bc::rel                  lbl_continue = 0;      // Labels.
+		bc::rel                  lbl_break    = 0;      //
+		bc::rel                  lbl_catchpad = 0;      //
+		bool                     first_scope  = false;  // Set if first scope in function decl.
 
 		// Emits an instruction and returns the position in stream.
 		//

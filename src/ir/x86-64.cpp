@@ -502,7 +502,9 @@ namespace li::ir {
 					case type::i16:
 					case type::i32:
 					case type::i64: {
-						b.append(vop::icvt, out, REG(op));
+						auto in = b->next_fp();
+						b.append(vop::movf, in, REG(op));
+						b.append(vop::icvt, out, in);
 						return;
 					}
 					case type::f32:
@@ -1195,7 +1197,7 @@ namespace li::ir {
 				auto dst = to_reg(b, i.out);
 				auto src = to_reg(b, i.arg[0].reg);
 				if constexpr (USE_AVX)
-					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_VCVTSS2SD, dst, src));
+					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_VCVTSS2SD, dst, dst, src));
 				else
 					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_CVTSS2SD, dst, src));
 				break;

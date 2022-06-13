@@ -100,7 +100,7 @@ namespace li::ir {
 					continue;
 				}
 				case bc::CTY: {
-					set_reg(a, bld.emit<test_type>(op, get_reg(b), (value_type) c));
+					set_reg(a, bld.emit<test_type>(get_reg(b), (value_type) c));
 					continue;
 				}
 				case bc::CGT:

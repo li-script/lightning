@@ -202,8 +202,8 @@ namespace li::ir {
 		uint16_t implicit_gp_read  = 0;
 		uint64_t side_effects : 1  = false;
 		uint64_t trashes_flags : 1 = true;
-		uint64_t fullsize : 1      = false;
-		uint64_t rsvd : 61         = 0;
+		uint64_t force_size : 7    = 0;
+		uint64_t rsvd : 55         = 0;
 	};
 
 	// Machine instruction.

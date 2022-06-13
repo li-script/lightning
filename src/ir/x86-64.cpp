@@ -579,10 +579,7 @@ namespace li::ir {
 			case opcode::test_type: {
 				auto vt = i->operands[1]->as<constant>()->vmtype;
 				LI_ASSERT(i->operands[0]->vt == type::unk);
-
-				auto tmp = REG(i);
-				b.append(vop::movi, tmp, REG(i->operands[0]));
-				check_type_cc(b, FLAG_Z, vt, tmp);
+				check_type(b, vt, REG(i), REG(i->operands[0]));
 				return;
 			}
 			case opcode::test_traitful: {
@@ -965,8 +962,12 @@ namespace li::ir {
 		auto push_operand = [&](const mop& op) {
 			//printf(" %s", op.to_string().c_str());
 			auto o                            = to_op(b, op);
-			if (i.target_info.fullsize && o.type == ZYDIS_OPERAND_TYPE_MEMORY)
-				o.mem.size = 0x10;
+			if (auto forced_size = i.target_info.force_size) {
+				if (o.type == ZYDIS_OPERAND_TYPE_MEMORY)
+					o.mem.size = i.target_info.force_size;
+				if (o.type == ZYDIS_OPERAND_TYPE_REGISTER)
+					o.reg.value = zy::resize_reg(o.reg.value, forced_size);
+			}
 			req.operands[req.operand_count++] = o;
 		};
 		//printf("\t%s ", arch::name_mnemonic(req.mnemonic));

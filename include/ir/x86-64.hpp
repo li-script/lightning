@@ -79,19 +79,19 @@ namespace li::ir {
 	};
 	
 	#define INSN_NOP(name, ...) \
-		static void name(mblock& blk) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__.rsvd = ENC_NOP}, {}}); }
+		static minsn& name(mblock& blk) { return blk.instructions.emplace_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__.rsvd = ENC_NOP}, {}}); }
 	#define INSN_W_R(name, ...) \
-		static void name(mblock& blk, mreg a, mop b) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__.rsvd = ENC_W_R}, a, b}); }
+		static minsn& name(mblock& blk, mreg a, mop b) { return blk.instructions.emplace_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__.rsvd = ENC_W_R}, a, b}); }
 	#define INSN_RW_R(name, ...) \
-		static void name(mblock& blk, mreg a, mop b) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__ .rsvd = ENC_RW_R}, a, a, b}); }
+		static minsn& name(mblock& blk, mreg a, mop b) { return blk.instructions.emplace_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__.rsvd = ENC_RW_R}, a, a, b}); }
 	#define INSN_RW(name, ...) \
-		static void name(mblock& blk, mreg a) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__ .rsvd = ENC_RW}, a, a}); }
+		static minsn& name(mblock& blk, mreg a) { return blk.instructions.emplace_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__.rsvd = ENC_RW}, a, a}); }
 	#define INSN_W_R_R(name, ...) \
-		static void name(mblock& blk, mreg a, mop b, mop c) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__ .rsvd = ENC_W_R_R}, a, b, c}); }
+		static minsn& name(mblock& blk, mreg a, mop b, mop c) { return blk.instructions.emplace_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__.rsvd = ENC_W_R_R}, a, b, c}); }
 	#define INSN_W_N_R_R(name, ...) \
-		static void name(mblock& blk, mreg a, mop b, mop c) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__ .rsvd = ENC_W_N_R_R}, a, b, c}); }
+		static minsn& name(mblock& blk, mreg a, mop b, mop c) { return blk.instructions.emplace_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__.rsvd = ENC_W_N_R_R}, a, b, c}); }
 	#define INSN_F_R_R(name, ...) \
-		static void name(mblock& blk, flag_id flag, mreg a, mop b) { blk.instructions.push_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__ .rsvd=ENC_F_R_R}, flag, a, b}); }
+		static minsn& name(mblock& blk, flag_id flag, mreg a, mop b) { return blk.instructions.emplace_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__.rsvd = ENC_F_R_R}, flag, a, b}); }
 
 	INSN_NOP(RDTSC, .implicit_gp_write = ((1u << (arch::from_native(zy::RAX) - 1)) | (1u << (arch::from_native(zy::RDX) - 1))), );
 	INSN_RW(NEG);
@@ -109,6 +109,7 @@ namespace li::ir {
 	INSN_RW_R(CRC32); // Always qword.
 	INSN_W_R(LEA, .trashes_flags = false, );
 	INSN_W_R_R(BZHI, .trashes_flags = false, );
+	INSN_W_R_R(RORX, .trashes_flags = false, );
 	INSN_W_R_R(ROUNDSD, .trashes_flags = false, );
 	INSN_W_N_R_R(VROUNDSD, .trashes_flags = false, );
 	INSN_RW_R(DIVSD, .trashes_flags = false, );
@@ -116,14 +117,14 @@ namespace li::ir {
 	INSN_RW_R(ADDSD, .trashes_flags = false, );
 	INSN_RW_R(SQRTSD, .trashes_flags = false, );
 	INSN_RW_R(SUBSD, .trashes_flags = false, );
-	INSN_RW_R(ORPD, .trashes_flags = false, .fullsize = true, );
-	INSN_RW_R(ANDPD, .trashes_flags = false, .fullsize = true, );
-	INSN_RW_R(XORPD, .trashes_flags = false, .fullsize = true, );
+	INSN_RW_R(ORPD, .trashes_flags = false, .force_size = 0x10, );
+	INSN_RW_R(ANDPD, .trashes_flags = false, .force_size = 0x10, );
+	INSN_RW_R(XORPD, .trashes_flags = false, .force_size = 0x10, );
 	INSN_RW_R(MINSD, .trashes_flags = false, );
 	INSN_RW_R(MAXSD, .trashes_flags = false, );
-	INSN_W_R_R(VORPD, .trashes_flags = false, .fullsize = true, );
-	INSN_W_R_R(VANDPD, .trashes_flags = false, .fullsize = true, );
-	INSN_W_R_R(VXORPD, .trashes_flags = false, .fullsize = true, );
+	INSN_W_R_R(VORPD, .trashes_flags = false, .force_size = 0x10, );
+	INSN_W_R_R(VANDPD, .trashes_flags = false, .force_size = 0x10, );
+	INSN_W_R_R(VXORPD, .trashes_flags = false, .force_size = 0x10, );
 	INSN_W_R_R(VMINSD, .trashes_flags = false, );
 	INSN_W_R_R(VMAXSD, .trashes_flags = false, );
 	INSN_RW_R(PCMPEQB, .trashes_flags = false, );
@@ -249,17 +250,22 @@ namespace li::ir {
 
 	// Emits a type check of the temporary given into a flag and sets the condition flag on the temporary.
 	//
-	inline static mreg check_type_cc(mblock& b, flag_id f, value_type t, mreg tmp) {
-		uint64_t cmp;
-		if (f == FLAG_Z && t == type_number) {
-			f   = FLAG_B;
-			cmp = (make_tag(uint8_t(t)) + 1) >> 47;
+	inline static mreg check_type(mblock& b, value_type t, mreg tmp, mreg val) {
+		if (t == type_nil || t == type_exception) {
+			RORX(b, tmp, val, 47);
+			CMP(b, FLAG_Z, tmp, (int64_t) std::rotr(make_tag(t), 47));
+			b.append(vop::setcc, tmp, FLAG_Z);
+		} else if (t == type_number) {
+			RORX(b, tmp, val, 47);
+			AND(b, tmp, 0x1FFFF).target_info.force_size                                  = 4;
+			CMP(b, FLAG_B, tmp, int64_t((make_tag(t) + 1) >> 47)).target_info.force_size = 4;
+			b.append(vop::setcc, tmp, FLAG_B);
 		} else {
-			cmp = make_tag(uint8_t(t)) >> 47;
+			RORX(b, tmp, val, 47);
+			AND(b, tmp, 0x1FFFF).target_info.force_size                            = 4;
+			CMP(b, FLAG_Z, tmp, int64_t(make_tag(t) >> 47)).target_info.force_size = 4;
+			b.append(vop::setcc, tmp, FLAG_Z);
 		}
-		SHR(b, tmp, 47);
-		CMP(b, f, tmp, cmp);
-		b.append(vop::setcc, tmp, f);
 		return tmp;
 	}
 	inline static mreg check_traitful(mblock& b, value_type t, mreg tmp) {

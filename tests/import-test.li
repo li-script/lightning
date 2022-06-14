@@ -1,2 +1,6 @@
 import "export-test" as etst
+import? "invalid1" as t1
+import? invalid2 as t2
+
+assert(t1==nil && t2 == nil)
 assert(etst.b.a == 4)

@@ -1000,6 +1000,7 @@ namespace li {
 				}
 				scope.lex().next();
 
+				bool is_optional = scope.lex().opt('?').has_value();
 				auto name = scope.lex().opt(lex::token_lstr);
 				if (!name) {
 					name = scope.lex().check(lex::token_name);
@@ -1013,13 +1014,15 @@ namespace li {
 					if (scope.fn.L->import_fn) {
 						mod = scope.fn.L->import_fn(scope.fn.L, scope.lex().source_name, name->str_val->view());
 					}
-					if (mod == nil) {
-						scope.lex().error("module '%s' not found", name->str_val->c_str());
-						return {};
-					}
-					else if (mod.is_exc()) {
-						scope.lex().error(scope.fn.L->last_ex.coerce_str(scope.fn.L)->c_str());
-						return {};
+					if (mod == nil || mod.is_exc()) {
+						if (!is_optional) {
+							if (mod == nil)
+								scope.lex().error("module '%s' not found", name->str_val->c_str());
+							else
+								scope.lex().error(scope.fn.L->last_ex.coerce_str(scope.fn.L)->c_str());
+							return {};
+						}
+						mod = nil;
 					}
 				}
 

@@ -16,6 +16,7 @@ namespace li::ir::opt {
 				}
 				if (ins->is<compare>() || ins->is<binop>()) {
 					if (ins->operands[1]->is<constant>() && ins->operands[2]->is<constant>()) {
+						// v-- not really valid for traitful.
 						auto val = apply_binary(proc->L, ins->operands[1]->as<constant>()->to_any(), ins->operands[2]->as<constant>()->to_any(), ins->operands[0]->as<constant>()->vmopr);
 						if (!val.is_exc()) {
 							ins->replace_all_uses(proc->add_const(val));
@@ -29,7 +30,7 @@ namespace li::ir::opt {
 					is_tag_cmp      = is_tag_cmp || (ins->operands[1]->vt == type::exc && ins->operands[2]->vt != type::unk);
 					is_tag_cmp      = is_tag_cmp || (ins->operands[2]->vt == type::nil && ins->operands[1]->vt != type::unk);
 					is_tag_cmp      = is_tag_cmp || (ins->operands[2]->vt == type::exc && ins->operands[1]->vt != type::unk);
-					if (is_tag_cmp) {
+					if (is_tag_cmp && ins->operands[1]->vt != ins->operands[2]->vt) {
 						auto op = ins->operands[0]->as<constant>()->vmopr;
 						if (op == bc::CEQ || op == bc::CNE) {
 							ins->replace_all_uses(proc->add_const(op == bc::CNE));

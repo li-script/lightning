@@ -257,9 +257,8 @@ namespace li::ir {
 			CMP(b, FLAG_Z, out, (int64_t) std::rotr(make_tag(t), 47));
 			b.append(vop::setcc, out, FLAG_Z);
 		} else if (t == type_number) {
-			RORX(b, out, val, 47);
-			AND(b, out, 0x1FFFF).target_info.force_size                                  = 4;
-			CMP(b, FLAG_B, out, int64_t((make_tag(t) + 1) >> 47)).target_info.force_size = 4;
+			RORX(b, out, val, 32);
+			CMP(b, FLAG_B, out, int32_t((make_tag(t) + 1) >> 32)).target_info.force_size = 4;
 			b.append(vop::setcc, out, FLAG_B);
 		} else {
 			RORX(b, out, val, 47);

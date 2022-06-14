@@ -1,9 +1,10 @@
 
-let a = [1,2]
-a += 3
+const a = [1,2]
+a::push(3)
 assert(a[0] == 1)
 assert(a[1] == 2)
 assert(a[2] == 3)
+assert(a::pop() == 3)
 
 let b = {y: 5}
 b.x = 3

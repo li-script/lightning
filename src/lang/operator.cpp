@@ -70,17 +70,9 @@ namespace li {
 				return a.coerce_bool() ? b : a;
 			case bc::AADD:
 				BINARY_APPLY_TRAIT(trait::add);
-				if (a.is_arr()) {
-					a.as_arr()->push(L, b);
-					return any(a);
-				} else if (a.is_str()) {
-					TYPE_ASSERT(b, type_string);
-					return any(string::concat(L, a.as_str(), b.as_str()));
-				} else {
-					TYPE_ASSERT(a, type_number);
-					TYPE_ASSERT(b, type_number);
-					return any(a.as_num() + b.as_num());
-				}
+				TYPE_ASSERT(a, type_number);
+				TYPE_ASSERT(b, type_number);
+				return any(a.as_num() + b.as_num());
 			case bc::ASUB:
 				BINARY_APPLY_TRAIT(trait::sub);
 				TYPE_ASSERT(a, type_number);

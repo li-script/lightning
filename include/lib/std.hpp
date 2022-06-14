@@ -46,6 +46,8 @@ namespace li::lib {
 		extern nfunc_info builtin_str_info;
 		extern nfunc_info builtin_num_info;
 		extern nfunc_info builtin_int_info;
+		extern nfunc_info builtin_push_info;
+		extern nfunc_info builtin_pop_info;
 
 		void register_builtin(vm* L);
 		void register_math(vm* L);

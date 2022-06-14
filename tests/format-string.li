@@ -1,6 +1,10 @@
 import math
 
+fn ccat(a,b) {
+   return `{a}{b}`
+}
+
 const x = 4
 assert(`A{math.round(math.sqrt(x+5))}B{{}}C` == "A3B{}C")
-assert(`{ "\x61\"" + {"\x61\""} }`=="a\"a\"")
-assert(`{ "\x61\"" + {`a"`} }`=="a\"a\"")
+assert(`{ ccat("\x61\"", {"\x61\""}) }`=="a\"a\"")
+assert(`{ ccat("\x61\"", {`a"`}) }`=="a\"a\"")

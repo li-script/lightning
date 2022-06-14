@@ -57,7 +57,7 @@ assert(tbl.z == 3)
 #
 const set_list = []
 tbl::set!(|k, v| {
-   set_list += {k, v}
+   set_list::push({k, v})
 });
 tbl.c = 4
 assert(set_list[0].k == "c" && set_list[0].v == 4)

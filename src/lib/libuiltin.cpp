@@ -106,6 +106,39 @@ namespace li::lib {
 		return builtin_join_else(L, dst.value, src.value);
 	}
 
+	static void LI_CC builtin_push_array(vm* L, array* dst, uint64_t val) {
+		dst->push(L, any(std::in_place, val));
+	}
+	static uint64_t LI_CC builtin_push_else(vm* L) {
+		return L->error("push expected array");
+	}
+	static uint64_t builtin_push_vm(vm* L, any* args, slot_t nargs) {
+		if (nargs < 1) {
+			return L->error("push expects 1 argument");
+		}
+		any val = args[0];
+		any dst = args[1];
+		if (dst.is_arr()) {
+			builtin_push_array(L, dst.as_arr(), val.value);
+			return nil.value;
+		}
+		return builtin_push_else(L);
+	}
+	
+	static uint64_t LI_CC builtin_pop_array(vm* L, array* dst) {
+		return dst->pop().value;
+	}
+	static uint64_t LI_CC builtin_pop_else(vm* L) {
+		return L->error("pop expected array");
+	}
+	static uint64_t builtin_pop_vm(vm* L, any* args, slot_t nargs) {
+		any dst = args[1];
+		if (dst.is_arr()) {
+			return builtin_pop_array(L, dst.as_arr());
+		}
+		return builtin_pop_else(L);
+	}
+
 	static bool LI_CC builtin_in_arr_unk(vm* L, array* i, uint64_t v) {
 		for (auto& k : *i)
 			if (k.value == v)
@@ -121,7 +154,7 @@ namespace li::lib {
 	static bool LI_CC builtin_in_str_str(vm*, string* i, string* v) {
 		return i == v || i->view().find(v->view()) != std::string::npos;
 	}
-	static uint64_t LI_CC builtin_in_else(vm* L, uint64_t i, uint64_t v) {
+	static uint64_t LI_CC builtin_in_else(vm* L, uint64_t i) {
 		auto iv = any(std::in_place, i);
 		if (iv.is_str()) {
 			return L->error("expected string or character");
@@ -147,7 +180,7 @@ namespace li::lib {
 		} else if (i.is_arr()) {
 			return any(builtin_in_arr_unk(L, i.as_arr(), v.value)).value;
 		}
-		return builtin_in_else(L, i.value, v.value);
+		return builtin_in_else(L, i.value);
 	}
 
 	nfunc_info detail::builtin_in_info = {
@@ -165,10 +198,39 @@ namespace li::lib {
 					nfunc_overload{li::bit_cast<const void*>(&builtin_in_tbl_unk), {ir::type::tbl, ir::type::unk}, ir::type::i1},
 					nfunc_overload{li::bit_cast<const void*>(&builtin_in_str_num), {ir::type::str, ir::type::i32}, ir::type::i1},
 					nfunc_overload{li::bit_cast<const void*>(&builtin_in_str_str), {ir::type::str, ir::type::str}, ir::type::i1},
-					nfunc_overload{li::bit_cast<const void*>(&builtin_in_else), {ir::type::unk, ir::type::unk}, ir::type::exc},
+					nfunc_overload{li::bit_cast<const void*>(&builtin_in_else), {ir::type::unk}, ir::type::exc},
 			  },
 	};
-
+	nfunc_info detail::builtin_push_info = {
+		 .is_pure    = false,
+		 .is_const   = false,
+		 .sideeffect = true,
+		 .no_throw   = true,
+		 .takes_self = true,
+		 .takes_vm   = true,
+		 .name       = "builtin.push",
+		 .invoke     = &builtin_push_vm,
+		 .overloads =
+			  {
+					nfunc_overload{li::bit_cast<const void*>(&builtin_push_array), {ir::type::arr, ir::type::unk}, ir::type::none},
+					nfunc_overload{li::bit_cast<const void*>(&builtin_push_else), {}, ir::type::exc},
+			  },
+	};
+	nfunc_info detail::builtin_pop_info = {
+		 .is_pure    = false,
+		 .is_const   = false,
+		 .sideeffect = true,
+		 .no_throw   = true,
+		 .takes_self = true,
+		 .takes_vm   = true,
+		 .name       = "builtin.pop",
+		 .invoke     = &builtin_pop_vm,
+		 .overloads =
+			  {
+					nfunc_overload{li::bit_cast<const void*>(&builtin_pop_array), {ir::type::arr}, ir::type::unk},
+					nfunc_overload{li::bit_cast<const void*>(&builtin_pop_else), {}, ir::type::exc},
+			  },
+	};
 	nfunc_info detail::builtin_str_info = {
 		 .is_pure    = true,
 		 .is_const   = false,
@@ -278,6 +340,8 @@ namespace li::lib {
 		util::export_nf(L, &builtin_num_info);
 		util::export_nf(L, &builtin_int_info);
 		util::export_nf(L, &builtin_join_info);
+		util::export_nf(L, &builtin_push_info);
+		util::export_nf(L, &builtin_pop_info);
 
 		util::export_as(L, "builtin.print", [](vm* L, any* args, slot_t n) {
 			for (int32_t i = 0; i != n; i++) {

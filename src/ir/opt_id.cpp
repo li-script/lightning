@@ -4,20 +4,46 @@
 #include <ir/value.hpp>
 
 namespace li::ir::opt {
-
-	static bool is_identical(const value* a, const value* b) {
-		if (a == b) {
+	struct identity_check_record {
+		identity_check_record* prev = nullptr;
+		const value*      a;
+		const value*      b;
+	};
+	static bool is_identical(const value* a, const value* b, identity_check_record* prev = nullptr) {
+		// If same value, assume equal.
+		//
+		if (a == b)
 			return true;
-		}
+
+		// If in the equality check stack already, assume equal. (?)
+		//
+		for (auto it = prev; it; it = it->prev)
+			if (it->a == a && it->b == b)
+				return true;
+
+		// If both are instructions:
+		//
 		if (a->is<insn>() && b->is<insn>()) {
+			// If there are side effects or instruction is not pure, assume false.
+			//
 			auto ai = a->as<insn>();
 			auto bi = b->as<insn>();
 			if (ai->sideffect || !ai->is_pure)
 				return false;
+
+			// If opcode is the same and operand size matches:
+			//
 			if (ai->opc == bi->opc && ai->operands.size() == bi->operands.size()) {
-				if (std::equal(ai->operands.begin(), ai->operands.end(), bi->operands.begin(), is_identical)) {
-					return true;
-				}
+				// Make a new record to fix infinite-loops with PHIs.
+				//
+				identity_check_record rec{prev, a, b};
+
+				// If all values are equal, pass the check.
+				//
+				for (size_t i = 0; i != ai->operands.size(); i++)
+					if (!is_identical(ai->operands[i], bi->operands[i], &rec))
+						return false;
+				return true;
 			}
 			// TODO: Trace until common dominator to ensure no side effects, compare by value.
 			// ^ once this is done, can also be used for PHI nodes.

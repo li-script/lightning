@@ -129,16 +129,13 @@ namespace li::ir::opt {
 
 		// TODO: Determine writes to arguments and push them until the end.
 
-		// Remove stores to internal variables.
+		// Remove all stores.
 		//
 		for (auto& bb : proc->basic_blocks) {
 			bb->erase_if([&](insn* ins) {
 				if (ins->is<store_local>() && !ins->is_volatile) {
-					bc::reg r = ins->operands[0]->as<constant>()->i32;
-					if (r >= -FRAME_SIZE)
 						return true;
 				}
-				return false;
 			});
 		}
 		proc->validate();

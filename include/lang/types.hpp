@@ -262,7 +262,7 @@ namespace li {
 	static constexpr any const_true{true};
 	static constexpr any exception_marker{std::in_place, make_tag(type_exception)};
 
-	// Fills the any[] with nones.
+	// Fills the any[] with nils.
 	//
 	static void fill_nil(void* data, size_t count) {
 		std::fill_n((uint64_t*) data, count, make_tag(type_nil));

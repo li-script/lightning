@@ -168,12 +168,7 @@ namespace li::lib {
 	}
 
 	nfunc_info detail::builtin_in_info = {
-		 .is_pure    = true,
-		 .is_const   = false,
-		 .sideeffect = false,
-		 .no_throw   = false,
-		 .takes_self = true,
-		 .takes_vm   = true,
+		 .attr       = func_attr_pure | func_attr_c_takes_vm | func_attr_c_takes_self,
 		 .name       = "builtin.in",
 		 .invoke     = &builtin_in_vm,
 		 .overloads =
@@ -186,12 +181,7 @@ namespace li::lib {
 			  },
 	};
 	nfunc_info detail::builtin_push_info = {
-		 .is_pure    = false,
-		 .is_const   = false,
-		 .sideeffect = true,
-		 .no_throw   = true,
-		 .takes_self = true,
-		 .takes_vm   = true,
+		 .attr       = func_attr_sideeffect | func_attr_c_takes_vm | func_attr_c_takes_self,
 		 .name       = "builtin.push",
 		 .invoke     = &builtin_push_vm,
 		 .overloads =
@@ -201,12 +191,7 @@ namespace li::lib {
 			  },
 	};
 	nfunc_info detail::builtin_pop_info = {
-		 .is_pure    = false,
-		 .is_const   = false,
-		 .sideeffect = true,
-		 .no_throw   = true,
-		 .takes_self = true,
-		 .takes_vm   = true,
+		 .attr       = func_attr_sideeffect | func_attr_c_takes_vm | func_attr_c_takes_self,
 		 .name       = "builtin.pop",
 		 .invoke     = &builtin_pop_vm,
 		 .overloads =
@@ -216,42 +201,25 @@ namespace li::lib {
 			  },
 	};
 	nfunc_info detail::builtin_str_info = {
-		 .is_pure    = true,
-		 .is_const   = false,
-		 .no_throw   = true,
-		 .takes_self = true,
-		 .takes_vm   = true,
+		 .attr       = func_attr_pure | func_attr_c_takes_vm | func_attr_c_takes_self,
 		 .name       = "builtin.str",
 		 .invoke     = &builtin_str_vm,
 		 .overloads  = {nfunc_overload{li::bit_cast<const void*>(&builtin_str), {ir::type::unk}, ir::type::str}},
 	};
 	nfunc_info detail::builtin_num_info = {
-		 .is_pure    = true,
-		 .is_const   = false,
-		 .no_throw   = true,
-		 .takes_self = true,
-		 .takes_vm   = false,
+		 .attr       = func_attr_pure | func_attr_c_takes_vm | func_attr_c_takes_self,
 		 .name       = "builtin.num",
 		 .invoke     = &builtin_num_vm,
 		 .overloads  = {nfunc_overload{li::bit_cast<const void*>(&builtin_num), {ir::type::unk}, ir::type::f64}},
 	};
 	nfunc_info detail::builtin_int_info = {
-		 .is_pure    = true,
-		 .is_const   = false,
-		 .no_throw   = true,
-		 .takes_self = true,
-		 .takes_vm   = false,
+		 .attr       = func_attr_pure | func_attr_c_takes_self,
 		 .name       = "builtin.int",
 		 .invoke     = &builtin_int_vm,
 		 .overloads  = {nfunc_overload{li::bit_cast<const void*>(&builtin_int), {ir::type::unk}, ir::type::i32}},
 	};
 	nfunc_info detail::builtin_join_info = {
-		 .is_pure    = false,
-		 .is_const   = false,
-		 .sideeffect = true,
-		 .no_throw   = false,
-		 .takes_self = true,
-		 .takes_vm   = true,
+		 .attr       = func_attr_sideeffect | func_attr_c_takes_vm | func_attr_c_takes_self,
 		 .name       = "builtin.join",
 		 .invoke     = &builtin_join_vm,
 		 .overloads =
@@ -263,11 +231,7 @@ namespace li::lib {
 			  },
 	};
 	nfunc_info detail::builtin_len_info = {
-		 .is_pure    = true,
-		 .is_const   = false,
-		 .no_throw   = false,
-		 .takes_self = true,
-		 .takes_vm   = true,
+		 .attr       = func_attr_pure | func_attr_c_takes_vm | func_attr_c_takes_self,
 		 .name       = "builtin.len",
 		 .invoke     = &builtin_len_vm,
 		 .overloads =
@@ -279,11 +243,7 @@ namespace li::lib {
 			  },
 	};
 	nfunc_info detail::builtin_dup_info = {
-		 .is_pure    = false,
-		 .is_const   = false,
-		 .no_throw   = true,
-		 .takes_self = true,
-		 .takes_vm   = true,
+		 .attr       = func_attr_c_takes_vm | func_attr_c_takes_self,
 		 .name       = "builtin.dup",
 		 .invoke     = &builtin_dup_vm,
 		 .overloads =
@@ -295,19 +255,13 @@ namespace li::lib {
 			  },
 	};
 	nfunc_info detail::builtin_new_array_info = {
-		 .is_pure   = false,
-		 .is_const  = false,
-		 .no_throw  = true,
-		 .takes_vm  = true,
+		 .attr      = func_attr_c_takes_vm,
 		 .name      = nullptr,  // Private.
 		 .invoke    = nullptr,
 		 .overloads = {nfunc_overload{li::bit_cast<const void*>(&builtin_new_array), {ir::type::i32}, ir::type::arr}},
 	};
 	nfunc_info detail::builtin_new_table_info = {
-		 .is_pure   = false,
-		 .is_const  = false,
-		 .no_throw  = true,
-		 .takes_vm  = true,
+		 .attr      = func_attr_c_takes_vm,
 		 .name      = nullptr,  // Private.
 		 .invoke    = nullptr,
 		 .overloads = {nfunc_overload{li::bit_cast<const void*>(&builtin_new_table), {ir::type::i32}, ir::type::tbl}},

@@ -71,10 +71,8 @@ namespace li::lib {
 #define REMAP_MATH_UNARY(NAME, ...)																  \
 	static double LI_CC LI_STRCAT(math_, NAME)(double x) { return __VA_ARGS__; }    \
 	nfunc_info detail::LI_STRCAT(LI_STRCAT(math_, NAME), _info) = {			        \
-		.is_pure   = true,																			  \
-		.is_const  = true,																			  \
-		.no_throw  = true,																			  \
-		.name      = "math." LI_STRINGIFY(NAME),												  \
+		.attr = func_attr_pure | func_attr_const,                                    \
+		.name = "math." LI_STRINGIFY(NAME),												        \
 		.invoke = [](vm* L, any* args, slot_t n) {											  \
 			if (n == 0 || !args[0].is_num()) {													  \
 			  return L->error("expected number");												  \
@@ -89,9 +87,7 @@ namespace li::lib {
 #define REMAP_MATH_BINARY(NAME, ...)																         \
 	static double LI_CC LI_STRCAT(math_, NAME)(double x, double y) { return __VA_ARGS__; }    \
 	nfunc_info detail::LI_STRCAT(LI_STRCAT(math_, NAME), _info) = {						         \
-		.is_pure   = true,																							\
-		.is_const  = true,																							\
-		.no_throw  = true,																			            \
+		.attr = func_attr_pure | func_attr_const,                                              \
 		.name      = "math." LI_STRINGIFY(NAME),																\
 		.invoke = [](vm* L, any* args, slot_t n) {															\
 			if (n <= 1 || !args[0].is_num() || !args[-1].is_num()) {										\

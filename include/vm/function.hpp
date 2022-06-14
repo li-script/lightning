@@ -6,6 +6,33 @@
 #include <vm/state.hpp>
 
 namespace li {
+	// Function attributes.
+	//
+#define LIGHTNING_ENUM_ATTR(_)                                                                           \
+                                                                                                         \
+	_(pure)         /*True if function is pure, same definition as in ir::insn.*/                         \
+	_(const)        /*True if function is const, same definition as in ir::insn.*/                        \
+	_(sideeffect)   /*True if function has sideeffects, same definition as in ir::insn.*/                 \
+	_(c_takes_self) /*True if first value in args array is describing the self.*/                         \
+	_(c_takes_vm)   /*True if function should be called with a VM pointer.*/\
+
+	enum functrion_attributes : uint32_t {
+		#define ENUM_AS_ID(x)   LI_STRCAT(func_attr_index_, x),
+		#define ENUM_AS_FLAG(x) LI_STRCAT(func_attr_, x) = 1u << LI_STRCAT(func_attr_index_, x),
+		LIGHTNING_ENUM_ATTR(ENUM_AS_ID)
+		LIGHTNING_ENUM_ATTR(ENUM_AS_FLAG)
+		#undef ENUM_AS_FLAG
+		#undef ENUM_AS_ID
+
+		func_attr_none = 0,
+		func_attr_default = func_attr_sideeffect,
+	};
+	inline constexpr const char* func_attr_names[] = {
+		#define ENUM_AS_NAME(x) LI_STRINGIFY(x),
+		LIGHTNING_ENUM_ATTR(ENUM_AS_NAME)
+		#undef ENUM_AS_NAME
+	};
+
 	// JIT code.
 	//
 	struct jfunction : gc::exec_leaf<jfunction, type_gc_jfunc> {
@@ -26,15 +53,16 @@ namespace li {
 	struct function_proto : gc::node<function_proto, type_proto> {
 		static function_proto* create(vm* L, std::span<const bc::insn> opcodes, std::span<const any> kval, std::span<const line_info> lines);
 
-		msize_t    length        = 0;        // Bytecode length.
-		msize_t    num_locals    = 0;        // Number of local variables we need to reserve on stack.
-		msize_t    num_kval      = 0;        // Number of constants.
-		msize_t    num_lines     = 0;        // Number of lines in the line tab
-		msize_t    num_arguments = 0;        // Number of fixed arguments.
-		msize_t    num_uval      = 0;        // Number of upvalues.le.
-		msize_t    src_line      = 0;        // Line of definition.
-		string*    src_chunk     = nullptr;  // Source of definition (chunk:function_name or chunk).
-		jfunction* jfunc         = nullptr;  // JIT function if there is one.
+		uint32_t   attr          = func_attr_default;  // Function attributes.
+		msize_t    length        = 0;                  // Bytecode length.
+		msize_t    num_locals    = 0;                  // Number of local variables we need to reserve on stack.
+		msize_t    num_kval      = 0;                  // Number of constants.
+		msize_t    num_lines     = 0;                  // Number of lines in the line tab
+		msize_t    num_arguments = 0;                  // Number of fixed arguments.
+		msize_t    num_uval      = 0;                  // Number of upvalues.le.
+		msize_t    src_line      = 0;                  // Line of definition.
+		string*    src_chunk     = nullptr;            // Source of definition (chunk:function_name or chunk).
+		jfunction* jfunc         = nullptr;            // JIT function if there is one.
 		bc::insn   opcode_array[];
 		// any constant_array[];
 		// line_table[] line_array[];
@@ -84,14 +112,9 @@ namespace li {
 		}
 	};
 	struct nfunc_info {
-		// Function flags.
+		// Function attributes.
 		//
-		uint32_t is_pure : 1    = true;   // True if function is pure, same definition as in ir::insn.
-		uint32_t is_const : 1   = false;  // True if function is const, same definition as in ir::insn.
-		uint32_t sideeffect : 1 = false;  // True if function has sideeffects, same definition as in ir::insn.
-		uint32_t no_throw : 1   = false;  // True if function never throws (so long as the argument types match the overload).
-		uint32_t takes_self : 1 = false;  // True if first value in args array is describing the self.
-		uint32_t takes_vm : 1   = false;  // True if function should be called with a VM pointer.
+		uint32_t attr = func_attr_default;
 
 		// Friendly name.
 		//

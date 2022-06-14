@@ -718,7 +718,7 @@ namespace li::ir {
 				//
 				int32_t gp_index = 0;
 				int32_t fp_index = 0;
-				if (nfni->takes_vm) {
+				if ((nfni->attr & func_attr_c_takes_vm)) {
 					b.append(vop::movi, arch::map_gp_arg(0, 0), REF_VM());
 					gp_index++;
 				}

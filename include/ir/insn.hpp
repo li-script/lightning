@@ -562,9 +562,9 @@ namespace li::ir {
 			auto* nf   = operands[0]->as<constant>()->nfni;
 			auto  ovl  = operands[1]->as<constant>()->i32;
 			vt         = nf->overloads[ovl].ret;
-			is_pure    = nf->is_pure;
-			is_const   = nf->is_const;
-			sideffect  = nf->sideeffect;
+			is_pure    = nf->attr & func_attr_pure;
+			is_const   = nf->attr & func_attr_const;
+			sideffect  = nf->attr & func_attr_sideeffect;
 		}
 	};
 	// none set_exception(unk)
@@ -595,10 +595,10 @@ namespace li::ir {
 				auto* c = operands[0]->as<constant>();
 				LI_ASSERT(c->is(type::fn));
 				if (auto* nf = c->fn->ninfo) {
-					is_pure  = nf->is_pure;
-					is_const  = nf->is_const;
-					sideffect = nf->sideeffect;
-					//vt        = nf->ret;
+					is_pure   = nf->attr & func_attr_pure;
+					is_const  = nf->attr & func_attr_const;
+					sideffect = nf->attr & func_attr_sideeffect;
+					// vt        = nf->ret;
 				}
 			}
 		}

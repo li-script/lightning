@@ -1387,7 +1387,7 @@ namespace li {
 			auto  f  = func.imm.as_fn();
 			auto* nf = f->ninfo;
 			// TODO: is_const?
-			if (nf && nf->is_pure) {
+			if (nf && (nf->attr & func_attr_pure)) {
 				if (std::all_of(callsite, callsite + size, [](const expression& p) { return p.kind == expr::imm; })) {
 					auto res = parse_call_cxpr(scope.fn.L, std::span(callsite).subspan(0, size), f, self);
 					if (res.kind != expr::err) {

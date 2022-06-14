@@ -26,9 +26,7 @@ namespace li::lib {
 	}
 	static any_t   chrono_cycles(vm* L, any* args, slot_t n) { return L->ok(chrono_cycles_c()); }
 	static nfunc_info chrono_cycles_info = {
-		 .is_pure   = false,
-		 .no_throw  = true,
-		 .takes_vm  = false,
+		 .attr      = func_attr_none,
 		 .name      = "chrono.cycles",
 		 .invoke    = &chrono_cycles,
 		 .overloads = {nfunc_overload{li::bit_cast<const void*>(&chrono_cycles_c), {}, ir::type::f64}},

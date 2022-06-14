@@ -253,7 +253,7 @@ namespace li::ir::opt {
 			}
 
 			auto*  ninfo      = i->operands[0]->as<constant>()->fn->ninfo;
-			size_t arg_off    = ninfo->takes_self ? 1 : 2;
+			size_t arg_off    = (ninfo->attr & func_attr_c_takes_self) ? 1 : 2;
 
 			for (auto& ovl : ninfo->get_overloads()) {
 				auto given_args = std::span{i->operands}.subspan(arg_off);

@@ -48,7 +48,7 @@ namespace li {
 
 #if !LI_DEBUG
 	#define REG(...)  locals_begin[(__VA_ARGS__)]
-	#define UVAL(...) f->upvalue_array[(__VA_ARGS__)]
+	#define UVAL(...) f->uvals()[(__VA_ARGS__)]
 	#define KVAL(...) f->proto->kvals()[(__VA_ARGS__)]
 #endif
 	LI_NOINLINE any_t vm_invoke(vm* L, any* args, slot_t n_args) {
@@ -94,7 +94,7 @@ namespace li {
 		};
 		auto UVAL = [&](bc::reg r) LI_INLINE -> any& {
 			LI_ASSERT(f->num_uval > (msize_t) r);
-			return f->upvalue_array[r];
+			return f->uvals()[r];
 		};
 		auto KVAL = [&](bc::reg r) LI_INLINE -> const any& {
 			LI_ASSERT(f->proto->num_kval > (msize_t) r);

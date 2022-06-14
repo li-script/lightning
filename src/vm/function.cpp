@@ -29,7 +29,7 @@ namespace li {
 		f->num_uval      = proto->num_uval;
 		f->invoke        = &vm_invoke;
 		f->proto         = proto;
-		fill_nil(f->upvalue_array, f->num_uval);
+		fill_nil(f->uvals().data(), f->num_uval);
 		return f;
 	}
 	function* function::create(vm* L, nfunc_t cb) {
@@ -37,12 +37,6 @@ namespace li {
 		f->num_uval                       = 0;
 		f->invoke                         = cb;
 		f->proto                          = nullptr;
-		return f;
-	}
-	function* function::create(vm* L, const nfunc_info* info) {
-		LI_ASSERT(info && info->invoke != nullptr);
-		function* f = function::create(L, info->invoke);
-		f->ninfo    = info;
 		return f;
 	}
 
@@ -57,6 +51,6 @@ namespace li {
 	void gc::traverse(gc::stage_context s, function* o) {
 		if (o->proto)
 			o->proto->gc_tick(s);
-		traverse_n(s, o->upvalue_array, o->num_uval);
+		traverse_n(s, o->uvals().data(), o->num_uval);
 	}
 };

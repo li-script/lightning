@@ -19,7 +19,7 @@ namespace li::ir::opt {
 	void prepare_for_mir(procedure* proc) {
 		// Helper to replace an instruction with call.
 		//
-		auto replace_with_call = [&] (instruction_iterator i, const nfunc_info* nf, int32_t oidx, auto&&... args) {
+		auto replace_with_call = [&](instruction_iterator i, const nfunc_info* nf, int32_t oidx, auto&&... args) {
 			auto nit = builder{}.emit_after<ccall>(i.at, nf, oidx, args...);
 			i->replace_all_uses(nit.at);
 			i->erase();
@@ -32,10 +32,10 @@ namespace li::ir::opt {
 				// Array/Table new.
 				//
 				if (it->is<array_new>()) {
-					it = replace_with_call(it, &lib::detail::builtin_new_array_info, 0, it->operands[0]);
+					it = replace_with_call(it, &lib::detail::builtin_new_array.nfi, 0, it->operands[0]);
 					continue;
 				} else if (it->is<table_new>()) {
-					it = replace_with_call(it, &lib::detail::builtin_new_table_info, 0, it->operands[0]);
+					it = replace_with_call(it, &lib::detail::builtin_new_table.nfi, 0, it->operands[0]);
 					continue;
 				}
 
@@ -60,24 +60,24 @@ namespace li::ir::opt {
 							if (it->operands[1]->is<constant>()) {
 								double n = it->operands[1]->as<constant>()->n;
 								if (n == 2) {
-									it = replace_with_call(it, &lib::detail::math_exp2_info, 0, it->operands[2]);
+									it = replace_with_call(it, &lib::detail::math_exp2.nfi, 0, it->operands[2]);
 									break;
 								} else if (n == std::numbers::e) {
-									it = replace_with_call(it, &lib::detail::math_exp_info, 0, it->operands[2]);
+									it = replace_with_call(it, &lib::detail::math_exp.nfi, 0, it->operands[2]);
 									break;
 								}
 							}
 							if (it->operands[2]->is<constant>()) {
 								double n = it->operands[2]->as<constant>()->n;
 								if (n == (1.0 / 2)) {
-									it = replace_with_call(it, &lib::detail::math_sqrt_info, 0, it->operands[1]);
+									it = replace_with_call(it, &lib::detail::math_sqrt.nfi, 0, it->operands[1]);
 									break;
 								} else if (n == (1.0 / 3)) {
-									it = replace_with_call(it, &lib::detail::math_cbrt_info, 0, it->operands[1]);
+									it = replace_with_call(it, &lib::detail::math_cbrt.nfi, 0, it->operands[1]);
 									break;
 								}
 							}
-							it = replace_with_call(it, &lib::detail::math_pow_info, 0, it->operands[1], it->operands[2]);
+							it = replace_with_call(it, &lib::detail::math_pow.nfi, 0, it->operands[1], it->operands[2]);
 							break;
 						default:
 							util::abort("unexpected APOW with invalid or unknown type.");

@@ -110,7 +110,7 @@ namespace li::ir::opt {
 	}
 
 	// Tries coloring the graph with K+M colors respectively for GP and FP.
-	//
+	// - TODO: Do not recurse.
 	static std::pair<size_t, size_t> try_color(std::span<graph_node> gr, size_t K, size_t M) {
 		// Pick a node we can simplify with < K/M nodes.
 		//

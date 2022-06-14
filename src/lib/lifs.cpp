@@ -31,12 +31,7 @@ namespace li::lib::fs {
 		any res = load_script(L, *file, file_name, name);
 		if (res.is_exc())
 			return res;
-
-		// Suspend GC and invoke it.
-		//
-		auto psuspend = std::exchange(L->gc.suspend, true); // TODO: Not okay.
 		auto val = L->call(0, res);
-		L->gc.suspend = psuspend;
 
 		// If it threw an exception, rethrow.
 		//

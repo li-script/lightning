@@ -43,6 +43,7 @@ namespace li {
 		type_function  = 3,
 		type_proto     = 4,  // Not visible to user.
 		type_string    = 5,
+
 		type_bool      = 8,  // First non-GC type.
 		type_nil       = 9,
 		type_opaque    = 10,  // Not visible to user, unique integer part.
@@ -52,7 +53,6 @@ namespace li {
 		// GC aliases.
 		type_gc_last_traitful = type_userdata,
 		type_gc_last          = 7,
-
 		type_gc_free,
 		type_gc_private,
 		type_gc_uninit,

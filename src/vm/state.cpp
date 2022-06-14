@@ -14,10 +14,10 @@ namespace li {
 		// Initialize a GC state.
 		//
 		gc::state gc{};
-		gc.alloc_fn           = alloc;
-		gc.alloc_ctx          = allocu;
-		gc.initial_page       = new (ptr) gc::page(length, false);
-		gc.initial_page->num_indeps = 1; // VM itself is never enumerated.
+		gc.alloc_fn                   = alloc;
+		gc.alloc_ctx                  = allocu;
+		gc.initial_page               = new (ptr) gc::page(length, false);
+		gc.initial_page->is_permanent = 1;  // Cannot delete initial page.
 
 		// Create the VM.
 		//

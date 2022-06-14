@@ -127,12 +127,12 @@ namespace li::ir {
 				}
 				case bc::ADUP: {
 					bld.emit<gc_tick>();
-					set_reg(a, bld.emit<ccall>(&lib::detail::builtin_dup_info, 0, any_t{insn.xmm()}));
+					set_reg(a, bld.emit<ccall>(&lib::detail::builtin_dup.nfi, 0, any_t{insn.xmm()}));
 					continue;
 				}
 				case bc::TDUP: {
 					bld.emit<gc_tick>();
-					set_reg(a, bld.emit<ccall>(&lib::detail::builtin_dup_info, 1, any_t{insn.xmm()}));
+					set_reg(a, bld.emit<ccall>(&lib::detail::builtin_dup.nfi, 1, any_t{insn.xmm()}));
 					continue;
 				}
 				case bc::CCAT: {
@@ -141,7 +141,7 @@ namespace li::ir {
 							if (i->vt != type::unk) {
 								i = bld.emit<erase_type>(std::move(i));
 							}
-							i = bld.emit<ccall>(&lib::detail::builtin_str_info, 0, std::move(i));
+							i = bld.emit<ccall>(&lib::detail::builtin_str.nfi, 0, std::move(i));
 						}
 						return i;
 					};
@@ -149,7 +149,7 @@ namespace li::ir {
 					bld.emit<gc_tick>();
 					auto tmp = to_str(get_reg(a));
 					for (msize_t i = 1; i != b; i++) {
-						tmp = bld.emit<ccall>(&lib::detail::builtin_join_info, 2, std::move(tmp), to_str(get_reg(a + i)));
+						tmp = bld.emit<ccall>(&lib::detail::builtin_join.nfi, 2, std::move(tmp), to_str(get_reg(a + i)));
 					}
 					set_reg(a, std::move(tmp));
 					continue;
@@ -177,9 +177,9 @@ namespace li::ir {
 				//
 				case bc::FDUP: {
 					bld.emit<gc_tick>();
-					auto bf     = get_kval(b);
-					auto r      = bld.emit<ccall>(&lib::detail::builtin_dup_info, 2, bf);
-					r           = bld.emit<assume_cast>(r, type::fn);
+					auto bf = get_kval(b);
+					auto r  = bld.emit<ccall>(&lib::detail::builtin_dup.nfi, 2, bf);
+					r       = bld.emit<assume_cast>(r, type::fn);
 					for (bc::reg i = 0; i != bf.as_fn()->num_uval; i++) {
 						bld.emit<uval_set>(r, i, get_reg(c + i));
 					}

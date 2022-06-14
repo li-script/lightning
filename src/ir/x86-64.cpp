@@ -470,9 +470,9 @@ namespace li::ir {
 				//
 				auto base = REG(i->operands[0]);
 				if (idx.is_const()) {
-					mem = {.base = base, .disp = int32_t(offsetof(function, upvalue_array) + idx.i64 * 8)};
+					mem = {.base = base, .disp = int32_t(sizeof(function) + idx.i64 * 8)};
 				} else {
-					mem = {.base = base, .index = idx.reg, .scale = 8, .disp = offsetof(function, upvalue_array)};
+					mem = {.base = base, .index = idx.reg, .scale = 8, .disp = sizeof(function)};
 				}
 			
 				// Load the result.
@@ -499,9 +499,9 @@ namespace li::ir {
 				mmem mem;
 				if (idx.is_const()) {
 					// TODO: type must be a table and we have to clear the type, fix later.
-					mem = {.base = base, .disp = int32_t(offsetof(function, upvalue_array) + idx.i64 * 8)};
+					mem = {.base = base, .disp = int32_t(sizeof(function) + idx.i64 * 8)};
 				} else {
-					mem = {.base = base, .index = idx.reg, .scale = 8, .disp = offsetof(function, upvalue_array)};
+					mem = {.base = base, .index = idx.reg, .scale = 8, .disp = sizeof(function)};
 				}
 			
 				// Write the result.

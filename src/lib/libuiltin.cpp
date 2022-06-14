@@ -167,118 +167,118 @@ namespace li::lib {
 		return builtin_in_else(L, i);
 	}
 
-	nfunc_info detail::builtin_in_info = {
-		 .attr       = func_attr_pure | func_attr_c_takes_vm | func_attr_c_takes_self,
-		 .name       = "builtin.in",
-		 .invoke     = &builtin_in_vm,
-		 .overloads =
-			  {
-					nfunc_overload{li::bit_cast<const void*>(&builtin_in_arr_unk), {ir::type::arr, ir::type::unk}, ir::type::i1},
-					nfunc_overload{li::bit_cast<const void*>(&builtin_in_tbl_unk), {ir::type::tbl, ir::type::unk}, ir::type::i1},
-					nfunc_overload{li::bit_cast<const void*>(&builtin_in_str_num), {ir::type::str, ir::type::i32}, ir::type::i1},
-					nfunc_overload{li::bit_cast<const void*>(&builtin_in_str_str), {ir::type::str, ir::type::str}, ir::type::i1},
-					nfunc_overload{li::bit_cast<const void*>(&builtin_in_else), {ir::type::unk}, ir::type::exc},
-			  },
+	util::native_function detail::builtin_in = {
+		 func_attr_pure | func_attr_c_takes_vm | func_attr_c_takes_self,
+		 "builtin.in",
+		 &builtin_in_vm,
+
+		 {
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_in_arr_unk), {ir::type::arr, ir::type::unk}, ir::type::i1},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_in_tbl_unk), {ir::type::tbl, ir::type::unk}, ir::type::i1},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_in_str_num), {ir::type::str, ir::type::i32}, ir::type::i1},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_in_str_str), {ir::type::str, ir::type::str}, ir::type::i1},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_in_else), {ir::type::unk}, ir::type::exc},
+		 },
 	};
-	nfunc_info detail::builtin_push_info = {
-		 .attr       = func_attr_sideeffect | func_attr_c_takes_vm | func_attr_c_takes_self,
-		 .name       = "builtin.push",
-		 .invoke     = &builtin_push_vm,
-		 .overloads =
-			  {
-					nfunc_overload{li::bit_cast<const void*>(&builtin_push_array), {ir::type::arr, ir::type::unk}, ir::type::none},
-					nfunc_overload{li::bit_cast<const void*>(&builtin_push_else), {}, ir::type::exc},
-			  },
+	util::native_function detail::builtin_push = {
+		 func_attr_sideeffect | func_attr_c_takes_vm | func_attr_c_takes_self,
+		 "builtin.push",
+		 &builtin_push_vm,
+
+		 {
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_push_array), {ir::type::arr, ir::type::unk}, ir::type::none},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_push_else), {}, ir::type::exc},
+		 },
 	};
-	nfunc_info detail::builtin_pop_info = {
-		 .attr       = func_attr_sideeffect | func_attr_c_takes_vm | func_attr_c_takes_self,
-		 .name       = "builtin.pop",
-		 .invoke     = &builtin_pop_vm,
-		 .overloads =
-			  {
-					nfunc_overload{li::bit_cast<const void*>(&builtin_pop_array), {ir::type::arr}, ir::type::unk},
-					nfunc_overload{li::bit_cast<const void*>(&builtin_pop_else), {}, ir::type::exc},
-			  },
+	util::native_function detail::builtin_pop = {
+		 func_attr_sideeffect | func_attr_c_takes_vm | func_attr_c_takes_self,
+		 "builtin.pop",
+		 &builtin_pop_vm,
+
+		 {
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_pop_array), {ir::type::arr}, ir::type::unk},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_pop_else), {}, ir::type::exc},
+		 },
 	};
-	nfunc_info detail::builtin_str_info = {
-		 .attr       = func_attr_pure | func_attr_c_takes_vm | func_attr_c_takes_self,
-		 .name       = "builtin.str",
-		 .invoke     = &builtin_str_vm,
-		 .overloads  = {nfunc_overload{li::bit_cast<const void*>(&builtin_str), {ir::type::unk}, ir::type::str}},
+	util::native_function detail::builtin_str = {
+		 func_attr_pure | func_attr_c_takes_vm | func_attr_c_takes_self,
+		 "builtin.str",
+		 &builtin_str_vm,
+		 {nfunc_overload{li::bit_cast<const void*>(&builtin_str), {ir::type::unk}, ir::type::str}},
 	};
-	nfunc_info detail::builtin_num_info = {
-		 .attr       = func_attr_pure | func_attr_c_takes_vm | func_attr_c_takes_self,
-		 .name       = "builtin.num",
-		 .invoke     = &builtin_num_vm,
-		 .overloads  = {nfunc_overload{li::bit_cast<const void*>(&builtin_num), {ir::type::unk}, ir::type::f64}},
+	util::native_function detail::builtin_num = {
+		 func_attr_pure | func_attr_c_takes_vm | func_attr_c_takes_self,
+		 "builtin.num",
+		 &builtin_num_vm,
+		 {nfunc_overload{li::bit_cast<const void*>(&builtin_num), {ir::type::unk}, ir::type::f64}},
 	};
-	nfunc_info detail::builtin_int_info = {
-		 .attr       = func_attr_pure | func_attr_c_takes_self,
-		 .name       = "builtin.int",
-		 .invoke     = &builtin_int_vm,
-		 .overloads  = {nfunc_overload{li::bit_cast<const void*>(&builtin_int), {ir::type::unk}, ir::type::i32}},
+	util::native_function detail::builtin_int = {
+		 func_attr_pure | func_attr_c_takes_self,
+		 "builtin.int",
+		 &builtin_int_vm,
+		 {nfunc_overload{li::bit_cast<const void*>(&builtin_int), {ir::type::unk}, ir::type::i32}},
 	};
-	nfunc_info detail::builtin_join_info = {
-		 .attr       = func_attr_sideeffect | func_attr_c_takes_vm | func_attr_c_takes_self,
-		 .name       = "builtin.join",
-		 .invoke     = &builtin_join_vm,
-		 .overloads =
-			  {
-					nfunc_overload{li::bit_cast<const void*>(&builtin_join_array), {ir::type::arr, ir::type::arr}, ir::type::arr},
-					nfunc_overload{li::bit_cast<const void*>(&builtin_join_table), {ir::type::tbl, ir::type::tbl}, ir::type::tbl},
-					nfunc_overload{li::bit_cast<const void*>(&builtin_join_string), {ir::type::str, ir::type::str}, ir::type::str},
-					nfunc_overload{li::bit_cast<const void*>(&builtin_join_else), {ir::type::unk, ir::type::unk}, ir::type::exc},
-			  },
+	util::native_function detail::builtin_join = {
+		 func_attr_sideeffect | func_attr_c_takes_vm | func_attr_c_takes_self,
+		 "builtin.join",
+		 &builtin_join_vm,
+
+		 {
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_join_array), {ir::type::arr, ir::type::arr}, ir::type::arr},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_join_table), {ir::type::tbl, ir::type::tbl}, ir::type::tbl},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_join_string), {ir::type::str, ir::type::str}, ir::type::str},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_join_else), {ir::type::unk, ir::type::unk}, ir::type::exc},
+		 },
 	};
-	nfunc_info detail::builtin_len_info = {
-		 .attr       = func_attr_pure | func_attr_c_takes_vm | func_attr_c_takes_self,
-		 .name       = "builtin.len",
-		 .invoke     = &builtin_len_vm,
-		 .overloads =
-			  {
-					nfunc_overload{li::bit_cast<const void*>(&builtin_len_array), {ir::type::arr}, ir::type::i32},
-					nfunc_overload{li::bit_cast<const void*>(&builtin_len_table), {ir::type::tbl}, ir::type::i32},
-					nfunc_overload{li::bit_cast<const void*>(&builtin_len_string), {ir::type::str}, ir::type::i32},
-					nfunc_overload{li::bit_cast<const void*>(&builtin_len_else), {ir::type::unk}, ir::type::unk},
-			  },
+	util::native_function detail::builtin_len = {
+		 func_attr_pure | func_attr_c_takes_vm | func_attr_c_takes_self,
+		 "builtin.len",
+		 &builtin_len_vm,
+
+		 {
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_len_array), {ir::type::arr}, ir::type::i32},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_len_table), {ir::type::tbl}, ir::type::i32},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_len_string), {ir::type::str}, ir::type::i32},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_len_else), {ir::type::unk}, ir::type::unk},
+		 },
 	};
-	nfunc_info detail::builtin_dup_info = {
-		 .attr       = func_attr_c_takes_vm | func_attr_c_takes_self,
-		 .name       = "builtin.dup",
-		 .invoke     = &builtin_dup_vm,
-		 .overloads =
-			  {
-					nfunc_overload{li::bit_cast<const void*>(&builtin_dup_array), {ir::type::arr}, ir::type::arr},
-					nfunc_overload{li::bit_cast<const void*>(&builtin_dup_table), {ir::type::tbl}, ir::type::tbl},
-					nfunc_overload{li::bit_cast<const void*>(&builtin_dup_function), {ir::type::fn}, ir::type::fn},
-					nfunc_overload{li::bit_cast<const void*>(&builtin_dup_else), {ir::type::unk}, ir::type::unk},
-			  },
+	util::native_function detail::builtin_dup = {
+		 func_attr_c_takes_vm | func_attr_c_takes_self,
+		 "builtin.dup",
+		 &builtin_dup_vm,
+
+		 {
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_dup_array), {ir::type::arr}, ir::type::arr},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_dup_table), {ir::type::tbl}, ir::type::tbl},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_dup_function), {ir::type::fn}, ir::type::fn},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_dup_else), {ir::type::unk}, ir::type::unk},
+		 },
 	};
-	nfunc_info detail::builtin_new_array_info = {
-		 .attr      = func_attr_c_takes_vm,
-		 .name      = nullptr,  // Private.
-		 .invoke    = nullptr,
-		 .overloads = {nfunc_overload{li::bit_cast<const void*>(&builtin_new_array), {ir::type::i32}, ir::type::arr}},
+	util::native_function detail::builtin_new_array = {
+		 func_attr_c_takes_vm,
+		 nullptr,  // Private.
+		 nullptr,
+		 {nfunc_overload{li::bit_cast<const void*>(&builtin_new_array), {ir::type::i32}, ir::type::arr}},
 	};
-	nfunc_info detail::builtin_new_table_info = {
-		 .attr      = func_attr_c_takes_vm,
-		 .name      = nullptr,  // Private.
-		 .invoke    = nullptr,
-		 .overloads = {nfunc_overload{li::bit_cast<const void*>(&builtin_new_table), {ir::type::i32}, ir::type::tbl}},
+	util::native_function detail::builtin_new_table = {
+		 func_attr_c_takes_vm,
+		 nullptr,  // Private.
+		 nullptr,
+		 {nfunc_overload{li::bit_cast<const void*>(&builtin_new_table), {ir::type::i32}, ir::type::tbl}},
 	};
 
 	// Registers the builtins, this is called by the VM creation as it is required.
 	//
 	void detail::register_builtin(vm* L) {
-		util::export_nf(L, &builtin_in_info);
-		util::export_nf(L, &builtin_len_info);
-		util::export_nf(L, &builtin_dup_info);
-		util::export_nf(L, &builtin_str_info);
-		util::export_nf(L, &builtin_num_info);
-		util::export_nf(L, &builtin_int_info);
-		util::export_nf(L, &builtin_join_info);
-		util::export_nf(L, &builtin_push_info);
-		util::export_nf(L, &builtin_pop_info);
+		builtin_in.export_into(L);
+		builtin_len.export_into(L);
+		builtin_dup.export_into(L);
+		builtin_str.export_into(L);
+		builtin_num.export_into(L);
+		builtin_int.export_into(L);
+		builtin_join.export_into(L);
+		builtin_push.export_into(L);
+		builtin_pop.export_into(L);
 
 		util::export_as(L, "builtin.print", [](vm* L, any* args, slot_t n) {
 			for (int32_t i = 0; i != n; i++) {
@@ -349,7 +349,7 @@ namespace li::lib {
 		//
 #if LI_JIT && LI_ARCH_X86 && !LI_32
 		using namespace ir;
-		builtin_len_info.overloads[0].mir_lifter = [](mblock& b, insn* i) {
+		builtin_len.nfi.overloads[0].mir_lifter = [](mblock& b, insn* i) {
 			auto tg = b->next_gp();
 			auto tf = b->next_fp();
 			b.append(vop::loadi32, tg, mmem{.base = REG(i->operands[0]), .disp = offsetof(array, length)});
@@ -358,7 +358,7 @@ namespace li::lib {
 			b.append(vop::movi, REG(i), tf);
 			return true;
 		};
-		builtin_len_info.overloads[1].mir_lifter = [](mblock& b, insn* i) {
+		builtin_len.nfi.overloads[1].mir_lifter = [](mblock& b, insn* i) {
 			// TODO: Only valid if traitless!!
 			auto tg = b->next_gp();
 			auto tf = b->next_fp();
@@ -368,7 +368,7 @@ namespace li::lib {
 			b.append(vop::movi, REG(i), tf);
 			return true;
 		};
-		builtin_len_info.overloads[2].mir_lifter = [](mblock& b, insn* i) {
+		builtin_len.nfi.overloads[2].mir_lifter = [](mblock& b, insn* i) {
 			auto tg = b->next_gp();
 			auto tf = b->next_fp();
 			b.append(vop::loadi32, tg, mmem{.base = REG(i->operands[0]), .disp = offsetof(string, length)});

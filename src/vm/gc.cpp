@@ -21,25 +21,24 @@ namespace li::gc {
 	}
 
 	void header::gc_init(page* p, vm* L, msize_t clen, value_type t) {
-		gc_type        = t;
+		type_id        = t;
 		num_chunks     = clen;
-		indep_or_free  = false;
 		page_offset    = (uintptr_t(this) - uintptr_t(p)) >> 12;
 		stage          = L ? L->stage : 0;
 	}
 	bool header::gc_tick(stage_context s, bool weak) {
 		LI_ASSERT(!is_free());
 
-		// If already iterated, skip.
+		// If already iterated or static, skip.
 		//
-		if (stage == s) [[likely]] {
+		if (stage == s || is_static) [[likely]] {
 			return true;
 		}
 
 		// Update stage, recurse.
 		//
 		stage = s;
-		switch (gc_type) {
+		switch (type_id) {
 			case type_table:    traverse(s, (table*) this);          break;
 			case type_array:    traverse(s, (array*) this);          break;
 			case type_userdata: traverse(s, (userdata*) this);       break;
@@ -64,8 +63,7 @@ namespace li::gc {
 			if (fl) [[likely]] {
 				auto* it          = std::exchange(fl, fl->get_next_free());
 				auto* page        = it->get_page();
-				it->gc_type       = type_gc_uninit;
-				it->indep_or_free = false;
+				it->type_id       = type_gc_uninit;
 				page->num_objects++;
 				return {page, it};
 			}
@@ -97,8 +95,7 @@ namespace li::gc {
 			// Get the page and change the type.
 			//
 			auto* page        = it->get_page();
-			it->gc_type       = type_gc_uninit;
-			it->indep_or_free = false;
+			it->type_id       = type_gc_uninit;
 			page->num_objects++;
 
 			// If we didn't allocate all of the space, re-insert into the free-list.
@@ -107,8 +104,7 @@ namespace li::gc {
 				it->num_chunks     = clen;
 				auto& free_list    = free_lists[size_class_of(leftover, false)];
 				auto* fh2          = it->next();
-				fh2->gc_type       = type_gc_free;
-				fh2->indep_or_free = true;
+				fh2->type_id       = type_gc_free;
 				fh2->num_chunks    = leftover;
 				fh2->page_offset   = (uintptr_t(fh2) - uintptr_t(page)) >> 12;
 				fh2->set_next_free(free_list);
@@ -158,8 +154,7 @@ namespace li::gc {
 				// Get the page and change the type.
 				//
 				auto* page        = it->get_page();
-				it->gc_type       = type_gc_uninit;
-				it->indep_or_free = false;
+				it->type_id       = type_gc_uninit;
 				page->num_objects++;
 
 				// If we didn't allocate all of the space, re-insert into the free-list.
@@ -168,8 +163,7 @@ namespace li::gc {
 					it->num_chunks     = clen;
 					auto& free_list    = ex_free_list;
 					auto* fh2          = it->next();
-					fh2->gc_type       = type_gc_free;
-					fh2->indep_or_free = true;
+					fh2->type_id       = type_gc_free;
 					fh2->num_chunks    = leftover;
 					fh2->page_offset   = (uintptr_t(fh2) - uintptr_t(page)) >> 12;
 					fh2->set_next_free(free_list);
@@ -196,6 +190,7 @@ namespace li::gc {
 		return {pg, pg->alloc_arena(clen)};
 	}
 	void state::free(vm* L, header* o, bool within_gc) {
+		LI_ASSERT(!o->is_static);
 		LI_ASSERT_MSG("Double free", !o->is_free());
 
 		// Decrement counters.
@@ -207,7 +202,7 @@ namespace li::gc {
 
 		// Run destructor if relevant.
 		//
-		switch (o->gc_type) {
+		switch (o->type_id) {
 			case type_table:    destroy(L, (table*) o);    break;
 			case type_userdata: destroy(L, (userdata*) o); break;
 #if LI_JIT
@@ -227,8 +222,7 @@ namespace li::gc {
 		}
 		if (!at_arena_end) {
 			auto& free_list  = page->is_exec ? ex_free_list : free_lists[size_class_of(o->num_chunks, false)];
-			o->gc_type       = type_gc_free;
-			o->indep_or_free = true;
+			o->type_id       = type_gc_free;
 			o->set_next_free(free_list);
 			free_list = o;
 		} else {
@@ -305,7 +299,7 @@ namespace li::gc {
 		// Clear alive counter in all pages.
 		//
 		for_each([](page* p, bool x){
-			p->alive_objects = p->num_indeps;
+			p->alive_objects = 0;
 			return false;
 		});
 
@@ -321,13 +315,13 @@ namespace li::gc {
 		for_each([&](page* it, bool ex) LI_INLINE {
 			if (it->alive_objects != it->num_objects) {
 				it->for_each([&](header* obj) LI_INLINE {
-					if (!obj->indep_or_free && obj->stage != ms) {
+					if (!obj->is_free() && obj->stage != ms) {
 						free(L, obj, true);
 					}
 					return false;
 				});
 
-				if (it->alive_objects || greedy)
+				if (it->alive_objects || greedy || it->is_permanent)
 					return false;
 				util::unlink(it);
 				if (!dead_page_list) {
@@ -370,62 +364,6 @@ namespace li::gc {
 				auto i = std::exchange(dead_page_list, dead_page_list->next);
 				alloc_fn(alloc_ctx, i, i->num_pages, i->is_exec);
 			}
-		}
-	}
-
-	void header::acquire() {
-		auto* page = get_page();
-		LI_ASSERT_MSG("Double acquire", !is_independent());
-		indep_or_free = true;
-		page->num_indeps++;
-		page->num_objects--;
-	}
-	void header::release(vm* L) {
-		auto* page = get_page();
-		LI_ASSERT_MSG("Double release", is_independent());
-		indep_or_free = false;
-		stage       = L->stage;
-		page->num_indeps--;
-		page->num_objects++;
-	}
-
-	// Implement mem_ functions.
-	//
-	void mem_release(vm* L, void* p) {
-		auto* h = std::prev((header*) p);
-		LI_ASSERT(h->gc_type == type_gc_private);
-		h->release(L);
-	}
-	void mem_acquire(void* p) {
-		auto* h    = std::prev((header*) p);
-		LI_ASSERT(h->gc_type == type_gc_private);
-		h->acquire();
-	}
-	void* mem_alloc(vm* L, size_t n, bool independent) {
-		msize_t length    = (msize_t) (chunk_ceil(n + sizeof(header)) >> chunk_shift);
-		auto [page, base] = L->gc.allocate_uninit(L, length);
-		base->gc_init(page, L, length, type_gc_private);
-		if (independent) {
-			base->acquire();
-		}
-		return base + 1;
-	}
-	void mem_free(vm* L, void* p) {
-		L->gc.free(L, std::prev((header*) p));
-	}
-	void* mem_realloc(vm* L, void* p, size_t n, bool independent) {
-		if (!p) {
-			if (!n)
-				return nullptr;
-			return mem_alloc(L, n, independent);
-		} else {
-			auto* h = std::prev((header*) p);
-			if (h->object_bytes() >= n)
-				return p;
-			void* np = mem_alloc(L, n, independent);
-			memcpy(np, p, h->object_bytes());
-			mem_free(L, p);
-			return np;
 		}
 	}
 };

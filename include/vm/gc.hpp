@@ -55,30 +55,23 @@ namespace li::gc {
 	struct page;
 
 	struct header {
-		uint32_t gc_type : 4       = type_gc_uninit;  // Type.
-		uint32_t num_chunks : 28   = 0;               // Number of chunks in this block.
-		uint32_t rsvd : 6          = 0;               // Reserved.
-		uint32_t indep_or_free : 1 = 0;               // If not garbage collected, also set for free blocks.
-		uint32_t page_offset : 24  = 0;               // Offset to page in pages.
 		uint32_t stage : 1         = 0;               // Stage.
-
-		// Acquire changes an object from a garbage collected type to independent memory.
-		// Release changes an object from being independent to garbage collected.
-		//
-		void acquire();
-		void release(vm* L);
-		bool is_independent() const { return indep_or_free && !is_free(); }
+		uint32_t is_static : 1     = 0;               // Allocated outside GC pages.
+		uint32_t page_offset : 30  = 0;               // Offset to page in pages.
+		uint32_t num_chunks        = 0;               // Number of chunks in this block.
+		uint32_t type_id           = type_gc_uninit;  // Type.
+		uint32_t rsvd              = 0;
 
 		// Free header helpers.
 		//
-		bool    is_free() const { return gc_type == type_gc_free; }
+		bool     is_free() const { return type_id == type_gc_free; }
 		header*& ref_next_free() { return *(header**) (this + 1); }
 		void     set_next_free(header* h) {
-			LI_ASSERT(gc_type == type_gc_free);
+			LI_ASSERT(type_id == type_gc_free);
 			ref_next_free() = h;
 		}
 		header* get_next_free() {
-			LI_ASSERT(gc_type == type_gc_free);
+			LI_ASSERT(type_id == type_gc_free);
 			return ref_next_free();
 		}
 
@@ -104,12 +97,12 @@ namespace li::gc {
 		void gc_init(page* p, vm* L, msize_t qlen, value_type t);
 		bool gc_tick(stage_context s, bool weak = false);
 	};
-	static_assert(sizeof(header) == 8, "Invalid GC header size.");
+	static_assert(sizeof(header) == 16, "Invalid GC header size.");
 	static_assert((sizeof(header) + sizeof(uintptr_t)) <= chunk_size, "Invalid GC header size.");
 
 	// Forward for any.
 	//
-	static value_type identify(const header* h) { return (value_type) h->gc_type; }
+	static value_type identify(const header* h) { return (value_type) h->type_id; }
 
 	template<typename T>
 	struct tag : header {
@@ -117,11 +110,9 @@ namespace li::gc {
 		//
 		size_t extra_bytes() const { return total_bytes() - sizeof(T); }
 
-		// No copy, default constructed.
+		// Default constructed.
 		//
 		constexpr tag()            = default;
-		tag(const tag&)            = delete;
-		tag& operator=(const tag&) = delete;
 	};
 	template<typename T, value_type V = type_gc_private>
 	struct leaf : tag<T> {
@@ -145,14 +136,14 @@ namespace li::gc {
 	// GC page.
 	//
 	struct page {
-		page*    prev          = this;
-		page*    next          = this;
-		uint32_t num_pages     = 0;
-		uint32_t num_objects   = 0;
-		uint32_t alive_objects = 0;
-		uint32_t next_chunk    = (uint32_t) chunk_ceil(sizeof(page));
-		uint32_t num_indeps    = 0;
-		uint32_t is_exec : 1   = false;
+		page*    prev             = this;
+		page*    next             = this;
+		uint32_t num_pages        = 0;
+		uint32_t num_objects      = 0;
+		uint32_t alive_objects    = 0;
+		uint32_t next_chunk       = (uint32_t) chunk_ceil(sizeof(page));
+		uint32_t is_permanent : 1 = false;
+		uint32_t is_exec : 1      = false;
 
 		// Constructed with number of pages.
 		//
@@ -316,7 +307,7 @@ namespace li::gc {
 				util::link_after(initial_page, result);
 			} else {
 				if (!initial_ex_page) {
-					result->num_indeps = 1; // Should never be free'd, just like the rw initial page.
+					result->is_permanent = 1;  // Should never be free'd, just like the rw initial page.
 					initial_ex_page = result;
 				} else {
 					util::link_after(initial_ex_page, result);
@@ -326,25 +317,21 @@ namespace li::gc {
 		}
 	};
 
-	// Acquires/Releases a chunk of memory.
+	// Helper for creating constant GC values on heap.
 	//
-	void mem_release(vm* L, void* p);
-	void mem_acquire(void* p);
-
-	// Malloc/Free for private data.
-	//
-	void* mem_alloc(vm* L, size_t n, bool independent = true);
-	void  mem_free(vm* L, void* p);
-	void* mem_realloc(vm* L, void* p, size_t n, bool independent = true);
-
-	// Tick helper for private memory.
-	//
-	LI_INLINE inline void mem_tick(void* p, stage_context c) {
-		if (p) {
-			auto* h = std::prev((header*) p);
-			LI_ASSERT(h->gc_type == type_gc_private);
-			h->gc_tick(c);
-		}
+	template<typename T>
+	static void make_non_gc(T* value, size_t extra_size = 0) {
+		value->type_id     = T::gc_type;
+		value->num_chunks  = (msize_t) (chunk_ceil(extra_size + sizeof(T)) >> chunk_shift);
+		value->page_offset = 0;
+		value->stage       = 0;
+		value->is_static   = true;
+	}
+	template<typename T>
+	static T* make_non_gc(size_t extra_size = 0) {
+		T* value = new (malloc(sizeof(T) + extra_size)) T();
+		make_non_gc<T>(value, extra_size);
+		return value;
 	}
 
 	// any[] helper.
@@ -355,45 +342,4 @@ namespace li::gc {
 				it->as_gc()->gc_tick(s);
 		}
 	}
-
-	// A standard allocator wrapping mem_ functions.
-	//
-	template<typename T, bool Independent = true>
-	struct allocator {
-		// Allocator traits.
-		//
-		using value_type =         T;
-		using pointer =            T*;
-		using const_pointer =      const T*;
-		using void_pointer =       void*;
-		using const_void_pointer = const void*;
-		using size_type =          size_t;
-		using difference_type =    int64_t;
-		using is_always_equal =    std::false_type;
-		template<typename U>
-		struct rebind { using other = allocator<U, Independent>; };
-
-		vm* L;
-		constexpr allocator(vm* L = nullptr) : L(L){};
-
-		template<typename T2>
-		constexpr allocator(const allocator<T2, Independent>& o) noexcept : L(o.L) {}
-
-		T*   allocate(size_t count) { return (T*) mem_alloc(L, count * sizeof(T), Independent); }
-		void deallocate(T* pointer, size_t) noexcept { mem_free(L, pointer); }
-
-		template<typename T2>
-		constexpr bool operator==(const allocator<T2, Independent>& o) {
-			return L == o.L;
-		}
-		template<typename T2>
-		constexpr bool operator!=(const allocator<T2, Independent>& o) {
-			return L == o.L;
-		}
-	};
-
-	// Wrap vector.
-	//
-	template<typename T>
-	using vector = std::vector<T, allocator<T>>;
 };

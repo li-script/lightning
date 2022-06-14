@@ -2,52 +2,53 @@
 #include <util/common.hpp>
 #include <vm/state.hpp>
 #include <vm/function.hpp>
+#include <util/user.hpp>
 
 namespace li::lib {
 	// Registers the builtins, these are called upon VM creation as they are required.
 	//
 	namespace detail {
-		extern nfunc_info math_rad_info;
-		extern nfunc_info math_deg_info;
-		extern nfunc_info math_sqrt_info;
-		extern nfunc_info math_cbrt_info;
-		extern nfunc_info math_abs_info;
-		extern nfunc_info math_sgn_info;
-		extern nfunc_info math_cos_info;
-		extern nfunc_info math_sin_info;
-		extern nfunc_info math_tan_info;
-		extern nfunc_info math_acos_info;
-		extern nfunc_info math_asin_info;
-		extern nfunc_info math_atan_info;
-		extern nfunc_info math_floor_info;
-		extern nfunc_info math_ceil_info;
-		extern nfunc_info math_trunc_info;
-		extern nfunc_info math_round_info;
-		extern nfunc_info math_log_info;
-		extern nfunc_info math_log2_info;
-		extern nfunc_info math_log10_info;
-		extern nfunc_info math_exp_info;
-		extern nfunc_info math_exp2_info;
-		extern nfunc_info math_min_info;
-		extern nfunc_info math_max_info;
-		extern nfunc_info math_copysign_info;
-		extern nfunc_info math_atan2_info;
-		extern nfunc_info math_pow_info;
-		extern nfunc_info math_mod_info;
+		extern util::native_function math_rad;
+		extern util::native_function math_deg;
+		extern util::native_function math_sqrt;
+		extern util::native_function math_cbrt;
+		extern util::native_function math_abs;
+		extern util::native_function math_sgn;
+		extern util::native_function math_cos;
+		extern util::native_function math_sin;
+		extern util::native_function math_tan;
+		extern util::native_function math_acos;
+		extern util::native_function math_asin;
+		extern util::native_function math_atan;
+		extern util::native_function math_floor;
+		extern util::native_function math_ceil;
+		extern util::native_function math_trunc;
+		extern util::native_function math_round;
+		extern util::native_function math_log;
+		extern util::native_function math_log2;
+		extern util::native_function math_log10;
+		extern util::native_function math_exp;
+		extern util::native_function math_exp2;
+		extern util::native_function math_min;
+		extern util::native_function math_max;
+		extern util::native_function math_copysign;
+		extern util::native_function math_atan2;
+		extern util::native_function math_pow;
+		extern util::native_function math_mod;
 
-		extern nfunc_info builtin_array_new_info;
-		extern nfunc_info builtin_table_new_info;
-		extern nfunc_info builtin_new_table_info;
-		extern nfunc_info builtin_new_array_info;
-		extern nfunc_info builtin_len_info;   // Overloads: [Arr, tbl, str, ?]
-		extern nfunc_info builtin_join_info;  // Overloads: [Arr, tbl, str, ?]
-		extern nfunc_info builtin_in_info;  // Overloads: [Arr, tbl, str-num, str-str ?]
-		extern nfunc_info builtin_dup_info;   // Overloads: [Arr, tbl, fn, ?]
-		extern nfunc_info builtin_str_info;
-		extern nfunc_info builtin_num_info;
-		extern nfunc_info builtin_int_info;
-		extern nfunc_info builtin_push_info;
-		extern nfunc_info builtin_pop_info;
+		extern util::native_function builtin_array_new;
+		extern util::native_function builtin_table_new;
+		extern util::native_function builtin_new_table;
+		extern util::native_function builtin_new_array;
+		extern util::native_function builtin_len;   // Overloads: [Arr, tbl, str, ?]
+		extern util::native_function builtin_join;  // Overloads: [Arr, tbl, str, ?]
+		extern util::native_function builtin_in;  // Overloads: [Arr, tbl, str-num, str-str ?]
+		extern util::native_function builtin_dup;   // Overloads: [Arr, tbl, fn, ?]
+		extern util::native_function builtin_str;
+		extern util::native_function builtin_num;
+		extern util::native_function builtin_int;
+		extern util::native_function builtin_push;
+		extern util::native_function builtin_pop;
 
 		void register_builtin(vm* L);
 		void register_math(vm* L);

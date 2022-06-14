@@ -300,7 +300,7 @@ namespace li::ir {
 				n  = a.as_num();
 				vt = type::f64;
 			} else if (a.is_gc()) {
-				auto t = a.as_gc()->gc_type;
+				auto t = a.as_gc()->type_id;
 				LI_ASSERT(type_table <= t && t <= type_string);
 				vt = type(uint8_t(t) + uint8_t(type::tbl) - type_table);
 				gc = a.as_gc();

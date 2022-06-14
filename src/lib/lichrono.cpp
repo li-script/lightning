@@ -24,12 +24,11 @@ namespace li::lib {
 #endif
 		return (double)cycles;
 	}
-	static any_t   chrono_cycles(vm* L, any* args, slot_t n) { return L->ok(chrono_cycles_c()); }
-	static nfunc_info chrono_cycles_info = {
-		 .attr      = func_attr_none,
-		 .name      = "chrono.cycles",
-		 .invoke    = &chrono_cycles,
-		 .overloads = {nfunc_overload{li::bit_cast<const void*>(&chrono_cycles_c), {}, ir::type::f64}},
+	static util::native_function chrono_cycles = {
+		 func_attr_none,
+		 "chrono.cycles",
+		 [](vm* L, any* args, slot_t n) { return L->ok(chrono_cycles_c()); },
+		 {{li::bit_cast<const void*>(&chrono_cycles_c), {}, ir::type::f64}},
 	};
 
 	// Registers the chrono library.
@@ -41,13 +40,13 @@ namespace li::lib {
 			auto time = std::chrono::high_resolution_clock::now().time_since_epoch();
 			return L->ok(number(time / std::chrono::duration<double, std::milli>(1)));
 		});
-		util::export_nf(L, &chrono_cycles_info);
+		chrono_cycles.export_into(L);
 
 		// Arch specific optimization.
 		//
 #if LI_JIT && LI_ARCH_X86 && !LI_32
 		using namespace ir;
-		chrono_cycles_info.overloads.front().mir_lifter = [](mblock& b, insn* i) {
+		chrono_cycles.nfi.overloads.front().mir_lifter = [](mblock& b, insn* i) {
 			auto rdx = mreg(arch::from_native(zy::RDX));
 			auto rax = mreg(arch::from_native(zy::RAX));
 			RDTSC(b);

@@ -120,13 +120,9 @@ namespace li {
 		//
 		const char* name = nullptr;
 
-		// nfunc_t callback, for convenience.
-		//
-		nfunc_t invoke = nullptr;
-
 		// Overloads with specific lifters.
 		//
-		std::array<nfunc_overload, 5> overloads = {};
+		std::array<nfunc_overload, 6> overloads = {};
 
 		// Span conversion.
 		//
@@ -146,7 +142,6 @@ namespace li {
 		// Creates a native function.
 		//
 		static function* create(vm* L, nfunc_t cb);
-		static function* create(vm* L, const nfunc_info* info);
 
 		// Function details.
 		//
@@ -154,14 +149,14 @@ namespace li {
 		msize_t           num_uval = 0;        // Number of upvalues.
 		function_proto*   proto    = nullptr;  // Function prototype (if VM).
 		const nfunc_info* ninfo    = nullptr;  // Native function information.
-		any               upvalue_array[];
+		// any               upvalue_array[];
 
 		// TODO: Fast function alternative with types for JIT.
 		//
 
 		// Range observers.
 		//
-		std::span<any> uvals() { return {(any*) upvalue_array, num_uval}; }
+		std::span<any> uvals() { return {(any*) (this + 1), num_uval}; }
 
 		// Checks for the function type.
 		//

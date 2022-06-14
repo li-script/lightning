@@ -38,7 +38,23 @@ namespace li::util {
 		export_as(L, name, vf);
 		return vf;
 	}
-	static void export_nf(vm* L, const nfunc_info* nf) {
-		export_as(L, nf->name, function::create(L, nf));
-	}
+
+	// Native function wrapper.
+	//
+	struct native_function : function {
+		nfunc_info nfi;
+
+		native_function(uint32_t attributes, const char* name, nfunc_t vinvoke, std::initializer_list<nfunc_overload> overloads = {}) {
+			gc::make_non_gc(this);
+			nfi.name = name;
+			nfi.attr = attributes;
+			invoke   = vinvoke;
+			std::copy(overloads.begin(), overloads.end(), nfi.overloads.begin());
+		}
+
+		void export_into(vm* L) {
+			ninfo = &nfi;
+			export_as(L, nfi.name, this);
+		}
+	};
 };

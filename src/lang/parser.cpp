@@ -227,7 +227,7 @@ namespace li {
 			}
 
 			auto* L   = scope.fn.L;
-			auto  vin = L->modules->get(L, string::create(L, "builtin")).as_tbl()->get(L, string::create(L, "in"));
+			auto  vin = any(&lib::detail::builtin_in);
 
 			auto result = scope.alloc_reg(); 
 			lhs.push(scope);
@@ -2012,7 +2012,11 @@ namespace li {
 			}
 		}
 
-		// If REPL, use the REPL scope, otherwise create a temporary scope and acquire GC lock.
+		// Suspend GC.
+		//
+		auto psuspend = std::exchange(L->gc.suspend, true);  // TODO: Not okay.
+
+		// If REPL, use the REPL scope, otherwise create a temporary scope.
 		//
 		if (is_repl) {
 			if (!L->repl_scope) {
@@ -2021,14 +2025,15 @@ namespace li {
 			fn.scope_table = L->repl_scope;
 		} else {
 			fn.scope_table = table::create(L);
-			fn.scope_table->acquire();
 		}
 
-		// Parse the body, release the scope table.
+		// Parse the body.
 		//
 		bool ok = parse_body(fn);
-		if (!is_repl)
-			fn.scope_table->release(L);
+
+		// Resume GC.
+		//
+		L->gc.suspend = psuspend;
 
 		// Propagate the result.
 		//

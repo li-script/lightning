@@ -1,5 +1,5 @@
 BasedOnStyle: Google
-ColumnLimit: '240'
+ColumnLimit: '160'
 IndentWidth: '3'
 TabWidth: '3'
 UseTab: ForContinuationAndIndentation

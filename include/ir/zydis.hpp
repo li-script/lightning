@@ -99,15 +99,28 @@ namespace li::zy {
 	static constexpr auto XMM13  = ZYDIS_REGISTER_XMM13;
 	static constexpr auto XMM14  = ZYDIS_REGISTER_XMM14;
 	static constexpr auto XMM15  = ZYDIS_REGISTER_XMM15;
+	static constexpr auto YMM0   = ZYDIS_REGISTER_YMM0;
+	static constexpr auto YMM1   = ZYDIS_REGISTER_YMM1;
+	static constexpr auto YMM2   = ZYDIS_REGISTER_YMM2;
+	static constexpr auto YMM3   = ZYDIS_REGISTER_YMM3;
+	static constexpr auto YMM4   = ZYDIS_REGISTER_YMM4;
+	static constexpr auto YMM5   = ZYDIS_REGISTER_YMM5;
+	static constexpr auto YMM6   = ZYDIS_REGISTER_YMM6;
+	static constexpr auto YMM7   = ZYDIS_REGISTER_YMM7;
+	static constexpr auto YMM8   = ZYDIS_REGISTER_YMM8;
+	static constexpr auto YMM9   = ZYDIS_REGISTER_YMM9;
+	static constexpr auto YMM10  = ZYDIS_REGISTER_YMM10;
+	static constexpr auto YMM11  = ZYDIS_REGISTER_YMM11;
+	static constexpr auto YMM12  = ZYDIS_REGISTER_YMM12;
+	static constexpr auto YMM13  = ZYDIS_REGISTER_YMM13;
+	static constexpr auto YMM14  = ZYDIS_REGISTER_YMM14;
+	static constexpr auto YMM15  = ZYDIS_REGISTER_YMM15;
+	static constexpr auto FLAGS  = ZYDIS_REGISTER_FLAGS;
 	static constexpr auto EFLAGS = ZYDIS_REGISTER_EFLAGS;
 	static constexpr auto RFLAGS = ZYDIS_REGISTER_RFLAGS;
+	static constexpr auto IP     = ZYDIS_REGISTER_IP;
+	static constexpr auto EIP    = ZYDIS_REGISTER_EIP;
 	static constexpr auto RIP    = ZYDIS_REGISTER_RIP;
-	static constexpr auto ES     = ZYDIS_REGISTER_ES;
-	static constexpr auto CS     = ZYDIS_REGISTER_CS;
-	static constexpr auto SS     = ZYDIS_REGISTER_SS;
-	static constexpr auto DS     = ZYDIS_REGISTER_DS;
-	static constexpr auto FS     = ZYDIS_REGISTER_FS;
-	static constexpr auto GS     = ZYDIS_REGISTER_GS;
 
 	// Encoding with explicit encoder request.
 	//
@@ -206,24 +219,94 @@ namespace li::zy {
 		return result;
 	}
 
+
+	// Register resize map.
+	//
+	struct reg_details
+	{
+		reg gpr8lo = NO_REG;
+		reg gpr8hi = NO_REG;
+		reg gpr16  = NO_REG;
+		reg gpr32  = NO_REG;
+		reg gpr64  = NO_REG;
+		reg gpr128 = NO_REG;
+		reg gpr256 = NO_REG;
+	};
+	// ZYDIS_REGISTER_MAX_VALUE
+	static constexpr auto reg_details_arr = []() {
+		std::array<reg_details, ZYDIS_REGISTER_MAX_VALUE> arr = {};
+		auto push_reg = [&](reg_details r) {
+			if (r.gpr8lo != NO_REG)
+				arr[r.gpr8lo] = r;
+			if (r.gpr8hi != NO_REG)
+				arr[r.gpr8hi] = r;
+			if (r.gpr16 != NO_REG)
+				arr[r.gpr16] = r;
+			if (r.gpr32 != NO_REG)
+				arr[r.gpr32] = r;
+			if (r.gpr64 != NO_REG)
+				arr[r.gpr64] = r;
+			if (r.gpr128 != NO_REG)
+				arr[r.gpr128] = r;
+			if (r.gpr256 != NO_REG)
+				arr[r.gpr256] = r;
+		};
+		push_reg({AL, AH, AX, EAX, RAX, NO_REG, NO_REG});
+		push_reg({BL, BH, BX, EBX, RBX, NO_REG, NO_REG});
+		push_reg({CL, CH, CX, ECX, RCX, NO_REG, NO_REG});
+		push_reg({DL, DH, DX, EDX, RDX, NO_REG, NO_REG});
+		push_reg({SPL, NO_REG, SP, ESP, RSP, NO_REG, NO_REG});
+		push_reg({BPL, NO_REG, BP, EBP, RBP, NO_REG, NO_REG});
+		push_reg({SIL, NO_REG, SI, ESI, RSI, NO_REG, NO_REG});
+		push_reg({DIL, NO_REG, DI, EDI, RDI, NO_REG, NO_REG});
+		push_reg({R8B, NO_REG, R8W, R8D, R8, NO_REG, NO_REG});
+		push_reg({R9B, NO_REG, R9W, R9D, R9, NO_REG, NO_REG});
+		push_reg({R10B, NO_REG, R10W, R10D, R10, NO_REG, NO_REG});
+		push_reg({R11B, NO_REG, R11W, R11D, R11, NO_REG, NO_REG});
+		push_reg({R12B, NO_REG, R12W, R12D, R12, NO_REG, NO_REG});
+		push_reg({R13B, NO_REG, R13W, R13D, R13, NO_REG, NO_REG});
+		push_reg({R14B, NO_REG, R14W, R14D, R14, NO_REG, NO_REG});
+		push_reg({R15B, NO_REG, R15W, R15D, R15, NO_REG, NO_REG});
+
+		push_reg({NO_REG, NO_REG, IP, EIP, RIP, NO_REG, NO_REG});
+		push_reg({NO_REG, NO_REG, FLAGS, EFLAGS, RFLAGS, NO_REG, NO_REG});
+
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM0, YMM0});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM1, YMM1});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM2, YMM2});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM3, YMM3});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM4, YMM4});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM5, YMM5});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM6, YMM6});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM7, YMM7});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM8, YMM8});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM9, YMM9});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM10, YMM10});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM11, YMM11});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM12, YMM12});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM13, YMM13});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM14, YMM14});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM15, YMM15});
+		return arr;
+	}();
+
+
 	// Register resize.
 	//
-	static reg resize_reg(reg r, size_t n) {
+	static constexpr reg resize_reg(reg r, size_t n) {
 		switch (n) {
 			case 1:
-				return ZydisRegisterEncode(ZYDIS_REGCLASS_GPR8, ZydisRegisterGetId(r));
+				return reg_details_arr[r].gpr8lo;
 			case 2:
-				return ZydisRegisterEncode(ZYDIS_REGCLASS_GPR16, ZydisRegisterGetId(r));
+				return reg_details_arr[r].gpr16;
 			case 4:
-				return ZydisRegisterEncode(ZYDIS_REGCLASS_GPR32, ZydisRegisterGetId(r));
+				return reg_details_arr[r].gpr32;
 			case 8:
-				return ZydisRegisterEncode(ZYDIS_REGCLASS_GPR64, ZydisRegisterGetId(r));
+				return reg_details_arr[r].gpr64;
 			case 0x10:
-				return ZydisRegisterEncode(ZYDIS_REGCLASS_XMM, ZydisRegisterGetId(r));
+				return reg_details_arr[r].gpr128;
 			case 0x20:
-				return ZydisRegisterEncode(ZYDIS_REGCLASS_YMM, ZydisRegisterGetId(r));
-			case 0x40:
-				return ZydisRegisterEncode(ZYDIS_REGCLASS_ZMM, ZydisRegisterGetId(r));
+				return reg_details_arr[r].gpr256;
 			default:
 				return NO_REG;
 		}

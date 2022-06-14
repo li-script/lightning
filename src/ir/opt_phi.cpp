@@ -133,9 +133,7 @@ namespace li::ir::opt {
 		//
 		for (auto& bb : proc->basic_blocks) {
 			bb->erase_if([&](insn* ins) {
-				if (ins->is<store_local>() && !ins->is_volatile) {
-						return true;
-				}
+				return ins->is<store_local>() && !ins->is_volatile;
 			});
 		}
 		proc->validate();

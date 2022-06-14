@@ -14,8 +14,8 @@ namespace li::ir {
 	// Emits floating-point comparison into a flag.
 	//
 	static flag_id fp_compare(mblock& b, operation cc, value* lhs, value* rhs) {
-		LI_ASSERT(lhs->vt == type::f64);
-		LI_ASSERT(rhs->vt == type::f64);
+		LI_ASSERT(lhs->vt == type::f64 || lhs->vt == type::f32);
+		LI_ASSERT(rhs->vt == type::f64 || rhs->vt == type::f32);
 
 		// Can't have constant on LHS.
 		//
@@ -40,9 +40,26 @@ namespace li::ir {
 			}
 		}
 
+		// Handle differences in precision.
+		//
+		auto rh   = RM(rhs);
+		bool prec = false;
+		if (rhs->vt == type::f32 && lhs->vt == type::f64) {
+			auto tmp = b->next_fp();
+			b.append(vop::fx32, tmp, lr);
+			lr   = tmp;
+			prec = false;
+		} else if (rhs->vt == type::f64 && lhs->vt == type::f32) {
+			auto tmp = b->next_fp();
+			b.append(vop::fx64, tmp, lr);
+			lr   = tmp;
+			prec = true;
+		} else {
+			prec = rhs->vt == type::f64;
+		}
+
 		// Map the operator.
 		//
-		auto    rh = RM(rhs);
 		flag_id f;
 		if (cc == bc::CLT) {
 			f = FLAG_B;
@@ -58,10 +75,17 @@ namespace li::ir {
 
 		// Emit the operation.
 		//
-		if constexpr (USE_AVX)
-			VUCOMISD(b, f, lr, rh);
-		else
-			UCOMISD(b, f, lr, rh);
+		if (prec) {
+			if constexpr (USE_AVX)
+				VUCOMISD(b, f, lr, rh);
+			else
+				UCOMISD(b, f, lr, rh);
+		} else {
+			if constexpr (USE_AVX)
+				VUCOMISS(b, f, lr, rh).target_info.force_size = 4;
+			else
+				UCOMISS(b, f, lr, rh).target_info.force_size = 4;
+		}
 		return f;
 	}
 
@@ -590,9 +614,60 @@ namespace li::ir {
 			}
 			case opcode::compare: {
 				auto cc   = i->operands[0]->as<constant>()->vmopr;
-				auto flag = fp_compare(b, cc, i->operands[1], i->operands[2]);
-				b.append(vop::setcc, REG(i), flag);
-				return;
+				value* lhs = i->operands[1];
+				value* rhs = i->operands[2];
+
+				// If floating point:
+				//
+				if ( (lhs->vt == type::f32 || lhs->vt == type::f64) &&
+					  (rhs->vt == type::f32 || rhs->vt == type::f64)) {
+					auto flag = fp_compare(b, cc, lhs, rhs);
+					b.append(vop::setcc, REG(i), flag);
+					return;
+				}
+
+				// If equality comparison:
+				//
+				if (cc == bc::CEQ || cc == bc::CNE) {
+					auto flag = cc == bc::CEQ ? FLAG_Z : FLAG_NZ;
+
+					// If same type.
+					//
+					if (lhs->vt == rhs->vt) {
+						// LHS cannot be a constant.
+						//
+						if (lhs->is<constant>())
+							std::swap(lhs, rhs);
+
+						CMP(b, flag, REG(lhs), RM(rhs));
+						b.append(vop::setcc, REG(i), flag);
+						return;
+					}
+					// If it requires type erasure:
+					//
+					else if (lhs->vt == type::unk || rhs->vt == type::unk) {
+						// Erase type if needed.
+						//
+						mreg o1;
+						mreg o2;
+						if (lhs->vt != type::unk) {
+							o1 = b->next_gp();
+							type_erase(b, lhs, o1);
+						} else {
+							o1 = REG(lhs);
+						}
+						if (rhs->vt != type::unk) {
+							o2 = b->next_gp();
+							type_erase(b, rhs, o2);
+						} else {
+							o2 = REG(rhs);
+						}
+						CMP(b, flag, o1, o2);
+						b.append(vop::setcc, REG(i), flag);
+						return;
+					}
+				}
+				break; // NYI
 			}
 			case opcode::select: {
 				auto cc  = REG(i->operands[0]);
@@ -652,6 +727,28 @@ namespace li::ir {
 				//
 				for (msize_t n = 2; n != i->operands.size(); n++) {
 					auto& op = i->operands[n];
+
+					// Type erase if we figured it out.
+					//
+					if (nfni->overloads[oidx].args[n-2] == type::unk && op->vt != type::unk) {
+						// TODO: Constants :(
+
+						auto r = arch::map_gp_arg(gp_index++, fp_index);
+						if (r) {
+							type_erase(b, op, r);
+						} else {
+							mreg tmp = b->next_gp();
+							type_erase(b, op, tmp);
+							mmem mem{
+								 .base = arch::from_native(arch::sp),
+								 .disp = arch::stack_arg_begin + (gp_index + fp_index) * 8,
+							};
+							b.append(vop::storei64, {}, mem, tmp);
+							b->used_stack_length = std::max(b->used_stack_length, mem.disp + 8);
+						}
+						continue;
+					}
+					LI_ASSERT(op->vt == nfni->overloads[oidx].args[n-2]);
 
 					if (op->vt == type::f32 || op->vt == type::f64) {
 						auto r = arch::map_fp_arg(gp_index, fp_index++);
@@ -963,7 +1060,8 @@ namespace li::ir {
 				if (o.type == ZYDIS_OPERAND_TYPE_MEMORY)
 					o.mem.size = i.target_info.force_size;
 				if (o.type == ZYDIS_OPERAND_TYPE_REGISTER)
-					o.reg.value = zy::resize_reg(o.reg.value, forced_size);
+					if (auto newreg = zy::resize_reg(o.reg.value, forced_size); newreg != zy::NO_REG)
+						o.reg.value = newreg;
 			}
 			req.operands[req.operand_count++] = o;
 		};

@@ -140,6 +140,8 @@ namespace li::ir {
 	INSN_F_R_R(VPTEST);
 	INSN_F_R_R(VUCOMISD);
 	INSN_F_R_R(UCOMISD);
+	INSN_F_R_R(VUCOMISS);
+	INSN_F_R_R(UCOMISS);
 
 	// Operand helpers.
 	//

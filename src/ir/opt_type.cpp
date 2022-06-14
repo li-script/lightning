@@ -127,11 +127,8 @@ namespace li::ir::opt {
 			// Find the first numeric operation with an unknown type.
 			//
 			auto i = range::find_if(bb->insns(), [](insn* i) {
-				if (i->is<binop>() || i->is<compare>()) {
+				if (i->is<binop>()) {
 					i->update();
-					if (i->is<compare>() && (i->operands[1]->vt != i->operands[2]->vt)) {
-						return true;
-					}
 					if (i->vt != type::unk) {
 						for (auto& op : i->operands)
 							op->update();
@@ -139,6 +136,14 @@ namespace li::ir::opt {
 						return true;
 					}
 				}
+				if (i->is<compare>()) {
+					i->update();
+					if (i->operands[1]->vt != i->operands[2]->vt) {
+						if (i->operands[1]->vt == type::f64 || i->operands[2]->vt == type::f64)
+							return true;
+					}
+				}
+
 				return false;
 			});
 			if (i == bb->end()) {

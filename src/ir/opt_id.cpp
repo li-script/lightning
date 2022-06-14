@@ -31,6 +31,8 @@ namespace li::ir::opt {
 			if (ai->sideffect || !ai->is_pure)
 				return false;
 
+			// TODO: Trace until common dominator to ensure no side effects.
+
 			// If opcode is the same and operand size matches:
 			//
 			if (ai->opc == bi->opc && ai->operands.size() == bi->operands.size()) {
@@ -45,8 +47,6 @@ namespace li::ir::opt {
 						return false;
 				return true;
 			}
-			// TODO: Trace until common dominator to ensure no side effects, compare by value.
-			// ^ once this is done, can also be used for PHI nodes.
 		}
 		return false;
 	}
@@ -73,7 +73,7 @@ namespace li::ir::opt {
 					// TODO: Global.
 					//
 					if (!fail && !found && bb->predecessors.size() == 1) {
-						for (insn* ins2 : bb->predecessors.back()->insns()) {
+						for (insn* ins2 : view::reverse(bb->predecessors.front()->insns())) {
 							if (is_identical(ins, ins2)) {
 								found = ins2;
 								break;
@@ -83,8 +83,10 @@ namespace li::ir::opt {
 							}
 						}
 					}
-					if (found)
+					if (found) {
 						ins->replace_all_uses(found);
+						continue;
+					}
 				}
 			}
 		}

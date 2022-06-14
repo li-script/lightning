@@ -1,6 +1,6 @@
 const new_counter = || {
    let i = 0;
-   || { i += 1}
+   || { ++i }
 }
 
 const a = new_counter()

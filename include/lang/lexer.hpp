@@ -29,7 +29,7 @@ namespace li::lex {
 		___(tif, '?') ___(telse, ':')														    \
 		/* Compound operators */															    \
 		__(cadd, +=) __(csub, -=) __(cmul, *=) __(cdiv, /=) __(cmod, %=)         \
-		__(cpow, ^=) __(cnullc, ??=)                                             \
+		__(cpow, ^=) __(cnullc, ??=) __(cinc, ++) __(cdec, --)                   \
 		/* Language operators */															    \
 		__(dots, ...) __(rangei, ..=) __(range, ..) __(nullc, ??)                \
 		__(icall, ->) __(ucall, ::) __(idxlif, ?.) __(idxif, ?[)   	             \

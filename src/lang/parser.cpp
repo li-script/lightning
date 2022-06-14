@@ -207,8 +207,8 @@ namespace li {
 			}
 		}
 
-		// Handle special is operator.
-		//
+		// Handle special operators.
+		// - IS:
 		if (scope.lex().opt(lex::token_is)) {
 			auto t = parse_type(scope);
 			if (t == type_invalid) {
@@ -222,6 +222,19 @@ namespace li {
 				out = expression(r);
 				return nullptr;
 			}
+		}
+		// - Post INC/DEC:
+		if (scope.lex().tok == lex::token_cdec || scope.lex().tok == lex::token_cinc) {
+			// Throw if const.
+			//
+			if (!lhs.is_lvalue() || lhs.freeze) {
+				scope.lex().error("assigning to constant variable");
+				return nullptr;
+			}
+			auto op   = scope.lex().next() == lex::token_cdec ? bc::ASUB : bc::AADD;
+			auto lhsp = lhs.to_nextreg(scope);
+			lhs.assign(scope, emit_binop(scope, lhs, op, expression(any(1.0))));
+			lhs = lhsp;
 		}
 
 		// Loop until we exhaust the nested binary operators.
@@ -517,9 +530,22 @@ namespace li {
 	static expression expr_primary(func_scope& scope) {
 		expression base = {};
 
+		// Handle pre inc/dec specially.
+		//
+		if (scope.lex().tok == lex::token_cdec || scope.lex().tok == lex::token_cinc) {
+			auto op = scope.lex().next() == lex::token_cdec ? bc::ASUB : bc::AADD;
+			base = expr_primary(scope);
+			if (base.kind == expr::err) {
+				return {};
+			} else if (!base.is_lvalue() || base.freeze) {
+				scope.lex().error("assigning to constant variable");
+				return {};
+			}
+			base.assign(scope, emit_binop(scope, base, op, expression(any(1.0))));
+		}
 		// Variables.
 		//
-		if (auto& tk = scope.lex().tok; tk.id == lex::token_name) {
+		else if (auto& tk = scope.lex().tok; tk.id == lex::token_name) {
 			base = expr_var(scope, scope.lex().next().str_val);
 		}
 		// Sub expressions.

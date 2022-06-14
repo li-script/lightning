@@ -10,6 +10,7 @@ namespace li::lib {
 	// Registers the debug library.
 	//
 	void register_debug(vm* L) {
+		util::export_as(L, "debug.isdebug", bool(LI_DEBUG));
 		util::export_as(L, "debug.stacktrace", [](vm* L, any* args, slot_t n) {
 			vm_stack_guard _g{L, args};
 

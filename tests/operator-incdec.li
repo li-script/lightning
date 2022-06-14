@@ -1,0 +1,7 @@
+const x = {a:4}
+assert(++x.a == 5)
+assert(x.a++ == 5)
+assert(x.a == 6)
+assert(--x.a == 5)
+assert(x.a-- == 5)
+assert(x.a == 4)

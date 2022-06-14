@@ -126,7 +126,6 @@ namespace li {
 				BINOP_HANDLE(bc::CGT)
 				BINOP_HANDLE(bc::CLE)
 				BINOP_HANDLE(bc::CGE)
-				BINOP_HANDLE(bc::VIN)
 
 				case bc::CCAT: {
 					REG(a) = string::concat(L, &REG(a), b);

@@ -209,7 +209,7 @@ namespace li {
 
 		// Handle special operators.
 		// - IS:
-		if (scope.lex().opt(lex::token_is)) {
+		if (scope.lex().opt(lex::token_is) && 10 < prio) {
 			auto t = parse_type(scope);
 			if (t == type_invalid) {
 				return nullptr;
@@ -222,6 +222,25 @@ namespace li {
 				out = expression(r);
 				return nullptr;
 			}
+		}
+		// - IN:
+		if (scope.lex().opt(lex::token_in) && 10 < prio) {
+			expression rhs  = expr_primary(scope);
+			if (rhs.kind == expr::err) {
+				out = {};
+				return nullptr;
+			}
+
+			auto* L   = scope.fn.L;
+			auto  vin = L->modules->get(L, string::create(L, "builtin")).as_tbl()->get(L, string::create(L, "in"));
+
+			auto result = scope.alloc_reg(); 
+			lhs.push(scope);
+			rhs.push(scope);
+			expression(vin).push(scope);
+			scope.emit(bc::CALL, result, 1);
+			out = result;
+			return nullptr;
 		}
 		// - Post INC/DEC:
 		if (scope.lex().tok == lex::token_cdec || scope.lex().tok == lex::token_cinc) {

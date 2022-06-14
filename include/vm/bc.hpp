@@ -32,7 +32,6 @@ namespace li::bc {
 	_(CGE, reg, reg, reg, none)  /* A=B>=C */                                             \
 	_(CGT, reg, reg, reg, none)  /* A=B>C */                                              \
 	_(CLE, reg, reg, reg, le)    /* A=B<=C */                                             \
-	_(VIN, reg, reg, reg, none)  /* A=C Includes B */                                     \
                                                                                          \
 	/* Helpers */                                                                         \
 	_(CCAT, reg, imm, ___, none)  /* A=CONCAT(A..A+B) */                                  \

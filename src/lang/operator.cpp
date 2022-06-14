@@ -62,10 +62,6 @@ namespace li {
 	}
 	LI_INLINE any apply_binary(vm* L, any a, any b, bc::opcode op) {
 		switch (op) {
-			case bc::VIN: {
-				any tmp[] = {a, b};
-				return any(std::in_place, lib::detail::builtin_in_info.invoke(L, tmp, 1));
-			}
 			case bc::NCS:
 				return a == nil ? b : a;
 			case bc::LOR:

@@ -115,12 +115,6 @@ namespace li::ir {
 
 				// Type specials.
 				//
-				case bc::VIN: {
-					auto* L   = bld.blk->proc->L;
-					auto  vin = L->modules->get(L, string::create(L, "builtin")).as_tbl()->get(L, string::create(L, "in"));
-					set_reg(a, bld.emit<vcall>(vin.as_fn(), get_reg(c), get_reg(b)));
-					continue;
-				}
 				case bc::ANEW: {
 					bld.emit<gc_tick>();
 					set_reg(a, bld.emit<array_new>(b));

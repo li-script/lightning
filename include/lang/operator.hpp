@@ -44,7 +44,6 @@ namespace li {
 		 {lex::token_lor, {}, bc::LOR, 15, 15},
 		 {lex::token_eq, {}, bc::CEQ, 10, 10},
 		 {lex::token_ne, {}, bc::CNE, 10, 10},
-		 {lex::token_in, {}, bc::VIN, 10, 10},
 		 {lex::token_lt, {}, bc::CLT, 9, 9},
 		 {lex::token_gt, {}, bc::CGT, 9, 9},
 		 {lex::token_le, {}, bc::CLE, 9, 9},

@@ -36,13 +36,13 @@ namespace li::bc {
                                                                                          \
 	/* Helpers */                                                                         \
 	_(CCAT, reg, imm, ___, none)  /* A=CONCAT(A..A+B) */                                  \
-	_(SETEH, rel, ___, ___, none) /* Exception Handler = A */                             \
-	_(SETEX, reg, ___, ___, none) /* Last exception = A */                                \
-	_(GETEX, reg, ___, ___, none) /* A = Last exception */                                \
+	_(SETEH, rel, ___, ___, none) /* Exception Handler=A */                               \
+	_(SETEX, reg, ___, ___, none) /* Last exception=A */                                  \
+	_(GETEX, reg, ___, ___, none) /* A=Last exception */                                  \
                                                                                          \
 	/* Trait operators. */                                                                \
-	_(TRSET, reg, reg, imm, none) /* A[Trait C] = B */                                    \
-	_(TRGET, reg, reg, imm, none) /* A = B[Trait C] */                                    \
+	_(TRSET, reg, reg, imm, none) /* A[Trait C]=B */                                      \
+	_(TRGET, reg, reg, imm, none) /* A=B[Trait C] */                                      \
                                                                                          \
 	/* Constant operators. */                                                             \
 	_(KIMM, reg, xmm, ___, none) /* A=Bitcast(BC) */                                      \
@@ -69,15 +69,15 @@ namespace li::bc {
 	_(PUSHI, ___, xmm, ___, none) /* PUSH(A) */                                           \
                                                                                          \
 	/* Type coercion. */                                                                  \
-	_(TOBOOL, reg, reg, ___, none) /* A = bool(B) */                                      \
+	_(TOBOOL, reg, reg, ___, none) /* A=bool(B) */                                        \
                                                                                          \
 	/* Control flow. */                                                                   \
-	_(CALL, reg, imm, ___, none)   /* A = Call(w/ B Args) */                              \
+	_(CALL, reg, imm, ___, none)   /* A=Call(w/ B Args) */                                \
 	_(RET, reg, ___, ___, none)  /* RETURN A */                                           \
 	_(JMP, rel, ___, ___, none)  /* JMP A */                                              \
 	_(JS, rel, reg, ___, none)   /* JMP A if B */                                         \
 	_(JNS, rel, reg, ___, none)  /* JMP A if !B */                                        \
-	_(ITER, rel, reg, reg, none) /* B[1,2] = C[B++].kv, JMP A if end */                   \
+	_(ITER, rel, reg, reg, none) /* B[1,2]=C[B++].kv, JMP A if end */                     \
 	/* Misc. */                                                                           \
 	_(NOP, ___, ___, ___, none)  /* No-op */                                              \
 	_(UD,  ___, ___, ___, none)  /* Undefined */                                                                                      

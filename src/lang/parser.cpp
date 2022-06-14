@@ -153,7 +153,7 @@ namespace li {
 
 	// Reads a type name.
 	//
-	static value_type parse_type(func_scope& scope) {
+	static value_type parse_type_name(func_scope& scope) {
 		if (scope.lex().opt(lex::token_number)) {
 			return type_number;
 		} else if (scope.lex().opt(lex::token_bool)) {
@@ -178,7 +178,7 @@ namespace li {
 
 	// Handles nested binary and unary operators with priorities, finally calls the expr_simple.
 	//
-	static expression             expr_primary(func_scope& scope);
+	static expression             expr_primary(func_scope& scope, bool index = false);
 	static const operator_traits* expr_op(func_scope& scope, expression& out, uint8_t prio) {
 		auto& lhs = out;
 		
@@ -210,7 +210,7 @@ namespace li {
 		// Handle special operators.
 		// - IS:
 		if (scope.lex().opt(lex::token_is) && 10 < prio) {
-			auto t = parse_type(scope);
+			auto t = parse_type_name(scope);
 			if (t == type_invalid) {
 				return nullptr;
 			} else if (lhs.kind == expr::imm) {
@@ -545,8 +545,9 @@ namespace li {
 	}
 
 	// Parses a primary expression.
+	// - If index is set, disables most valid tokens, used to resolve target for operator ::.
 	//
-	static expression expr_primary(func_scope& scope) {
+	static expression expr_primary(func_scope& scope, bool index) {
 		expression base = {};
 
 		// Handle pre inc/dec specially.
@@ -565,7 +566,7 @@ namespace li {
 		// Variables.
 		//
 		else if (auto& tk = scope.lex().tok; tk.id == lex::token_name) {
-			base = expr_var(scope, scope.lex().next().str_val);
+			base = expr_var(scope, scope.lex().next().str_val, index);
 		}
 		// Sub expressions.
 		//
@@ -573,6 +574,11 @@ namespace li {
 			scope.lex().next();
 			base = expr_parse(scope);
 			scope.lex().check(')');
+		}
+		// -- Anything below this is not valid for index expression.
+		else if (index) {
+			scope.lex().error("unexpected token %s", tk.to_string().c_str());
+			return {};
 		}
 		// Constructs.
 		//
@@ -621,10 +627,7 @@ namespace li {
 		} else if (tk.id == lex::token_nil) {
 			scope.lex().next();
 			base = expression(nil);
-		}
-		// Functions.
-		//
-		else if (tk.id == lex::token_lor || tk.id == '|') {
+		} else if (tk.id == lex::token_lor || tk.id == '|') {
 			base = parse_function(scope);
 		} else {
 			scope.lex().error("unexpected token %s", tk.to_string().c_str());
@@ -640,17 +643,23 @@ namespace li {
 				// Call.
 				case lex::token_lstr:
 				case '(': {
+					if (index) {
+						return base;
+					}
+
 					base = parse_call(scope, base, nil);
 					if (base.kind == expr::err)
 						return {};
 					break;
 				}
 				case lex::token_ucall: {
-					scope.lex().next();
-					auto ftk = scope.lex().check(lex::token_name);
-					if (ftk == lex::token_error)
+					if (index) {
+						scope.lex().error("unexpected token %s", scope.lex().tok.to_string().c_str());
 						return {};
-					expression func = expr_var(scope, ftk.str_val, true);
+					}
+
+					scope.lex().next();
+					expression func = expr_primary(scope, true);
 					if (func.kind == expr::err)
 						return {};
 					base = parse_call(scope, func, base);
@@ -659,6 +668,11 @@ namespace li {
 					break;
 				}
 				case lex::token_icall: {
+					if (index) {
+						scope.lex().error("unexpected token %s", scope.lex().tok.to_string().c_str());
+						return {};
+					}
+
 					scope.lex().next();
 					auto ftk = scope.lex().check(lex::token_name);
 					if (ftk == lex::token_error)

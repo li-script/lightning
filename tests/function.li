@@ -7,3 +7,8 @@ fn fact(i) {
 }
 assert(fact(3)==6)
 
+const tbl = {}
+tbl.test = || self*2
+tbl.test2 = || self.test
+assert(4::tbl.test() == 8)
+assert(tbl->test2() == tbl.test)

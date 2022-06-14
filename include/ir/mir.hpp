@@ -568,7 +568,7 @@ namespace li::ir {
 			size_t idx = it - const_pool.begin();
 			return mmem{.base = vreg_cpool, .disp = int32_t(idx * sizeof(any))};
 		}
-		mmem add_const(uint64_t c) { return add_const(any_t(c)); }
+		mmem add_const(uint64_t c) { return add_const(any_t{c}); }
 
 		// Adds or deletes a jump.
 		//

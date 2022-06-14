@@ -232,7 +232,7 @@ namespace li {
 		}
 		LI_INLINE inline constexpr any(std::in_place_t, uint64_t value) : any_t{value} {}
 		LI_INLINE inline constexpr any(opaque v) : any_t{mix_value(type_opaque, (uint64_t) v.bits)} {}
-		LI_INLINE inline constexpr any(any_t v) : any_t(v) {}
+		LI_INLINE inline constexpr any(any_t v) : any_t{v} {}
 		LI_INLINE inline constexpr any(uint64_t v) = delete;
 
 		// GC types.
@@ -246,8 +246,12 @@ namespace li {
 
 		// Define comparison operators.
 		//
-		LI_INLINE inline constexpr bool operator==(const any_t& other) const { return equals(other); }
-		LI_INLINE inline constexpr bool operator!=(const any_t& other) const { return !equals(other); }
+		LI_INLINE inline constexpr bool operator==(const any& other) const { return equals(other); }
+		LI_INLINE inline constexpr bool operator!=(const any& other) const { return !equals(other); }
+		LI_INLINE inline friend constexpr bool operator==(const any& self, const any_t& other) { return self.equals(other); }
+		LI_INLINE inline friend constexpr bool operator!=(const any& self, const any_t& other) { return !self.equals(other); }
+		LI_INLINE inline friend constexpr bool operator==(const any_t& self, const any& other) { return self.equals(other); }
+		LI_INLINE inline friend constexpr bool operator!=(const any_t& self, const any& other) { return !self.equals(other); }
 	};
 	static_assert(sizeof(any) == 8, "Invalid any size.");
 

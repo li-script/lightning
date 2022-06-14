@@ -219,7 +219,7 @@ namespace li::ir {
 				// Virtual calls:
 				//
 				case bc::PUSHI: {
-					call_args.emplace_back(launder_value(bld.blk->proc, any_t(insn.xmm())));
+					call_args.emplace_back(launder_value(bld.blk->proc, any_t{insn.xmm()}));
 					continue;
 				}
 				case bc::PUSHR: {

@@ -137,6 +137,24 @@
 	#define FUNCTION_NAME __PRETTY_FUNCTION__
 #endif
 
+// Warning config.
+//
+#if LI_CLANG
+	#pragma clang diagnostic ignored "-Wunneeded-internal-declaration"
+	#pragma clang diagnostic ignored "-Wunused-function"
+	#pragma clang diagnostic ignored "-Wunused-const-variable"
+	#pragma clang diagnostic ignored "-Winvalid-offsetof"
+	#pragma clang diagnostic ignored "-Wswitch"
+	#pragma clang diagnostic ignored "-Wtrigraphs"
+#elif LI_GNU
+	#pragma GCC diagnostic ignored "-Wunneeded-internal-declaration"
+	#pragma GCC diagnostic ignored "-Wunused-function"
+	#pragma GCC diagnostic ignored "-Wunused-const-variable"
+	#pragma GCC diagnostic ignored "-Winvalid-offsetof"
+	#pragma GCC diagnostic ignored "-Wswitch"
+	#pragma GCC diagnostic ignored "-Wtrigraphs"
+#endif
+
 namespace li {
 	namespace view  = std::views;
 

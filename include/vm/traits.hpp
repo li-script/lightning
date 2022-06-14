@@ -188,7 +188,7 @@ namespace li {
 			if (trait_mask & (1u << msize_t(trait::gc))) {
 				any self;
 				if constexpr (std::is_void_v<T>) {
-					self = any_t(mix_value(((gc::header*)this)->gc_type, (uint64_t) this));
+					self = any_t{mix_value(((gc::header*) this)->gc_type, (uint64_t) this)};
 				} else {
 					self = any((T*) this);
 				}

@@ -17,7 +17,7 @@ namespace li {
 			continue;                   \
 		}                              \
 		L->stack_top = locals_begin;   \
-		return exception_marker.value; \
+		return exception_marker; \
 	}
 #define VM_RET(value, ex)          \
 	{                               \
@@ -51,7 +51,7 @@ namespace li {
 	#define UVAL(...) f->upvalue_array[(__VA_ARGS__)]
 	#define KVAL(...) f->proto->kvals()[(__VA_ARGS__)]
 #endif
-	LI_NOINLINE uint64_t vm_invoke(vm* L, any* args, slot_t n_args) {
+	LI_NOINLINE any_t vm_invoke(vm* L, any* args, slot_t n_args) {
 		LI_ASSERT(&args[2] == &L->stack_top[FRAME_TARGET]);
 		any* const __restrict locals_begin = args + FRAME_SIZE + 1;
 
@@ -63,7 +63,7 @@ namespace li {
 			vf                       = vf.as_tbl()->get_trait<trait::call>();
 		}
 		if (!vf.is_fn()) [[unlikely]] {
-			return L->error(string::format(L, "invoking non-function"));
+			return L->error("invoking non-function");
 		}
 		function* f = vf.as_fn();
 		if (f->invoke != &vm_invoke) {
@@ -73,7 +73,7 @@ namespace li {
 		// Validate argument count.
 		//
 		if (f->proto->num_arguments > n_args) [[unlikely]] {
-			return L->error(string::format(L, "expected at least %u arguments, got %u", f->proto->num_arguments, n_args));
+			return L->error("expected at least %u arguments, got %u", f->proto->num_arguments, n_args);
 		}
 
 		// Allocate stack space.
@@ -449,8 +449,8 @@ namespace li {
 					auto       argspace = L->stack_top - 3;
 				
 					L->push_stack(any(std::in_place, li::bit_cast<uint64_t>(cf)));
-					any result;
-					if (result.value = vm_invoke(L, argspace, b); result.is_exc()) [[unlikely]] {
+					any result = vm_invoke(L, argspace, b);
+					if (result.is_exc()) [[unlikely]] {
 						VM_RETHROW();
 					}
 					REG(a)       = result;
@@ -461,7 +461,7 @@ namespace li {
 					L->push_stack(REG(a));
 					continue;
 				case bc::PUSHI:
-					L->push_stack(any(std::in_place, insn.xmm()));
+					L->push_stack(any_t{insn.xmm()});
 					continue;
 				case bc::NOP:
 					continue;

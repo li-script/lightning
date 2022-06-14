@@ -129,42 +129,16 @@ namespace li {
 	};
 
 	// Boxed object type, fixed 8-bytes.
+	//  any_t with no constructors is needed to make sure it passes in register in MS-ABI.
 	//
-	struct LI_TRIVIAL_ABI any {
+	struct LI_TRIVIAL_ABI any_t {
 		uint64_t value = make_tag(type_nil);
-
-		// Literal construction.
-		//
-		LI_INLINE inline constexpr any(bool v) : value(mix_value(type_bool, v?1:0)) {}
-		LI_INLINE inline constexpr any(number v) : value(li::bit_cast<uint64_t>(v)) {
-			// TODO: Might be optimized out if compiled with -ffast-math.
-			if (v != v) [[unlikely]]
-				value = kvalue_nan;
-		}
-		LI_INLINE inline constexpr any(std::in_place_t, uint64_t value) : value(value) {}
-		LI_INLINE inline constexpr any(opaque v) : value(mix_value(type_opaque, (uint64_t) v.bits)) {}
-
-		// Trivially copyable and default constructable.
-		//
-		inline constexpr any()                          = default;
-		inline constexpr any(any&&) noexcept            = default;
-		inline constexpr any(const any&)                = default;
-		inline constexpr any& operator=(any&&) noexcept = default;
-		inline constexpr any& operator=(const any&)     = default;
-
-		// GC types.
-		//
-		LI_INLINE inline any(array* v) : value(mix_value(type_array, (uint64_t) v)) {}
-		LI_INLINE inline any(table* v) : value(mix_value(type_table, (uint64_t) v)) {}
-		LI_INLINE inline any(string* v) : value(mix_value(type_string, (uint64_t) v)) {}
-		LI_INLINE inline any(userdata* v) : value(mix_value(type_userdata, (uint64_t) v)) {}
-		LI_INLINE inline any(function* v) : value(mix_value(type_function, (uint64_t) v)) {}
-		LI_INLINE inline any(gc::header* v) : value(mix_value(gc::identify(v), (uint64_t) v)) {}
 
 		// Type check.
 		//
-		LI_INLINE inline constexpr value_type type() const { return (value_type) std::min(get_type(value), (uint64_t) type_number); }
-
+		LI_INLINE inline constexpr value_type type() const{
+			return (value_type) std::min(get_type(value), (uint64_t) type_number);
+		}
 		template<value_type Type>
 		LI_INLINE inline constexpr bool is() const {
 			return is_value_of_type<Type>(value);
@@ -195,7 +169,7 @@ namespace li {
 
 		// Bytewise equal comparsion.
 		//
-		LI_INLINE inline constexpr bool equals(const any& other) const {
+		LI_INLINE inline constexpr bool equals(const any_t& other) const {
 #if !LI_FAST_MATH
 			uint64_t x = value ^ other.value;
 			if (!(value << 1)) {
@@ -207,10 +181,10 @@ namespace li {
 #endif
 		}
 
-		// Define copy and comparison operators.
+		// Define comparison operators.
 		//
-		LI_INLINE inline constexpr bool operator==(const any& other) const { return equals(other); }
-		LI_INLINE inline constexpr bool operator!=(const any& other) const { return !equals(other); }
+		LI_INLINE inline constexpr bool operator==(const any_t& other) const { return equals(other); }
+		LI_INLINE inline constexpr bool operator!=(const any_t& other) const { return !equals(other); }
 
 		// String conversion.
 		//
@@ -238,6 +212,42 @@ namespace li {
 			return (size_t) _mm_crc32_u64(h, value);
 #endif
 		}
+	};
+	struct LI_TRIVIAL_ABI any : any_t {
+		// Trivially copyable and default constructable.
+		//
+		inline constexpr any()                          = default;
+		inline constexpr any(any&&) noexcept            = default;
+		inline constexpr any(const any&)                = default;
+		inline constexpr any& operator=(any&&) noexcept = default;
+		inline constexpr any& operator=(const any&)     = default;
+
+		// Literal construction.
+		//
+		LI_INLINE inline constexpr any(bool v) : any_t{mix_value(type_bool, v?1:0)} {}
+		LI_INLINE inline constexpr any(number v) : any_t{li::bit_cast<uint64_t>(v)} {
+			// TODO: Might be optimized out if compiled with -ffast-math.
+			if (v != v) [[unlikely]]
+				value = kvalue_nan;
+		}
+		LI_INLINE inline constexpr any(std::in_place_t, uint64_t value) : any_t{value} {}
+		LI_INLINE inline constexpr any(opaque v) : any_t{mix_value(type_opaque, (uint64_t) v.bits)} {}
+		LI_INLINE inline constexpr any(any_t v) : any_t(v) {}
+		LI_INLINE inline constexpr any(uint64_t v) = delete;
+
+		// GC types.
+		//
+		LI_INLINE inline any(array* v) : any_t{mix_value(type_array, (uint64_t) v)} {}
+		LI_INLINE inline any(table* v) : any_t{mix_value(type_table, (uint64_t) v)} {}
+		LI_INLINE inline any(string* v) : any_t{mix_value(type_string, (uint64_t) v)} {}
+		LI_INLINE inline any(userdata* v) : any_t{mix_value(type_userdata, (uint64_t) v)} {}
+		LI_INLINE inline any(function* v) : any_t{mix_value(type_function, (uint64_t) v)} {}
+		LI_INLINE inline any(gc::header* v) : any_t{mix_value(gc::identify(v), (uint64_t) v)} {}
+
+		// Define comparison operators.
+		//
+		LI_INLINE inline constexpr bool operator==(const any_t& other) const { return equals(other); }
+		LI_INLINE inline constexpr bool operator!=(const any_t& other) const { return !equals(other); }
 	};
 	static_assert(sizeof(any) == 8, "Invalid any size.");
 

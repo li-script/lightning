@@ -21,12 +21,12 @@ namespace li {
 
 	// Native callback, at most one result should be pushed on stack, if returns false, signals exception.
 	//
-	using nfunc_t = uint64_t(*)(vm* L, any* args, slot_t n);
+	using nfunc_t = any_t(*)(vm* L, any* args, slot_t n);
 
 	// nfunc_t for virtual functions.
 	//  Caller must push all arguments in reverse order, the self argument or nil, the function itself and the caller information.
 	//
-	uint64_t vm_invoke(vm* L, any* args, slot_t n_args);
+	any_t vm_invoke(vm* L, any* args, slot_t n_args);
 
 	// Panic function, should not return.
 	//
@@ -132,7 +132,7 @@ namespace li {
 		LI_INLINE any pop_stack() {
 #if LI_SAFE_STACK
 			if (stack_top == stack) {
-				return any{};
+				return nil;
 			}
 #endif
 			return *--stack_top;
@@ -141,14 +141,14 @@ namespace li {
 		// Error/OK helper.
 		//
 		template<typename... Tx>
-		LI_COLD uint64_t error(const char* fmt, Tx... args);
+		LI_COLD any_t error(const char* fmt, Tx... args);
 
-		uint64_t error(any result = nil) {
+		any_t error(any result = nil) {
 			last_ex = result;
-			return exception_marker.value;
+			return exception_marker;
 		}
-		uint64_t ok(any result = nil) {
-			return result.value;
+		any_t ok(any result = nil) {
+			return result;
 		}
 
 		// Gets next random.
@@ -172,8 +172,8 @@ namespace li {
 			push_stack(self);
 			push_stack(fn);
 			call_frame cf{.caller_pc = msize_t(last_vm_caller.caller_pc | FRAME_C_FLAG), .stack_pos = last_vm_caller.stack_pos};
-			push_stack(any(std::in_place, li::bit_cast<uint64_t>(cf)));
-			any result{std::in_place, vm_invoke(this, &this->stack_top[-1 - FRAME_SIZE], n_args)};
+			push_stack(any_t{li::bit_cast<uint64_t>(cf)});
+			any result = vm_invoke(this, &this->stack_top[-1 - FRAME_SIZE], n_args);
 			stack_top = stack_reset_pos;
 			return result;
 		}

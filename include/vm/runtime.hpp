@@ -5,6 +5,6 @@
 // Builtins used for the VM runtime.
 //
 namespace li::runtime {
-	uint64_t LI_CC field_set_raw(vm* L, uint64_t _unk, uint64_t _key, uint64_t _value);
-	uint64_t LI_CC field_get_raw(vm* L, uint64_t _unk, uint64_t _key);
+	any_t LI_CC field_set_raw(vm* L, any_t unk, any_t key, any_t value);
+	any_t LI_CC field_get_raw(vm* L, any_t unk, any_t key);
 };

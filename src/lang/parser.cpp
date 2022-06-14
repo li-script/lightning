@@ -2008,7 +2008,7 @@ namespace li {
 			auto* mod    = string::create(L, module_name);
 			any   exists = L->modules->get(L, mod);
 			if (exists != nil) {
-				L->error(string::format(L, "module '%s' already exists.", mod->c_str()));
+				L->error("module '%s' already exists.", mod->c_str());
 				return exception_marker;
 			} else {
 				fn.module_table = table::create(L);

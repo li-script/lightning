@@ -122,7 +122,7 @@ namespace li {
 	//
 	any table::tset(vm* L, any key, any value) {
 		if (trait_freeze) [[unlikely]] {
-			L->error(string::create(L, "modifying frozen table."));
+			L->error("modifying frozen table.");
 			return exception_marker;
 		}
 

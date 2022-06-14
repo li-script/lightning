@@ -12,7 +12,7 @@
 #endif
 
 namespace li::lib {
-	static uint64_t math_random_to_dbl(vm* L, any* args, slot_t n, uint64_t v) {
+	static any_t math_random_to_dbl(vm* L, any* args, slot_t n, uint64_t v) {
 		constexpr uint32_t mantissa_bits = 52;
 		constexpr uint32_t exponent_bits = 11;
 		constexpr uint32_t exponent_0    = uint32_t((1u << (exponent_bits - 1)) - 3);  // 2^-2, max at 0.499999.
@@ -63,8 +63,8 @@ namespace li::lib {
 		}
 		return L->ok(y + r * (x - y));
 	}
-	static uint64_t math_random(vm* L, any* args, slot_t n) { return math_random_to_dbl(L, args, n, L->random()); }
-	static uint64_t math_srandom(vm* L, any* args, slot_t n) { return math_random_to_dbl(L, args, n, platform::srng()); }
+	static any_t math_random(vm* L, any* args, slot_t n) { return math_random_to_dbl(L, args, n, L->random()); }
+	static any_t math_srandom(vm* L, any* args, slot_t n) { return math_random_to_dbl(L, args, n, platform::srng()); }
 
 	// Unary/Binary functions.
 	//

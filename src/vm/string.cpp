@@ -260,7 +260,7 @@ namespace li {
 	// String coercion.
 	//
 	template<typename F>
-	static void format_any(any a, F&& formatter) {
+	static void format_any(any_t a, F&& formatter) {
 		switch (a.type()) {
 			case type_nil:
 				formatter("nil");
@@ -309,7 +309,7 @@ namespace li {
 				break;
 		}
 	};
-	string* any::to_string(vm* L) const {
+	string* any_t::to_string(vm* L) const {
 		if (is_str()) [[likely]]
 			return as_str();
 		if (is_traitful()) {
@@ -332,7 +332,7 @@ namespace li {
 		});
 		return result;
 	}
-	std::string any::to_string() const {
+	std::string any_t::to_string() const {
 		if (is_str())
 			return std::string{as_str()->view()};
 		std::string result;
@@ -345,7 +345,7 @@ namespace li {
 		});
 		return result;
 	}
-	void any::print() const {
+	void any_t::print() const {
 		if (is_str()) [[likely]]
 			return (void) fputs(as_str()->c_str(), stdout);
 		format_any(*this, [&]<typename... Tx>(const char* fmt, Tx&&... args) {
@@ -356,7 +356,7 @@ namespace li {
 			}
 		});
 	}
-	number any::coerce_num() const {
+	number any_t::coerce_num() const {
 		if (is_num()) [[likely]]
 			return as_num();
 		switch (type()) {

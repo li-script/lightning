@@ -1,11 +1,11 @@
+#include <cmath>
 #include <lang/parser.hpp>
 #include <lib/std.hpp>
 #include <util/user.hpp>
 #include <vm/array.hpp>
 #include <vm/function.hpp>
-#include <vm/table.hpp>
 #include <vm/string.hpp>
-#include <cmath>
+#include <vm/table.hpp>
 
 // Include arch-specific header if relevant for optimizations.
 //
@@ -14,65 +14,64 @@
 #endif
 
 namespace li::lib {
-	static array* LI_CC    builtin_new_array(vm* L, msize_t n) { return array::create(L, n, 0); }
-	static table* LI_CC    builtin_new_table(vm* L, msize_t n) { return table::create(L, n); }
+	static array* LI_CC builtin_new_array(vm* L, msize_t n) { return array::create(L, n, 0); }
+	static table* LI_CC builtin_new_table(vm* L, msize_t n) { return table::create(L, n); }
 
 	static table* LI_CC    builtin_dup_table(vm* L, table* a) { return a->duplicate(L); }
 	static array* LI_CC    builtin_dup_array(vm* L, array* a) { return a->duplicate(L); }
 	static function* LI_CC builtin_dup_function(vm* L, function* a) { return a->duplicate(L); }
-	static uint64_t LI_CC  builtin_dup_else(vm* L, uint64_t v) { return v; }
-	static uint64_t builtin_dup_vm(vm* L, any* args, slot_t nargs) {
-		any a = args[1];
-		if (a.is_arr()) {
-			return any(builtin_dup_array(L, a.as_arr())).value;
-		} else if (a.is_tbl()) {
-			return any(builtin_dup_table(L, a.as_tbl())).value;
-		} else if (a.is_fn()) {
-			return any(builtin_dup_function(L, a.as_fn())).value;
-		} else {
-			return builtin_dup_else(L, a.value);
-		}
+	static any_t LI_CC     builtin_dup_else(vm* L, any_t v) { return v; }
+	static any_t           builtin_dup_vm(vm* L, any* args, slot_t nargs) {
+					 any a = args[1];
+					 if (a.is_arr()) {
+						 return any(builtin_dup_array(L, a.as_arr()));
+      } else if (a.is_tbl()) {
+						 return any(builtin_dup_table(L, a.as_tbl()));
+      } else if (a.is_fn()) {
+						 return any(builtin_dup_function(L, a.as_fn()));
+      } else {
+						 return builtin_dup_else(L, a);
+      }
 	}
 
-	static msize_t LI_CC  builtin_len_array(vm* L, array* a) { return a->length; }
-	static msize_t LI_CC  builtin_len_table(vm* L, table* t) { return t->active_count; }
-	static msize_t LI_CC  builtin_len_string(vm* L, string* s) { return s->length; }
-	static uint64_t LI_CC builtin_len_else(vm* L, uint64_t v) {
-		any a{std::in_place, v};
-		if (a.is_traitful()) [[unlikely]] {
-			auto* ta = (traitful_node<>*) a.as_gc();
-			if (ta->has_trait<trait::len>()) {
-				return L->call(0, ta->get_trait<trait::len>(), a).value;
-			}
-		}
-		return L->error("expected iterable");
+	static msize_t LI_CC builtin_len_array(vm* L, array* a) { return a->length; }
+	static msize_t LI_CC builtin_len_table(vm* L, table* t) { return t->active_count; }
+	static msize_t LI_CC builtin_len_string(vm* L, string* s) { return s->length; }
+	static any_t LI_CC   builtin_len_else(vm* L, any_t a) {
+		  if (a.is_traitful()) [[unlikely]] {
+			  auto* ta = (traitful_node<>*) a.as_gc();
+			  if (ta->has_trait<trait::len>()) {
+				  return L->call(0, ta->get_trait<trait::len>(), a);
+         }
+      }
+		  return L->error("expected iterable");
 	}
-	static uint64_t builtin_len_vm(vm* L, any* args, slot_t nargs) {
+	static any_t builtin_len_vm(vm* L, any* args, slot_t nargs) {
 		any a = args[1];
 		if (a.is_arr()) {
-			return any((number) builtin_len_array(L, a.as_arr())).value;
+			return any((number) builtin_len_array(L, a.as_arr()));
 		} else if (a.is_tbl()) {
 			auto* ta = (traitful_node<>*) a.as_gc();
 			if (ta->has_trait<trait::len>()) [[unlikely]] {
-				return L->call(0, ta->get_trait<trait::len>(), a).value;
+				return L->call(0, ta->get_trait<trait::len>(), a);
 			}
-			return any((number) builtin_len_table(L, a.as_tbl())).value;
+			return any((number) builtin_len_table(L, a.as_tbl()));
 		} else if (a.is_str()) {
-			return any((number) builtin_len_string(L, a.as_str())).value;
+			return any((number) builtin_len_string(L, a.as_str()));
 		} else {
-			return builtin_len_else(L, a.value);
+			return builtin_len_else(L, a);
 		}
 	}
-	
-	static string* LI_CC builtin_str(vm* L, uint64_t v) { return any{std::in_place, v}.coerce_str(L); }
-	static number LI_CC  builtin_num(uint64_t v) { return any{std::in_place, v}.coerce_num(); }
-	static int32_t LI_CC builtin_int(uint64_t v) { return (int32_t) builtin_num(v); }
 
-	static uint64_t builtin_str_vm(vm* L, any* args, slot_t nargs) { return any(builtin_str(L, args[1].value)).value; }
-	static uint64_t builtin_num_vm(vm* L, any* args, slot_t nargs) { return any(builtin_num(args[1].value)).value; }
-	static uint64_t builtin_int_vm(vm* L, any* args, slot_t nargs) { return any(trunc(builtin_num(args[1].value))).value; }
+	static string* LI_CC builtin_str(vm* L, any_t v) { return v.coerce_str(L); }
+	static number LI_CC  builtin_num(any_t v) { return v.coerce_num(); }
+	static int32_t LI_CC builtin_int(any_t v) { return (int32_t) builtin_num(v); }
 
-	static table* LI_CC  builtin_join_table(vm* L, table* dst, table* src) {
+	static any_t builtin_str_vm(vm* L, any* args, slot_t nargs) { return any(builtin_str(L, args[1])); }
+	static any_t builtin_num_vm(vm* L, any* args, slot_t nargs) { return any(builtin_num(args[1])); }
+	static any_t builtin_int_vm(vm* L, any* args, slot_t nargs) { return any(trunc(builtin_num(args[1]))); }
+
+	static table* LI_CC builtin_join_table(vm* L, table* dst, table* src) {
 		dst->join(L, src);
 		return dst;
 	}
@@ -80,14 +79,14 @@ namespace li::lib {
 		dst->join(L, src);
 		return dst;
 	}
-	static string* LI_CC  builtin_join_string(vm* L, string* dst, string* src) { return string::concat(L, dst, src); }
-	static uint64_t LI_CC builtin_join_else(vm* L, uint64_t dst, uint64_t src) {
-		if (any(std::in_place, dst).type() != any(std::in_place, src).type()) {
-			return L->error("cannot join different types");
-		}
-		return L->error("join expected table, array, or string");
+	static string* LI_CC builtin_join_string(vm* L, string* dst, string* src) { return string::concat(L, dst, src); }
+	static any_t LI_CC   builtin_join_else(vm* L, any_t dst, any_t src) {
+		  if (dst.type() != src.type()) {
+			  return L->error("cannot join different types");
+      }
+		  return L->error("join expected table, array, or string");
 	}
-	static uint64_t builtin_join_vm(vm* L, any* args, slot_t nargs) {
+	static any_t builtin_join_vm(vm* L, any* args, slot_t nargs) {
 		if (nargs < 1) {
 			return L->error("join expects 1 argument");
 		}
@@ -96,66 +95,51 @@ namespace li::lib {
 		any dst = args[1];
 		if (src.type() == dst.type()) {
 			if (src.is_arr()) {
-				return any(builtin_join_array(L, dst.as_arr(), src.as_arr())).value;
+				return any(builtin_join_array(L, dst.as_arr(), src.as_arr()));
 			} else if (src.is_tbl()) {
-				return any(builtin_join_table(L, dst.as_tbl(), src.as_tbl())).value;
+				return any(builtin_join_table(L, dst.as_tbl(), src.as_tbl()));
 			} else if (src.is_str()) {
-				return any(builtin_join_string(L, dst.as_str(), src.as_str())).value;
-			} 
+				return any(builtin_join_string(L, dst.as_str(), src.as_str()));
+			}
 		}
-		return builtin_join_else(L, dst.value, src.value);
+		return builtin_join_else(L, dst, src);
 	}
 
-	static void LI_CC builtin_push_array(vm* L, array* dst, uint64_t val) {
-		dst->push(L, any(std::in_place, val));
-	}
-	static uint64_t LI_CC builtin_push_else(vm* L) {
-		return L->error("push expected array");
-	}
-	static uint64_t builtin_push_vm(vm* L, any* args, slot_t nargs) {
-		if (nargs < 1) {
-			return L->error("push expects 1 argument");
-		}
-		any val = args[0];
-		any dst = args[1];
-		if (dst.is_arr()) {
-			builtin_push_array(L, dst.as_arr(), val.value);
-			return nil.value;
-		}
-		return builtin_push_else(L);
-	}
-	
-	static uint64_t LI_CC builtin_pop_array(vm* L, array* dst) {
-		return dst->pop().value;
-	}
-	static uint64_t LI_CC builtin_pop_else(vm* L) {
-		return L->error("pop expected array");
-	}
-	static uint64_t builtin_pop_vm(vm* L, any* args, slot_t nargs) {
-		any dst = args[1];
-		if (dst.is_arr()) {
-			return builtin_pop_array(L, dst.as_arr());
-		}
-		return builtin_pop_else(L);
+	static void LI_CC  builtin_push_array(vm* L, array* dst, any_t val) { dst->push(L, val); }
+	static any_t LI_CC builtin_push_else(vm* L) { return L->error("push expected array"); }
+	static any_t       builtin_push_vm(vm* L, any* args, slot_t nargs) {
+				if (nargs < 1) {
+					return L->error("push expects 1 argument");
+      }
+				any val = args[0];
+				any dst = args[1];
+				if (dst.is_arr()) {
+					builtin_push_array(L, dst.as_arr(), val);
+					return nil;
+      }
+				return builtin_push_else(L);
 	}
 
-	static bool LI_CC builtin_in_arr_unk(vm* L, array* i, uint64_t v) {
+	static any_t LI_CC builtin_pop_array(vm* L, array* dst) { return dst->pop(); }
+	static any_t LI_CC builtin_pop_else(vm* L) { return L->error("pop expected array"); }
+	static any_t       builtin_pop_vm(vm* L, any* args, slot_t nargs) {
+				any dst = args[1];
+				if (dst.is_arr()) {
+					return builtin_pop_array(L, dst.as_arr());
+      }
+				return builtin_pop_else(L);
+	}
+
+	static bool LI_CC builtin_in_arr_unk(vm* L, array* i, any_t v) {
 		for (auto& k : *i)
-			if (k.value == v)
+			if (k == v)
 				return true;
 		return false;
 	}
-	static bool LI_CC builtin_in_tbl_unk(vm* L, table* i, uint64_t v) {
-		return v != nil.value && i->get(L, any(std::in_place, v)) != nil;
-	}
-	static bool LI_CC builtin_in_str_num(vm*, string* i, uint32_t v) {
-		return v <= 0xFF && i->view().find((char) (v & 0xFF)) != std::string::npos;
-	}
-	static bool LI_CC builtin_in_str_str(vm*, string* i, string* v) {
-		return i == v || i->view().find(v->view()) != std::string::npos;
-	}
-	static uint64_t LI_CC builtin_in_else(vm* L, uint64_t i) {
-		auto iv = any(std::in_place, i);
+	static bool LI_CC  builtin_in_tbl_unk(vm* L, table* i, any_t v) { return v != nil && i->get(L, v) != nil; }
+	static bool LI_CC  builtin_in_str_num(vm*, string* i, uint32_t v) { return v <= 0xFF && i->view().find((char) (v & 0xFF)) != std::string::npos; }
+	static bool LI_CC  builtin_in_str_str(vm*, string* i, string* v) { return i == v || i->view().find(v->view()) != std::string::npos; }
+	static any_t LI_CC builtin_in_else(vm* L, any_t iv) {
 		if (iv.is_str()) {
 			return L->error("expected string or character");
 		} else {
@@ -163,7 +147,7 @@ namespace li::lib {
 		}
 	}
 
-	static uint64_t builtin_in_vm(vm* L, any* args, slot_t nargs) {
+	static any_t builtin_in_vm(vm* L, any* args, slot_t nargs) {
 		if (nargs < 1) {
 			return L->error("in expects 1 argument");
 		}
@@ -172,15 +156,15 @@ namespace li::lib {
 		any i = args[1];
 		if (i.is_str()) {
 			if (v.is_str())
-				return any(builtin_in_str_str(L, i.as_str(), v.as_str())).value;
+				return any(builtin_in_str_str(L, i.as_str(), v.as_str()));
 			else if (v.is_num())
-				return any(builtin_in_str_num(L, i.as_str(), (uint32_t) v.as_num())).value;
+				return any(builtin_in_str_num(L, i.as_str(), (uint32_t) v.as_num()));
 		} else if (i.is_tbl()) {
-			return any(builtin_in_tbl_unk(L, i.as_tbl(), v.value)).value;
+			return any(builtin_in_tbl_unk(L, i.as_tbl(), v));
 		} else if (i.is_arr()) {
-			return any(builtin_in_arr_unk(L, i.as_arr(), v.value)).value;
+			return any(builtin_in_arr_unk(L, i.as_arr(), v));
 		}
-		return builtin_in_else(L, i.value);
+		return builtin_in_else(L, i);
 	}
 
 	nfunc_info detail::builtin_in_info = {
@@ -329,7 +313,6 @@ namespace li::lib {
 		 .overloads = {nfunc_overload{li::bit_cast<const void*>(&builtin_new_table), {ir::type::i32}, ir::type::tbl}},
 	};
 
-
 	// Registers the builtins, this is called by the VM creation as it is required.
 	//
 	void detail::register_builtin(vm* L) {
@@ -355,7 +338,7 @@ namespace li::lib {
 			printf("\n");
 			return L->ok();
 		});
-		util::export_as(L, "builtin.loadstring", [](vm* L, any* args, slot_t n) {
+		util::export_as(L, "builtin.loadstring", [](vm* L, any* args, slot_t n) -> any_t {
 			vm_stack_guard _g{L, args};
 			if (n != 1 || !args->is_str()) {
 				return L->error("expected string");
@@ -363,20 +346,20 @@ namespace li::lib {
 
 			auto res = load_script(L, args->as_str()->view());
 			if (res.is_exc()) {
-				return res.value;
+				return res;
 			}
 			return L->ok(res);
 		});
-		util::export_as(L, "builtin.eval", [](vm* L, any* args, slot_t n) {
+		util::export_as(L, "builtin.eval", [](vm* L, any* args, slot_t n) -> any_t {
 			vm_stack_guard _g{L, args};
 			if (n != 1 || !args->is_str()) {
 				return L->error("expected string");
 			}
 			auto res = load_script(L, args->as_str()->view());
 			if (res.is_exc()) {
-				return res.value;
+				return res;
 			}
-			return L->call(0, res).value;
+			return L->call(0, res);
 		});
 		util::export_as(L, "builtin.@table", [](vm* L, any* args, slot_t n) {
 			uint16_t r = 0;

@@ -22,7 +22,7 @@ namespace li::lib::fs {
 			file = read_string(file_name.c_str());
 		}
 		if (!file) {
-			L->error(string::format(L, "failed reading file '%s'", file_name.c_str()));
+			L->error("failed reading file '%s'", file_name.c_str());
 			return exception_marker;
 		}
 

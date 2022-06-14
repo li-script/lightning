@@ -74,7 +74,7 @@ namespace li::ir {
 				// Data transfer.
 				//
 				case bc::KIMM: {
-					set_reg(a, any(std::in_place, insn.xmm()));
+					set_reg(a, any_t{insn.xmm()});
 					continue;
 				}
 				case bc::MOV: {
@@ -127,12 +127,12 @@ namespace li::ir {
 				}
 				case bc::ADUP: {
 					bld.emit<gc_tick>();
-					set_reg(a, bld.emit<ccall>(&lib::detail::builtin_dup_info, 0, any(std::in_place, insn.xmm())));
+					set_reg(a, bld.emit<ccall>(&lib::detail::builtin_dup_info, 0, any_t{insn.xmm()}));
 					continue;
 				}
 				case bc::TDUP: {
 					bld.emit<gc_tick>();
-					set_reg(a, bld.emit<ccall>(&lib::detail::builtin_dup_info, 1, any(std::in_place, insn.xmm())));
+					set_reg(a, bld.emit<ccall>(&lib::detail::builtin_dup_info, 1, any_t{insn.xmm()}));
 					continue;
 				}
 				case bc::CCAT: {
@@ -219,7 +219,7 @@ namespace li::ir {
 				// Virtual calls:
 				//
 				case bc::PUSHI: {
-					call_args.emplace_back(launder_value(bld.blk->proc, any(std::in_place, insn.xmm())));
+					call_args.emplace_back(launder_value(bld.blk->proc, any_t(insn.xmm())));
 					continue;
 				}
 				case bc::PUSHR: {

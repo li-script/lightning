@@ -202,7 +202,7 @@ namespace li::bc {
 			print_op(d.a, a);
 
 			if (d.b == op_t::xmm) {
-				std::string op = any{std::in_place, xmm()}.to_string();
+				std::string op = any_t{xmm()}.to_string();
 				if (op.size() > 25) {
 					op[22] = '.';
 					op[23] = '.';

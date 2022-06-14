@@ -72,7 +72,7 @@ namespace li::ir::opt {
 
 				// Delete blocks with only jmp.
 				//
-				if (bb->front() == bb->back() && term->is<jmp>()) {
+				if (bb->front() == bb->back() && term->is<jmp>() && !bb->predecessors.empty() /*todo: bandaid*/) {
 					auto* target = bb->successors.front();
 
 					// Duplicate PHI operands N-1 times.

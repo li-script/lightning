@@ -135,7 +135,6 @@ list(APPEND libli_SOURCES
 	"include/vm/state.hpp"
 	"include/vm/string.hpp"
 	"include/vm/table.hpp"
-	"include/vm/traits.hpp"
 	"include/vm/types.hpp"
 )
 

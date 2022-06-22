@@ -21,7 +21,7 @@ namespace li {
 
 	// Native callback, at most one result should be pushed on stack, if returns false, signals exception.
 	//
-	using nfunc_t = any_t(*LI_CC)(vm* L, any* args, slot_t n);
+	using nfunc_t = any_t(LI_CC*)(vm* L, any* args, slot_t n);
 
 	// nfunc_t for virtual functions.
 	//  Caller must push all arguments in reverse order, the self argument or nil, the function itself and the caller information.

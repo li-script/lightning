@@ -28,9 +28,9 @@ namespace li {
 		// Initialize globals and string interning state.
 		//
 		L->modules = table::create(L, 32);
-		L->modules->set_trait(L, trait::freeze, true);
-		L->modules->set_trait(L, trait::seal, true);
+		L->modules->is_frozen = true;
 		strset_init(L);
+		typeset_init(L);
 		lib::detail::register_builtin(L);
 		lib::detail::register_math(L);
 		return L;

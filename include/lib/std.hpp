@@ -43,12 +43,13 @@ namespace li::lib {
 		extern util::native_function builtin_len;   // Overloads: [Arr, tbl, str, ?]
 		extern util::native_function builtin_join;  // Overloads: [Arr, tbl, str, ?]
 		extern util::native_function builtin_in;  // Overloads: [Arr, tbl, str-num, str-str ?]
-		extern util::native_function builtin_dup;   // Overloads: [Arr, tbl, fn, ?]
+		extern util::native_function builtin_dup;   // Overloads: [Arr, tbl, fn, obj, ?]
 		extern util::native_function builtin_str;
 		extern util::native_function builtin_num;
 		extern util::native_function builtin_int;
 		extern util::native_function builtin_push;
 		extern util::native_function builtin_pop;
+		extern util::native_function builtin_null_function;
 
 		void register_builtin(vm* L);
 		void register_math(vm* L);

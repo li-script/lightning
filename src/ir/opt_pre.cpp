@@ -96,7 +96,7 @@ namespace li::ir::opt {
 				if (!phi->is<ir::phi>())
 					break;
 				for (size_t i = 0; i != phi->operands.size(); i++) {
-					if (phi->vt == type::unk && phi->operands[i]->vt != type::unk)
+					if (phi->vt == type::any && phi->operands[i]->vt != type::any)
 						phi->operands[i] = builder{}.emit_before<erase_type>(bb->predecessors[i]->back(), phi->operands[i]);
 					else
 						phi->operands[i] = builder{}.emit_before<move>(bb->predecessors[i]->back(), phi->operands[i]);

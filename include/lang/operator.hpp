@@ -1,5 +1,5 @@
 #pragma once
-#include <lang/types.hpp>
+#include <vm/types.hpp>
 #include <vm/bc.hpp>
 #include <lang/lexer.hpp>
 #include <tuple>

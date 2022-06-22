@@ -16,29 +16,17 @@ namespace li {
 
 	// GC details.
 	//
-	void gc::destroy(vm* L, table* o) {
-		o->gc_destroy(L);
-	}
 	void gc::traverse(gc::stage_context s, table* o) {
 		o->node_list->gc_tick(s);
-		o->trait_traverse(s);
 		traverse_n(s, (any*) o->begin(), 2 * o->realsize());
 	}
 
 	// Joins another table into this.
 	//
 	void table::join(vm* L, table* other) {
-		if (!trait_seal) {
-			trait_seal = other->trait_seal;
-			trait_hide = other->trait_hide;
-			trait_mask = other->trait_mask;
-			traits     = other->traits;
-		}
-		if (!trait_freeze) {
-			for (auto& [k, v] : *other) {
-				if (k != nil)
-					set(L, k, v);
-			}
+		for (auto& [k, v] : *other) {
+			if (k != nil)
+				set(L, k, v);
 		}
 	}
 
@@ -69,7 +57,7 @@ namespace li {
 
 	// Raw table get/set.
 	//
-	void table::set(vm* L, any key, any value) {
+	void table::set(vm* L, any_t key, any_t value) {
 		size_t hash = key.hash();
 		if (value != nil) [[likely]] {
 			msize_t      next_count   = active_count + 1;
@@ -109,44 +97,12 @@ namespace li {
 			}
 		}
 	}
-	any table::get(vm* L, any key) {
+	any_t table::get(vm* L, any_t key) {
 		any value = {};
 		for (auto& entry : find(key.hash())) {
 			if (entry.key == key)
 				value = entry.value;
 		}
 		return value;
-	}
-
-	// Traitful table get/set.
-	//
-	any table::tset(vm* L, any key, any value) {
-		if (trait_freeze) [[unlikely]] {
-			L->error("modifying frozen table.");
-			return exception_marker;
-		}
-
-		if (!has_trait<trait::set>()) [[likely]] {
-			set(L, key, value);
-			return nil;
-		}
-
-		L->push_stack(value);
-		L->push_stack(key);
-		return L->call(2, get_trait<trait::set>(), this);
-	}
-	any table::tget(vm* L, any key) {
-		auto result = get(L, key);
-		if (result != nil || !has_trait<trait::get>()) [[likely]] {
-			return result;
-		}
-
-		auto get = get_trait<trait::get>();
-		if (get.is_tbl()) {
-			return get.as_tbl()->get(L, key);
-		} else {
-			L->push_stack(key);
-			return L->call(1, get, this);
-		}
 	}
 };

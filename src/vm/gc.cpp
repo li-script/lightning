@@ -38,12 +38,13 @@ namespace li::gc {
 		// Update stage, recurse.
 		//
 		stage = s;
-		switch (type_id) {
+		switch (identify_value_type(this)) {
 			case type_table:    traverse(s, (table*) this);          break;
 			case type_array:    traverse(s, (array*) this);          break;
-			case type_userdata: traverse(s, (userdata*) this);       break;
+			case type_object:   traverse(s, (object*) this);         break;
+			case type_class:    traverse(s, (vclass*) this);         break;
 			case type_function: traverse(s, (function*) this);       break;
-			case type_proto:    traverse(s, (function_proto*) this); break;
+			case type_gc_proto: traverse(s, (function_proto*) this); break;
 			default: break;
 		}
 
@@ -63,7 +64,7 @@ namespace li::gc {
 			if (fl) [[likely]] {
 				auto* it          = std::exchange(fl, fl->get_next_free());
 				auto* page        = it->get_page();
-				it->type_id       = type_gc_uninit;
+				it->type_id       = type_invalid;
 				page->num_objects++;
 				return {page, it};
 			}
@@ -94,8 +95,8 @@ namespace li::gc {
 
 			// Get the page and change the type.
 			//
-			auto* page        = it->get_page();
-			it->type_id       = type_gc_uninit;
+			auto* page  = it->get_page();
+			it->type_id = type_invalid;
 			page->num_objects++;
 
 			// If we didn't allocate all of the space, re-insert into the free-list.
@@ -153,8 +154,8 @@ namespace li::gc {
 
 				// Get the page and change the type.
 				//
-				auto* page        = it->get_page();
-				it->type_id       = type_gc_uninit;
+				auto* page  = it->get_page();
+				it->type_id = type_invalid;
 				page->num_objects++;
 
 				// If we didn't allocate all of the space, re-insert into the free-list.
@@ -202,9 +203,9 @@ namespace li::gc {
 
 		// Run destructor if relevant.
 		//
-		switch (o->type_id) {
-			case type_table:    destroy(L, (table*) o);    break;
-			case type_userdata: destroy(L, (userdata*) o); break;
+		switch (identify_value_type(o)) {
+			case type_object:   destroy(L, (object*) o); break;
+			case type_class:    destroy(L, (vclass*) o); break;
 #if LI_JIT
 			case type_gc_jfunc: destroy(L, (jfunction*) o); break;
 #endif
@@ -247,10 +248,11 @@ namespace li::gc {
 			L->repl_scope->gc_tick(s);
 		}
 
-		// Strings.
+		// Constants.
 		//
 		((header*) L->empty_string)->gc_tick(s);
 		((header*) L->strset)->gc_tick(s);
+		((header*) L->typeset)->gc_tick(s);
 	}
 
 	void state::close(vm* L) {
@@ -338,6 +340,7 @@ namespace li::gc {
 		// Sweep dead references.
 		//
 		strset_sweep(L, ms);
+		typeset_sweep(L, ms);
 
 		// If we can free any pages, do so.
 		//

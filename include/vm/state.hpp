@@ -21,23 +21,27 @@ namespace li {
 
 	// Native callback, at most one result should be pushed on stack, if returns false, signals exception.
 	//
-	using nfunc_t = any_t(*)(vm* L, any* args, slot_t n);
+	using nfunc_t = any_t(*LI_CC)(vm* L, any* args, slot_t n);
 
 	// nfunc_t for virtual functions.
 	//  Caller must push all arguments in reverse order, the self argument or nil, the function itself and the caller information.
 	//
-	any_t vm_invoke(vm* L, any* args, slot_t n_args);
+	any_t LI_CC vm_invoke(vm* L, any* args, slot_t n_args);
 
 	// Panic function, should not return.
 	//
 	using fn_panic = void (*)(vm* L, const char* msg);
 	inline static void default_panic [[noreturn]] (vm* L, const char* msg) { util::abort("li panic: %s", msg); }
 
-	// Forward for string set.
+	// Forward for string and type sets.
 	//
 	struct string_set;
+	struct type_set;
 	void strset_init(vm* L);
+	void typeset_init(vm* L);
 	void strset_sweep(vm* L, gc::stage_context s);
+	void typeset_sweep(vm* L, gc::stage_context s);
+	vclass* typeset_fetch(vm* L, type id);
 
 	// Call frame as a linked list of caller records.
 	//
@@ -77,6 +81,7 @@ namespace li {
 		// VM state.
 		//
 		gc::state      gc           = {};                // Garbage collector.
+		type_set*      typeset      = nullptr;           // Usertype database.
 		string_set*    strset       = nullptr;           // String interning state
 		string*        empty_string = nullptr;           // Constant "".
 		table*         modules      = nullptr;           // Module table.

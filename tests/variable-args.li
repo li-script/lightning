@@ -1,0 +1,16 @@
+fn test(a,b,c, ...) {
+   assert($VA::len() == 1)
+   assert($VA[0] == 4)
+   assert($VA[1] == nil)
+}
+test(1,2,3,4)
+
+fn opt(x, y?) {
+   `{x}-{y}`
+}
+assert(opt(1) == "1-nil")
+
+try {
+   opt()
+   assert(false)
+};

@@ -1,0 +1,10 @@
+fn exnum(x: number) {
+   return x::str()
+}
+
+let k : string = exnum(5)
+
+try {
+   exnum("")
+   assert(false)
+};

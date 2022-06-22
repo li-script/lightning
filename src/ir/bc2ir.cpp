@@ -12,8 +12,8 @@ namespace li::ir {
 		//
 		function_proto*         f = bld.blk->proc->f;
 		std::vector<ref<value>> local_locals;
-		local_locals.resize(f->num_locals + f->num_arguments + FRAME_SIZE);
-		bc::reg local_shift = f->num_arguments + FRAME_SIZE;
+		local_locals.resize(f->num_locals + MAX_ARGS + FRAME_SIZE);
+		bc::reg local_shift = MAX_ARGS + FRAME_SIZE;
 
 		auto get_kval = [&](bc::reg r) { return bld.blk->proc->f->kvals()[r]; };
 		auto set_reg  = [&]<typename T>(bc::reg r, T&& v) { local_locals[r + local_shift] = launder_value(bld.blk->proc, std::forward<T>(v)); };
@@ -125,20 +125,10 @@ namespace li::ir {
 					set_reg(a, bld.emit<table_new>(b));
 					continue;
 				}
-				case bc::ADUP: {
-					bld.emit<gc_tick>();
-					set_reg(a, bld.emit<ccall>(&lib::detail::builtin_dup.nfi, 0, any_t{insn.xmm()}));
-					continue;
-				}
-				case bc::TDUP: {
-					bld.emit<gc_tick>();
-					set_reg(a, bld.emit<ccall>(&lib::detail::builtin_dup.nfi, 1, any_t{insn.xmm()}));
-					continue;
-				}
 				case bc::CCAT: {
 					auto to_str = [&](ref<value> i) {
 						if (i->vt != type::str) {
-							if (i->vt != type::unk) {
+							if (i->vt != type::any) {
 								i = bld.emit<erase_type>(std::move(i));
 							}
 							i = bld.emit<ccall>(&lib::detail::builtin_str.nfi, 0, std::move(i));
@@ -159,17 +149,6 @@ namespace li::ir {
 				//
 				case bc::TOBOOL: {
 					set_reg(a, bld.emit<coerce_bool>(get_reg(b)));
-					continue;
-				}
-
-				// Traits:
-				//
-				case bc::TRGET: {
-					set_reg(a, bld.emit<trait_get>(get_reg(b), trait(c)));
-					continue;
-				}
-				case bc::TRSET: {
-					bld.emit<trait_set>(get_reg(a), trait(c), get_reg(b));
 					continue;
 				}
 
@@ -281,7 +260,11 @@ namespace li::ir {
 				//
 				//}
 				// _(ITER, rel, reg, reg, nil) B[1,2] = C[B++].kv, JMP A if end
-
+				case bc::VACHK: {
+					// TODO:
+					set_reg(a, any(true));
+					continue;
+				}
 				default:
 					util::abort("Opcode %s NYI\n", bc::opcode_details(op).name);
 					return;

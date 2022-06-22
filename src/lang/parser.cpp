@@ -2,8 +2,10 @@
 #include <vm/function.hpp>
 #include <vm/string.hpp>
 #include <vm/table.hpp>
+#include <vm/object.hpp>
 #include <util/utf.hpp>
 #include <lib/std.hpp>
+#include <variant>
 
 namespace li {
 	// Operator traits for parsing.
@@ -26,6 +28,26 @@ namespace li {
 			}
 		}
 		return nullptr;
+	}
+
+	// Quick throw helper.
+	//
+	void func_scope::throw_if(const expression& cc, string* msg, bool inv) {
+		if (cc.kind == expr::imm && !cc.imm.as_bool()) {
+			return;
+		}
+
+		auto tmp = alloc_reg();
+		cc.to_reg(*this, tmp);
+
+		auto j = emit(inv ? bc::JS : bc::JNS, 0, tmp);
+		set_reg(tmp, msg); // line info?
+		emit(bc::SETEX, tmp);
+		set_reg(tmp, exception_marker);
+		emit(bc::RET, tmp);
+		jump_here(j);
+
+		reg_next = tmp;
 	}
 
 	// Writes a function state as a function.
@@ -64,7 +86,7 @@ namespace li {
 		//
 		if (fn.pc.empty() || fn.pc.back().o != bc::RET) {
 			if (!implicit_ret) {
-				fn.pc.push_back({bc::KIMM, 0, -1, -1});
+				fn.pc.emplace_back(bc::insn{bc::KIMM, 0}).xmm() = nil.value;
 				implicit_ret = 0;
 			}
 			fn.pc.push_back({bc::RET, *implicit_ret});
@@ -77,7 +99,6 @@ namespace li {
 		function_proto* f = function_proto::create(fn.L, fn.pc, fn.kvalues, fn.line_table);
 		f->num_locals    = fn.max_reg_id + 1;
 		f->num_uval       = (msize_t) fn.uvalues.size();
-		f->num_arguments = (msize_t) fn.args.size();
 		if (fn.decl_name) {
 			f->src_chunk = string::format(fn.L, "'%.*s':%s", (uint32_t) fn.lex.source_name.size(), fn.lex.source_name.data(), fn.decl_name->c_str());
 		} else if (line != 0) {
@@ -146,9 +167,18 @@ namespace li {
 		return expression(r);
 	}
 
+	// Parses a primary expression.
+	// - If index is set, disables most valid tokens, used to resolve target for operator ::.
+	//
+	static expression expr_primary(func_scope& scope, bool index = false);
+
+	// Handles nested binary and unary operators with priorities, finally calls the expr_simple.
+	//
+	static const operator_traits* expr_op(func_scope& scope, expression& out, uint8_t prio);
+
 	// Reads a type name.
 	//
-	static value_type parse_type_name(func_scope& scope) {
+	static std::variant<value_type, expression> parse_type_name(func_scope& scope) {
 		if (scope.lex().opt(lex::token_number)) {
 			return type_number;
 		} else if (scope.lex().opt(lex::token_bool)) {
@@ -157,8 +187,10 @@ namespace li {
 			return type_array;
 		} else if (scope.lex().opt(lex::token_string)) {
 			return type_string;
-		} else if (scope.lex().opt(lex::token_userdata)) {
-			return type_userdata;
+		} else if (scope.lex().opt(lex::token_object)) {
+			return type_object;
+		} else if (scope.lex().opt(lex::token_class)) {
+			return type_class;
 		} else if (scope.lex().opt(lex::token_function)) {
 			return type_function;
 		} else if (scope.lex().opt(lex::token_table)) {
@@ -166,14 +198,12 @@ namespace li {
 		} else if (scope.lex().opt(lex::token_nil)) {
 			return type_nil;
 		} else {
-			scope.lex().error("expected type name.");
-			return type_invalid;
+			return expr_primary(scope, true);
 		}
 	}
 
 	// Handles nested binary and unary operators with priorities, finally calls the expr_simple.
 	//
-	static expression             expr_primary(func_scope& scope, bool index = false);
 	static const operator_traits* expr_op(func_scope& scope, expression& out, uint8_t prio) {
 		auto& lhs = out;
 		
@@ -206,15 +236,38 @@ namespace li {
 		// - IS:
 		if (scope.lex().opt(lex::token_is) && 10 < prio) {
 			auto t = parse_type_name(scope);
-			if (t == type_invalid) {
-				return nullptr;
-			} else if (lhs.kind == expr::imm) {
-				out = expression(any(lhs.imm.type() == t));
-				return nullptr;
+			if (std::holds_alternative<value_type>(t)) {
+				if (lhs.kind == expr::imm) {
+					out = expression(any(lhs.imm.type() == std::get<value_type>(t)));
+					return nullptr;
+				} else {
+					auto r = lhs.to_nextreg(scope);
+					scope.emit(bc::CTY, r, r, std::get<value_type>(t));
+					out = expression(r);
+					return nullptr;
+				}
 			} else {
-				auto r = lhs.to_nextreg(scope);
-				scope.emit(bc::CTY, r, r, t);
-				out = expression(r);
+				auto& ex = std::get<expression>(t);
+				if (ex.kind == expr::err) {
+					return nullptr;
+				}
+				else if (ex.kind == expr::imm && !ex.imm.is_vcl()) {
+					scope.lex().error("expected type name.");
+					return nullptr;
+				}
+
+				auto regs = scope.alloc_reg(2);
+				ex.to_reg(scope, regs + 1);
+
+				if (ex.kind != expr::imm) {
+					scope.emit(bc::CTY, regs, regs + 1, type_class);
+					scope.throw_if_not(regs, "expected type name");
+				}
+				lhs.to_reg(scope, regs);
+
+				scope.emit(bc::CTYX, regs, regs, regs + 1);
+				out = expression(regs);
+				scope.reg_next = regs + 1;
 				return nullptr;
 			}
 		}
@@ -226,9 +279,7 @@ namespace li {
 				return nullptr;
 			}
 
-			auto* L   = scope.fn.L;
 			auto  vin = any(&lib::detail::builtin_in);
-
 			auto result = scope.alloc_reg(); 
 			lhs.push(scope);
 			rhs.push(scope);
@@ -281,6 +332,10 @@ namespace li {
 	// Parses function declaration, returns the function value.
 	//
 	static expression parse_function(func_scope& scope, string* name = nullptr);
+
+	// Parses a class declaration, returns the class value.
+	//
+	static expression parse_class(func_scope& scope, string* name = nullptr);
 
 	// Parses a format string and returns the result.
 	//
@@ -336,6 +391,72 @@ namespace li {
 			} else {
 				return expression(nil);
 			}
+		} else if (name->view() == "$VA") {
+			if (!scope.fn.is_vararg) {
+				scope.lex().error("$VA cannot be used in non-vararg function");
+				return {};
+			}
+
+			// TODO Slice?
+			//
+
+			// Handle functions with $VA as argument.
+			//
+			if (scope.lex().opt(lex::token_ucall)) {
+				// ::len()
+				auto n = scope.lex().check(lex::token_name);
+				if (n == lex::token_error)
+					return {};
+				if (n.str_val->view() != "len") {
+					scope.lex().error("$VA can only be called with len()");
+					return {};
+				}
+				if (scope.lex().check('(') == lex::token_error || scope.lex().check(')') == lex::token_error) {
+					return {};
+				}
+
+				auto tmp = scope.alloc_reg(2);
+				scope.emit(bc::VACNT, tmp);
+				scope.set_reg(tmp + 1, number(scope.fn.args.size()));
+				scope.emit(bc::ASUB, tmp, tmp, tmp + 1);
+				scope.reg_next = tmp + 1;
+				return expression(tmp);
+			}
+			// Expect index immediately.
+			//
+			else {
+				if (scope.lex().check('[') == lex::token_error) {
+					return {};
+				}
+
+				// Parse index, make sure it is an integer.
+				//
+				auto       tmp = scope.alloc_reg(2);
+				expression idx = expr_parse(scope);
+				idx.to_reg(scope, tmp + 1);
+
+				if (idx.kind != expr::imm || !idx.imm.is_num()) {
+					scope.emit(bc::CTY, tmp, tmp + 1, type_number);
+					scope.throw_if_not(tmp, "expected numeric index");
+				}
+
+				// Increment index by fixed argument count.
+				//
+				scope.set_reg(tmp, number(scope.fn.args.size()));
+				scope.emit(bc::AADD, tmp + 1, tmp, tmp + 1);
+
+				// Skip the ']'.
+				//
+				if (scope.lex().check(']') == lex::token_error) {
+					return {};
+				}
+
+				// Read the argument and return.
+				//
+				scope.emit(bc::VAGET, tmp, tmp + 1);
+				scope.reg_next = tmp + 1;
+				return expression(tmp);
+			}
 		}
 
 		// Try using existing local variable.
@@ -354,7 +475,7 @@ namespace li {
 		// Try finding an argument.
 		//
 		for (bc::reg n = 0; n != scope.fn.args.size(); n++) {
-			if (scope.fn.args[n] == name) {
+			if (scope.fn.args[n].name == name) {
 				return expression(int32_t(-FRAME_SIZE - (n + 1)));
 			}
 		}
@@ -375,9 +496,9 @@ namespace li {
 
 		// Try finding a builtin.
 		//
-		auto bt = scope.fn.L->modules->get(scope.fn.L, string::create(scope.fn.L, "builtin"));
+		any bt = scope.fn.L->modules->get(scope.fn.L, (any) string::create(scope.fn.L, "builtin"));
 		if (bt.is_tbl()) {
-			bt = bt.as_tbl()->get(scope.fn.L, name);
+			bt = bt.as_tbl()->get(scope.fn.L, (any) name);
 			if (bt != nil) {
 				return bt;
 			}
@@ -399,13 +520,47 @@ namespace li {
 		return name;  // global
 	}
 
+	// Validates the type of an expression.
+	//
+	static bool type_check_var(func_scope& scope, string* name, const std::variant<value_type, expression>& ty) {
+		// Load the argument into a register.
+		//
+		auto ex = expr_var(scope, name);
+		if (ex.kind == expr::err)
+			return false;
+		auto r  = ex.to_anyreg(scope);
+		auto cc = scope.alloc_reg();
+
+		// Validate the type or throw.
+		//
+		std::string_view ty_str;
+		if (std::holds_alternative<value_type>(ty)) {
+			auto vt = std::get<value_type>(ty);
+			scope.emit(bc::CTY, cc, r, vt);
+			ty_str = type_names[vt];
+		} else {
+			auto& ex = std::get<expression>(ty);
+			if (ex.kind == expr::err)
+				return false;
+			if (ex.kind != expr::imm || !ex.imm.is_vcl()) {
+				scope.lex().error("expected constant type name.");
+				return false;
+			}
+			ex.to_reg(scope, cc);
+			scope.emit(bc::CTYX, cc, r, cc);
+			ty_str = get_type_name(scope.fn.L, type(ex.imm.as_vcl()->vm_tid));
+		}
+		scope.throw_if_not(cc, "expected variable '%s' to be of type '%.*s'", name->c_str(), ty_str.size(), ty_str.data());
+		return true;
+	}
+
 	// Creates an index expression.
 	//
 	static expression expr_index(func_scope& scope, const expression& obj, const expression& key, bool handle_null = false) {
 		if (obj.kind == expr::imm && key.kind == expr::imm) {
 			if (obj.imm.is_tbl()) {
-				if (obj.imm.as_tbl()->trait_freeze) {
-					return obj.imm.as_tbl()->get(scope.fn.L, key.imm);
+				if (obj.imm.as_tbl()->is_frozen) {
+					return (any)obj.imm.as_tbl()->get(scope.fn.L, key.imm);
 				}
 			}
 		}
@@ -433,7 +588,7 @@ namespace li {
 	// Parses an array literal.
 	//
 	static expression expr_array(func_scope& scope) {
-		// TODO: ADUP const part, dont care rn.
+		// TODO: Duplicate template.
 
 		// Create a new array.
 		//
@@ -471,7 +626,7 @@ namespace li {
 	// Parses a table literal.
 	//
 	static expression expr_table(func_scope& scope) {
-		// TODO: TDUP const part, dont care rn.
+		// TODO: Duplicate template.
 
 		// Create a new table.
 		//
@@ -636,6 +791,10 @@ namespace li {
 		while (true) {
 			switch (scope.lex().tok.id) {
 				// Call.
+				case '{': {
+					if (!is_table_init(scope))
+						return base;
+				}
 				case lex::token_lstr:
 				case '(': {
 					if (index) {
@@ -715,8 +874,9 @@ namespace li {
 		// Get token traits and skip it.
 		//
 		auto keyword  = scope.lex().tok;
-		bool is_const = keyword == lex::token_fn || keyword == lex::token_const;
 		bool is_func  = keyword == lex::token_fn;
+		bool is_class = keyword == lex::token_class;
+		bool is_const = is_func || is_class || keyword == lex::token_const;
 		scope.lex().next();
 
 		// Validate exports.
@@ -733,30 +893,31 @@ namespace li {
 		}
 		is_export |= scope.fn.is_repl;
 
-		// If function declaration:
+		// If function or class declaration:
 		//
-		if (is_func) {
+		if (is_func || is_class) {
 			auto name = scope.lex().check(lex::token_name);
 			if (name == lex::token_error) {
 				return false;
 			}
-			if (scope.lex().tok != '(') {
+
+			if (is_func && scope.lex().tok != '(') {
 				scope.lex().check('(');
 				return false;
 			}
 
-			auto fn = parse_function(scope, name.str_val);
-			if (fn.kind == expr::err) {
+			auto res = (is_func ? &parse_function : &parse_class)(scope, name.str_val);
+			if (res.kind == expr::err) {
 				return {};
 			}
 
 			expression result;
-			if (is_const && fn.kind == expr::imm) {
-				scope.add_local_cxpr(name.str_val, fn.imm);
-				result = fn.imm;
+			if (is_const && res.kind == expr::imm) {
+				scope.add_local_cxpr(name.str_val, res.imm);
+				result = res.imm;
 			} else {
 				bc::reg reg = scope.add_local(name.str_val, is_const);
-				fn.to_reg(scope, reg);
+				res.to_reg(scope, reg);
 				result = reg;
 			}
 			if (is_export)
@@ -889,6 +1050,13 @@ namespace li {
 		if (var == lex::token_error)
 			return false;
 
+		// If there is a type annotation parse it:
+		//
+		std::optional<std::variant<value_type, expression>> ty_guard;
+		if (scope.lex().opt(':')) {
+			ty_guard = parse_type_name(scope);
+		}
+
 		// If immediately assigned:
 		//
 		if (scope.lex().opt('=')) {
@@ -911,6 +1079,12 @@ namespace li {
 				result = reg;
 			}
 
+			// Insert the type-check.
+			//
+			if (ty_guard && !type_check_var(scope, var.str_val, *ty_guard)) {
+				return false;
+			}
+
 			// If export set global as well.
 			//
 			if (is_export)
@@ -923,6 +1097,13 @@ namespace li {
 			//
 			if (is_const) {
 				scope.lex().error("const '%s' declared with no initial value.", var.str_val->c_str());
+				return false;
+			}
+
+			// Error if type checked.
+			//
+			if (ty_guard) {
+				scope.lex().error("'%s' with type annotation declared with no initial value.", var.str_val->c_str());
 				return false;
 			}
 
@@ -1006,6 +1187,7 @@ namespace li {
 
 			// Variable declaration => None.
 			//
+			case lex::token_class:
 			case lex::token_fn:
 			case lex::token_let:
 			case lex::token_export:
@@ -1037,7 +1219,7 @@ namespace li {
 					return {};
 				}
 
-				auto mod = scope.fn.L->modules->get(scope.fn.L, name->str_val);
+				auto mod = scope.fn.L->modules->get(scope.fn.L, (any) name->str_val);
 				if (mod == nil) {
 					if (scope.fn.L->import_fn) {
 						mod = scope.fn.L->import_fn(scope.fn.L, scope.lex().source_name, name->str_val->view());
@@ -1064,7 +1246,7 @@ namespace li {
 
 				scope.add_local_cxpr(alias.str_val, mod);
 				if (scope.fn.is_repl) {
-					expression{alias.str_val}.assign(scope, mod);
+					expression{alias.str_val}.assign(scope, (any) mod);
 				}
 				return expression(nil);
 			}
@@ -1310,12 +1492,12 @@ namespace li {
 
 		// Collect arguments.
 		//
-		bool trait = false;
-		if (auto lit = scope.lex().opt(lex::token_lstr)) {
+		if (auto lit = scope.lex().opt('{')) {
+			callsite[size++] = expr_table(scope);
+		} else if (auto lit = scope.lex().opt(lex::token_lstr)) {
 			callsite[size++] = expression(any(lit->str_val));
 		} else {
 			if (scope.lex().opt('!')) {
-				trait = true;
 				if ((self.kind == expr::imm && self.imm == nil) || func.kind != expr::env) {
 					scope.lex().error("traits should be used with :: operator.");
 					return {};
@@ -1343,41 +1525,6 @@ namespace li {
 					else if (scope.lex().check(',') == lex::token_error)
 						return {};
 				}
-			}
-		}
-
-		// Handle special functions.
-		//
-		if (func.kind == expr::env) {
-			// Handle traits.
-			//
-			if (trait) {
-				// Arg = (0=Getter, 1=Setter).
-				//
-				if (size > 1) {
-					scope.lex().error("trait observer should have one or no arguments.");
-					return {};
-				}
-
-				// Find trait by name.
-				//
-				for (msize_t i = 0; i != msize_t(trait::pseudo_max); i++) {
-					if (trait_names[i] == func.env->view()) {
-						// Emit the opcode and return.
-						//
-						if (size == 0) {
-							bc::reg r = self.to_nextreg(scope);
-							scope.emit(bc::TRGET, r, r, i);
-							return expression(r);
-						} else {
-							reg_sweeper _r{scope};
-							scope.emit(bc::TRSET, self.to_anyreg(scope), callsite[0].to_anyreg(scope), i);
-							return expression(nil);
-						}
-					}
-				}
-				scope.lex().error("unknown trait name '%s'.", func.env->c_str());
-				return {};
 			}
 		}
 
@@ -1523,15 +1670,17 @@ namespace li {
 	// Parses function declaration, returns the function value.
 	//
 	static expression parse_function(func_scope& scope, string* name) {
-		// Consume the '|', '||' or ')'.
+		// Consume the '|', '||' or '('.
 		//
 		msize_t line_num = scope.lex().line;
 		auto id = scope.lex().next().id;
 
 		// Create the new function.
 		//
+		msize_t    opt_count = 0;
 		func_state new_fn{scope.fn, scope};
 		new_fn.decl_name = name;
+		new_fn.pc.emplace_back(); // Placeholder for VACHK.
 		{
 			// Collect arguments.
 			//
@@ -1540,15 +1689,63 @@ namespace li {
 				auto endtk = id == '|' ? '|' : ')';
 				if (!ns.lex().opt(endtk)) {
 					while (true) {
+						// If vararg:
+						//
+						if (ns.lex().opt(lex::token_dots)) {
+							// Expect end of arguments, break out of the loop.
+							//
+							new_fn.is_vararg = true;
+							if (ns.lex().check(endtk) == lex::token_error)
+								return {};
+							break;
+						}
+
+						// Parse argument name.
+						//
 						auto arg_name = ns.lex().check(lex::token_name);
 						if (arg_name == lex::token_error)
 							return {};
-						new_fn.args.emplace_back(arg_name.str_val);
-						if (new_fn.args.size() > MAX_ARGS) {
-							scope.lex().error("too many arguments.");
-							return {};
+
+						// If optional arg:
+						//
+						if (ns.lex().opt('?')) {
+							msize_t id = msize_t(new_fn.args.size()) + opt_count++;
+
+							// Load vararg or nil and name it.
+							//
+							auto r = ns.add_local(arg_name.str_val, false);
+							expression(any(number(id))).to_reg(ns, r);
+							ns.emit(bc::VAGET, r, r);
+						}
+						// Otherwise:
+						//
+						else {
+							// Make sure we didn't start optionals yet.
+							//
+							if (opt_count != 0) {
+								scope.lex().error("cannot accept a required argument after an optional one.");
+								return {};
+							}
+
+							// Push it in the fixed arguments list.
+							//
+							new_fn.args.push_back({arg_name.str_val});
+							if (new_fn.args.size() > MAX_ARGS) {
+								scope.lex().error("too many arguments.");
+								return {};
+							}
+
+							// If there is a type annotation:
+							//
+							if (ns.lex().opt(':')) {
+								if (!type_check_var(ns, arg_name.str_val, parse_type_name(ns))) {
+									return {};
+								}
+							}
 						}
 
+						// If list ended break, else expect comma.
+						//
 						if (ns.lex().opt(endtk))
 							break;
 						else if (ns.lex().check(',') == lex::token_error)
@@ -1556,6 +1753,9 @@ namespace li {
 					}
 				}
 			}
+			new_fn.pc.front().o     = bc::VACHK;
+			new_fn.pc.front().a     = msize_t(new_fn.args.size());
+			new_fn.pc.front().xmm() = ns.add_const(string::format(ns.fn.L, "expected at least %llu arguments", new_fn.args.size())).second.value;
 
 			// Parse the result expression.
 			//
@@ -1588,6 +1788,306 @@ namespace li {
 		//
 		scope.free_reg(uv + 1, (msize_t) new_fn.uvalues.size() - 1);
 		return expression(uv);
+	}
+
+	// Parses a class declaration, returns the class value.
+	//
+	static expression parse_class(func_scope& scope, string* cl_name) {
+		// Create a place-holder name if none given.
+		//
+		if (!cl_name) {
+			cl_name = string::format(scope.fn.L, "<anon-class-line-%u>", scope.lex().line);
+		}
+
+		// Parse the base class.
+		//
+		vclass* base = nullptr;
+		if (scope.lex().opt(':')) {
+			auto name = expr_primary(scope, true);
+			if (name.kind == expr::err) {
+				return {};
+			}
+			if (name.kind != expr::imm || !name.imm.is_vcl()) {
+				scope.lex().error("expected constant class value");
+				return {};
+			}
+			base = name.imm.as_vcl();
+		}
+
+		// Start the block.
+		//
+		if (scope.lex().check('{') == lex::token_error)
+			return {};
+		auto ctor_line_beg = scope.lex().line;
+
+		// Start the field iteration.
+		//
+		msize_t                 obj_iterator    = 0;
+		msize_t                 static_iterator = 0;
+		std::vector<uint8_t>    obj_data        = {};
+		std::vector<uint8_t>    static_data     = {};
+		std::vector<field_pair> fields          = {};
+
+		// If there is a base class, inherit details.
+		//
+		if (base) {
+			obj_iterator    = base->object_length;
+			static_iterator = base->static_length;
+			obj_data        = {base->default_space(), base->default_space() + obj_iterator};
+			static_data     = {base->static_space(), base->static_space() + static_iterator};
+			fields          = {base->fields().begin(), base->fields().end()};
+		}
+
+		// Start a scope for the constructor function.
+		//
+		func_state              ctor_fn{scope.fn, scope};
+		ctor_fn.decl_name = string::format(scope.fn.L, "class %s implicit ctor", cl_name->c_str());
+		{
+			func_scope cscope{ctor_fn};
+
+			// Initialize trivial structure at first register, should be the first instruction,
+			// we do not know the type ID yet so this will be patched at the end of the type declaration.
+			//
+			bc::reg self = cscope.alloc_reg();
+			cscope.emit(bc::STRIV, self, 0);
+
+			// Allocate temporaries.
+			//
+			bc::reg tmpk = cscope.alloc_reg();
+			bc::reg tmpv = cscope.alloc_reg();
+
+			// Parse the fields.
+			//
+			while (true) {
+				// Parse the name.
+				//
+				auto name = cscope.lex().opt(lex::token_name);
+				if (!name)
+					break;
+
+				// Make sure nothing is being shadowed, insert the new field.
+				//
+				for (auto& f : fields) {
+					if (f.key == name->str_val) {
+						cscope.lex().error("definition shadows the previous value of field %s.", f.key->c_str());
+						return {};
+					}
+				}
+				auto& field = fields.emplace_back();
+				uint64_t field_initv  = 0;
+				field.key             = name->str_val;
+				field.value.is_dyn    = false;
+				field.value.is_static = false;
+
+				// Optionally parse the type annotation.
+				// - TODO: Optional values "number?"
+				//
+				field.value.ty = type::any;
+				if (cscope.lex().opt(':')) {
+					auto t = parse_type_name(cscope);
+					if (std::holds_alternative<value_type>(t)) {
+						field.value.ty = to_type(std::get<value_type>(t));
+					} else {
+						auto& ex = std::get<expression>(t);
+						if (ex.kind == expr::err) {
+							return {};
+						} else if (ex.kind != expr::imm || !ex.imm.is_vcl()) {
+							cscope.lex().error("expected constant type name.");
+							return {};
+						}
+						field.value.ty = type(ex.imm.as_vcl()->vm_tid);
+					}
+				}
+
+				// Optionally parse the default value.
+				//
+				if (cscope.lex().opt('=')) {
+					auto ex = expr_parse(cscope);
+					if (ex.kind == expr::err)
+						return {};
+
+					// If immediate:
+					//
+					if (ex.kind == expr::imm) {
+						// Check the type.
+						//
+						if (ex.imm.xtype() != field.value.ty && field.value.ty != type::any) {
+							auto expected = get_type_name(cscope.fn.L, field.value.ty);
+							cscope.lex().error(
+								 "cannot initialize field of type (%.*s) with value of type (%s).", expected.size(), expected.data(), ex.imm.type_name());
+							return {};
+						}
+
+						// Set as trivial initialization.
+						//
+						ex.imm.store_at(&field_initv, field.value.ty);
+					}
+					// Otherwise, emit SSET.
+					else {
+						cscope.set_reg(tmpk, field.key);
+						cscope.emit(bc::SSET, tmpk, ex.to_anyreg(scope), self);
+					}
+				} else {
+					// If default initialization of complex type:
+					//
+					if (field.value.ty == type::arr) {
+						cscope.set_reg(tmpk, field.key);
+						cscope.emit(bc::ANEW, tmpv, 0);
+						cscope.emit(bc::SSET, tmpk, tmpv, self);
+					} else if (field.value.ty == type::tbl) {
+						cscope.set_reg(tmpk, field.key);
+						cscope.emit(bc::TNEW, tmpv, 0);
+						cscope.emit(bc::SSET, tmpk, tmpv, self);
+					} else if (field.value.ty == type::obj || field.value.ty == type::vcl) {
+						auto expected = get_type_name(cscope.fn.L, field.value.ty);
+						cscope.lex().error(
+							 "cannot default initialize field of type %.*s.", expected.size(), expected.data());
+						return {};
+					}
+					// Otherwise, just assign the default value as trivial init.
+					//
+					else {
+						// Set as trivial initialization.
+						//
+						any::make_default(cscope.fn.L, field.value.ty).store_at(&field_initv, field.value.ty);
+					}
+				}
+
+				// Determine the field offset and copy the initializer.
+				//
+				msize_t size       = size_of_data(field.value.ty);
+				msize_t align      = align_of_data(field.value.ty);
+				msize_t next_offset = ((obj_iterator + align - 1) & ~align) + size;
+				field.value.offset  = next_offset - size;
+				obj_iterator        = next_offset;
+				obj_data.resize(obj_iterator, 0);
+				memcpy(obj_data.data() + obj_iterator - size, &field_initv, size);
+
+				// If there is no comma preceding, exit field parser.
+				//
+				if (!cscope.lex().opt(','))
+					break;
+			}
+
+			// Return if no args passed.
+			//
+			cscope.emit(bc::VACNT, tmpk);
+			cscope.set_reg(tmpv, number(0.0));
+			cscope.emit(bc::CEQ, tmpk, tmpk, tmpv);
+			auto jx = cscope.emit(bc::JS, 0, tmpk);
+
+			// Assert that it is a table.
+			//
+			bc::reg tmpt = cscope.alloc_reg();
+			cscope.emit(bc::VAGET, tmpt, tmpv);
+			cscope.emit(bc::CTY, tmpk, tmpt, type_table);
+			cscope.throw_if_not(tmpk, "implicit ctor must be passed nil or a valid table.");
+
+			// Save nil into a permanent register, allocate another temporary for comparisons.
+			//
+			bc::reg tmpq    = cscope.alloc_reg();
+			bc::reg tmp_nil = cscope.alloc_reg();
+			cscope.set_reg(tmp_nil, nil);
+
+			// Try assigning any relevant fields.
+			//
+			for (auto& f : fields) {
+				// tmpv = tbl[field]
+				cscope.set_reg(tmpk, f.key);
+				cscope.emit(bc::TGETR, tmpv, tmpk, tmpt);
+
+				// if tmpv == nil, skip.
+				cscope.emit(bc::CEQ, tmpq, tmp_nil, tmpv);
+				auto j = cscope.emit(bc::JS, 0, tmpq);
+
+				// otherwise, emit SSET.
+				//
+				cscope.emit(bc::SSET, tmpk, tmpv, self);
+				cscope.jump_here(j);
+			}
+
+			// Return.
+			//
+			cscope.jump_here(jx);
+			cscope.emit(bc::RET, self);
+		}
+
+		// Until we reach the end of the declaration, only function definitions are allowed.
+		// - x()
+		// - t!()
+		// - dyn x()
+		// - dyn t!()
+		while(!scope.lex().opt('}')) {
+			bool dyn = scope.lex().opt(lex::token_dyn).has_value();
+
+			// Parse the name.
+			//
+			auto name = scope.lex().check(lex::token_name);
+			if (name == lex::token_error)
+				return {};
+			// bool trait = scope.lex().opt('!').has_value();
+
+			// Make sure nothing is being shadowed, insert the new field.
+			//  - Always align to 8 byte boundary.
+			//
+			auto it = range::find_if(fields, [&](auto& x) { return x.key == name.str_val; });
+			if (it == fields.end()) {
+				it = fields.emplace(fields.end());
+				it->key = name.str_val;
+				it->value.is_dyn    = dyn;
+				it->value.is_static = true;
+				it->value.offset    = static_iterator;
+				it->value.ty        = type::fn;
+				static_iterator += 8;
+				static_data.resize(static_iterator, 0);
+			} else if (!it->value.is_dyn || !it->value.is_static || it->value.ty != type::fn) {
+				scope.lex().error("definition shadows the previous value of non dynamic member %s.", it->key->c_str());
+				return {};
+			} else {
+				it->value.is_dyn    = dyn;
+				it->value.is_static = true;
+			}
+
+			// Parse the function.
+			//
+			if (scope.lex().tok != '(') {
+				scope.lex().check('(');
+				return {};
+			}
+			auto fn = parse_function(scope, string::format(scope.fn.L, "class %s.%s", cl_name->c_str(), name.str_val->c_str()));
+			if (fn.kind == expr::err) {
+				return {};
+			}
+			if (fn.kind != expr::imm) {
+				scope.lex().error("definition of the member %s is not constant.", it->key->c_str());
+				return {};
+			}
+
+			// Copy the function.
+			//
+			fn.imm.store_at(static_data.data() + it->value.offset, it->value.ty);
+		}
+
+		// Create the VCLASS type, write the trivial data.
+		//
+		auto* vcl = vclass::create(scope.fn.L, cl_name, fields);
+		vcl->super = base;
+		LI_ASSERT(vcl->object_length == obj_iterator);
+		LI_ASSERT(vcl->static_length == static_iterator);
+		range::copy(obj_data, vcl->default_space());
+		range::copy(static_data, vcl->static_space());
+
+		// Fix the type in the bytecode of the implicit ctor, generate code.
+		//
+		ctor_fn.pc[0].xmm() = any(vcl).value;
+		ctor_fn.kvalues.emplace_back(vcl);
+		auto* fn = write_func(ctor_fn, ctor_line_beg, 0);
+
+		// Mark function for aggressive inlining, assign as implicit ctor.
+		//
+		fn->proto->attr |= func_attr_inline;
+		vcl->ctor = fn;
+		return any(vcl);
 	}
 
 	// Parses block-like constructs, returns the result.
@@ -1640,7 +2140,7 @@ namespace li {
 		// Otherwise simply null the target.
 		//
 		else {
-			scope.set_reg(cc.reg, any());
+			scope.set_reg(cc.reg, nil);
 		}
 
 		// Fix the escape.
@@ -1663,7 +2163,7 @@ namespace li {
 
 		// Reserve next register for break-with-value, initialize to nil.
 		//
-		auto result = expression{any()}.to_nextreg(scope);
+		auto result = expression{nil}.to_nextreg(scope);
 
 		// Parse the block.
 		//
@@ -1711,7 +2211,7 @@ namespace li {
 
 		// Reserve next register for break-with-value, initialize to nil.
 		//
-		auto result = expression{any()}.to_nextreg(scope);
+		auto result = expression{nil}.to_nextreg(scope);
 
 		// Emit the condition.
 		//
@@ -1876,8 +2376,8 @@ namespace li {
 
 				// Initialize istate and the result.
 				//
-				expression(any(opaque{.bits = 0})).to_reg(iscope, iter_base);
-				expression(any()).to_reg(iscope, iter_base + 3);
+				expression(any_t{0}).to_reg(iscope, iter_base);
+				expression(nil).to_reg(iscope, iter_base + 3);
 
 				// Assign the locals.
 				//
@@ -1929,7 +2429,7 @@ namespace li {
 
 		// Reserve next register for block result, initialize to nil.
 		//
-		auto result = expression{any()}.to_nextreg(scope);
+		auto result = expression{nil}.to_nextreg(scope);
 
 		// Parse the try block.
 		//
@@ -1955,9 +2455,7 @@ namespace li {
 
 		// Parse the catch block.
 		//
-		if (scope.lex().check(lex::token_catch) == lex::token_error) {
-			return {};
-		} else {
+		if (scope.lex().opt(lex::token_catch)) {
 			func_scope iscope{scope.fn};
 
 			if (auto errv = iscope.lex().opt(lex::token_name)) {
@@ -1970,6 +2468,8 @@ namespace li {
 			if (expr_block(iscope, result).kind == expr::err) {
 				return {};
 			}
+		} else {
+			scope.emit(bc::GETEX, result);
 		}
 
 		// Emit the result label.
@@ -2001,14 +2501,14 @@ namespace li {
 		//
 		if (!module_name.empty() && !is_repl) {
 			auto* mod    = string::create(L, module_name);
-			any   exists = L->modules->get(L, mod);
+			any   exists = L->modules->get(L, (any) mod);
 			if (exists != nil) {
 				L->error("module '%s' already exists.", mod->c_str());
 				return exception_marker;
 			} else {
 				fn.module_table = table::create(L);
 				fn.module_name  = mod;
-				L->modules->set(L, mod, fn.module_table);
+				L->modules->set(L, (any) mod, (any) fn.module_table);
 			}
 		}
 

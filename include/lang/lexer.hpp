@@ -1,6 +1,6 @@
 #pragma once
 #include <stdio.h>
-#include <lang/types.hpp>
+#include <vm/types.hpp>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -39,8 +39,8 @@ namespace li::lex {
 		/* Keywords */																			    \
 		_(true) _(false) _(nil)  _(let) _(const) _(if) _(else) _(while) _(for) _(loop)  \
 		_(break) _(continue) _(try) _(catch) _(throw) _(return) _(in) _(is)      \
-		_(bool) _(number) _(table) _(array) _(string) _(userdata) _(function)    \
-		_(fn) _(export) _(import) _(as)
+		_(bool) _(number) _(table) _(array) _(string) _(object) _(class) _(function)    \
+		_(fn) _(export) _(import) _(as) _(dyn)
 
 	// Token identifiers.
 	//

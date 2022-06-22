@@ -41,7 +41,7 @@ namespace li::lib::fs {
 
 		// Otherwise, discard the result, return the module entry.
 		//
-		auto result = L->modules->get(L, string::create(L, name));
+		any result = L->modules->get(L, (any) string::create(L, name));
 		LI_ASSERT(result.is_tbl());
 		return result;
 	}

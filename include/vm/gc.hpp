@@ -1,6 +1,6 @@
 #pragma once
 #include <array>
-#include <lang/types.hpp>
+#include <vm/types.hpp>
 #include <util/common.hpp>
 #include <util/format.hpp>
 #include <util/llist.hpp>
@@ -18,6 +18,8 @@ namespace li {
 	struct jfunction;
 	struct function_proto;
 	struct string_set;
+	struct type_set;
+	struct vclass;
 };
 namespace li::gc {
 	struct header;
@@ -29,11 +31,11 @@ namespace li::gc {
 	void traverse(stage_context s, table* o);
 	void traverse(stage_context s, function* o);
 	void traverse(stage_context s, function_proto* o);
-	void traverse(stage_context s, string_set* o);
-	void traverse(stage_context s, userdata* o);
+	void traverse(stage_context s, object* o);
+	void traverse(stage_context s, vclass* o);
 
-	void destroy(vm* L, table* o);
-	void destroy(vm* L, userdata* o);
+	void destroy(vm* L, vclass* o);
+	void destroy(vm* L, object* o);
 	void destroy(vm* L, jfunction* o);
 
 	// GC configuration.
@@ -55,12 +57,12 @@ namespace li::gc {
 	struct page;
 
 	struct header {
-		uint32_t stage : 1         = 0;               // Stage.
-		uint32_t is_static : 1     = 0;               // Allocated outside GC pages.
-		uint32_t page_offset : 30  = 0;               // Offset to page in pages.
-		uint32_t num_chunks        = 0;               // Number of chunks in this block.
-		uint32_t type_id           = type_gc_uninit;  // Type.
-		uint32_t rsvd              = 0;
+		uint32_t stage : 1        = 0;             // Stage.
+		uint32_t is_static : 1    = 0;             // Allocated outside GC pages.
+		uint32_t page_offset : 30 = 0;             // Offset to page in pages.
+		uint32_t num_chunks       = 0;             // Number of chunks in this block.
+		int32_t  type_id          = type_invalid;  // Type.
+		uint32_t rsvd             = 0;
 
 		// Free header helpers.
 		//
@@ -102,7 +104,7 @@ namespace li::gc {
 
 	// Forward for any.
 	//
-	static value_type identify(const header* h) { return (value_type) h->type_id; }
+	static value_type identify_value_type(const header* h) { return (value_type) std::max<int32_t>(0, h->type_id); }
 
 	template<typename T>
 	struct tag : header {
@@ -323,7 +325,7 @@ namespace li::gc {
 	static void make_non_gc(T* value, size_t extra_size = 0) {
 		value->type_id     = T::gc_type;
 		value->num_chunks  = (msize_t) (chunk_ceil(extra_size + sizeof(T)) >> chunk_shift);
-		value->page_offset = 0;
+		value->page_offset = 0x3FFFFFFF;
 		value->stage       = 0;
 		value->is_static   = true;
 	}

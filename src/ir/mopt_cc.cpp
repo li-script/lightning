@@ -44,6 +44,25 @@ namespace li::ir::opt {
 			if (kill != (bb.instructions.end() - 1))
 				continue;
 
+			// Skip if value is alive after the block.
+			// - TODO: Not really, have to implement recursive descent with write checks.
+			//
+			bool used_outside = false;
+			for (auto& blk : proc->basic_blocks) {
+				if (used_outside)
+					break;
+				if (&blk != &bb) {
+					for (auto& ins : blk.instructions) {
+						if (ins.reads_from_register(setcc->out)) {
+							used_outside = true;
+							break;
+						}		
+					}
+				}
+			}
+			if (used_outside)
+				continue;
+
 			// Re-insert after moving the instruction.
 			//
 			auto cmp    = *comperator;

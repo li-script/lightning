@@ -23,6 +23,12 @@ namespace li {
 	//
 	static constexpr uint32_t label_flag = 0x40000000;
 
+	// Argument slot.
+	//
+	struct arg_slot {
+		string* name;
+	};
+
 	// Function parser state.
 	//
 	struct func_scope;
@@ -34,7 +40,8 @@ namespace li {
 		func_scope*              scope      = nullptr;    // Current scope.
 		std::vector<any>         kvalues    = {};         // Constant pool.
 		bc::reg                  max_reg_id = 1;          // Maximum register ID used.
-		std::vector<string*>     args       = {};         // Arguments.
+		std::vector<arg_slot>    args       = {};         // Arguments.
+		bool                     is_vararg  = false;      // Set if vararg.
 		std::vector<bc::insn>    pc         = {};         // Bytecode generated.
 		bool                     is_repl    = false;      // Disables locals.
 		string*                  decl_name  = nullptr;    // Name.
@@ -70,6 +77,8 @@ namespace li {
 		}
 	};
 
+	struct expression;
+
 	// Local scope state.
 	//
 	struct func_scope {
@@ -95,6 +104,19 @@ namespace li {
 			bc::pos ip                               = bc::pos(fn.pc.size() - 1);
 			fn.synclines(ip);
 			return ip;
+		}
+
+		// Quick throw helper.
+		//
+		void throw_if(const expression& cc, string* msg, bool inv = false);
+
+		template<typename... Tx>
+		void throw_if(const expression& cc, const char* msg, Tx... args) {
+			throw_if(cc, string::format(fn.L, msg, args...), false);
+		}
+		template<typename... Tx>
+		void throw_if_not(const expression& cc, const char* msg, Tx... args) {
+			throw_if(cc, string::format(fn.L, msg, args...), true);
 		}
 
 		// Reserves a label identifier.

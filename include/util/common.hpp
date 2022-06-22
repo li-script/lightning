@@ -107,7 +107,7 @@
 #endif
 
 #if LI_ABI_MS64
-	#define LI_CC __fastcall
+	#define LI_CC __stdcall
 #else
 	#define LI_CC
 #endif

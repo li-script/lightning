@@ -4,7 +4,7 @@
 #include <util/user.hpp>
 #include <lang/parser.hpp>
 #include <bit>
-#include <lang/types.hpp>
+#include <vm/types.hpp>
 #include <list>
 #include <memory>
 #include <vm/bc.hpp>
@@ -69,7 +69,6 @@ namespace li::lib {
 			// hoist table fields even if it escapes
 			// move stuff out of loops
 			// type inference
-			// trait inference
 			// constant folding
 			// escape analysis
 			// loop analysis

@@ -1,5 +1,5 @@
 #pragma once
-#include <lang/types.hpp>
+#include <vm/types.hpp>
 #include <memory>
 #include <string>
 #include <util/format.hpp>
@@ -89,14 +89,15 @@ namespace li::ir {
 		// Recursive type check.
 		//
 		virtual bool rec_type_check(type x) { return false; }
+
 		bool type_try_settle(type x, bool save = false) {
-			if (vt == x || x == type::unk)
+			if (vt == x || x == type::any)
 				return true;
-			if (vt != type::unk)
+			if (vt != type::any)
 				return false;
 			type prev = std::exchange(vt, x);
-			bool r    = rec_type_check(x);
-			vt        = (save && r) ? vt : prev;
+			bool      r    = rec_type_check(x);
+			vt             = (save && r) ? vt : prev;
 			return r;
 		}
 
@@ -241,18 +242,16 @@ namespace li::ir {
 			int32_t           i32;
 			int64_t           i;
 			operation         vmopr;
-			trait             vmtrait;
-			value_type        vmtype;
-			type              irtype;
+			value_type        vty;
+			type         dty;
 			double            n;
 			gc::header*       gc;
 			table*            tbl;
 			array*            arr;
-			userdata*         udt;
+			vclass*           vcl;
+			object*           obj;
 			string*           str;
 			function*         fn;
-			function_proto*   proto;
-			opaque            opq;
 			basic_block*      bb;
 			const nfunc_info* nfni;
 		};
@@ -278,31 +277,24 @@ namespace li::ir {
 		constexpr constant(double v) : n(v) { vt = type::f64; }
 		constexpr constant(table* v) : tbl(v) { vt = type::tbl; }
 		constexpr constant(array* v) : arr(v) { vt = type::arr; }
-		constexpr constant(userdata* v) : udt(v) { vt = type::udt; }
+		constexpr constant(object* v) : obj(v) { vt = type::obj; } // Resolve type ID.
+		constexpr constant(vclass* v) : vcl(v) { vt = type::vcl; }
 		constexpr constant(string* v) : str(v) { vt = type::str; }
 		constexpr constant(function* v) : fn(v) { vt = type::fn; }
-		constexpr constant(function_proto* v) : proto(v) { vt = type::proto; }
 		constexpr constant(const nfunc_info* v) : nfni(v) { vt = type::nfni; }
-		constexpr constant(opaque v) : opq(v) { vt = type::opq; }
 		constexpr constant(basic_block* v) : bb(v) { vt = type::bb; }
 		constexpr constant(operation v) : vmopr(v) { vt = type::vmopr; }
-		constexpr constant(trait v) : vmtrait(v) { vt = type::vmtrait; }
-		constexpr constant(value_type v) : vmtype(v) { vt = type::vmtype; }
-		constexpr constant(type v) : irtype(v) { vt = type::irtype; }
+		constexpr constant(value_type v) : vty(v) { vt = type::vty; }
+		constexpr constant(type v) : dty(v) { vt = type::dty; }
 		constexpr constant(any a) {
 			if (a.is_bool()) {
 				i  = a.as_bool();
 				vt = type::i1;
-			} else if (a.is_opq()) {
-				opq = a.as_opq();
-				vt  = type::opq;
 			} else if (a.is_num()) {
 				n  = a.as_num();
 				vt = type::f64;
 			} else if (a.is_gc()) {
-				auto t = a.as_gc()->type_id;
-				LI_ASSERT(type_table <= t && t <= type_string);
-				vt = type(uint8_t(t) + uint8_t(type::tbl) - type_table);
+				vt = to_type(value_type(a.as_gc()->type_id));
 				gc = a.as_gc();
 			} else if (a.is_exc()) {
 				vt = type::exc;
@@ -316,26 +308,24 @@ namespace li::ir {
 		any to_any() const {
 			if (vt == type::i1) {
 				return any(i1);
-			} else if (type::i8 <= vt && vt <= type::i64) {
+			} else if (is_integer_data(vt)) {
 				return any(number(i));
-			} else if (type::f32 <= vt && vt <= type::f64) {
+			} else if (is_floating_point_data(vt)) {
 				return any(n);
 			} else if (vt == type::nil) {
 				return any(nil);
 			} else if (vt == type::exc) {
 				return any(exception_marker);
-			} else if (vt == type::opq) {
-				return any(opq);
 			} else if (vt == type::tbl) {
 				return any(tbl);
-			} else if (vt == type::udt) {
-				return any(udt);
+			} else if (vt == type::vcl) {
+				return any(vcl);
+			} else if (vt <= type::obj) {
+				return any(obj);
 			} else if (vt == type::arr) {
 				return any(arr);
 			} else if (vt == type::fn) {
 				return any(fn);
-			} else if (vt == type::proto) {
-				return any(proto);
 			} else if (vt == type::str) {
 				return any(str);
 			} else {
@@ -348,9 +338,9 @@ namespace li::ir {
 		int64_t to_i64() const {
 			if (vt == type::i1) {
 				return i1;
-			} else if (type::i8 <= vt && vt <= type::i64) {
+			} else if (is_integer_data(vt)) {
 				return i;
-			} else if (type::f32 <= vt && vt <= type::f64) {
+			} else if (is_floating_point_data(vt)) {
 				return (int64_t) n;
 			} else if (vt == type::nil) {
 				return 0;
@@ -361,9 +351,9 @@ namespace li::ir {
 			}
 		}
 		bool to_bool() const {
-			if (type::i1 <= vt && vt <= type::i64) {
+			if (vt == type::i1 || is_integer_data(vt)) {
 				return bool(i & 1);
-			} else if (type::f32 <= vt && vt <= type::f64) {
+			} else if (is_floating_point_data(vt)) {
 				return true;
 			} else if (vt == type::nil) {
 				return false;

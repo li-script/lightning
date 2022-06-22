@@ -8,12 +8,13 @@
 namespace li {
 	// Function attributes.
 	//
-#define LIGHTNING_ENUM_ATTR(_)                                                                           \
-                                                                                                         \
-	_(pure)         /*True if function is pure, same definition as in ir::insn.*/                         \
-	_(const)        /*True if function is const, same definition as in ir::insn.*/                        \
-	_(sideeffect)   /*True if function has sideeffects, same definition as in ir::insn.*/                 \
-	_(c_takes_self) /*True if first value in args array is describing the self.*/                         \
+#define LIGHTNING_ENUM_ATTR(_)                                                           \
+                                                                                         \
+	_(pure)         /*True if function is pure, same definition as in ir::insn.*/         \
+	_(const)        /*True if function is const, same definition as in ir::insn.*/        \
+	_(sideeffect)   /*True if function has sideeffects, same definition as in ir::insn.*/ \
+	_(inline)       /*True if we should try inlining more aggressively.*/                 \
+	_(c_takes_self) /*True if first value in args array is describing the self.*/         \
 	_(c_takes_vm)   /*True if function should be called with a VM pointer.*/\
 
 	enum functrion_attributes : uint32_t {
@@ -50,7 +51,7 @@ namespace li {
 		msize_t ip : 18         = 0;
 		msize_t line_delta : 14 = 0;
 	};
-	struct function_proto : gc::node<function_proto, type_proto> {
+	struct function_proto : gc::node<function_proto, type_gc_proto> {
 		static function_proto* create(vm* L, std::span<const bc::insn> opcodes, std::span<const any> kval, std::span<const line_info> lines);
 
 		uint32_t   attr          = func_attr_default;  // Function attributes.
@@ -58,7 +59,6 @@ namespace li {
 		msize_t    num_locals    = 0;                  // Number of local variables we need to reserve on stack.
 		msize_t    num_kval      = 0;                  // Number of constants.
 		msize_t    num_lines     = 0;                  // Number of lines in the line tab
-		msize_t    num_arguments = 0;                  // Number of fixed arguments.
 		msize_t    num_uval      = 0;                  // Number of upvalues.le.
 		msize_t    src_line      = 0;                  // Line of definition.
 		string*    src_chunk     = nullptr;            // Source of definition (chunk:function_name or chunk).
@@ -95,21 +95,14 @@ namespace li {
 	};
 	using fn_ir2mir = bool(*)(ir::mblock& b, ir::insn* i);
 	struct nfunc_overload {
-		const void*             cfunc = nullptr;        // C function pointer. Must be LI_CC, invalid entry if nullptr.
-		std::array<ir::type, 8> args  = {};             // Expected argument types for a valid call, none = end.
-		ir::type                ret   = ir::type::nil;  // Return type, if not ir::type::unk/type::exc, automatically no-except.
+		const void*       cfunc = nullptr;    // C function pointer. Must be LI_CC, invalid entry if nullptr.
+		std::vector<type> args  = {};         // Expected argument types for a valid call.
+		type              ret   = type::nil;  // Return type, if not type::any/type::exc, automatically no-except.
 
 		// TODO: BC->IR Lifter?
 		// MIR lifter.
 		//
 		fn_ir2mir mir_lifter = nullptr;
-
-		// Span conversion.
-		//
-		std::span<const ir::type> get_args() const {
-			auto it = std::find(args.data(), args.data() + args.size(), ir::type::none);
-			return {args.data(), it};
-		}
 	};
 	struct nfunc_info {
 		// Function attributes.

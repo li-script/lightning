@@ -17,7 +17,7 @@
 #include <vm/state.hpp>
 #include <vm/string.hpp>
 #include <vm/table.hpp>
-#include <vm/userdata.hpp>
+#include <vm/object.hpp>
 
 namespace li::debug {
 	static void dump_table(table* t) {

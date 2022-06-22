@@ -79,7 +79,7 @@ namespace li::lib {
 			 }                                                                                      \
 			 return L->ok(any(LI_STRCAT(c_math_, NAME)(args[0].as_num())));                         \
 		 },                                                                                        \
-		 {{li::bit_cast<const void*>(&LI_STRCAT(c_math_, NAME)), {ir::type::f64}, ir::type::f64}}, \
+		 {{li::bit_cast<const void*>(&LI_STRCAT(c_math_, NAME)), {type::f64}, type::f64}}, \
 	};
 #define REMAP_MATH_BINARY(NAME, ...)                                                                            \
 	static double LI_CC   LI_STRCAT(c_math_, NAME)(double x, double y) { return __VA_ARGS__; }                   \
@@ -92,7 +92,7 @@ namespace li::lib {
 			 }                                                                                                     \
 			 return L->ok(any(LI_STRCAT(c_math_, NAME)(args[0].as_num(), args[-1].as_num())));                     \
 		 },                                                                                                       \
-		 {{li::bit_cast<const void*>(&LI_STRCAT(c_math_, NAME)), {ir::type::f64, ir::type::f64}, ir::type::f64}}, \
+		 {{li::bit_cast<const void*>(&LI_STRCAT(c_math_, NAME)), {type::f64, type::f64}, type::f64}}, \
 	};
 
 	REMAP_MATH_UNARY(rad, x*(180/std::numbers::pi))

@@ -7,65 +7,59 @@ namespace li::ir {
 	//
 	std::string constant::to_string(bool) const {
 		switch (vt) {
-			case li::ir::type::none:
+			case li::type::none:
 				return "void";
-			case li::ir::type::unk:
+			case li::type::any:
 				return LI_RED "ERROR!" LI_DEF;
-			case li::ir::type::vmtrait: {
-				auto t = trait_names[(uint8_t) vmtrait];
-				return util::fmt(LI_GRN "%.*s" LI_DEF, t.size(), t.data());
-			}
-			case li::ir::type::irtype:
-				return util::fmt(LI_GRN "%s" LI_DEF, util::name_enum(irtype).data());
-			case li::ir::type::vmtype:
-				return util::fmt(LI_GRN "%s" LI_DEF, type_names[(uint8_t) vmtype]);
-			case li::ir::type::vmopr:
+			case li::type::dty:
+				return util::fmt(LI_GRN "%s" LI_DEF, get_type_name(nullptr, dty).data());
+			case li::type::vty:
+				return util::fmt(LI_GRN "%s" LI_DEF, type_names[(uint8_t) vty]);
+			case li::type::vmopr:
 				return util::fmt(LI_GRN "%s" LI_DEF, bc::opcode_details(vmopr).name);
-			case li::ir::type::i1:
+			case li::type::i1:
 				return util::fmt(LI_BLU "i1:  %s" LI_DEF, u ? "true" : "false");
-			case li::ir::type::nil:
+			case li::type::nil:
 				return util::fmt(LI_BLU "nil" LI_DEF);
-			case li::ir::type::exc:
+			case li::type::exc:
 				return util::fmt(LI_BLU "exc" LI_DEF);
-			case li::ir::type::i8:
+			case li::type::i8:
 				return util::fmt(LI_BLU "i8:  %llu" LI_DEF, u);
-			case li::ir::type::i16:
+			case li::type::i16:
 				return util::fmt(LI_BLU "i16: %llu" LI_DEF, u);
-			case li::ir::type::i32:
+			case li::type::i32:
 				return util::fmt(LI_CYN "i32: %lld" LI_DEF, i);
-			case li::ir::type::i64:
+			case li::type::i64:
 				return util::fmt(LI_BLU "i64: %llu" LI_DEF, u);
-			case li::ir::type::f32:
+			case li::type::f32:
 				return util::fmt(LI_BLU "f32: %lf" LI_DEF, n);
-			case li::ir::type::f64:
+			case li::type::f64:
 				return util::fmt(LI_BLU "f64: %lf" LI_DEF, n);
-			case li::ir::type::opq:
-				return util::fmt(LI_BLU "opq: %llu" LI_DEF, u);
-			case li::ir::type::tbl:
+			case li::type::tbl:
 				return util::fmt(LI_BLU "tbl: %p" LI_DEF, gc);
-			case li::ir::type::udt:
-				return util::fmt(LI_BLU "udt: %p" LI_DEF, gc);
-			case li::ir::type::arr:
+			case li::type::vcl:
+				return util::fmt(LI_BLU "vcl: %p" LI_DEF, gc);
+			case li::type::arr:
 				return util::fmt(LI_BLU "arr: %p" LI_DEF, gc);
-			case li::ir::type::fn:
+			case li::type::fn:
 				return util::fmt(LI_BLU "fn:  %p" LI_DEF, gc);
-			case li::ir::type::proto:
-				return util::fmt(LI_BLU "prt: %p" LI_DEF, proto);
-			case li::ir::type::nfni:
+			case li::type::nfni:
 				if (nfni->name)
 					return util::fmt(LI_BLU "nfi: %s" LI_DEF, nfni->name);
 				else
 					return util::fmt(LI_BLU "nfi: %p" LI_DEF, nfni);
-			case li::ir::type::str:
+			case li::type::str:
 				return util::fmt(LI_BLU "str: %s" LI_DEF, str->c_str());
-			case li::ir::type::bb:
+			case li::type::bb:
 				return ir::to_string(bb);
 			default:
+				if (vt <= li::type::obj)
+					return util::fmt(LI_BLU "obj: %p" LI_DEF, gc);
 				assume_unreachable();
 		}
 	}
 	std::string insn::to_string(bool expand) const {
-		const char* ret = vt == type::unk ? "?" : util::name_enum(vt).data();
+		const char* ret = vt == type::any ? "?" : get_type_name(nullptr, vt).data();
 
 		if (!expand) {
 			return util::fmt(LI_YLW "%%%u" LI_DEF ":%s" LI_DEF, name, ret);

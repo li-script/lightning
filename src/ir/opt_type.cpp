@@ -3,21 +3,30 @@
 #include <ir/proc.hpp>
 #include <ir/value.hpp>
 #include <variant>
-#include <vm/traits.hpp>
 
 namespace li::ir::opt {
 	// Resolves dominating type for a value at the given instruction.
 	//
 	static std::optional<value_type> get_dominating_type_at(insn* i, value* v) {
-		if (v->vt != type::unk) {
-			return to_vm_type(v->vt);
+		if (v->vt != type::any) {
+			return to_value_type(v->vt);
 		} else {
 			std::optional<value_type> resolved;
 			v->as<insn>()->for_each_user([&](insn* c, size_t j) {
-				// TODD: test_type branch check, has path to.
+				// TODD: what about AND/OR?
+				if (c->is<test_type>()) {
+					auto term = c->parent->back();
+					if (term->is<jcc>() && term->operands[0] == c) {
+						if (term->operands[1]->as<constant>()->bb->dom(i->parent)) {
+							resolved = c->operands[1]->as<constant>()->vty;
+							return true;
+						}
+					}
+				}
+
 				if (c->is<assume_cast>()) {
 					if (c->parent->dom(i->parent)) {
-						resolved = to_vm_type(c->operands[1]->as<constant>()->irtype);
+						resolved = to_value_type(c->operands[1]->as<constant>()->dty);
 						return true;
 					}
 				}
@@ -69,15 +78,11 @@ namespace li::ir::opt {
 		i->parent->validate();
 		return {std::move(tchecked), std::move(tunchecked)};
 	}
-	static std::pair<ref<insn>, ref<insn>> split_by(insn* i, size_t op, std::variant<value_type, trait> check_against) {
+	static std::pair<ref<insn>, ref<insn>> split_by(insn* i, size_t op, value_type check_against) {
 		// Insert the type check before the instruction.
 		//
 		builder b{i};
-		ref<insn> cc;
-		if (check_against.index() == 0)
-			cc = b.emit_before<test_type>(i, i->operands[op], std::get<0>(check_against));
-		else
-			cc = b.emit_before<test_trait>(i, i->operands[op], std::get<1>(check_against));
+		ref<insn> cc = b.emit_before<test_type>(i, i->operands[op], check_against);
 
 		// Split the block after the check, add the jcc.
 		//
@@ -93,8 +98,7 @@ namespace li::ir::opt {
 		//
 		auto tunchecked        = make_ref(i->duplicate());
 		auto tchecked          = i->erase();
-		if (check_against.index() == 0)
-			tchecked->operands[op] = builder{true_blk}.emit<assume_cast>(i->operands[op], to_ir_type(std::get<0>(check_against)));
+		tchecked->operands[op] = builder{true_blk}.emit<assume_cast>(i->operands[op], to_type(check_against));
 
 		// Create both blocks.
 		//
@@ -129,7 +133,7 @@ namespace li::ir::opt {
 			auto i = range::find_if(bb->insns(), [](insn* i) {
 				if (i->is<binop>()) {
 					i->update();
-					if (i->vt != type::unk) {
+					if (i->vt != type::any) {
 						for (auto& op : i->operands)
 							op->update();
 					} else {
@@ -150,7 +154,7 @@ namespace li::ir::opt {
 				return false;
 			}
 
-			auto [y, f] = split_by(i.at, i->operands[1]->vt == type::unk ? 1 : 2, type_number);
+			auto [y, f] = split_by(i.at, i->operands[1]->vt == type::any ? 1 : 2, type_number);
 			f           = builder{f}.emit_before<unreachable>(f);  // <-- TODO: trait block.
 
 			while (f != f->parent->back())
@@ -170,7 +174,7 @@ namespace li::ir::opt {
 			auto i = range::find_if(bb->insns(), [](insn* i) {
 				if (i->is<vcall>()) {
 					i->update();
-					if (i->operands[0]->vt == type::unk) {
+					if (i->operands[0]->vt == type::any) {
 						return true;
 					}
 				}
@@ -194,7 +198,7 @@ namespace li::ir::opt {
 			auto i = range::find_if(bb->insns(), [](insn* i) {
 				if (i->is<field_get>() || i->is<field_set>()) {
 					i->update();
-					if (i->operands[1]->vt == type::unk) {
+					if (i->operands[1]->vt == type::any) {
 						return true;
 					}
 				}
@@ -209,7 +213,7 @@ namespace li::ir::opt {
 				//
 				auto [tbl, e0] = split_by(i.at, 1, type_table);
 				auto [arr, e1] = split_by(e0, 1, type_array);
-				auto [udt, e2] = split_by(e1, 1, type_userdata); // invalid if raw
+				auto [udt, e2] = split_by(e1, 1, type_object); // invalid if raw
 				auto [str, e3] = split_by(e2, 1, type_string);
 
 				arr->operands[0] = launder_value(proc, true);
@@ -225,7 +229,7 @@ namespace li::ir::opt {
 				//
 				auto [tbl, e0] = split_by(i.at, 1, type_table);
 				auto [arr, e1] = split_by(e0, 1, type_array);
-				auto [udt, e2] = split_by(e1, 1, type_userdata);  // invalid if raw
+				auto [udt, e2] = split_by(e1, 1, type_object);  // invalid if raw
 
 				arr->operands[0] = launder_value(proc, true);
 				// ^if key is not int, invalid.
@@ -260,13 +264,13 @@ namespace li::ir::opt {
 
 				// Skip if arguments will never match.
 				//
-				auto expected_args = ovl.get_args();
+				auto& expected_args = ovl.args;
 				if (expected_args.size() < given_args.size()) {
 					continue;
 				}
 				bool never_match = false;
 				for (size_t i = 0; i != expected_args.size(); i++) {
-					if (given_args[i]->vt != type::unk && expected_args[i] != type::unk && to_vm_type(given_args[i]->vt) != to_vm_type(expected_args[i])) {
+					if (given_args[i]->vt != type::any && expected_args[i] != type::any && to_value_type(given_args[i]->vt) != to_value_type(expected_args[i])) {
 						never_match = true;
 						break;
 					}
@@ -279,9 +283,9 @@ namespace li::ir::opt {
 				insn*   cc = nullptr;
 				builder b{i};
 				for (size_t n = 0; n != expected_args.size(); n++) {
-					if (given_args[n]->vt == type::unk && expected_args[n] != type::unk) {
+					if (given_args[n]->vt == type::any && expected_args[n] != type::any) {
 						auto pcc = cc;
-						cc       = b.emit_before<test_type>(i, given_args[n], to_vm_type(expected_args[n]));
+						cc       = b.emit_before<test_type>(i, given_args[n], to_value_type(expected_args[n]));
 						if (pcc) {
 							cc = b.emit_before<bool_and>(i, pcc, cc);
 						}
@@ -324,7 +328,7 @@ namespace li::ir::opt {
 								ic.vt = expected_args[n];
 								call->operands.emplace_back(proc->add_const(ic));
 								continue;
-							} else if (expected_args[n] == type::unk || expected_args[n] == type::f64) {
+							} else if (expected_args[n] == type::any || expected_args[n] == type::f64) {
 								call->operands.emplace_back(proc->add_const(constant{(int64_t) c->to_any().value}));
 								continue;
 							} else if (expected_args[n] == type::f32) {
@@ -367,6 +371,7 @@ namespace li::ir::opt {
 	// Adds the branches for required type checks.
 	//
 	void type_split_cfg(procedure* proc) {
+		proc->validate();
 		while (specialize_native(proc))
 			proc->validate();
 		while (specialize_op(proc))
@@ -384,20 +389,8 @@ namespace li::ir::opt {
 		bool changed = false;
 		for (auto& b : proc->basic_blocks) {
 			for (auto* i : b->insns()) {
-				if (i->is<test_traitful>()) {
-					auto resolved = get_dominating_type_at(i, i->operands[0]);
-					if (resolved) {
-						i->replace_all_uses(launder_value(proc, is_type_traitful(*resolved)));
-						changed = true;
-					}
-				} else if (i->is<test_trait>()) {
-					auto resolved = get_dominating_type_at(i, i->operands[0]);
-					if (resolved && !is_type_traitful(*resolved)) {
-						i->replace_all_uses(launder_value(proc, false));
-						changed = true;
-					}
-				} else if (i->is<test_type>()) {
-					auto expected = i->operands[1]->as<constant>()->vmtype;
+				if (i->is<test_type>()) {
+					auto expected = i->operands[1]->as<constant>()->vty;
 					auto resolved = get_dominating_type_at(i, i->operands[0]);
 					if (resolved) {
 						i->replace_all_uses(launder_value(proc, *resolved == expected));

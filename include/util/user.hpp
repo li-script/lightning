@@ -19,19 +19,18 @@ namespace li::util {
 
 			auto base = name.substr(0, pos);
 			name      = name.substr(pos + 1);
-			auto key  = string::create(L, base);
+			any key  = string::create(L, base);
 
-			auto it = tbl->get(L, key);
+			any it = tbl->get(L, key);
 			if (!it.is_tbl()) {
 				auto ntbl = table::create(L, 1);
-				ntbl->set_trait(L, trait::freeze, true);
-				ntbl->set_trait(L, trait::seal, true);
-				tbl->set(L, key, ntbl);
+				ntbl->is_frozen = true;
+				tbl->set(L, key, any(ntbl));
 				it = ntbl;
 			}
 			tbl = it.as_tbl();
 		}
-		tbl->set(L, string::create(L, name), value);
+		tbl->set(L, (any) string::create(L, name), value);
 	}
 	static function* export_as(vm* L, std::string_view name, nfunc_t f) {
 		auto vf = function::create(L, f);

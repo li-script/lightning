@@ -133,6 +133,17 @@ namespace li::ir::opt {
 					continue;
 				}
 
+
+				/*
+				-- Block $0
+				#1     %2:i1 = test_type %1:?, number
+				#3     jcc %2:i1, $2, $1
+				-- Block $1
+				#5     set_exception str: expected variable 'depth' to be of type 'number'
+				#7     ret exc
+				-- Block $2
+				#9     jcc %2:i1, $4, $3
+				*/
 				/*
 				-- Block $x
 				#1e    %14:? = phi $1->%6:nil, $3->%11:?

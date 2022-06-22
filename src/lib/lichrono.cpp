@@ -28,7 +28,7 @@ namespace li::lib {
 		 func_attr_none,
 		 "chrono.cycles",
 		 [](vm* L, any* args, slot_t n) { return L->ok(chrono_cycles_c()); },
-		 {{li::bit_cast<const void*>(&chrono_cycles_c), {}, ir::type::f64}},
+		 {{li::bit_cast<const void*>(&chrono_cycles_c), {}, type::f64}},
 	};
 
 	// Registers the chrono library.

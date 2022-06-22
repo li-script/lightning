@@ -2,6 +2,8 @@
 #include <util/user.hpp>
 #include <vm/function.hpp>
 #include <vm/array.hpp>
+#include <vm/types.hpp>
+#include <vm/object.hpp>
 #include <lang/parser.hpp>
 #include <cmath>
 #include <bit>
@@ -11,6 +13,30 @@ namespace li::lib {
 	//
 	void register_debug(vm* L) {
 		util::export_as(L, "debug.isdebug", any(bool(LI_DEBUG)));
+		util::export_as(L, "debug.sizeof", [](vm* L, any* args, slot_t n) {
+			if (n && args->is_obj()) {
+				return L->ok((number) args->as_obj()->cl->object_length);
+			}
+			if (n && args->is_vcl()) {
+				return L->ok((number) args->as_vcl()->object_length);
+			}
+			return L->ok(nil);
+		});
+		util::export_as(L, "debug.offsetof", [](vm* L, any* args, slot_t n) {
+			if (n == 2 && args[-1].is_str()) {
+				any x = *args;
+				if (x.is_obj())
+					x = x.as_obj()->cl;
+				if (x.is_vcl()) {
+					for (auto& f : x.as_vcl()->fields()) {
+						if (f.key == args[-1].as_str()) {
+							return L->ok(number(f.value.offset));
+						}
+					}
+				}
+			}
+			return L->ok(nil);
+		});
 		util::export_as(L, "debug.stacktrace", [](vm* L, any* args, slot_t n) {
 			vm_stack_guard _g{L, args};
 
@@ -25,15 +51,15 @@ namespace li::lib {
 
 				if (frame.multiplexed_by_c()) {
 					auto tbl = table::create(L, 1);
-					tbl->set(L, fstr, cstr);
+					tbl->set(L, (any) fstr, (any) cstr);
 					result->push(L, tbl);
 				}
 
 				auto tbl = table::create(L, 2);
 				if (target.is_fn() && target.as_fn()->is_virtual()) {
-					tbl->set(L, lstr, any(number(target.as_fn()->proto->lookup_line(frame.caller_pc & ~FRAME_C_FLAG))));
+					tbl->set(L, (any) lstr, any(number(target.as_fn()->proto->lookup_line(frame.caller_pc & ~FRAME_C_FLAG))));
 				}
-				tbl->set(L, fstr, any(target));
+				tbl->set(L, (any) fstr, any(target));
 				result->push(L, tbl);
 
 				auto ref = L->stack[frame.stack_pos + FRAME_CALLER];
@@ -93,7 +119,15 @@ namespace li::lib {
 			f->print_bc();
 			return L->ok();
 		});
-		
+
+		util::export_as(L, "gc.suspend", [](vm* L, any* args, slot_t n) {
+			L->gc.suspend = true;
+			return L->ok();
+		});
+		util::export_as(L, "gc.resume", [](vm* L, any* args, slot_t n) {
+			L->gc.suspend = false;
+			return L->ok();
+		});
 		util::export_as(L, "gc.collect", [](vm* L, any* args, slot_t n) {
 			L->gc.collect(L);
 			return L->ok();

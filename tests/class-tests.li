@@ -1,0 +1,41 @@
+class Test {
+   x: number,
+   y: number,
+   z = 3,
+   w: table = {a: 4},
+   q: array,
+   m: function
+
+   dyn print() {
+      `({self.x}, {self.y}, {self.z})`
+   }
+}
+
+class Test2 : Test {
+   a: number
+
+   print() {
+      `xd({self.x}, {self.y}, {self.z})`
+   }
+}
+
+const t1 = Test{x: 5, z: 4}
+const t2 = Test2{x: 6, a: 9}
+
+assert(t1->print() == "(5, 0, 4)")
+assert(t2->print() == "xd(6, 0, 3)")
+
+assert(
+   t1.w != t2.w && 
+   (t1 is Test) && 
+   (t2 is Test) && 
+   (t2 is Test2) && 
+   !(t1 is Test2)
+)
+
+try {
+   t1->m()
+   assert(false)
+} catch x {
+   assert("uninitialized" in x)
+}

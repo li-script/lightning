@@ -184,7 +184,7 @@ namespace li::ir {
 	inline static mreg get_reg_for(mblock& b, insn* i) {
 		if (auto s = get_existing_reg(i)) {
 			return s;
-		} else if (i->vt == type::f32 || i->vt == type::f64) {
+		} else if (is_floating_point_data(i->vt)) {
 			return YIELD(b->next_fp());
 		} else {
 			return YIELD(b->next_gp());
@@ -193,7 +193,7 @@ namespace li::ir {
 	inline static mreg get_reg_for(mblock& b, value* i) {
 		if (i->is<insn>()) {
 			return get_reg_for(b, i->as<insn>());
-		} else if (i->vt == type::f64 || i->vt == type::f32) {
+		} else if (is_floating_point_data(i->vt)) {
 			auto r = b->next_fp();
 			b.append(vop::movf, r, extract_constant(i));
 			return r;
@@ -260,13 +260,6 @@ namespace li::ir {
 			CMP(b, FLAG_Z, out, int64_t(make_tag(t) >> 47)).target_info.force_size = 4;
 			b.append(vop::setcc, out, FLAG_Z);
 		}
-	}
-	inline static void check_type_traitful(mblock& b, value_type t, mreg out, mreg val) {
-		LI_ASSERT(out != val);
-		constexpr uint64_t cmp = make_tag(type_gc_last_traitful + 1);
-		b.append(vop::movi, out, (int64_t) cmp);
-		CMP(b, FLAG_NBE, val, out);
-		b.append(vop::setcc, out, FLAG_NBE);
 	}
 	inline static void check_type_gc(mblock& b, value_type t, mreg out, mreg val) {
 		LI_ASSERT(out != val);
@@ -336,10 +329,10 @@ namespace li::ir {
 			auto tf = b->next_fp();
 			b.append(vop::fx64, tf, r);
 			b.append(vop::movi, out, tf);
-		} else if (irty == type::f64 || irty == type::unk) {
+		} else if (irty == type::f64 || irty == type::any) {
 			b.append(vop::movi, out, r);
 		} else {
-			auto ty = irty == type::opq ? type_opaque : type_table + (int(irty) - int(type::tbl));
+			auto ty = to_value_type(irty);
 			mreg fv;
 	#if LI_KERNEL_MODE
 			fv = b->next_gp();

@@ -5,6 +5,7 @@
 #include <vm/state.hpp>
 #include <vm/string.hpp>
 #include <vm/table.hpp>
+#include <vm/object.hpp>
 
 namespace li {
 	// VM helpers.
@@ -51,16 +52,16 @@ namespace li {
 	#define UVAL(...) f->uvals()[(__VA_ARGS__)]
 	#define KVAL(...) f->proto->kvals()[(__VA_ARGS__)]
 #endif
-	LI_NOINLINE any_t vm_invoke(vm* L, any* args, slot_t n_args) {
+	any_t LI_CC vm_invoke(vm* L, any* args, slot_t n_args) {
 		LI_ASSERT(&args[2] == &L->stack_top[FRAME_TARGET]);
 		any* const __restrict locals_begin = args + FRAME_SIZE + 1;
 
 		// Validate function.
 		//
 		auto& vf = locals_begin[FRAME_TARGET];
-		if (vf.is_traitful() && ((traitful_node<>*) vf.as_gc())->has_trait<trait::call>()) {
+		if (vf.is_vcl()) {
 			locals_begin[FRAME_SELF] = vf;
-			vf                       = vf.as_tbl()->get_trait<trait::call>();
+			vf                       = vf.as_vcl()->ctor;
 		}
 		if (!vf.is_fn()) [[unlikely]] {
 			return L->error("invoking non-function");
@@ -68,12 +69,6 @@ namespace li {
 		function* f = vf.as_fn();
 		if (f->invoke != &vm_invoke) {
 			return f->invoke(L, args, n_args);
-		}
-
-		// Validate argument count.
-		//
-		if (f->proto->num_arguments > n_args) [[unlikely]] {
-			return L->error("expected at least %u arguments, got %u", f->proto->num_arguments, n_args);
 		}
 
 		// Allocate stack space.
@@ -135,6 +130,20 @@ namespace li {
 					REG(a) = REG(b).type() == c;
 					continue;
 				}
+				case bc::CTYX: {
+					auto* cl = REG(c).as_vcl();
+					bool  is_instance = false;
+					if (auto o = REG(b); o.is_obj()) {
+						for (auto it = o.as_obj()->cl; it; it = it->super) {
+							if (it == cl) {
+								is_instance = true;
+								break;
+							}
+						}
+					}
+					REG(a) = is_instance;
+					continue;
+				}
 				case bc::MOV: {
 					REG(a) = REG(b);
 					continue;
@@ -164,7 +173,7 @@ namespace li {
 					//
 					bool     err = false;
 					bool     ok  = false;
-					uint64_t it  = iter.as_opq().bits;
+					uint32_t it  = (uint32_t) iter.value;
 
 					switch (target.type()) {
 						// Array:
@@ -180,7 +189,7 @@ namespace li {
 
 								// Update the iterator.
 								//
-								iter = opaque{.bits = it + 1};
+								iter.value = uint32_t(it + 1);
 
 								// Break.
 								//
@@ -203,7 +212,7 @@ namespace li {
 
 								// Update the iterator.
 								//
-								iter = opaque{.bits = it + 1};
+								iter.value = uint32_t(it + 1);
 
 								// Break.
 								//
@@ -227,7 +236,7 @@ namespace li {
 
 									// Update the iterator.
 									//
-									iter = opaque{.bits = it + 1};
+									iter.value = uint32_t(it + 1);
 
 									// Break.
 									//
@@ -267,6 +276,7 @@ namespace li {
 					UVAL(a) = REG(b);
 					continue;
 				}
+				case bc::TGET:
 				case bc::TGETR: {
 					auto tbl = REG(c);
 					auto key = REG(b);
@@ -281,11 +291,25 @@ namespace li {
 							VM_RET(string::create(L, "indexing array with non-integer or negative key"), true);
 						}
 						REG(a) = tbl.as_arr()->get(L, msize_t(key.as_num()));
+					} else if (tbl.is_str()) {
+						if (!key.is_num() || key.as_num() < 0) [[unlikely]] {
+							VM_RET(string::create(L, "indexing string with non-integer or negative key"), true);
+						}
+						auto i = size_t(key.as_num());
+						auto v = tbl.as_str()->view();
+						REG(a) = v.size() <= i ? any(nil) : any(number((uint8_t) v[i]));
+					} else if (tbl.is_obj()) {
+						any val = nil;
+						if (key.is_str()) {
+							val = tbl.as_obj()->get(key.as_str());
+						}
+						REG(a) = val;
 					} else {
 						VM_RET(string::create(L, "indexing non-table"), true);
 					}
 					continue;
 				}
+				case bc::TSET:
 				case bc::TSETR: {
 					auto tbl = REG(c);
 					auto key = REG(a);
@@ -305,90 +329,71 @@ namespace li {
 						if (!tbl.as_arr()->set(L, msize_t(key.as_num()), val)) [[unlikely]] {
 							VM_RET(string::create(L, "out-of-boundaries array access"), true);
 						}
+					} else if (tbl.is_obj()) {
+						if (!key.is_str()) [[unlikely]] {
+							VM_RET(string::create(L, "indexing class instance with non-string key"), true);
+						}
+						if (!tbl.as_obj()->set(L, key.as_str(), val)) {
+							VM_RETHROW();
+						}
 					} else [[unlikely]] {
 						VM_RET(string::create(L, "indexing non-table"), true);
 					}
 					continue;
 				}
-				case bc::TGET: {
-					auto tbl = REG(c);
-					auto key = REG(b);
-					if (key == nil) [[unlikely]] {
-						VM_RET(string::create(L, "indexing with null key"), true);
-					}
 
-					if (tbl.is_tbl()) {
-						auto r = tbl.as_tbl()->tget(L, REG(b));
-						if (r.is_exc()) [[unlikely]] {
-							VM_RETHROW();
-						}
-						REG(a) = r;
-					} else if (tbl.is_arr()) {
-						if (!key.is_num() || key.as_num() < 0) [[unlikely]] {
-							VM_RET(string::create(L, "indexing array with non-integer or negative key"), true);
-						}
-						REG(a) = tbl.as_arr()->get(L, msize_t(key.as_num()));
-					} else if (tbl.is_str()) {
-						if (!key.is_num() || key.as_num() < 0) [[unlikely]] {
-							VM_RET(string::create(L, "indexing string with non-integer or negative key"), true);
-						}
-						auto i = size_t(key.as_num());
-						auto v = tbl.as_str()->view();
-						REG(a) = v.size() <= i ? any(nil) : any(number((uint8_t) v[i]));
-					} else {
-						VM_RET(string::create(L, "indexing non-table"), true);
-					}
+				case bc::STRIV: {
+					L->gc.tick(L);
+					REG(a) = object::create(L, any_t{insn.xmm()}.as_vcl());
 					continue;
 				}
-				case bc::TSET: {
-					auto& tbl = REG(c);
-					auto  key = REG(a);
-					auto  val = REG(b);
-
-					if (key == nil) [[unlikely]] {
-						VM_RET(string::create(L, "indexing with null key"), true);
+				case bc::SSET: {
+					auto tbl = REG(c);
+					auto key = REG(a);
+					auto val = REG(b);
+					if (!key.is_str()) [[unlikely]] {
+						VM_RET(string::create(L, "indexing class instance with non-string key"), true);
 					}
-					if (tbl.is_arr()) {
-						if (!key.is_num()) [[unlikely]] {
-							VM_RET(string::create(L, "indexing array with non-integer key"), true);
-						}
-						if (!tbl.as_arr()->set(L, msize_t(key.as_num()), val)) [[unlikely]] {
-							VM_RET(string::create(L, "out-of-boundaries array access"), true);
-						}
-						continue;
-					} else if (!tbl.is_tbl()) [[unlikely]] {
-						VM_RET(string::create(L, "indexing non-table"), true);
-					}
-
-					auto r = tbl.as_tbl()->tset(L, key, val);
-					if (r.is_exc()) [[unlikely]] {
+					if (!tbl.as_obj()->set(L, key.as_str(), val)) {
 						VM_RETHROW();
 					}
-					L->gc.tick(L);
 					continue;
 				}
+				case bc::SGET: {
+					auto tbl = REG(c);
+					auto key = REG(b);
+					any val = nil;
+					if (key.is_str()) {
+						val = tbl.as_obj()->get(key.as_str());
+					}
+					REG(a) = val;
+					continue;
+				}
+
+				case bc::VACHK: {
+					if (n_args < a) [[unlikely]] {
+						VM_RET(any(any_t{insn.xmm()}), true);
+					}
+					continue;
+				}
+				case bc::VACNT: {
+					REG(a) = number(n_args);
+					continue;
+				}
+				case bc::VAGET: {
+					auto idx = msize_t(REG(b).as_num());
+					REG(a)   = n_args > idx ? args[-(int32_t)idx] : nil;
+					continue;
+				}
+
 				case bc::ANEW: {
 					L->gc.tick(L);
 					REG(a) = any{array::create(L, b)};
 					continue;
 				}
-				case bc::ADUP: {
-					L->gc.tick(L);
-					auto arr = KVAL(b);
-					LI_ASSERT(arr.is_arr());
-					REG(a) = arr.as_arr()->duplicate(L);
-					continue;
-				}
 				case bc::TNEW: {
 					L->gc.tick(L);
 					REG(a) = any{table::create(L, b)};
-					continue;
-				}
-				case bc::TDUP: {
-					L->gc.tick(L);
-					auto tbl = KVAL(b);
-					LI_ASSERT(tbl.is_tbl());
-					REG(a) = tbl.as_tbl()->duplicate(L);
 					continue;
 				}
 				case bc::FDUP: {
@@ -401,31 +406,6 @@ namespace li {
 						r->uvals()[i] = REG(c + i);
 					}
 					REG(a) = r;
-					continue;
-				}
-				case bc::TRGET: {
-					auto  idx    = trait(c);
-					auto  holder = REG(b);
-					auto& trait  = REG(a);
-					if (!holder.is_traitful()) {
-						trait = nil;
-					} else {
-						auto* t = (traitful_node<>*) holder.as_gc();
-						trait   = t->trait_hide ? nil : t->get_trait(idx);
-					}
-					continue;
-				}
-				case bc::TRSET: {
-					auto idx    = trait(c);
-					auto holder = REG(a);
-					auto trait  = REG(b);
-					if (!holder.is_traitful()) [[unlikely]] {
-						VM_RET(string::create(L, "can't set traits on non-traitful type"), true);
-					}
-					auto* t = (traitful_node<>*) holder.as_gc();
-					if (auto ex = t->set_trait(L, idx, trait)) [[unlikely]] {
-						VM_RET(string::create(L, ex), true);
-					}
 					continue;
 				}
 				case bc::SETEH: {

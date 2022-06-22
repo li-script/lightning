@@ -14,8 +14,8 @@ namespace li::ir {
 	// Emits floating-point comparison into a flag.
 	//
 	static flag_id fp_compare(mblock& b, operation cc, value* lhs, value* rhs) {
-		LI_ASSERT(lhs->vt == type::f64 || lhs->vt == type::f32);
-		LI_ASSERT(rhs->vt == type::f64 || rhs->vt == type::f32);
+		LI_ASSERT(is_floating_point_data(lhs->vt));
+		LI_ASSERT(is_floating_point_data(rhs->vt));
 
 		// Can't have constant on LHS.
 		//
@@ -281,7 +281,7 @@ namespace li::ir {
 		// Move the key with the typed erased to a temporary.
 		//
 		auto key = b->next_gp();
-		if (vkey->vt == type::unk)
+		if (vkey->vt == type::any)
 			b.append(vop::movi, key, REG(vkey));
 		else
 			type_erase(b, vkey, key);
@@ -326,7 +326,7 @@ namespace li::ir {
 			mreg idx_reg = b->next_gp();
 			if (vkey->vt == type::f64)
 				b.append(vop::icvt, idx_reg, REG(vkey));
-			else if (type::i8 <= vkey->vt && vkey->vt <= type::i64)
+			else if (is_integer_data(vkey->vt))
 				b.append(vop::izx32, idx_reg, REG(vkey));
 			else
 				util::abort("unexpected key for array lookup.");
@@ -358,7 +358,7 @@ namespace li::ir {
 			mreg idx_reg = b->next_gp();
 			if (vkey->vt == type::f64)
 				b.append(vop::icvt, idx_reg, REG(vkey));
-			else if (type::i8 <= vkey->vt && vkey->vt <= type::i64)
+			else if (is_integer_data(vkey->vt))
 				b.append(vop::izx32, idx_reg, REG(vkey));
 			else
 				util::abort("unexpected key for array lookup.");
@@ -517,7 +517,7 @@ namespace li::ir {
 				auto  out = REG(i);
 				switch (i->vt) {
 					case type::i1: {
-						LI_ASSERT(type::i8 <= op->vt && op->vt <= type::i64);
+						LI_ASSERT(is_integer_data(op->vt));
 						b.append(vop::movi, out, REG(op));
 						AND(b, out, 1);
 						return;
@@ -533,14 +533,10 @@ namespace li::ir {
 					}
 					case type::f32:
 					case type::f64: {
-						LI_ASSERT((type::f32 <= op->vt && op->vt <= type::f64) || op->vt == type::unk);
+						LI_ASSERT(is_floating_point_data(op->vt) || op->vt == type::any);
 						b.append(vop::movf, out, REG(op));
 						if (i->vt == type::f32)
 							b.append(vop::fx32, out, out);
-						return;
-					}
-					case type::opq: {
-						b.append(vop::movi, out, REG(op));
 						return;
 					}
 					// GC types.
@@ -552,7 +548,7 @@ namespace li::ir {
 					//
 					case type::exc:
 					case type::nil:
-					case type::unk: {
+					case type::any: {
 						util::abort("invalid assume_cast");
 						break;
 					}
@@ -566,7 +562,7 @@ namespace li::ir {
 						b.append(vop::movi, REG(i), 0);
 						return;
 					}
-					case type::unk: {
+					case type::any: {
 						static_assert(type_bool == (type_nil - 1), "Outdated constants.");
 
 						auto tmp = REG(i);
@@ -601,15 +597,9 @@ namespace li::ir {
 			// Conditionals.
 			//
 			case opcode::test_type: {
-				auto vt = i->operands[1]->as<constant>()->vmtype;
-				LI_ASSERT(i->operands[0]->vt == type::unk);
+				auto vt = i->operands[1]->as<constant>()->vty;
+				LI_ASSERT(i->operands[0]->vt == type::any);
 				check_type(b, vt, REG(i), REG(i->operands[0]));
-				return;
-			}
-			case opcode::test_traitful: {
-				auto vt = i->operands[1]->as<constant>()->vmtype;
-				LI_ASSERT(i->operands[0]->vt == type::unk);
-				check_type_traitful(b, vt, REG(i), REG(i->operands[0]));
 				return;
 			}
 			case opcode::compare: {
@@ -619,8 +609,7 @@ namespace li::ir {
 
 				// If floating point:
 				//
-				if ( (lhs->vt == type::f32 || lhs->vt == type::f64) &&
-					  (rhs->vt == type::f32 || rhs->vt == type::f64)) {
+				if (is_floating_point_data(lhs->vt) && is_floating_point_data(rhs->vt)) {
 					auto flag = fp_compare(b, cc, lhs, rhs);
 					b.append(vop::setcc, REG(i), flag);
 					return;
@@ -645,18 +634,18 @@ namespace li::ir {
 					}
 					// If it requires type erasure:
 					//
-					else if (lhs->vt == type::unk || rhs->vt == type::unk) {
+					else if (lhs->vt == type::any || rhs->vt == type::any) {
 						// Erase type if needed.
 						//
 						mreg o1;
 						mreg o2;
-						if (lhs->vt != type::unk) {
+						if (lhs->vt != type::any) {
 							o1 = b->next_gp();
 							type_erase(b, lhs, o1);
 						} else {
 							o1 = REG(lhs);
 						}
-						if (rhs->vt != type::unk) {
+						if (rhs->vt != type::any) {
 							o2 = b->next_gp();
 							type_erase(b, rhs, o2);
 						} else {
@@ -730,7 +719,7 @@ namespace li::ir {
 
 					// Type erase if we figured it out.
 					//
-					if (nfni->overloads[oidx].args[n-2] == type::unk && op->vt != type::unk) {
+					if (nfni->overloads[oidx].args[n-2] == type::any && op->vt != type::any) {
 						// TODO: Constants :(
 
 						auto r = arch::map_gp_arg(gp_index++, fp_index);
@@ -750,7 +739,7 @@ namespace li::ir {
 					}
 					LI_ASSERT(op->vt == nfni->overloads[oidx].args[n-2]);
 
-					if (op->vt == type::f32 || op->vt == type::f64) {
+					if (is_floating_point_data(op->vt)) {
 						auto r = arch::map_fp_arg(gp_index, fp_index++);
 						if (r) {
 							b.append(vop::movf, mreg(r), RI(op));
@@ -791,10 +780,16 @@ namespace li::ir {
 				return;
 			}
 
-			/*case opcode::get_exception : {
+			case opcode::get_exception : {
+				b.append(vop::loadi64, REG(i), mmem{.base = vreg_vm, .disp = offsetof(vm, last_ex)});
+				return;
 			}
 			case opcode::set_exception: {
-			}*/
+				auto tmp = b->next_gp();
+				type_erase(b, i->operands[0], tmp);
+				b.append(vop::storei64, {}, mmem{.base = vreg_vm, .disp = offsetof(vm, last_ex)}, tmp);
+				return;
+			}
 			case opcode::vcall: {
 				// Define helper to dispatch arguments to stack.
 				//
@@ -805,12 +800,12 @@ namespace li::ir {
 					if (v->is<constant>()) {
 						val = b->next_gp();
 						b.append(vop::movi, val, v->as<constant>()->to_any());
-					} else if (v->vt != type::unk) {
+					} else if (v->vt != type::any) {
 						if (v->vt == type::f32) {
 							auto tmp = b->next_fp();
 							b.append(vop::fx64, tmp, REG(v));
 							val = tmp;
-						} else if (v->vt != type::f64 && v->vt != type::unk) {
+						} else if (v->vt != type::f64 && v->vt != type::any) {
 							auto tmp = b->next_gp();
 							type_erase(b, v, tmp);
 							val = tmp;
@@ -949,7 +944,7 @@ namespace li::ir {
 				// Allocate a register.
 				//
 				mreg r;
-				if (phi->vt == type::f32 || phi->vt == type::f64)
+				if (is_floating_point_data(phi->vt))
 					r = m->next_fp();
 				else
 					r = m->next_gp();

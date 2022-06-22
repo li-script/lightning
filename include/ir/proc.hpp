@@ -346,8 +346,6 @@ namespace li::ir {
 		void add_jump(basic_block* from, basic_block* to) {
 			auto sit = range::find(from->successors, to);
 			auto pit = range::find(to->predecessors, from);
-			LI_ASSERT(sit == from->successors.end());
-			LI_ASSERT(pit == to->predecessors.end());
 			from->successors.emplace_back(to);
 			to->predecessors.emplace_back(from);
 			mark_blocks_dirty();
@@ -355,8 +353,6 @@ namespace li::ir {
 		void del_jump(basic_block* from, basic_block* to, bool fix_phi = true) {
 			auto sit = range::find(from->successors, to);
 			auto pit = range::find(to->predecessors, from);
-			LI_ASSERT(sit != from->successors.end());
-			LI_ASSERT(pit != to->predecessors.end());
 			if (fix_phi) {
 				size_t n = pit - to->predecessors.begin();
 				for (auto phi : to->phis())
@@ -500,7 +496,7 @@ namespace li::ir {
 			i->name      = p->next_reg_name++;
 			i->source_bc = current_bc;
 			i->opc       = T::Opcode;
-			i->vt        = type::unk;
+			i->vt        = type::any;
 
 			// Add operands and update.
 			//

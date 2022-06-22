@@ -404,12 +404,12 @@ namespace li::ir {
 		}
 		bool writes_to_register(mreg r) const {
 			bool x = false;
-			for_each_reg([&](const mreg& a, bool w) { x = x || (w && a == r); });
+			for_each_reg([&](const mreg& a, bool reads) { x = x || (!reads && a == r); });
 			return x;
 		}
 		bool reads_from_register(mreg r) const {
 			bool x = false;
-			for_each_reg([&](const mreg& a, bool w) { x = x || (!w && a == r); });
+			for_each_reg([&](const mreg& a, bool reads) { x = x || (reads && a == r); });
 			return x;
 		}
 		bool trashes_flags() const {
@@ -529,7 +529,6 @@ namespace li::ir {
 		int32_t              next_reg_i   = 0;        // Name of the next virtual register.
 		int32_t              next_reg_f   = 0;        //
 		uint32_t             next_block   = 0;        // Name of the next block.
-		std::vector<uint8_t> code         = {};       // Generated code.
 		std::vector<any>     const_pool   = {};       // Pool of constants.
 
 		// Used register and spill slot info
@@ -575,16 +574,12 @@ namespace li::ir {
 		void add_jump(mblock* from, mblock* to) {
 			auto sit = range::find(from->successors, to);
 			auto pit = range::find(to->predecessors, from);
-			LI_ASSERT(sit == from->successors.end());
-			LI_ASSERT(pit == to->predecessors.end());
 			from->successors.emplace_back(to);
 			to->predecessors.emplace_back(from);
 		}
 		void del_jump(mblock* from, mblock* to) {
 			auto sit = range::find(from->successors, to);
 			auto pit = range::find(to->predecessors, from);
-			LI_ASSERT(sit != from->successors.end());
-			LI_ASSERT(pit != to->predecessors.end());
 			from->successors.erase(sit);
 			to->predecessors.erase(pit);
 		}

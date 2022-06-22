@@ -5,81 +5,165 @@
 #include <string>
 #include <util/common.hpp>
 
-#pragma pack(push, 1)
+#ifndef LI_STRICT_ALIGN
+	#if LI_ARCH_ARM
+		#define LI_STRICT_ALIGN 1
+	#else
+		#define LI_STRICT_ALIGN 0
+	#endif
+#endif
+
+// Forwards.
+//
 namespace li {
-	struct vm;
-	using slot_t = intptr_t;
-
-	// Integral types.
-	//
-	using number = double;
-
-	// Opaque types.
-	//
-	struct opaque {
-		uint64_t bits : 47;
-		uint64_t rsvd : 17;
+	namespace ir {
+		struct value;
+		struct insn;
+		struct constant;
+		struct basic_block;
+		struct procedure;
+		struct builder;
 	};
-
-	// GC types (forward).
-	//
 	namespace gc {
 		struct header;
 	};
+	struct vm;
 	struct header;
 	struct array;
 	struct table;
 	struct string;
-	struct userdata;
 	struct function;
+	struct jfunction;
+	struct function_proto;
+	struct object;
+	struct vclass;
+	struct string_set;
+};
 
-	// Type enumerator.
+namespace li {
+	// Integral types.
+	//
+	using number = double;
+	using slot_t = intptr_t;
+
+	// Type enumerators.
 	//
 	enum value_type : uint8_t /*:4*/ {
-		// - first gc type
-		type_table     = 0,
-		type_userdata  = 1,  // Last traitful.
-		type_array     = 2,
-		type_function  = 3,
-		type_proto     = 4,  // Not visible to user.
-		type_string    = 5,
+		type_object     = 0,   // GC: Class, further divides into user types (<0 type id in gc header).
+		type_table      = 1,   // GC: Table.
+		type_array      = 2,   // GC: Array.
+		type_function   = 3,   // GC: Function.
+		type_string     = 4,   // GC: String.
+		type_class      = 5,   // GC: Class type.
+		type_bool       = 8,   // LI: Boolean | Literals.
+		type_nil        = 9,   // LI: Nil tag.
+		type_exception  = 10,  // LI: Exception tag. Not visible to user.
+		type_number     = 11,  // LI: Double values. Not a real enumerator, everything below (if boxed) is also a number.
+		type_gc_private = 12,  // AL: Private object. | GC aliases, only used in the GC header. Cannot be converted to any.
+		type_gc_jfunc   = 13,  // AL: JIT function.
+		type_gc_proto   = 14,  // AL: Function prototype.
+		type_invalid    = 15,  // End of builtin types.
 
-		type_bool      = 8,  // First non-GC type.
-		type_nil       = 9,
-		type_opaque    = 10,  // Not visible to user, unique integer part.
-		type_exception = 11,  // Not visible to user, marker.
-		type_number    = 12,  // Not a real enumerator, everything below this is also a number.
-
-		// GC aliases.
-		type_gc_last_traitful = type_userdata,
-		type_gc_last          = 7,
-		type_gc_free,
-		type_gc_private,
-		type_gc_uninit,
-		type_gc_jfunc,
-
-		// Invalid
-		type_invalid = 0xFF
+		// Pseudo indices.
+		//
+		type_gc_last = 7,
+		type_gc_free = type_nil,
 	};
+	enum class type : int32_t {
+		// -- Everything <0 is a user type.
+
+		// Map value types one to one.
+		//
+		obj  = type_object,
+		tbl  = type_table,
+		arr  = type_array,
+		fn   = type_function,
+		str  = type_string,
+		vcl  = type_class,
+		i1   = type_bool,
+		nil  = type_nil,
+		exc  = type_exception,
+		f64  = type_number,
+		none = type_invalid,  // type_invalid == void.
+		any,                  // Unknown type.
+
+		// Numeric types that are not represented as a boxed value.
+		//
+		i8,
+		i16,
+		i32,
+		i64,
+		f32,
+
+		// Private types.
+		//
+		bb,
+		nfni,
+		vmopr,
+		vty,
+		dty,
+
+		// Aliases.
+		//
+		ptr = i64,
+	};
+	static constexpr bool is_integer_data(type t) { return type::i8 <= t && t <= type::i64; }
+	static constexpr bool is_floating_point_data(type t) { return t == type::f32 || t == type::f64; }
+	static constexpr bool is_marker_data(type t) { return t == type::nil || t == type::exc; }
+	static constexpr bool is_gc_data(type t) { return t <= type::vcl; }
+	static constexpr msize_t size_of_data(type t) {
+		if (t == type::i8)
+			return 1;
+		if (t == type::i16)
+			return 2;
+		if (t == type::i32 || t == type::f32)
+			return 4;
+		return 8;
+	}
+	static constexpr msize_t align_of_data(type t) {
+#if LI_STRICT_ALIGN
+		return size_of_data(t);
+#else
+		return 1;
+#endif
+	}
+
+	// Conversion between data and value types.
+	//
+	static constexpr value_type to_value_type(type vt) {
+		if (vt <= type::obj)
+			return type_object;
+		if (vt <= type::f64)
+			return value_type(vt);
+		else if (is_floating_point_data(vt) || is_integer_data(vt))
+			return type_number;
+		else
+			assume_unreachable();
+	}
+	static constexpr type to_type(value_type t) {
+		if (t > type_number)
+			assume_unreachable();
+		return type(t);
+	}
 
 	// Type names.
 	//
 	static constexpr std::array<const char*, 16> type_names = []() {
-		std::array<const char*, 16> result;
+		std::array<const char*, 16> result = {};
 		result.fill("invalid");
-		result[type_table]     = "table";
-		result[type_array]     = "array";
-		result[type_function]  = "function";
-		result[type_proto]     = "proto";
-		result[type_string]    = "string";
-		result[type_userdata]  = "userdata";
-		result[type_nil]       = "nil";
-		result[type_bool]      = "bool";
-		result[type_opaque]    = "opaque";
-		result[type_exception] = "exception";
-		result[type_number]    = "number";
+		result[type_table]      = "table";
+		result[type_array]      = "array";
+		result[type_function]   = "function";
+		result[type_string]     = "string";
+		result[type_object]     = "object";
+		result[type_class]      = "class";
+		result[type_nil]        = "nil";
+		result[type_bool]       = "bool";
+		result[type_exception]  = "exception";
+		result[type_number]     = "number";
 		return result;
 	}();
+	std::string_view get_type_name(vm* L, type vt);
 
 	// NaN boxing details.
 	//
@@ -118,14 +202,12 @@ namespace li {
 		}
 	}
 	LI_INLINE static constexpr bool is_type_gc(uint8_t t) { return t <= type_gc_last; }
-	LI_INLINE static constexpr bool is_type_traitful(uint8_t t) { return t <= type_gc_last_traitful; }
 	LI_INLINE static constexpr bool is_value_gc(uint64_t value) { return value > (make_tag(type_gc_last + 1) + 1); }
-	LI_INLINE static constexpr bool is_value_traitful(uint64_t value) { return value > (make_tag(type_gc_last_traitful + 1) + 1); }
 
 	// Forward for auto-typing.
 	//
 	namespace gc {
-		static value_type identify(const header* h);
+		static value_type identify_value_type(const header* h);
 	};
 
 	// Boxed object type, fixed 8-bytes.
@@ -136,7 +218,7 @@ namespace li {
 
 		// Type check.
 		//
-		LI_INLINE inline constexpr value_type type() const{
+		LI_INLINE inline constexpr value_type type() const {
 			return (value_type) std::min(get_type(value), (uint64_t) type_number);
 		}
 		template<value_type Type>
@@ -148,23 +230,27 @@ namespace li {
 		LI_INLINE inline constexpr bool is_arr() const { return is<type_array>(); }
 		LI_INLINE inline constexpr bool is_tbl() const { return is<type_table>(); }
 		LI_INLINE inline constexpr bool is_str() const { return is<type_string>(); }
-		LI_INLINE inline constexpr bool is_udt() const { return is<type_userdata>(); }
+		LI_INLINE inline constexpr bool is_obj() const { return is<type_object>(); }
+		LI_INLINE inline constexpr bool is_vcl() const { return is<type_class>(); }
 		LI_INLINE inline constexpr bool is_fn() const { return is<type_function>(); }
-		LI_INLINE inline constexpr bool is_opq() const { return is<type_opaque>(); }
 		LI_INLINE inline constexpr bool is_exc() const { return is<type_exception>(); }
 		LI_INLINE inline constexpr bool is_gc() const { return is_value_gc(value); }
-		LI_INLINE inline constexpr bool is_traitful() const { return is_value_traitful(value); }
+
+		// Full type getter and type namer.
+		//
+		const char* type_name() const;
+		li::type xtype() const;
 
 		// Getters.
 		//
 		LI_INLINE inline constexpr bool   as_bool() const { return value & 1; }
 		LI_INLINE inline constexpr number as_num() const { return li::bit_cast<number>(value); }
-		LI_INLINE inline constexpr opaque as_opq() const { return {.bits = mask_value(value)}; }
 		LI_INLINE inline gc::header*      as_gc() const { return get_gc_value(value); }
 		LI_INLINE inline array*           as_arr() const { return (array*) as_gc(); }
 		LI_INLINE inline table*           as_tbl() const { return (table*) as_gc(); }
 		LI_INLINE inline string*          as_str() const { return (string*) as_gc(); }
-		LI_INLINE inline userdata*        as_udt() const { return (userdata*) as_gc(); }
+		LI_INLINE inline vclass*          as_vcl() const { return (vclass*) as_gc(); }
+		LI_INLINE inline object*          as_obj() const { return (object*) as_gc(); }
 		LI_INLINE inline function*        as_fn() const { return (function*) as_gc(); }
 
 		// Bytewise equal comparsion.
@@ -191,6 +277,10 @@ namespace li {
 		string*     to_string(vm*) const;
 		std::string to_string() const;
 		void        print() const;
+
+		// Duplication.
+		//
+		any_t duplicate(vm* L) const;
 
 		// Type coercion.
 		//
@@ -231,7 +321,6 @@ namespace li {
 				value = kvalue_nan;
 		}
 		LI_INLINE inline constexpr any(std::in_place_t, uint64_t value) : any_t{value} {}
-		LI_INLINE inline constexpr any(opaque v) : any_t{mix_value(type_opaque, (uint64_t) v.bits)} {}
 		LI_INLINE inline constexpr any(any_t v) : any_t{v} {}
 		LI_INLINE inline constexpr any(uint64_t v) = delete;
 
@@ -240,9 +329,19 @@ namespace li {
 		LI_INLINE inline any(array* v) : any_t{mix_value(type_array, (uint64_t) v)} {}
 		LI_INLINE inline any(table* v) : any_t{mix_value(type_table, (uint64_t) v)} {}
 		LI_INLINE inline any(string* v) : any_t{mix_value(type_string, (uint64_t) v)} {}
-		LI_INLINE inline any(userdata* v) : any_t{mix_value(type_userdata, (uint64_t) v)} {}
+		LI_INLINE inline any(vclass* v) : any_t{mix_value(type_class, (uint64_t) v)} {}
+		LI_INLINE inline any(object* v) : any_t{mix_value(type_object, (uint64_t) v)} {}
 		LI_INLINE inline any(function* v) : any_t{mix_value(type_function, (uint64_t) v)} {}
-		LI_INLINE inline any(gc::header* v) : any_t{mix_value(gc::identify(v), (uint64_t) v)} {}
+		LI_INLINE inline any(gc::header* v) : any_t{mix_value(gc::identify_value_type(v), (uint64_t) v)} {}
+
+		// Constructs default value of the data type.
+		//
+		static any make_default(vm* L, li::type t);
+
+		// Load/Store from data types.
+		//
+		static any load_from(const void* data, li::type t);
+		void       store_at(void* data, li::type t) const;
 
 		// Define comparison operators.
 		//
@@ -266,110 +365,5 @@ namespace li {
 	//
 	static void fill_nil(void* data, size_t count) {
 		std::fill_n((uint64_t*) data, count, make_tag(type_nil));
-	}
-};
-#pragma pack(pop)
-
-// Define IR types here as it's used in native builtins regardless of whether or not IR is even used.
-//
-namespace li::ir {
-	// Value types.
-	//
-	enum class type : uint8_t {
-		none,
-
-		// Integers.
-		//
-		i1,
-		i8,
-		i16,
-		i32,
-		i64,
-
-		// Floating point types.
-		//
-		f32,
-		f64,
-
-		// Wrapped type (li::any).
-		//
-		unk,
-
-		// VM types.
-		//
-		nil,
-		opq,
-		exc,
-		tbl,  // same order as gc types
-		udt,
-		arr,
-		fn,
-		proto,
-		str,
-
-		// Instruction stream types.
-		//
-		bb,
-
-		// Native function info.
-		//
-		nfni,
-
-		// Enums.
-		//
-		vmopr,
-		vmtrait,
-		vmtype,
-		irtype,
-
-		// Aliases.
-		//
-		ptr = i64,
-	};
-
-	// Forwards.
-	//
-	struct value;
-	struct insn;
-	struct constant;
-	struct basic_block;
-	struct procedure;
-	struct builder;
-
-	// Conversion between IR and VM types.
-	//
-	static constexpr value_type to_vm_type(type vt) {
-		if (vt == type::i1)
-			return type_bool;
-		else if (type::i8 <= vt && vt <= type::i64)
-			return type_number;
-		else if (type::f32 <= vt && vt <= type::f64)
-			return type_number;
-		else if (vt == type::nil)
-			return type_nil;
-		else if (vt == type::opq)
-			return type_opaque;
-		else if (vt == type::exc)
-			return type_exception;
-		else if (type::tbl <= vt && vt < type::bb)
-			return value_type(uint8_t(vt) - uint8_t(type::tbl) + type_table);
-		else
-			assume_unreachable();
-	}
-	static constexpr type to_ir_type(value_type t) {
-		if (t == type_bool)
-			return type::i1;
-		else if (t == type_number)
-			return type::f64;
-		else if (t == type_opaque)
-			return type::opq;
-		else if (t == type_exception)
-			return type::exc;
-		else if (t == type_nil)
-			return type::nil;
-		else if (t <= type_gc_last)
-			return type(uint8_t(t) + uint8_t(type::tbl) - type_table);
-		else
-			assume_unreachable();
 	}
 };

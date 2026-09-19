@@ -10,7 +10,10 @@ fn opt(x, y?) {
 }
 assert(opt(1) == "1-nil")
 
+let missing_argument_error = nil
 try {
    opt()
-   assert(false)
-};
+} catch error {
+   missing_argument_error = error
+}
+assert(missing_argument_error is string)

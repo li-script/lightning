@@ -1,0 +1,69 @@
+import typed
+
+fn compile_error(source) {
+   let caught = nil
+   try {
+      loadstring(source)
+   } catch error {
+      caught = error
+   }
+   caught
+}
+
+struct Pair {
+   left: number = 0
+   right: number = 0
+}
+
+# Dynamic code observes the ordinary box and therefore aliases it.
+let boxed = Pair{left: 2, right: 3}
+let alias = boxed
+alias.left = 8
+assert(boxed.left == 8)
+
+# A strict parameter is copied on entry, and strict local assignment copies
+# again instead of introducing object identity.
+[[strict]] fn mutate(value: Pair) -> Pair {
+   value.left = 50
+   value
+}
+[[strict]] fn local_copy(value: Pair) -> array {
+   let duplicate = value
+   duplicate.right = 90
+   [value.right, duplicate.right]
+}
+
+let input = Pair{left: 4, right: 5}
+let changed = mutate(input)
+assert(input.left == 4)
+assert(changed.left == 50)
+const copied = local_copy(input)
+assert(copied[0] == 5 && copied[1] == 90)
+
+# Struct equality is nominal and fieldwise.
+assert(Pair{left: 1, right: 2} == Pair{left: 1, right: 2})
+assert(Pair{left: 1, right: 2} != Pair{left: 2, right: 1})
+
+# Struct typed arrays keep inline elements. Reads materialize copies and writes
+# copy fields from the supplied box.
+const values = typed.struct_array(Pair, 2)
+values[0] = Pair{left: 11, right: 12}
+values[1] = Pair{left: 21, right: 22}
+[[strict]] fn mutate_element(items: Pair[]) -> number {
+   items[0].left = 41
+   items[0].left += 1
+   items[0].left
+}
+assert(mutate_element(values) == 42)
+assert(values[0].left == 42)
+const first = values[0]
+first.left = 99
+assert(values[0].left == 42)
+const source = Pair{left: 31, right: 32}
+values[1] = source
+source.right = 77
+assert(values[1].right == 32)
+
+assert("struct declarations cannot inherit a base" in compile_error("class Base {}\nstruct Invalid : Base {}"))
+assert("class declarations cannot inherit from a struct" in compile_error("struct Value {}\nclass Invalid : Value {}"))
+assert(compile_error("struct Duplicate { value: number; value: number }") is string)

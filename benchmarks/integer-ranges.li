@@ -1,0 +1,18 @@
+# Exact bounded integer recurrences large enough to exercise i64 specialization.
+# The native-derived bias prevents the final checksum from becoming a compile-time
+# constant while leaving the loop's induction and accumulator independently provable.
+import math
+
+fn integer_ranges(bias) {
+   let index = 0
+   let checksum = 0
+   while index < 2000000 {
+      checksum += index * 3 + 7
+      index += 1
+   }
+   return checksum + bias
+}
+
+const runtime_bias = math.trunc(0.75)
+const checksum = integer_ranges(runtime_bias)
+assert(checksum == 6000011000000)

@@ -1,18 +1,18 @@
 #pragma once
-#include "common.hpp"
-#include <string>
 #include <stdarg.h>
+#include <string>
 #include <util/utf.hpp>
+#include "common.hpp"
 
 namespace li::util {
-	#define LI_BRG  "\x1B[1;37m"
-	#define LI_YLW  "\x1B[1;33m"
-	#define LI_PRP  "\x1B[1;35m"
-	#define LI_RED  "\x1B[1;31m"
-	#define LI_CYN  "\x1B[1;36m"
-	#define LI_GRN  "\x1B[1;32m"
-	#define LI_BLU  "\x1B[1;34m"
-	#define LI_DEF  "\x1B[0m"
+#define LI_BRG "\x1B[1;37m"
+#define LI_YLW "\x1B[1;33m"
+#define LI_PRP "\x1B[1;35m"
+#define LI_RED "\x1B[1;31m"
+#define LI_CYN "\x1B[1;36m"
+#define LI_GRN "\x1B[1;32m"
+#define LI_BLU "\x1B[1;34m"
+#define LI_DEF "\x1B[0m"
 
 	// Length of string without the ANSI escapes.
 	//
@@ -24,10 +24,10 @@ namespace li::util {
 			if (p == std::string::npos) {
 				break;
 			}
-			s.remove_prefix(p+2);
+			s.remove_prefix(p + 2);
 			size_t n = 0;
 			if (!s.empty()) {
-				n = s[0] == '1' ? 5 : 2; 
+				n = s[0] == '1' ? 5 : 2;
 			}
 			s.remove_prefix(std::min(s.size(), n));
 		}
@@ -60,7 +60,7 @@ namespace li::util {
 
 	// Asserts and errors.
 	//
-	LI_COLD inline static void abort [[noreturn]] (const char* fmt, ...) {
+	LI_COLD inline static void abort [[noreturn]](const char* fmt, ...) {
 		va_list args;
 		va_start(args, fmt);
 		vprintf(fmt, args);
@@ -69,14 +69,14 @@ namespace li::util {
 	}
 
 #if LI_DEBUG
-	#define LI_ASSERT(...)                                                                                                            \
-		do                                                                                                                             \
-			if (!(__VA_ARGS__)) [[unlikely]]                                                                                            \
+	#define LI_ASSERT(...)                                                                                                       \
+		do                                                                                                                        \
+			if (!(__VA_ARGS__)) [[unlikely]]                                                                                       \
 				li::util::abort("Assertion \"" LI_STRINGIFY(__VA_ARGS__) "\" failed. [" __FILE__ ":" LI_STRINGIFY(__LINE__) "]\n"); \
 		while (0)
-	#define LI_ASSERT_MSG(msg, ...)                                                   \
-		do                                                                             \
-			if (!(__VA_ARGS__)) [[unlikely]]                                            \
+	#define LI_ASSERT_MSG(msg, ...)                                              \
+		do                                                                        \
+			if (!(__VA_ARGS__)) [[unlikely]]                                       \
 				li::util::abort(msg "[" __FILE__ ":" LI_STRINGIFY(__LINE__) "]\n"); \
 		while (0)
 #else

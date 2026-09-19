@@ -1,0 +1,41 @@
+fn first_even(values) {
+    defer { print("finished searching") }
+
+    for index, value in values {
+        if value < 0 {
+            continue
+        }
+        if value % 2 == 0 {
+            return {index: index, value: value}
+        }
+    }
+
+    nil
+}
+
+let countdown = 3
+while countdown > 0 {
+    print(`launch in {countdown}`)
+    countdown -= 1
+}
+
+try {
+    const result = first_even([-5, 3, 7, 12, 15])
+    if result {
+        print(`first nonnegative even value: {result.value} at index {result.index}`)
+    } else {
+        throw "no nonnegative even value found"
+    }
+} catch error {
+    print(`search failed: {error}`)
+}
+
+for value in 0..10 {
+    if value == 6 {
+        break
+    }
+    if value % 2 != 0 {
+        continue
+    }
+    print(`range value: {value}`)
+}

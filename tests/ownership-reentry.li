@@ -1,0 +1,27 @@
+import debug
+
+fn exercise_reentry(seed) {
+   const retains_before = debug.retain_count()
+   const releases_before = debug.release_count()
+
+   let payload = {seed: seed, nested: nil}
+   const original = || { payload }
+   const copied = original::dup()
+   assert(copied != original)
+
+   const nested = eval("[{value: 42}][0]")
+   payload.nested = nested
+   assert(original() == payload)
+   assert(copied() == payload)
+   assert(original().nested.value == 42)
+   assert(copied().seed == seed)
+
+   assert(debug.retain_count() > retains_before)
+   assert(debug.release_count() > releases_before)
+}
+
+const baseline = debug.live_objects()
+for iteration in 0..64 {
+   exercise_reentry(iteration)
+   assert(debug.live_objects() == baseline)
+}

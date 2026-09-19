@@ -1,0 +1,34 @@
+# Each non-comment record is label|escaped bytes. Supported file escapes are
+# \\, \n, \r, \t, \0, and \xNN. The decoded bytes are passed to load_script.
+empty|
+utf8-bom|\xEF\xBB\xBFconst value = 42\nvalue
+utf8-multibyte|const text = "caf\xC3\xA9 \xE2\x98\x83"\ntext
+utf8-invalid-continuation|const text = "\xF0\x28\x8C\x28"
+bom-only|\xEF\xBB\xBF
+utf16le-bom|\xFF\xFE4\x002\x00
+utf16be-bom|\xFE\xFF\x004\x002
+utf32le-bom|\xFF\xFE\x00\x004\x00\x00\x002\x00\x00\x00
+utf32be-bom|\x00\x00\xFE\xFF\x00\x00\x004\x00\x00\x002
+utf16le-truncated|\xFF\xFEc\x00o\x00n\x00s\x00t\x00 \x00x\x00 \x00=\x00 \x001
+utf32be-truncated|\x00\x00\xFE\xFF\x00\x00\x004\x00\x00
+embedded-nul|const before = 1\0const after = 2
+truncated-quoted-string|const value = "unterminated
+truncated-backslash|const value = "unterminated\\
+truncated-hex-escape|const value = "unterminated\\x
+truncated-unicode-escape|const value = "unterminated\\u{
+line-comment|# comment through newline\nconst value = 1\nvalue
+long-comment|#[==[ ignored "quotes" [=[nested-looking]=] ]==]\nconst value = 2
+long-comment-truncated|#[====[ no closing delimiter
+long-string|const value = [==[first\\n\n"quoted" ]=] still text\nlast]==]\nvalue
+long-string-mismatched|const value = [==[ mismatched closer ]=]
+operators|let value = nil\nvalue ??= 1\nvalue += 2\nvalue *= 3\nvalue <= 9 && value != 0
+operator-truncated|const value = 1 ??
+nesting-valid|const value = ((((((((((((((((1 + 2))))))))))))))))
+nesting-truncated|const value = ({nested: [{again: (((1 + 2)))}]
+function|fn combine(left: number, right: number) {\n  const values = [left, right]\n  values[0] + values[1]\n}\ncombine(20, 22)
+function-truncated|fn broken(value: number {\n  value + 1\n}
+class|class ParserBox {\n  value: number = 7\n  read() { self.value }\n}\nParserBox{}.read()
+class-truncated|class Broken : ParserBox {\n  value: number =
+defer|fn with_cleanup(value) {\n  defer { const captured = {value: value} }\n  value + 1\n}\nwith_cleanup(41)
+defer-invalid-control|fn invalid_cleanup() {\n  defer { return 1 }\n  2\n}
+malformed-member-table-call|x.y {z:}

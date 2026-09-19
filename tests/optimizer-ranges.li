@@ -1,0 +1,131 @@
+import math
+
+# A constant-bound induction, multiply, accumulation, and comparison form one
+# exact i32 region. The returned language value is still an ordinary number.
+fn bounded_sum() {
+   let index = 0
+   let total = 0
+   while index < 1000 {
+      total += index * 3 + 1
+      index += 1
+   }
+   return [index, total]
+}
+const bounded = bounded_sum()
+assert(bounded[0] == 1000)
+assert(bounded[1] == 1499500)
+
+# Values outside i32 select i64, while every boxed boundary remains exact f64.
+fn wide_sum() {
+   let cursor = 2147483646
+   let total = 0
+   while cursor < 2147483650 {
+      total += cursor
+      cursor += 1
+   }
+   return [cursor, total]
+}
+const wide = wide_sum()
+assert(wide[0] == 2147483650)
+assert(wide[1] == 8589934590)
+
+# Descending induction uses the same signed proof.
+fn descending_sum() {
+   let cursor = 20
+   let total = 0
+   while cursor >= -20 {
+      total += cursor
+      cursor -= 2
+   }
+   return [cursor, total]
+}
+const descending = descending_sum()
+assert(descending[0] == -22)
+assert(descending[1] == 0)
+
+# Native f64 consumers require an explicit exact integer-to-number boundary;
+# mixed arithmetic must likewise retain language-number semantics.
+fn boundary_uses() {
+   let index = 0
+   let total = 0
+   while index < 81 {
+      total += index
+      index += 1
+   }
+   const root = math.sqrt(total)
+   const mixed = total + 0.5
+   const boxed = {value: total}
+   return [root, mixed, boxed.value]
+}
+const boundaries = boundary_uses()
+assert(boundaries[0] == math.sqrt(3240))
+assert(boundaries[1] == 3240.5)
+assert(boundaries[2] == 3240)
+
+# The largest consecutive exact f64 integers may specialize, but a recurrence
+# whose mathematical next value exceeds that boundary must remain floating.
+fn exact_boundary() {
+   let value = 9007199254740990
+   let step = 0
+   while step < 2 {
+      value += 1
+      step += 1
+   }
+   return value
+}
+assert(exact_boundary() == 9007199254740992)
+
+fn precision_boundary() {
+   let value = 9007199254740992
+   let step = 0
+   while step < 2 {
+      value += 1
+      step += 1
+   }
+   return value
+}
+assert(precision_boundary() == 9007199254740992)
+
+# Multiplying +0 by a negative number produces -0. Integer specialization must
+# not erase that sign, even when an independent loop induction is bounded.
+fn negative_zero_product() {
+   let index = 0
+   let factor = -3
+   let result = 0
+   while index < 3 {
+      result = 0 * factor
+      factor += 1
+      index += 1
+   }
+   return result
+}
+assert(1 / negative_zero_product() == -math.inf)
+
+# NaN, division, and remainder never enter the integer recurrence subset.
+fn exceptional_numbers() {
+   let index = 0
+   let nan_value = math.nan
+   let quotient = 1
+   let remainder = -0.0
+   while index < 4 {
+      nan_value += index
+      quotient = quotient / 2
+      remainder = remainder % 3
+      index += 1
+   }
+   return [nan_value, quotient, remainder]
+}
+const exceptional = exceptional_numbers()
+assert(exceptional[0] != exceptional[0])
+assert(exceptional[1] == 0.0625)
+assert(1 / exceptional[2] == -math.inf)
+
+# Fractional induction is deliberately outside the exact-integral proof.
+fn fractional_loop() {
+   let value = 0.5
+   while value < 3 {
+      value += 0.5
+   }
+   return value
+}
+assert(fractional_loop() == 3)

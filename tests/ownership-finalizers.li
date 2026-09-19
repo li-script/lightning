@@ -1,0 +1,99 @@
+import debug
+import weak
+import traits
+
+fn exercise_finalizer_fields_and_weak() {
+   let state = {calls: 0, sum: 0, weak_expired: false, weak_lock_nil: false}
+   let target = {value: 41, child: {value: 1}}
+   const observer = weak.create(target)
+
+   traits.set(target, "del", || {
+      state.calls += 1
+      state.sum = self.value + self.child.value
+      state.weak_expired = weak.expired(observer)
+      state.weak_lock_nil = weak.lock(observer) == nil
+   })
+
+   let alias = target
+   target = nil
+   assert(state.calls == 0)
+   assert(!weak.expired(observer))
+   alias = nil
+
+   assert(state.calls == 1)
+   assert(state.sum == 42)
+   assert(state.weak_expired)
+   assert(state.weak_lock_nil)
+   assert(weak.expired(observer))
+}
+
+fn exercise_published_replacement_and_nested_finalizer() {
+   let state = {outer_calls: 0, nested_calls: 0, outer_seen: 0, nested_seen: 0}
+   let holder = {slot: nil}
+   let child = {value: 7}
+   let retired = {value: 1, child: child}
+
+   traits.set(child, "del", || {
+      state.nested_calls += 1
+      state.nested_seen = holder.slot.value
+   })
+   traits.set(retired, "del", || {
+      state.outer_calls += 1
+      state.outer_seen = holder.slot.value
+      assert(self.value == 1)
+      assert(self.child.value == 7)
+      self.child = nil
+   })
+
+   holder.slot = retired
+   child = nil
+   retired = nil
+   assert(state.outer_calls == 0)
+   assert(state.nested_calls == 0)
+
+   const replacement = {value: 99}
+   holder.slot = replacement
+   assert(holder.slot == replacement)
+   assert(state.outer_calls == 1)
+   assert(state.nested_calls == 1)
+   assert(state.outer_seen == 99)
+   assert(state.nested_seen == 99)
+}
+
+fn exercise_resurrection_rejection() {
+   let state = {calls: 0, caught: false}
+   let sink = {saved: nil}
+   let target = {value: 17}
+   const observer = weak.create(target)
+
+   traits.set(target, "del", || {
+      state.calls += 1
+      assert(self.value == 17)
+      assert(weak.expired(observer))
+      assert(weak.lock(observer) == nil)
+      try {
+         sink.saved = self
+      } catch error {
+         state.caught = true
+         assert(error != nil)
+      }
+   })
+
+   target = nil
+   assert(state.calls == 1)
+   assert(state.caught)
+   assert(sink.saved == nil)
+   assert(weak.expired(observer))
+}
+
+fn exercise_finalizers() {
+   exercise_finalizer_fields_and_weak()
+   exercise_published_replacement_and_nested_finalizer()
+   exercise_resurrection_rejection()
+}
+
+const baseline = debug.live_objects()
+for iteration in 0..32 {
+   exercise_finalizers()
+   assert(debug.live_objects() == baseline)
+}

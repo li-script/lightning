@@ -1,0 +1,21 @@
+# Immutable concatenation, indexing, length, and search workload.
+const chunks = 4000
+let text = ""
+let i = 0
+while i < chunks {
+   text = text::join("abcdefgh")
+   i += 1
+}
+
+assert(text::len() == 32000)
+assert(text[0] == 97)
+assert(text[31999] == 104)
+assert("defg" in text)
+
+let checksum = 0
+i = 0
+while i < chunks {
+   checksum += text[i * 8]
+   i += 1
+}
+assert(checksum == 388000)

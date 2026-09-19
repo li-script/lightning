@@ -1,76 +1,68 @@
 #include <ir/opt.hpp>
 
 namespace li::ir::opt {
-	// Attempts to optimize-out any SETCC's by moving them nearby to the JS.
+	// Sink a single-use comparison next to its boolean consumer. Comparisons keep
+	// producing ordinary GP values; this pass never introduces target flags or
+	// changes floating-point condition semantics.
 	//
 	void remove_redundant_setcc(mprocedure* proc) {
-		// TODO: Also for vop::select.
-
-		// Try to move any compares closer to JS to avoid register allocation.
-		//
 		for (auto& bb : proc->basic_blocks) {
-			// Skip if it does not end with a JS.
-			//
-			if (bb.instructions.empty())
-				continue;
-			auto& term = bb.instructions.back();
-			if (!term.is(vop::js))
+			if (bb.instructions.size() < 2)
 				continue;
 
-			// Skip if branch condition is not defined in this block.
-			//
-			auto rview = view::reverse(bb.instructions);
-			auto setcc = range::find_if(rview, [&](minsn& i) { return i.out == term.arg[0].reg; });
-			if (setcc == rview.end())
+			size_t term_index = bb.instructions.size() - 1;
+			minsn& term       = bb.instructions[term_index];
+			if (!term.is(vop::js) || !term.arg[0].is_reg())
 				continue;
-			if (!setcc->is(vop::setcc))
-				continue;
-			auto comperator = range::find_if(range::subrange(setcc, rview.end()), [&](minsn& i) { return i.out == setcc->arg[0].reg; });
-			if (comperator == rview.end())
-				continue;
+			mreg condition = term.arg[0].reg;
 
-			// Skip if value will be killed if we move it.
-			//
-			auto kill = range::find_if(range::subrange(comperator.base() - 1, bb.instructions.end() - 1), [&](minsn& i) {
-				if (&i == &*setcc)
-					return false;
-				if (i.has_side_effects())
-					return true;
-				for (auto& livereg : comperator->arg)
-					if (livereg.is_reg() && livereg.reg == i.out)
-						return true;
-				return false;
-			});
-			if (kill != (bb.instructions.end() - 1))
-				continue;
-
-			// Skip if value is alive after the block.
-			// - TODO: Not really, have to implement recursive descent with write checks.
-			//
-			bool used_outside = false;
-			for (auto& blk : proc->basic_blocks) {
-				if (used_outside)
+			size_t def_index = term_index;
+			for (size_t i = term_index; i-- != 0;) {
+				if (bb.instructions[i].out == condition) {
+					def_index = i;
 					break;
-				if (&blk != &bb) {
-					for (auto& ins : blk.instructions) {
-						if (ins.reads_from_register(setcc->out)) {
-							used_outside = true;
-							break;
-						}		
-					}
 				}
 			}
-			if (used_outside)
+			if (def_index == term_index || !bb.instructions[def_index].is_compare() || def_index + 1 == term_index)
 				continue;
 
-			// Re-insert after moving the instruction.
+			// The result must be consumed only by this branch. Otherwise sinking the
+			// definition would move it past another use.
 			//
-			auto cmp    = *comperator;
-			*comperator = {vop::null, {}};
-			*setcc      = {vop::null, {}};
-			bb.instructions.insert(bb.instructions.end() - 1, cmp);
-			bb.instructions.back().arg[0] = cmp.out;
-			std::erase_if(bb.instructions, [](minsn& i) { return i.is_null(); });
+			size_t reads = 0;
+			for (auto& block : proc->basic_blocks) {
+				for (auto& ins : block.instructions)
+					ins.for_each_reg([&](mreg r, bool read) { reads += read && r == condition; });
+			}
+			if (reads != 1)
+				continue;
+
+			minsn&              compare    = bb.instructions[def_index];
+			std::array<mreg, 4> inputs     = {};
+			size_t              num_inputs = 0;
+			compare.for_each_reg([&](mreg r, bool read) {
+				if (read && num_inputs != inputs.size())
+					inputs[num_inputs++] = r;
+			});
+
+			bool blocked = false;
+			for (size_t i = def_index + 1; i != term_index && !blocked; i++) {
+				minsn& crossed = bb.instructions[i];
+				if (crossed.has_side_effects()) {
+					blocked = true;
+					break;
+				}
+				crossed.for_each_reg_w_implicit([&](mreg r, bool read) {
+					if (read)
+						return;
+					for (size_t n = 0; n != num_inputs; n++)
+						blocked |= r == inputs[n];
+				});
+			}
+			if (blocked)
+				continue;
+
+			std::rotate(bb.instructions.begin() + def_index, bb.instructions.begin() + def_index + 1, bb.instructions.begin() + term_index);
 		}
 	}
-};
+}

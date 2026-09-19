@@ -1,0 +1,98 @@
+import math
+import shared
+import vec2
+import vec3
+import vec4
+
+fn rejected(action) {
+   try {
+      action()
+      nil
+   } catch error {
+      error
+   }
+}
+
+fn close(actual, expected) {
+   math.abs(actual - expected) < 0.000001
+}
+
+const a = vec3::new(1, 2, 4)
+const b = vec3::new(3, 4, 2)
+const two = vec2::new(1, 2)
+const four = vec4::new(1, 2, 3, 4)
+assert(a is vec3)
+assert(two is vec2 && two.x == 1 && two.y == 2)
+assert(four is vec4 && four.x == 1 && four.y == 2 && four.z == 3 && four.w == 4)
+
+const sum = a + b
+assert(sum.x == 4 && sum.y == 6 && sum.z == 6)
+const difference = a - b
+assert(difference.x == -2 && difference.y == -2 && difference.z == 2)
+const product = a * b
+assert(product.x == 3 && product.y == 8 && product.z == 8)
+const quotient = a / b
+assert(close(quotient.x, 1 / 3) && quotient.y == 0.5 && quotient.z == 2)
+
+const scalar_sum = a + 2
+assert(scalar_sum.x == 3 && scalar_sum.y == 4 && scalar_sum.z == 6)
+const scalar_difference = a - 1
+assert(scalar_difference.x == 0 && scalar_difference.y == 1 && scalar_difference.z == 3)
+const scalar_product = a * 2
+assert(scalar_product.x == 2 && scalar_product.y == 4 && scalar_product.z == 8)
+const scalar_quotient = a / 2
+assert(scalar_quotient.x == 0.5 && scalar_quotient.y == 1 && scalar_quotient.z == 2)
+const negated = -a
+assert(negated.x == -1 && negated.y == -2 && negated.z == -4)
+
+assert(a.dot(b) == 19)
+const crossed = a.cross(b)
+assert(crossed.x == -12 && crossed.y == 10 && crossed.z == -2)
+assert(vec3::new(3, 4, 0).length() == 5)
+const normalized = vec3::new(3, 4, 0).normalize()
+assert(close(normalized.x, 0.6) && close(normalized.y, 0.8) && normalized.z == 0)
+const interpolated = a.lerp(b, 0.25)
+assert(interpolated.x == 1.5 && interpolated.y == 2.5 && interpolated.z == 3.5)
+assert(vec2::new(3, 4).length() == 5)
+assert(vec4::new(1, 2, 3, 4).dot(vec4::new(4, 3, 2, 1)) == 20)
+
+# Constructor inputs and every stored result round to f32 exactly once. Reads
+# widen that stored value back to the language's f64 number representation.
+let rounded = vec3::new(16777217, 0.1, -0.1)
+assert(rounded.x == 16777216)
+assert(rounded.y == 0.10000000149011612)
+assert(rounded.z == -0.10000000149011612)
+rounded.x = 16777217
+assert(rounded.x == 16777216)
+const rounded_sum = vec3::new(16777216, 0, 0) + vec3::new(1, 0, 0)
+assert(rounded_sum.x == 16777216)
+
+assert(a == vec3::new(1, 2, 4))
+assert(!(a == b))
+assert(!(a == vec2::new(1, 2)))
+assert(a::str() == "vec3(1, 2, 4)")
+assert(vec2::new(1.5, -2)::str() == "vec2(1.5, -2)")
+
+assert(rejected(|| vec3::new(1, 2)) is string)
+assert(rejected(|| vec3::new(1, "wrong", 3)) is string)
+assert(rejected(|| a + vec2::new(1, 2)) is string)
+assert(rejected(|| a * "wrong") is string)
+assert(rejected(|| a.dot(1)) is string)
+assert(rejected(|| a.cross(vec2::new(1, 2))) is string)
+assert(rejected(|| a.lerp(b, "wrong")) is string)
+
+# Native vector classes follow the ordinary explicit-sharing policy. Normal
+# construction remains private, while shared.create publishes a shared clone.
+assert(!shared.is_shared(a))
+const shared_a = shared.create(a)
+assert(shared.is_shared(shared_a))
+assert(shared_a is vec3)
+assert(shared_a == a)
+const shared_sum = shared_a + a
+assert(!shared.is_shared(shared_sum))
+assert(shared_sum == vec3::new(2, 4, 8))
+const SharedVec3 = shared.create(vec3)
+const from_shared_class = SharedVec3(5, 6, 7)
+assert(!shared.is_shared(from_shared_class))
+assert(from_shared_class is vec3)
+assert(from_shared_class.x == 5 && from_shared_class.y == 6 && from_shared_class.z == 7)

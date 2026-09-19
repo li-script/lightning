@@ -10,8 +10,9 @@ namespace li {
 	struct array : gc::node<array, type_array> {
 		static array* create(vm* L, msize_t length = 0, msize_t rsvd = 0);
 
-		array_store* storage = nullptr;
-		msize_t      length  = 0;
+		array_store* storage          = nullptr;
+		msize_t      length           = 0;
+		uint64_t     mutation_version = 0;
 		any*         begin() { return storage ? storage->entries : nullptr; }
 		any*         end() { return begin() + size(); }
 		msize_t      size() const { return length; }
@@ -19,24 +20,21 @@ namespace li {
 
 		// Duplicates the array.
 		//
-		array* duplicate(vm* L) const {
-			array* r   = L->duplicate(this);
-			r->storage = L->duplicate(r->storage);
-			return r;
-		}
+		array* duplicate(vm* L) const;
 
 		// Joins another array into this.
 		//
-		void join(vm* L, array* other);
+		bool join(vm* L, array* other);
 
-		// Reserve and resize.
+		// Reserve, resize, and fill.
 		//
 		void reserve(vm* L, msize_t n);
 		void resize(vm* L, msize_t n);
+		bool fill(vm* L, any_t value, msize_t start, msize_t end);
 
 		// Push-back.
 		//
-		void push(vm* L, any value);
+		bool push(vm* L, any value);
 
 		// Pop-back.
 		//

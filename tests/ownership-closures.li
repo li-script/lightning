@@ -1,0 +1,13 @@
+fn make_reader() {
+   const payload = {text: "alive", count: 42}
+   const get_payload = || { payload }
+
+   || {
+      const captured = get_payload()
+      `{captured.text}:{captured.count}`
+   }
+}
+
+const reader = make_reader()
+assert(reader() == "alive:42")
+assert(reader() == "alive:42")

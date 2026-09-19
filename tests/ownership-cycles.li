@@ -1,0 +1,41 @@
+import debug
+import weak
+
+fn create_strong_cycle() {
+   const first = {name: "first", peer: nil}
+   const second = {name: "second", peer: nil}
+   first.peer = second
+   second.peer = first
+   return weak.create(first)
+}
+
+fn assert_cycle_alive(observer) {
+   const first = weak.lock(observer)
+   assert(first.name == "first")
+   assert(first.peer.peer == first)
+}
+
+fn break_strong_cycle(observer) {
+   const first = weak.lock(observer)
+   assert(first.name == "first")
+   const second = first.peer
+   assert(second.name == "second")
+   assert(second.peer == first)
+   first.peer = nil
+   second.peer = nil
+}
+
+fn exercise_strong_cycle() {
+   const observer = create_strong_cycle()
+   assert(!weak.expired(observer))
+   assert_cycle_alive(observer)
+   break_strong_cycle(observer)
+   assert(weak.expired(observer))
+   assert(weak.lock(observer) == nil)
+}
+
+const baseline = debug.live_objects()
+for iteration in 0..32 {
+   exercise_strong_cycle()
+   assert(debug.live_objects() == baseline)
+}

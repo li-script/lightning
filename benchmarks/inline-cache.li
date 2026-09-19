@@ -1,0 +1,26 @@
+# Stable table and numeric class fields exercise generated monomorphic caches.
+const iterations = 2000000
+
+class Accumulator {
+   value: number = 2
+   bias: number = 3
+}
+
+fn checksum(rounds, mapping, accumulator) {
+   let total = 0
+   let index = 0
+   while index < rounds {
+      mapping.value = mapping.value + 1
+      accumulator.value = accumulator.value + 2
+      total += mapping.value + accumulator.value + accumulator.bias
+      index += 1
+   }
+   total
+}
+
+let mapping = {value: 1}
+let accumulator = Accumulator{}
+let result = checksum(iterations, mapping, accumulator)
+assert(result == 6000015000000)
+assert(mapping.value == 2000001)
+assert(accumulator.value == 4000002)

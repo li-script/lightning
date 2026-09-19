@@ -1,0 +1,26 @@
+# Numeric-key insertion, update, and lookup workload.
+const entries = 40000
+const values = {}
+
+let i = 0
+while i < entries {
+   values[i] = i * 3
+   i += 1
+}
+
+assert(values::len() == entries)
+
+i = 0
+while i < entries {
+   values[i] += i % 17
+   i += 1
+}
+
+let checksum = 0
+i = 0
+while i < entries {
+   checksum += values[i]
+   i += 1
+}
+
+assert(checksum == 2400259992)

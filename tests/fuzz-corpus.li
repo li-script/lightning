@@ -1,0 +1,114 @@
+import math
+import typed
+import coroutine
+import traits
+
+# Arithmetic edges, signed zero, and NaN remain observable without printing an address.
+let score = 0
+const positive_zero = 0.0
+const negative_zero = -positive_zero
+const not_a_number = math.nan
+score += positive_zero == negative_zero ? 3 : -3
+score += math.copysign(1, negative_zero) == -1 ? 5 : -5
+score += not_a_number != not_a_number ? 7 : -7
+score += !(not_a_number >= 0) ? 11 : -11
+score += (9007199254740991 - 9007199254740981) * 2
+
+# Branches, bounded loops, and lazy Boolean operators contribute to one checksum.
+let trace = {calls: 0}
+fn touch(trace, value) {
+    trace.calls += 1
+    value
+}
+for index in 0..5 {
+    if index % 2 == 0 {
+        score += index * 3
+    } else {
+        score -= index
+    }
+}
+let turn = 0
+while turn < 3 {
+    score += turn
+    turn += 1
+}
+false && touch(trace, true)
+true || touch(trace, false)
+(nil ?? touch(trace, score))
+score += trace.calls * 13
+
+# Table, array, and typed-array mutations all feed scalar observations.
+let mapping = {left: 17, right: 19}
+mapping.left += 2
+mapping["extra"] = 23
+delete mapping.right
+score += mapping.left + mapping.extra + (mapping.right == nil ? 17 : -17)
+
+let items = [2, 3, 5]
+items[1] = 7
+items::push(11)
+score += items::pop()
+for index, value in items {
+    score += index + value
+}
+
+let integers = i32[]([-2147483648, 0, 2147483647])
+integers[1] = 29
+let floating = f64[]([math.nan, -0.0])
+score += integers[0] + integers[1] + integers[2]
+score += floating[0] != floating[0] ? 31 : -31
+score += math.copysign(1, floating[1]) == -1 ? 37 : -37
+
+# Captured state is mutated across calls.
+fn make_counter(start, step) {
+    let value = start
+    || {
+        value += step
+        value
+    }
+}
+const counter = make_counter(3, 4)
+score += counter()
+score += counter()
+
+# Catchable exceptions expose their payload rather than an allocation identity.
+fn checked(value) {
+    if value > 10 {
+        throw {code: value - 10}
+    }
+    value
+}
+try {
+    score += checked(20)
+} catch error {
+    score += error.code
+}
+
+# User-installed traits dispatch through deterministic numeric fields.
+fn add_values(other) {
+    self.value + other.value
+}
+let receiver = {value: 41}
+traits.set(receiver, "add", add_values)
+traits.set(receiver, "at", |key| {
+    if key == "double" {
+        return self.value * 2
+    }
+    nil
+})
+score += receiver + {value: 43}
+score += receiver.double
+
+# Coroutine yields and resume values are reduced to a scalar result.
+const worker = coroutine.create(|| {
+    const resumed = yield 47
+    const resumed_again = yield resumed + 2
+    resumed_again + 3
+})
+score += worker.resume()
+score += worker.resume(53)
+score += worker.resume(59)
+score += worker.status() == "dead" ? 61 : -61
+
+print("fuzz-corpus", score)
+score

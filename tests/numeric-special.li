@@ -1,0 +1,25 @@
+import math
+
+# IEEE numeric behavior and table-key coherence.
+const positive_zero = 0.0
+const negative_zero = -positive_zero
+assert(positive_zero == negative_zero)
+
+let zeros = {}
+zeros[positive_zero] = "zero"
+assert(zeros[negative_zero] == "zero")
+zeros[negative_zero] = "updated"
+assert(zeros[positive_zero] == "updated")
+
+const nan = math.nan
+assert(nan != nan)
+assert(!(nan == nan))
+assert(!(nan < 0))
+assert(!(nan <= 0))
+assert(!(nan > 0))
+assert(!(nan >= 0))
+
+assert(math.inf is number)
+assert(-math.inf is number)
+assert(math.inf > math.huge)
+assert(-math.inf < -math.huge)

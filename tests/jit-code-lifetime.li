@@ -1,0 +1,114 @@
+import coroutine
+import? jit as jitlib
+
+fn suspended_code() {
+   const embedded = "constant survives suspended JIT frame"
+   yield embedded
+   embedded
+}
+
+fn recursive_until_stack_guard(recurse: bool) {
+   if recurse {
+      recursive_until_stack_guard(recurse) + 1
+   } else {
+      1
+   }
+}
+
+fn pressured_recursion(depth: number, remaining) {
+   const live01 = depth + 1
+   const live02 = depth + 2
+   const live03 = depth + 3
+   const live04 = depth + 4
+   const live05 = depth + 5
+   const live06 = depth + 6
+   const live07 = depth + 7
+   const live08 = depth + 8
+   const live09 = depth + 9
+   const live10 = depth + 10
+   const live11 = depth + 11
+   const live12 = depth + 12
+   const live13 = depth + 13
+   const live14 = depth + 14
+   const live15 = depth + 15
+   const live16 = depth + 16
+   const live17 = depth + 17
+   const live18 = depth + 18
+   if remaining == 0 {
+      return live01 + live02 + live03 + live04 + live05 + live06 +
+         live07 + live08 + live09 + live10 + live11 + live12 +
+         live13 + live14 + live15 + live16 + live17 + live18
+   }
+
+   const nested = pressured_recursion(
+      depth + 1,
+      remaining == nil ? nil : remaining - 1
+   )
+   nested + live01 + live02 + live03 + live04 + live05 + live06 +
+      live07 + live08 + live09 + live10 + live11 + live12 +
+      live13 + live14 + live15 + live16 + live17 + live18
+}
+
+if jitlib != nil {
+   jitlib.on(suspended_code)
+   assert(jitlib.where(suspended_code) != "N/A")
+   assert(jitlib.disasm(suspended_code) != "")
+
+   const resumed = coroutine.create(suspended_code)
+   assert(coroutine.resume(resumed) == "constant survives suspended JIT frame")
+   assert(coroutine.status(resumed) == "suspended")
+
+   let rejected_while_active = false
+   try {
+      jitlib.bp(suspended_code)
+   } catch error {
+      rejected_while_active = error is string
+   }
+   assert(rejected_while_active)
+
+   assert(coroutine.resume(resumed) == "constant survives suspended JIT frame")
+   assert(coroutine.status(resumed) == "dead")
+
+   const closed = coroutine.create(suspended_code)
+   assert(coroutine.resume(closed) == "constant survives suspended JIT frame")
+   assert(coroutine.status(closed) == "suspended")
+   coroutine.close(closed)
+   assert(coroutine.status(closed) == "dead")
+
+   # Forced unwind must leave no active code frame; this reopens, patches, and
+   # republishes the inactive mapping through the W^X code-memory API.
+   jitlib.bp(suspended_code)
+
+   jitlib.on(recursive_until_stack_guard)
+   jitlib.on(pressured_recursion)
+
+   let main_overflow_is_language_error = false
+   try {
+      recursive_until_stack_guard(true)
+   } catch error {
+      main_overflow_is_language_error = error is string
+   }
+   assert(main_overflow_is_language_error)
+   assert(recursive_until_stack_guard(false) == 1)
+
+   # More values remain live across this recursive call than fit in the
+   # nonvolatile register set, so its compiled frame has real spill pressure.
+   const overflowing_coroutine = coroutine.create(|| pressured_recursion(0, nil))
+   let coroutine_overflow_is_language_error = false
+   try {
+      coroutine.resume(overflowing_coroutine)
+   } catch error {
+      coroutine_overflow_is_language_error = error is string
+   }
+   assert(coroutine_overflow_is_language_error)
+   assert(coroutine.status(overflowing_coroutine) == "dead")
+
+   # A bounded benchmark-sized recursion still enters the same compiled frame
+   # after the rejected deep entry.
+   assert(pressured_recursion(0, 32) > 0)
+
+   # Reopening both mappings proves rejected entries and recursive unwinds
+   # left no stale active invocation.
+   jitlib.bp(recursive_until_stack_guard)
+   jitlib.bp(pressured_recursion)
+}

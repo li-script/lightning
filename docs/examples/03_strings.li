@@ -1,0 +1,13 @@
+const single = 'S'
+const double = "double-quoted string with a newline\non the second line"
+const raw = [=[C:\projects\lightning\{literal}.li]=]
+const name = "Mira"
+const completed = 4
+const total = 7
+const message = `Hello, {name}: {completed + 1} of {total} tasks complete`
+
+print("Single-quoted literal:", single)
+print(double)
+print(`Raw path: {raw}`)
+print(message)
+print(`Literal braces look like {{this}}.`)

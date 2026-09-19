@@ -1,15 +1,16 @@
 #pragma once
+#include <vm/function.hpp>
+#include <vm/rc.hpp>
 #include <vm/state.hpp>
 #include <vm/string.hpp>
 #include <vm/table.hpp>
-#include <vm/function.hpp>
 
 // Defines some user-facing helpers.
 //
 namespace li::util {
 	// Global export helper handling nested names e.g. "mylib.test".
 	//
-	static void export_as(vm* L, std::string_view name, any value) {
+	static bool export_as(vm* L, std::string_view name, any value) {
 		table* tbl = L->modules;
 
 		while (true) {
@@ -19,23 +20,34 @@ namespace li::util {
 
 			auto base = name.substr(0, pos);
 			name      = name.substr(pos + 1);
-			any key  = string::create(L, base);
+			any key   = string::create(L, base);
 
 			any it = tbl->get(L, key);
 			if (!it.is_tbl()) {
-				auto ntbl = table::create(L, 1);
+				auto ntbl       = table::create(L, 1);
 				ntbl->is_frozen = true;
-				tbl->set(L, key, any(ntbl));
+				if (!tbl->set(L, key, any(ntbl))) {
+					rc::release(L, ntbl);
+					rc::release(L, key);
+					return false;
+				}
+				rc::release(L, ntbl);
 				it = ntbl;
 			}
+			rc::release(L, key);
 			tbl = it.as_tbl();
 		}
-		tbl->set(L, (any) string::create(L, name), value);
+
+		any  key     = string::create(L, name);
+		bool success = tbl->set(L, key, value);
+		rc::release(L, key);
+		return success;
 	}
 	static function* export_as(vm* L, std::string_view name, nfunc_t f) {
-		auto vf = function::create(L, f);
-		export_as(L, name, vf);
-		return vf;
+		auto vf      = function::create(L, f);
+		bool success = export_as(L, name, any(vf));
+		rc::release(L, vf);
+		return success ? vf : nullptr;
 	}
 
 	// Native function wrapper.
@@ -47,13 +59,11 @@ namespace li::util {
 			gc::make_non_gc(this);
 			nfi.name = name;
 			nfi.attr = attributes;
+			ninfo    = &nfi;
 			invoke   = vinvoke;
 			std::copy(overloads.begin(), overloads.end(), nfi.overloads.begin());
 		}
 
-		void export_into(vm* L) {
-			ninfo = &nfi;
-			export_as(L, nfi.name, this);
-		}
+		void export_into(vm* L) { export_as(L, nfi.name, this); }
 	};
 };

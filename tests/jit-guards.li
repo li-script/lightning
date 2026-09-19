@@ -1,0 +1,71 @@
+import math
+import typed
+
+fn guarded_add(lhs, rhs) {
+   try {
+      lhs + rhs
+   } catch error {
+      error is string
+   }
+}
+assert(guarded_add({}, 1))
+
+fn guarded_get(value) {
+   try {
+      value.missing
+   } catch error {
+      error is string
+   }
+}
+assert(guarded_get(7))
+
+fn guarded_set(value) {
+   try {
+      value.missing = 1
+      false
+   } catch error {
+      error is string
+   }
+}
+assert(guarded_set(7))
+
+fn guarded_call(value) {
+   try {
+      value()
+   } catch error {
+      error is string
+   }
+}
+assert(guarded_call(7))
+
+fn eq_number(lhs: number, rhs: number) { lhs == rhs }
+fn ne_number(lhs: number, rhs: number) { lhs != rhs }
+fn lt_number(lhs: number, rhs: number) { lhs < rhs }
+fn le_number(lhs: number, rhs: number) { lhs <= rhs }
+fn gt_number(lhs: number, rhs: number) { lhs > rhs }
+fn ge_number(lhs: number, rhs: number) { lhs >= rhs }
+
+fn exact_string_length(value: string) { value::len() }
+fn exact_array_length(value: array) { value::len() }
+fn return_string() { "runtime" }
+fn return_array() { [2, 3, 5, 7] }
+
+const nan = math.nan
+assert(!eq_number(nan, nan))
+assert(ne_number(nan, nan))
+assert(!lt_number(nan, 0))
+assert(!le_number(nan, 0))
+assert(!gt_number(nan, 0))
+assert(!ge_number(nan, 0))
+
+fn choose_number(condition, yes: number, no: number) {
+   condition ? yes : no
+}
+assert(choose_number(true, 1.25, 2.5) == 1.25)
+assert(choose_number(false, 1.25, 2.5) == 2.5)
+
+assert(eq_number("constant"::len(), 8))
+assert(eq_number(exact_string_length(return_string()), 7))
+assert(eq_number(exact_array_length(return_array()), 4))
+const typed_values = u8[]([11, 13, 17])
+assert(eq_number(typed_values::len(), 3))

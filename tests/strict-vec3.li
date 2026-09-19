@@ -1,0 +1,33 @@
+import typed
+import? jit as jitlib
+
+[[strict]] struct Vec3 {
+   x: f32 = 0f32
+   y: f32 = 0f32
+   z: f32 = 0f32
+}
+
+[[strict]] fn sum_lengths(points: Vec3[], count: i32) -> f32 {
+   let total: f32 = 0f32
+   let index: i32 = 0i32
+   while index < count {
+      let value = points[index]
+      total += value.x * value.x + value.y * value.y + value.z * value.z
+      index += 1i32
+   }
+   total
+}
+
+const points = typed.struct_array(Vec3, 1000)
+let index = 0
+while index < 1000 {
+   points[index] = Vec3{x: 1f32, y: 2f32, z: 3f32}
+   index += 1
+}
+
+if jitlib != nil {
+   jitlib.on(sum_lengths)
+   assert(jitlib.where(sum_lengths) != "N/A")
+   assert(jitlib.guards(sum_lengths) == 0)
+}
+assert(sum_lengths(points, 1000i32) == 14000f32)

@@ -1,0 +1,147 @@
+import math
+import range
+import iterator
+import coroutine
+import traits
+
+fn rejects(callback) {
+   try {
+      callback()
+      false
+   } catch error {
+      true
+   }
+}
+
+# Ranges are first-class iterators with explicit completion independent of value.
+let ascending = range.create(2, 5, 1, false)
+let pair = iterator.next(ascending)
+assert(pair[0] == 2 && pair[1] == false)
+pair = iterator.next(ascending)
+assert(pair[0] == 3 && pair[1] == false)
+pair = iterator.next(ascending)
+assert(pair[0] == 4 && pair[1] == false)
+pair = iterator.next(ascending)
+assert(pair[0] == nil && pair[1] == true)
+
+let descending = range.create(3, 0, -1, true)
+assert(iterator.next(descending)[0] == 3)
+assert(iterator.next(descending)[0] == 2)
+assert(iterator.next(descending)[0] == 1)
+assert(iterator.next(descending)[0] == 0)
+assert(iterator.next(descending)[1] == true)
+
+let open = range.create(-2, nil, 0.5, false)
+assert(iterator.next(open)[0] == -2)
+assert(iterator.next(open)[0] == -1.5)
+assert(iterator.next(open)[0] == -1)
+assert(rejects(|| range.create(0, 2, 0, false)))
+assert(rejects(|| range.create(0, 2, math.nan, false)))
+
+# next traits use an exact [value, done] pair. nil is a real yielded value.
+let custom = {position: 0}
+traits.set(custom, "next", || {
+   self.position += 1
+   if self.position == 1 { return [nil, false] }
+   if self.position == 2 { return [17, false] }
+   [nil, true]
+})
+pair = iterator.next(custom)
+assert(pair[0] == nil && pair[1] == false)
+pair = iterator.next(custom)
+assert(pair[0] == 17 && pair[1] == false)
+assert(iterator.next(custom)[1] == true)
+
+class ClassIterator {
+   position: number = 0
+
+   next!() {
+      self.position += 1
+      [self.position, self.position > 2]
+   }
+}
+let class_iterator = ClassIterator{}
+assert(iterator.next(class_iterator)[0] == 1)
+assert(iterator.next(class_iterator)[0] == 2)
+assert(iterator.next(class_iterator)[1] == true)
+
+let malformed = {}
+traits.set(malformed, "next", || [1])
+assert(rejects(|| iterator.next(malformed)))
+traits.set(malformed, "next", || [1, nil])
+assert(rejects(|| iterator.next(malformed)))
+
+# Generators, traits, ranges, and adapters share iterator.next.
+let generator = coroutine.create(|| {
+   yield nil
+   yield 9
+})
+pair = iterator.next(generator)
+assert(pair[0] == nil && pair[1] == false)
+pair = iterator.next(generator)
+assert(pair[0] == 9 && pair[1] == false)
+assert(iterator.next(generator)[1] == true)
+
+let closed_generator = coroutine.create(|| {
+   yield 1
+   yield 2
+})
+assert(iterator.next(closed_generator)[0] == 1)
+coroutine.close(closed_generator)
+assert(iterator.next(closed_generator)[1] == true)
+
+let calls = {map: 0, filter: 0}
+let mapped = iterator.map(range.create(0, 5, 1, false), |value| {
+   calls.map += 1
+   value * 3
+})
+let filtered = iterator.filter(mapped, |value| {
+   calls.filter += 1
+   value % 2 == 0
+})
+assert(calls.map == 0 && calls.filter == 0)
+assert(iterator.next(filtered)[0] == 0)
+assert(calls.map == 1 && calls.filter == 1)
+assert(iterator.next(filtered)[0] == 6)
+assert(calls.map == 3 && calls.filter == 3)
+assert(iterator.next(filtered)[0] == 12)
+assert(iterator.next(filtered)[1] == true)
+
+# Generic enumeration keys increase numerically; direct table keys are preserved.
+let enumerated = range.create(4, 7, 1, false)
+let expected_key = 0
+for key, value in enumerated {
+   assert(key == expected_key)
+   assert(value == expected_key + 4)
+   expected_key += 1
+}
+assert(expected_key == 3)
+
+let keyed = {alpha: 11, beta: 13}
+let seen = {}
+for key, value in keyed {
+   seen[key] = value
+}
+assert(seen.alpha == 11 && seen.beta == 13)
+
+# Collection cursors retain their source and reject every mutation before exhaustion.
+let source = [1, 2, 3]
+let invalidated = iterator.map(source, |value| {
+   source[0] = value
+   value
+})
+assert(rejects(|| iterator.next(invalidated)))
+
+let loop_source = [4, 5]
+assert(rejects(|| {
+   for value in loop_source {
+      loop_source::push(6)
+   }
+}))
+
+# Mutation after exhaustion is unrestricted.
+let exhausted_source = [8]
+let completed = iterator.map(exhausted_source, |value| value)
+assert(iterator.next(completed)[0] == 8)
+assert(iterator.next(completed)[1] == true)
+exhausted_source::push(9)

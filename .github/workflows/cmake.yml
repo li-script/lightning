@@ -1,83 +1,239 @@
 name: CMake
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
 
 jobs:
-  build:
-    # Skip building pull requests from the same repository
-    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
+  native:
+    name: ${{ matrix.name }}
+    if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
-      # TODO: replace extra-cmake-flags with CMake presets
       matrix:
-        target:
-          - ubuntu
-          - emscripten
-          - windows
         include:
-          - target: ubuntu
-            os: ubuntu-latest
-            build-type: Release
-            extra-cmake-flags: '-DCMAKE_CXX_FLAGS="-flto -Wno-attributes -msse4.2"'
-          - target: emscripten
-            os: ubuntu-latest
-            build-type: Debug
-            extra-cmake-flags: '-DCMAKE_CXX_FLAGS="-Wno-attributes" -DCMAKE_TOOLCHAIN_FILE="$EMSDK/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake"'
-          - target: windows
+          - name: Linux x86-64 (JIT)
+            artifact: linux-x86_64
+            os: ubuntu-24.04
+            generator: -G Ninja
+            architecture: ''
+            jit: ON
+            submodules: recursive
+          - name: Windows x86-64 (JIT)
+            artifact: windows-x86_64
             os: windows-latest
-            build-type: Release
+            generator: ''  # newest Visual Studio on the runner
+            architecture: -A x64
+            jit: ON
+            submodules: recursive
+          - name: macOS ARM64 (JIT)
+            artifact: macos-arm64
+            os: macos-latest
+            generator: -G Ninja
+            architecture: ''
+            jit: ON
+            submodules: 'false'
+          - name: Linux ARM64 (JIT)
+            artifact: linux-arm64
+            os: ubuntu-24.04-arm
+            generator: -G Ninja
+            architecture: ''
+            jit: ON
+            submodules: 'false'
+
     steps:
-    - name: Checkout
-      uses: actions/checkout@v2
-      with:
-        submodules: 'recursive'
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: ${{ matrix.submodules }}
 
-    - name: Install ninja-build tool
-      uses: seanmiddleditch/gha-setup-ninja@v3
+      - name: Configure
+        timeout-minutes: 5
+        run: cmake -S . -B build ${{ matrix.generator }} ${{ matrix.architecture }} -DCMAKE_BUILD_TYPE=Release -DLIGHTNING_TESTS=ON -DLI_JIT=${{ matrix.jit }} -DLI_FAST_MATH=OFF
 
-    - name: Enable Developer Command Prompt
-      if: ${{ runner.os == 'Windows' }}
-      uses: ilammy/msvc-dev-cmd@v1.7.0
+      - name: Build
+        timeout-minutes: 10
+        run: cmake --build build --config Release --parallel
 
-    - name: Set up emscripten
-      if: ${{ matrix.target == 'emscripten' }}
-      uses: mymindstorm/setup-emsdk@v11
+      - name: Install
+        timeout-minutes: 5
+        run: cmake --install build --prefix build/install --config Release
 
-    - name: Set up GCC
-      if: ${{ matrix.target == 'ubuntu' }}
-      uses: egor-tensin/setup-gcc@v1
-      with:
-        version: 11
-        
-    - name: Build
-      run: |
-        cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=${{ matrix.build-type }} ${{ matrix.extra-cmake-flags }}
-        cmake --build build --config ${{ matrix.build-type }} --parallel
-        cmake --install build --prefix build/install --config ${{ matrix.build-type }}
-    
-    - name: Test
-      if: ${{ matrix.target != 'emscripten' }}
-      run: |
-        ctest --output-on-failure --test-dir build/tests -C ${{ matrix.build-type }}
+      - name: Test - interpreter and native probes (required)
+        timeout-minutes: 10
+        run: ctest --test-dir build -C Release --output-on-failure --no-tests=error -L "interpreter|util|backend|ownership|hardening|embed|ir" --timeout 60
 
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v2
-      with:
-        name: ${{ github.event.repository.name }}-${{ matrix.target }}
-        path: build/install/bin/*
+      - name: Test - strict JIT (required)
+        if: matrix.jit == 'ON'
+        timeout-minutes: 10
+        run: ctest --test-dir build -C Release --output-on-failure --no-tests=error -L jit --timeout 60
 
-    - name: Compress artifacts
-      uses: vimtor/action-zip@v1
-      with:
-        files: build/install/bin/
-        dest: ${{ github.event.repository.name }}-${{ matrix.target }}.zip
+      - name: Test - differential and bounded native fuzz (required)
+        if: matrix.jit == 'ON'
+        timeout-minutes: 10
+        run: ctest --test-dir build -C Release --output-on-failure --no-tests=error -L differential
 
-    - name: Release
-      uses: softprops/action-gh-release@v1
-      if: ${{ startsWith(github.ref, 'refs/tags/') }}
-      with:
-        prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') || contains(github.ref, '-pre') }}
-        files: ${{ github.event.repository.name }}-${{ matrix.target }}.zip
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload binaries
+        uses: actions/upload-artifact@v7
+        with:
+          name: lightning-${{ matrix.artifact }}
+          path: build/install/bin/
+          if-no-files-found: error
+
+      - name: Package release
+        if: startsWith(github.ref, 'refs/tags/')
+        run: cmake -E tar cf lightning-${{ matrix.artifact }}.zip --format=zip -- build/install/bin
+
+      - name: Publish release asset
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v3
+        with:
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') || contains(github.ref, '-pre') }}
+          files: lightning-${{ matrix.artifact }}.zip
+          fail_on_unmatched_files: true
+
+  wasm:
+    name: WebAssembly (interpreter)
+    if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Emscripten
+        uses: emscripten-core/setup-emsdk@v15
+        with:
+          version: 4.0.13
+
+      - name: Configure
+        timeout-minutes: 5
+        run: emcmake cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DLIGHTNING_TESTS=OFF -DLI_JIT=OFF -DLI_FAST_MATH=OFF
+
+      - name: Build
+        timeout-minutes: 10
+        run: cmake --build build --config Release --parallel
+
+      - name: Install
+        timeout-minutes: 5
+        run: cmake --install build --prefix build/install --config Release
+
+      - name: Upload WebAssembly bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: lightning-wasm
+          path: build/install/bin/
+          if-no-files-found: error
+
+      - name: Build playground and documentation site
+        run: |
+          python3 -m pip install --user markdown
+          mkdir -p build/site
+          cp -r web/* build/site/
+          python3 tools/build_docs.py --out build/site/docs
+          cp build/install/bin/li.js build/install/bin/li.wasm build/site/
+
+      - name: Upload web REPL bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: lightning-web-repl
+          path: build/site/
+          if-no-files-found: error
+
+      - name: Setup Pages
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload Pages artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/site/
+
+      - name: Package release
+        if: startsWith(github.ref, 'refs/tags/')
+        run: cmake -E tar cf lightning-wasm.zip --format=zip -- build/install/bin
+
+      - name: Publish release asset
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v3
+        with:
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') || contains(github.ref, '-pre') }}
+          files: lightning-wasm.zip
+          fail_on_unmatched_files: true
+
+  deploy-pages:
+    name: Deploy to GitHub Pages
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: wasm
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  sanitizers:
+    name: Linux x86-64 (ASan + UBSan, interpreter)
+    if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Configure
+        timeout-minutes: 5
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer" -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer" -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" -DLIGHTNING_TESTS=ON -DLI_JIT=OFF -DLI_FAST_MATH=OFF
+
+      - name: Build
+        timeout-minutes: 10
+        run: cmake --build build --config Debug --parallel
+
+      - name: Test - interpreter and native probes under ASan and UBSan (required)
+        timeout-minutes: 10
+        env:
+          ASAN_OPTIONS: abort_on_error=1:detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ctest --test-dir build -C Debug --output-on-failure --no-tests=error -LE "jit|differential" --timeout 60
+
+  thread-sanitizer:
+    name: Linux x86-64 (TSan, shared heap)
+    if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Configure
+        timeout-minutes: 5
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_FLAGS="-fsanitize=thread -fno-omit-frame-pointer" -DCMAKE_CXX_FLAGS="-fsanitize=thread -fno-omit-frame-pointer" -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread" -DLIGHTNING_TESTS=ON -DLI_JIT=OFF -DLI_FAST_MATH=OFF
+
+      - name: Build
+        timeout-minutes: 10
+        run: cmake --build build --config RelWithDebInfo --parallel
+
+      - name: Test - shared heap, locks, atomics, and coroutines under TSan (required)
+        timeout-minutes: 10
+        env:
+          TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1
+        run: ctest --test-dir build -C RelWithDebInfo --output-on-failure --no-tests=error -R "shared|atomic|lock|coroutine|context" --timeout 120

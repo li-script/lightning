@@ -1,0 +1,91 @@
+# differential: mode-dependent (prints observed tier transitions)
+import? jit as jitlib
+import shared
+
+let effects = {calls: 0, loops: 0, controlled: 0, siblings: 0}
+
+fn call_hot() {
+   effects.calls += 1
+   effects.calls
+}
+
+fn backedge_hot() {
+   let index = 0
+   while index < 80 {
+      effects.loops += 1
+      index += 1
+   }
+   index
+}
+
+fn controllable() {
+   effects.controlled += 1
+   effects.controlled
+}
+
+fn make_sibling(delta) {
+   || {
+      effects.siblings += delta
+      effects.siblings
+   }
+}
+
+fn shareable(value) {
+   value + 3
+}
+const runtime_shared_function = shared.create(shareable)
+const shared_cold = jitlib == nil ? "N/A" : jitlib.where(runtime_shared_function)
+assert(runtime_shared_function(4) == 7)
+if jitlib != nil && shared_cold == "N/A" && jitlib.where(runtime_shared_function) != "N/A" {
+   print("required runtime prototype compilation observed")
+}
+
+let call_sum = 0
+let call_index = 0
+const call_cold = jitlib == nil ? "N/A" : jitlib.where(call_hot)
+while call_index < 8 {
+   call_sum += call_hot()
+   call_index += 1
+}
+assert(call_sum == 36)
+assert(effects.calls == 8)
+
+const loop_cold = jitlib == nil ? "N/A" : jitlib.where(backedge_hot)
+assert(backedge_hot() == 80)
+assert(effects.loops == 80)
+
+if jitlib != nil {
+   const call_hot_address = jitlib.where(call_hot)
+   const loop_hot_address = jitlib.where(backedge_hot)
+   if call_cold == "N/A" && call_hot_address != "N/A" && loop_cold == "N/A" && loop_hot_address != "N/A" {
+      print("automatic tier transitions observed")
+   }
+
+   # Suppression belongs to this function value. Re-enabling it must use the
+   # already-published code without changing the result or replaying effects.
+   jitlib.on(controllable)
+   assert(jitlib.where(controllable) != "N/A")
+   jitlib.off(controllable)
+   assert(jitlib.where(controllable) == "N/A")
+   assert(controllable() == 1)
+   assert(effects.controlled == 1)
+   assert(jitlib.where(controllable) == "N/A")
+   jitlib.on(controllable)
+   assert(jitlib.where(controllable) != "N/A")
+   assert(controllable() == 2)
+   assert(effects.controlled == 2)
+
+   # Two closures share code metadata but retain independent execution policy.
+   const disabled_sibling = make_sibling(1)
+   const enabled_sibling = make_sibling(10)
+   jitlib.on(disabled_sibling)
+   assert(jitlib.where(disabled_sibling) != "N/A")
+   assert(jitlib.where(enabled_sibling) != "N/A")
+   jitlib.off(disabled_sibling)
+   assert(jitlib.where(disabled_sibling) == "N/A")
+   assert(jitlib.where(enabled_sibling) != "N/A")
+   assert(disabled_sibling() == 1)
+   assert(enabled_sibling() == 11)
+   assert(jitlib.where(disabled_sibling) == "N/A")
+   assert(jitlib.where(enabled_sibling) != "N/A")
+}

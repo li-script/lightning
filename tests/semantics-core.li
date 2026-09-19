@@ -1,0 +1,36 @@
+# Closures capture the current value, not a shared variable cell.
+let source_value = 11
+const read_captured_value = || source_value
+source_value = 29
+assert(read_captured_value() == 11)
+
+# String indexing exposes the underlying bytes.
+const utf8_bytes = "\xC3\xA9"
+assert(utf8_bytes::len() == 2)
+assert(utf8_bytes[0] == 195)
+assert(utf8_bytes[1] == 169)
+
+# dup creates a new outer collection while retaining nested references.
+const shared_child = {value: 1}
+const original_table = {child: shared_child, own: 2}
+const copied_table = original_table::dup()
+assert(copied_table != original_table)
+assert(copied_table.child == shared_child)
+copied_table.own = 3
+assert(original_table.own == 2)
+copied_table.child.value = 4
+assert(original_table.child.value == 4)
+
+const original_array = [shared_child]
+const copied_array = original_array::dup()
+assert(copied_array != original_array)
+assert(copied_array[0] == shared_child)
+copied_array[0] = {value: 8}
+assert(original_array[0] == shared_child)
+
+# Missing table keys read as nil; a present false value remains present.
+const lookup = {present: false}
+assert(lookup.missing == nil)
+assert(lookup["also_missing"] == nil)
+assert(!("missing" in lookup))
+assert("present" in lookup)

@@ -1,0 +1,60 @@
+import coroutine
+import shared
+
+// Shared values live in the process-wide shared heap.
+const state = shared {completed: 0, checksum: 0}
+assert(shared.is_shared(state))
+
+// A lock block protects a compound update and unlocks on every exit path.
+fn record(value) {
+   lock state {
+      state.completed += 1
+      state.checksum += value
+   }
+}
+
+record(10)
+assert(state.completed == 1)
+assert(state.checksum == 10)
+
+// atomic_add performs one numeric field update and returns the new value.
+assert(shared.atomic_add(state, "completed", 1) == 2)
+
+// An atomic block commits related numeric updates together.
+atomic {
+   state.completed += 3
+   state.checksum = state.checksum * 2
+}
+assert(state.completed == 5)
+assert(state.checksum == 20)
+
+// Coroutines are cooperative rather than parallel, but the same update
+// functions are safe when shared values are published to host worker threads.
+fn make_worker(base) {
+   coroutine.create(|| {
+      for offset in 0..3 {
+         record(base + offset)
+         coroutine.yield(state.completed)
+      }
+      return state.checksum
+   })
+}
+
+const left = make_worker(1)
+const right = make_worker(100)
+assert(coroutine.resume(left) == 6)
+assert(coroutine.resume(right) == 7)
+assert(coroutine.resume(left) == 8)
+assert(coroutine.resume(right) == 9)
+assert(coroutine.resume(left) == 10)
+assert(coroutine.resume(right) == 11)
+
+const expected_checksum = 20 + 1 + 100 + 2 + 101 + 3 + 102
+assert(coroutine.resume(left) == expected_checksum)
+assert(coroutine.resume(right) == expected_checksum)
+assert(coroutine.status(left) == "dead")
+assert(coroutine.status(right) == "dead")
+assert(state.completed == 11)
+assert(state.checksum == expected_checksum)
+
+print("shared concurrency: ok")

@@ -1,0 +1,16 @@
+# Recursive call-heavy Fibonacci workload.
+fn fib(n) {
+   if n < 2 {
+      return n
+   }
+   return fib(n - 1) + fib(n - 2)
+}
+
+let repetition = 0
+let total = 0
+while repetition < 5 {
+   total += fib(28)
+   repetition += 1
+}
+
+assert(total == 1589055)

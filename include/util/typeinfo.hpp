@@ -1,9 +1,9 @@
 #pragma once
-#include <util/common.hpp>
-#include <string_view>
-#include <string>
-#include <array>
 #include <algorithm>
+#include <array>
+#include <string>
+#include <string_view>
+#include <util/common.hpp>
 
 // Link-time type-id generation.
 //
@@ -15,11 +15,11 @@ namespace li::util {
 		struct type_namer {
 			template<typename __id__ = T>
 			static _CONSTEVAL std::string_view _id__() {
-				auto [sig, begin, delta, end] = std::tuple {
+				auto [sig, begin, delta, end] = std::tuple{
 #if LI_GNU
-					std::string_view{__PRETTY_FUNCTION__}, std::string_view{"_id__"}, +3, "]"
+					 std::string_view{__PRETTY_FUNCTION__}, std::string_view{"_id__"}, +3, "]"
 #else
-					std::string_view{__FUNCSIG__}, std::string_view{"_id__"}, +1, ">"
+					 std::string_view{__FUNCSIG__}, std::string_view{"_id__"}, +1, ">"
 #endif
 				};
 
@@ -55,18 +55,18 @@ namespace li::util {
 				std::copy(view.begin(), view.end(), data.data());
 				return data;
 			}();
-			inline _CONSTEVAL operator std::string_view() const { return {&name[0], &name[name.size() - 1]}; }
+			inline _CONSTEVAL operator std::string_view() const { return {name.data(), name.size() - 1}; }
 			inline _CONSTEVAL operator const char*() const { return &name[0]; }
 		};
 		template<auto V>
 		struct value_namer {
 			template<auto __id__ = V>
 			static _CONSTEVAL std::string_view _id__() {
-				auto [sig, begin, delta, end] = std::tuple {
+				auto [sig, begin, delta, end] = std::tuple{
 #if LI_GNU
-					std::string_view{__PRETTY_FUNCTION__}, std::string_view{"_id__"}, +3, ']'
+					 std::string_view{__PRETTY_FUNCTION__}, std::string_view{"_id__"}, +3, ']'
 #else
-					std::string_view{__FUNCSIG__}, std::string_view{"_id__"}, +0, '>'
+					 std::string_view{__FUNCSIG__}, std::string_view{"_id__"}, +0, '>'
 #endif
 				};
 
@@ -94,7 +94,7 @@ namespace li::util {
 				std::copy(view.begin(), view.end(), data.data());
 				return data;
 			}();
-			inline _CONSTEVAL operator std::string_view() const { return {&name[0], &name[name.size() - 1]}; }
+			inline _CONSTEVAL operator std::string_view() const { return {name.data(), name.size() - 1}; }
 			inline _CONSTEVAL operator const char*() const { return &name[0]; }
 		};
 
@@ -178,18 +178,15 @@ namespace li::util {
 	//
 	namespace detail {
 		template<typename T>
-		struct type_id
-		{
+		struct type_id {
 			static constexpr uint32_t value = type_tag<T>::hash() << 1;
 		};
 		template<typename T>
-		struct type_id<const T>
-		{
+		struct type_id<const T> {
 			static constexpr uint32_t value = type_id<T>::value | 1;
 		};
 		template<>
-		struct type_id<void>
-		{
+		struct type_id<void> {
 			static constexpr uint32_t value = 0;
 		};
 	};

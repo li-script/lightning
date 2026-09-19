@@ -1,0 +1,64 @@
+import traits
+
+# Loop-invariant scalar expressions may cross loop branches without corrupting
+# the induction and accumulation PHIs.
+fn branch_invariants(limit, left, right) {
+	let total = 0
+	let index = 0
+	while index < limit {
+		let product = left * right
+		let offset = left + right
+		if index % 2 == 0 {
+			total += product
+		} else {
+			total -= offset
+		}
+		index += 1
+	}
+	total
+}
+assert(branch_invariants(6, 7, 5) == 69)
+assert(branch_invariants(0, 7, 5) == 0)
+
+# An effectful operator under a loop-local guard must neither be speculated into
+# the preheader nor escape its exception handler.
+let exception_trace = []
+let explosive = {value: 3}
+traits.set(explosive, "add", |other| {
+	exception_trace::push(other)
+	throw "trait explosion"
+})
+for index in 0..4 {
+	exception_trace::push(index + 10)
+	if index == 2 {
+		try {
+			explosive + 1
+		} catch error {
+			exception_trace::push(error)
+		}
+	}
+}
+assert(exception_trace::len() == 6)
+assert(exception_trace[0] == 10)
+assert(exception_trace[1] == 11)
+assert(exception_trace[2] == 12)
+assert(exception_trace[3] == 1)
+assert(exception_trace[4] == "trait explosion")
+assert(exception_trace[5] == 13)
+
+# Reinstalling a trait changes subsequent dispatch. The apparently invariant
+# operator operands therefore cannot be CSE'd or hoisted across the mutation.
+let receiver = {bias: 10}
+traits.set(receiver, "add", |other| self.bias + other)
+let trait_results = []
+for index in 0..4 {
+	if index == 2 {
+		traits.set(receiver, "add", |other| self.bias * other)
+	}
+	trait_results::push(receiver + 2)
+}
+assert(trait_results::len() == 4)
+assert(trait_results[0] == 12)
+assert(trait_results[1] == 12)
+assert(trait_results[2] == 20)
+assert(trait_results[3] == 20)

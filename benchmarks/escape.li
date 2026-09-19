@@ -1,0 +1,21 @@
+# Many short-lived local aggregates; the checksum keeps every scalar field live.
+const iterations = 200000
+let checksum = 0
+let index = 0
+while index < iterations {
+	let values = [index + 1, index + 2, index + 3]
+	if index % 2 == 0 {
+		values[1] = index + 6
+	} else {
+		values[2] = index + 9
+	}
+
+	let point = {x: index * 2 + 3, y: index + 11}
+	if index % 3 == 0 {
+		point.y = index * 2 - 4
+	}
+
+	checksum += values[0] + values[1] + values[2] + point.x + point.y
+	index += 1
+}
+assert(checksum == 126670033328)

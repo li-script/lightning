@@ -1,12 +1,46 @@
-#include <vm/types.hpp>
-#include <vm/table.hpp>
+#include <cmath>
+#include <cstring>
+#include <lib/std.hpp>
+#include <limits>
+#include <util/enuminfo.hpp>
 #include <vm/array.hpp>
 #include <vm/object.hpp>
+#include <vm/rc.hpp>
 #include <vm/string.hpp>
-#include <lib/std.hpp>
-#include <util/enuminfo.hpp>
+#include <vm/table.hpp>
+#include <vm/typed_array.hpp>
+#include <vm/types.hpp>
+#include <vm/weak.hpp>
 
 namespace li {
+	template<typename T>
+	static T load_unaligned(const void* data) {
+		T value;
+		memcpy(&value, data, sizeof(value));
+		return value;
+	}
+	template<typename T>
+	static any load_gc_pointer(const void* data) {
+		T* value = load_unaligned<T*>(data);
+		return value ? any(value) : nil;
+	}
+	template<typename T>
+	static void store_unaligned(void* data, T value) {
+		memcpy(data, &value, sizeof(value));
+	}
+	template<typename T>
+	static T checked_integer_store(number value) {
+		bool in_range;
+		if constexpr (sizeof(T) == sizeof(int64_t)) {
+			in_range = value >= -0x1p63 && value < 0x1p63;
+		} else {
+			in_range = value >= number(std::numeric_limits<T>::lowest()) && value <= number(std::numeric_limits<T>::max());
+		}
+		if (!std::isfinite(value) || value != std::trunc(value) || !in_range)
+			util::abort("invalid typed integer store");
+		return static_cast<T>(value);
+	}
+
 	std::string_view get_type_name(vm* L, type vt) {
 		if (vt >= type::obj) {
 			return util::name_enum(vt);
@@ -36,6 +70,8 @@ namespace li {
 			return to_type(type());
 	}
 
+	bool LI_CC any_value_equals(any_t lhs, any_t rhs) noexcept { return lhs.equals(rhs); }
+
 	// String coercion.
 	//
 	template<typename F>
@@ -47,13 +83,15 @@ namespace li {
 			case type_bool:
 				formatter(a.as_bool() ? "true" : "false");
 				break;
-			case type_number:
-				if (a.as_num() == (int64_t) a.as_num()) {
-					formatter("%.0lf", a.as_num());
+			case type_number: {
+				number value = a.as_num();
+				if (std::isfinite(value) && value == std::trunc(value)) {
+					formatter("%.0lf", value);
 				} else {
-					formatter("%lf", a.as_num());
+					formatter("%lf", value);
 				}
 				break;
+			}
 			case type_array:
 				formatter("array @ %p", a.as_gc());
 				break;
@@ -68,6 +106,15 @@ namespace li {
 				break;
 			case type_class:
 				formatter("class %s @ %p", a.as_vcl()->name->c_str(), a.as_gc());
+				break;
+			case type_weak:
+				formatter("weak @ %p", a.as_gc());
+				break;
+			case type_typed_array:
+				if (auto* value = a.as_tarr())
+					formatter("%s[] @ %p", typed_array_kind_name(value->element_kind), value);
+				else
+					formatter("typed-array @ %p", a.as_gc());
 				break;
 			case type_function:
 				if (a.as_fn()->is_virtual())
@@ -86,10 +133,13 @@ namespace li {
 		}
 	};
 	string* any_t::to_string(vm* L) const {
-		if (is_str()) [[likely]]
-			return as_str();
+		if (is_str()) [[likely]] {
+			string* result = as_str();
+			rc::retain(result);
+			return result;
+		}
 		string* result;
-		format_any(*this, [&] <typename... Tx> (const char* fmt, Tx&&... args) {
+		format_any(*this, [&]<typename... Tx>(const char* fmt, Tx&&... args) {
 			if constexpr (sizeof...(Tx) == 0) {
 				result = string::create(L, fmt);
 			} else {
@@ -150,11 +200,20 @@ namespace li {
 		} else if (is_tbl()) {
 			return any(as_tbl()->duplicate(L));
 		} else if (is_obj()) {
-			return any(as_obj()->duplicate(L));
+			object* result = as_obj()->duplicate(L);
+			return result ? any(result) : exception_marker;
 		} else if (is_fn()) {
 			return any(as_fn()->duplicate(L));
-		} else {
+		} else if (is_tarr()) {
+			return any(as_tarr()->duplicate(L));
+		} else if (is_weak()) {
+			rc::retain(*this);
 			return *this;
+		} else {
+			any result = *this;
+			if (result.is_gc())
+				rc::retain(result);
+			return result;
 		}
 	}
 	// Constructs default value of the data type.
@@ -188,6 +247,9 @@ namespace li {
 				return nil;
 			case type::exc:
 				return exception_marker;
+			case type::tarr:
+				util::abort("typed array default requires an element kind");
+			case type::weak:
 			case type::bb:
 			case type::none:
 			case type::nfni:
@@ -195,44 +257,48 @@ namespace li {
 			case type::vty:
 			case type::dty:
 			default:
-				LI_ASSERT_MSG("invalid data type for any decaying.", false);
+				util::abort("invalid data type %d for any decaying.", (int) t);
 		}
 	}
 
 	// Load/Store from data types.
 	//
-	any  any::load_from(const void* data, li::type t) {
+	any any::load_from(const void* data, li::type t) {
 		if (t < type::obj)
 			t = type::obj;
 		switch (t) {
 			case type::obj:
-				return *(object* const*) data;
+				return load_gc_pointer<object>(data);
 			case type::tbl:
-				return *(table* const*) data;
+				return load_gc_pointer<table>(data);
 			case type::arr:
-				return *(array* const*) data;
+				return load_gc_pointer<array>(data);
 			case type::fn:
-				return *(function* const*) data;
+				return load_gc_pointer<function>(data);
 			case type::str:
-				return *(string* const*) data;
+				return load_gc_pointer<string>(data);
 			case type::vcl:
-				return *(vclass* const*) data;
+				return load_gc_pointer<vclass>(data);
+			case type::weak:
+				return load_gc_pointer<weak>(data);
+			case type::tarr:
+				return load_gc_pointer<typed_array>(data);
 			case type::i1:
-				return *(const bool*) data;
+				return load_unaligned<bool>(data);
 			case type::i8:
-				return (number) * (const int8_t*) data;
+				return (number) load_unaligned<int8_t>(data);
 			case type::i16:
-				return (number) * (const int16_t*) data;
+				return (number) load_unaligned<int16_t>(data);
 			case type::i32:
-				return (number) * (const int32_t*) data;
+				return (number) load_unaligned<int32_t>(data);
 			case type::i64:
-				return (number) * (const int64_t*) data;
+				return (number) load_unaligned<int64_t>(data);
 			case type::f32:
-				return (number) * (const float*) data;
+				return (number) load_unaligned<float>(data);
 			case type::f64:
-				return (number) * (const double*) data;
+				return (number) load_unaligned<double>(data);
 			case type::any:
-				return *(const any_t*) data;
+				return load_unaligned<any_t>(data);
 			case type::nil:
 			case type::none:
 				return nil;
@@ -244,7 +310,7 @@ namespace li {
 			case type::vty:
 			case type::dty:
 			default:
-				LI_ASSERT_MSG("invalid data type for any decaying.", false);
+				util::abort("invalid data type %d for any decaying.", (int) t);
 		}
 	}
 	void any::store_at(void* data, li::type t) const {
@@ -258,47 +324,49 @@ namespace li {
 			case type::fn:
 			case type::str:
 			case type::vcl:
+			case type::weak:
+			case type::tarr:
 				LI_ASSERT(to_type(type()) == t);
-				*(gc::header**) data = as_gc();
+				store_unaligned(data, as_gc());
 				break;
 			case type::i1:
 				LI_ASSERT(is_bool());
-				*(bool*) data = as_bool();
+				store_unaligned(data, as_bool());
 				break;
 			case type::i8:
 				LI_ASSERT(is_num());
-				*(int8_t*) data = int8_t(as_num());
+				store_unaligned(data, checked_integer_store<int8_t>(as_num()));
 				break;
 			case type::i16:
 				LI_ASSERT(is_num());
-				*(int16_t*) data = int16_t(as_num());
+				store_unaligned(data, checked_integer_store<int16_t>(as_num()));
 				break;
 			case type::i32:
 				LI_ASSERT(is_num());
-				*(int32_t*) data = int32_t(as_num());
+				store_unaligned(data, checked_integer_store<int32_t>(as_num()));
 				break;
 			case type::i64:
 				LI_ASSERT(is_num());
-				*(int64_t*) data = int64_t(as_num());
+				store_unaligned(data, checked_integer_store<int64_t>(as_num()));
 				break;
 			case type::f32:
 				LI_ASSERT(is_num());
-				*(float*) data = float(as_num());
+				store_unaligned(data, float(as_num()));
 				break;
 			case type::f64:
 				LI_ASSERT(is_num());
-				*(double*) data = double(as_num());
+				store_unaligned(data, double(as_num()));
 				break;
 			case type::any:
-				*(any_t*) data = *this;
+				store_unaligned(data, static_cast<any_t>(*this));
 				break;
 			case type::nil:
 				LI_ASSERT(*this == nil);
-				*(any_t*) data = *this;
+				store_unaligned(data, static_cast<any_t>(*this));
 				break;
 			case type::exc:
 				LI_ASSERT(*this == exception_marker);
-				*(any_t*) data = *this;
+				store_unaligned(data, static_cast<any_t>(*this));
 				break;
 			case type::none:
 			case type::bb:
@@ -307,7 +375,7 @@ namespace li {
 			case type::vty:
 			case type::dty:
 			default:
-				util::abort("invalid data type for any decaying.");
+				util::abort("invalid data type %d for any decaying.", (int) t);
 		}
 	}
 };

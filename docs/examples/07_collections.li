@@ -1,0 +1,71 @@
+import "array" as arrays
+import collections
+import "table" as tables
+
+# Tables provide hashed keys and arrays provide contiguous positional storage.
+let inventory = {apples: 4, pears: 2}
+tables.reserve(inventory, 32)
+inventory["oranges"] = 6
+inventory.apples += 1
+assert(inventory.apples == 5)
+assert(inventory["oranges"] == 6)
+
+let queue = ["parse", "compile"]
+arrays.reserve(queue, 16)
+queue::push("execute")
+assert(queue::len() == 3)
+
+arrays.resize(queue, 5)
+assert(queue[3] == nil && queue[4] == nil)
+arrays.fill(queue, "pending", 3, 5)
+assert(queue[3] == "pending" && queue[4] == "pending")
+arrays.resize(queue, 3)
+
+const scores = [12, 7, 19, 10, 7]
+const doubled = collections.map(scores, |value, index| value * 2)
+assert(doubled[0] == 24 && doubled[2] == 38)
+
+const passing = collections.filter(scores, |value, index| value >= 10)
+assert(passing::len() == 3)
+
+const total = collections.reduce(scores, 0,
+   |sum, value, index| sum + value)
+assert(total == 55)
+
+let indexed = {}
+collections.each(scores, |value, index| {
+   indexed[index] = value
+})
+assert(indexed[2] == 19)
+
+assert(collections.any(scores, |value, index| value > 15))
+assert(collections.all(scores, |value, index| value >= 0))
+assert(collections.find(scores, |value, index| value % 2 == 1) == 7)
+
+const records = [
+   {name: "Ada", score: 12},
+   {name: "Grace", score: 7},
+   {name: "Lin", score: 12}
+]
+const ordered = collections.sort(records,
+   |left, right| left.score < right.score)
+assert(ordered[0].name == "Grace")
+assert(ordered[1].name == "Ada")
+assert(ordered[2].name == "Lin")
+assert(records[0].name == "Ada")
+
+const names = collections.keys(inventory)
+const counts = collections.values(inventory)
+assert(names::len() == 3 && counts::len() == 3)
+
+const assignments = collections.zip(
+   ["Ada", "Grace", "Lin"],
+   ["parser", "runtime"]
+)
+assert(assignments::len() == 2)
+assert(assignments[0][0] == "Ada")
+assert(assignments[0][1] == "parser")
+
+print("score total", total)
+print("passing", passing::len())
+print("assignments", assignments::len())

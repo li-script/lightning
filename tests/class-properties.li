@@ -1,0 +1,176 @@
+import shared
+import traits
+
+fn rejects(action) {
+   try {
+      action()
+      false
+   } catch error {
+      error is string
+   }
+}
+
+fn compile_error(source) {
+   let caught = nil
+   try {
+      loadstring(source)
+   } catch error {
+      caught = error
+   }
+   caught
+}
+
+# Explicit constructors initialize the instance once, receive the original
+# positional arguments in order, discard their own result, and return self.
+export const initializer_trace = {runs: 0}
+export fn next_initial_value() {
+   $E.initializer_trace.runs += 1
+   10
+}
+
+class ExplicitConstruction {
+   initialized: number = $E.next_initial_value()
+   first: number = 0
+   second: number = 0
+   third: number = 0
+
+   new!(first, second, third) {
+      self.first = first
+      self.second = second
+      self.third = third
+      "constructor result is discarded"
+   }
+}
+
+const explicit = ExplicitConstruction(3, 5, 8)
+assert(explicit is ExplicitConstruction)
+assert($E.initializer_trace.runs == 1)
+assert(explicit.initialized == 10)
+assert(explicit.first == 3 && explicit.second == 5 && explicit.third == 8)
+
+# Classes without new! keep default zero-argument and field-table construction.
+class DefaultConstruction {
+   value: number = 4
+}
+assert(DefaultConstruction().value == 4)
+assert(DefaultConstruction{value: 9}.value == 9)
+
+# Getter and setter declarations are independent. Inherited accessors resolve
+# independently, and only dyn accessors may be overridden.
+class PropertyBase {
+   _value: number = 1
+   _write_only: number = 0
+
+   dyn get value() -> number { self._value }
+   dyn set value(replacement) { self._value = replacement }
+   get readonly() -> number { self._value + 100 }
+   set writeonly(replacement) { self._write_only = replacement }
+}
+
+class InheritedProperties : PropertyBase {
+   marker: number = 7
+}
+
+class OverriddenProperties : PropertyBase {
+   get value() -> number { self._value * 2 }
+   set value(replacement) { self._value = replacement + 1 }
+}
+
+let inherited = InheritedProperties()
+assert(inherited.value == 1)
+inherited.value = 6
+assert(inherited.value == 6)
+assert(inherited.readonly == 106)
+assert(rejects(|| { inherited.readonly = 4 }))
+inherited.writeonly = 12
+assert(inherited._write_only == 12)
+assert(rejects(|| inherited.writeonly))
+
+let overridden = OverriddenProperties()
+overridden.value = 9
+assert(overridden._value == 10)
+assert(overridden.value == 20)
+
+assert(compile_error("class FinalProperty { get value() { 1 } }\nclass InvalidOverride : FinalProperty { get value() { 2 } }") is string)
+assert(compile_error("class DuplicateProperty { get value() { 1 }; get value() { 2 } }") is string)
+
+# Accessors stay on the generic path even after a hot named field site has
+# populated its inline cache.
+export const property_trace = {reads: 0, writes: 0}
+class CachedProperty {
+   _value: number = 2
+
+   get value() -> number {
+      $E.property_trace.reads += 1
+      self._value
+   }
+   set value(replacement) {
+      $E.property_trace.writes += 1
+      self._value = replacement
+   }
+}
+fn read_value(target) { target.value }
+fn write_value(target, value) { target.value = value }
+
+let cached = CachedProperty()
+let index = 0
+while index < 64 {
+   write_value(cached, read_value(cached) + 1)
+   index += 1
+}
+assert(cached._value == 66)
+assert($E.property_trace.reads == 64 && $E.property_trace.writes == 64)
+
+# Freeze is checked before dispatching a setter.
+traits.set(CachedProperty, "freeze", true)
+assert(rejects(|| { cached.value = 100 }))
+assert(cached._value == 66 && $E.property_trace.writes == 64)
+traits.set(CachedProperty, "freeze", false)
+
+# A cloned shared class owns cloned constructor/property metadata, but calling
+# it always allocates the new instance in the caller's private heap.
+class ShareableExplicit {
+   first: number = 0
+   second: number = 0
+   third: number = 0
+
+   new!(first, second, third) {
+      self.first = first
+      self.second = second
+      self.third = third
+   }
+}
+const SharedExplicit = shared.create(ShareableExplicit)
+assert(shared.is_shared(SharedExplicit))
+const from_shared_class = SharedExplicit(13, 21, 34)
+assert(!shared.is_shared(from_shared_class))
+assert(from_shared_class is ShareableExplicit)
+assert(from_shared_class.first == 13 && from_shared_class.second == 21 && from_shared_class.third == 34)
+
+# Shared instances use the cloned accessors without holding the instance lock
+# across user code; setter bodies can safely mutate their backing field.
+const shared_property = shared.create(PropertyBase())
+assert(shared.is_shared(shared_property))
+shared_property.value = 17
+assert(shared_property.value == 17)
+
+# A failed construction is never a successfully finalized object, even if its
+# body temporarily lets self escape before throwing.
+export const construction_lifecycle = {finalizer_runs: 0, escaped: nil}
+class FallibleConstruction {
+   new!(should_fail) {
+      if should_fail {
+         $E.construction_lifecycle.escaped = self
+         throw "construction failed"
+      }
+   }
+   del!() { $E.construction_lifecycle.finalizer_runs += 1 }
+}
+
+assert(rejects(|| FallibleConstruction(true)))
+assert($E.construction_lifecycle.finalizer_runs == 0)
+$E.construction_lifecycle.escaped = nil
+assert($E.construction_lifecycle.finalizer_runs == 0)
+let completed = FallibleConstruction(false)
+completed = nil
+assert($E.construction_lifecycle.finalizer_runs == 1)

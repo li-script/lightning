@@ -1,8 +1,9 @@
 #pragma once
-#include <util/common.hpp>
 #include <bit>
-#include <string_view>
+#include <cstring>
 #include <span>
+#include <string_view>
+#include <util/common.hpp>
 
 namespace li::util {
 	template<typename C, bool ForeignEndianness = false>
@@ -10,7 +11,8 @@ namespace li::util {
 
 	// UTF-8.
 	//
-	template<typename T, bool ForeignEndianness> requires (sizeof(T) == 1)
+	template<typename T, bool ForeignEndianness>
+		requires(sizeof(T) == 1)
 	struct codepoint_cvt<T, ForeignEndianness> {
 		//    7 bits
 		// 0xxxxxxx
@@ -71,7 +73,7 @@ namespace li::util {
 				return front;
 			}
 
-			auto read = [&]<auto I>(std::integral_constant<size_t, I>) LI_INLINE->uint32_t {
+			auto read = [&]<auto I>(std::integral_constant<size_t, I>) LI_INLINE -> uint32_t {
 				if (in.size() < I) [[unlikely]] {
 					in.remove_prefix(in.size());
 					return 0;
@@ -93,7 +95,8 @@ namespace li::util {
 
 	// UTF-16.
 	//
-	template<typename T, bool ForeignEndianness> requires (sizeof(T) == 2)
+	template<typename T, bool ForeignEndianness>
+		requires(sizeof(T) == 2)
 	struct codepoint_cvt<T, ForeignEndianness> {
 		static constexpr size_t max_out = 2;
 
@@ -166,16 +169,17 @@ namespace li::util {
 
 	// UTF-32.
 	//
-	template<typename T, bool ForeignEndianness> requires (sizeof(T) == 4)
+	template<typename T, bool ForeignEndianness>
+		requires(sizeof(T) == 4)
 	struct codepoint_cvt<T, ForeignEndianness> {
 		static constexpr size_t max_out = 1;
 
 		inline static constexpr uint8_t rlength(T) { return 1; }
 		inline static constexpr uint8_t length(uint32_t) { return 1; }
 		inline static constexpr void    encode(uint32_t cp, T*& out) {
-				if constexpr (ForeignEndianness)
-            cp = util::bswap(cp);
-         *out++ = (T) cp;
+			if constexpr (ForeignEndianness)
+				cp = util::bswap(cp);
+			*out++ = (T) cp;
 		}
 		inline static constexpr uint32_t decode(std::basic_string_view<T>& in) {
 			uint32_t cp = (uint32_t) in.front();
@@ -224,26 +228,58 @@ namespace li::util {
 		return result;
 	}
 
-	// Given a string-view, strips UTF-8 byte order mark if included, otherwise, returns true if it includes UTF-16/32 marks. 
+	// Converts complete UTF-16/32 code units from an arbitrarily aligned byte
+	// span. The aligned local array also gives each code unit an object lifetime.
+	//
+	template<typename To, typename From, bool Foreign = false>
+		requires(sizeof(From) == 2 || sizeof(From) == 4)
+	inline static std::basic_string<To> utf_convert_unaligned(std::span<const uint8_t> data) {
+		size_t                unit_count = data.size() / sizeof(From);
+		std::basic_string<To> result(codepoint_cvt<To>::max_out * unit_count, '\0');
+		To*                   out = result.data();
+
+		while (unit_count) {
+			From   units[2]{};
+			size_t copied = std::min(unit_count, size_t(2));
+			std::memcpy(units, data.data(), copied * sizeof(From));
+
+			std::basic_string_view<From> view{units, copied};
+			size_t                       before   = view.size();
+			uint32_t                     cp       = codepoint_cvt<From, Foreign>::decode(view);
+			size_t                       consumed = before - view.size();
+			codepoint_cvt<To>::encode(cp, out);
+			data = data.subspan(consumed * sizeof(From));
+			unit_count -= consumed;
+		}
+
+		result.resize(out - result.data());
+		return result;
+	}
+
+	// Given a string-view, strips UTF-8 byte order mark if included, otherwise, returns true if it includes UTF-16/32 marks.
 	//
 	inline static bool utf_is_bom(std::string_view& data) {
 		// Skip UTF-8.
 		//
-		if (data.size() >= 3 && !memcmp(data.data(), "\xEF\xBB\xBF", 3)) {
+		if (data.size() >= 3 && !std::memcmp(data.data(), "\xEF\xBB\xBF", 3)) {
 			data.remove_prefix(3);
 			return false;
 		}
 
 		// Try matching against UTF-32 LE/BE:
 		//
-		if (std::u32string_view view{(const char32_t*) data.data(), data.size() / sizeof(char32_t)}; !view.empty()) {
-			if (view.front() == 0xFEFF || view.front() == util::bswap<char32_t>(0xFEFF))
+		if (data.size() >= sizeof(char32_t)) {
+			char32_t front;
+			std::memcpy(&front, data.data(), sizeof(front));
+			if (front == 0xFEFF || front == util::bswap<char32_t>(0xFEFF))
 				return true;
 		}
 		// Try matching against UTF-16 LE/BE:
 		//
-		if (std::u16string_view view{(const char16_t*) data.data(), data.size() / sizeof(char16_t)}; !view.empty()) {
-			if (view.front() == 0xFEFF || view.front() == util::bswap<char16_t>(0xFEFF))
+		if (data.size() >= sizeof(char16_t)) {
+			char16_t front;
+			std::memcpy(&front, data.data(), sizeof(front));
+			if (front == 0xFEFF || front == util::bswap<char16_t>(0xFEFF))
 				return true;
 		}
 		return false;
@@ -256,22 +292,26 @@ namespace li::util {
 	inline static std::basic_string<To> utf_convert(std::span<const uint8_t> data) {
 		// If stream does not start with UTF8 BOM:
 		//
-		if (data.size() < 3 || memcmp(data.data(), "\xEF\xBB\xBF", 3)) {
+		if (data.size() < 3 || std::memcmp(data.data(), "\xEF\xBB\xBF", 3)) {
 			// Try matching against UTF-32 LE/BE:
 			//
-			if (std::u32string_view view{(const char32_t*) data.data(), data.size() / sizeof(char32_t)}; !view.empty()) {
-				if (view.front() == 0xFEFF) [[unlikely]]
-					return utf_convert<To, char32_t, false>(view.substr(1));
-				if (view.front() == util::bswap<char32_t>(0xFEFF)) [[unlikely]]
-					return utf_convert<To, char32_t, true>(view.substr(1));
+			if (data.size() >= sizeof(char32_t)) {
+				char32_t front;
+				std::memcpy(&front, data.data(), sizeof(front));
+				if (front == 0xFEFF) [[unlikely]]
+					return utf_convert_unaligned<To, char32_t, false>(data.subspan(sizeof(front)));
+				if (front == util::bswap<char32_t>(0xFEFF)) [[unlikely]]
+					return utf_convert_unaligned<To, char32_t, true>(data.subspan(sizeof(front)));
 			}
 			// Try matching against UTF-16 LE/BE:
 			//
-			if (std::u16string_view view{(const char16_t*) data.data(), data.size() / sizeof(char16_t)}; !view.empty()) {
-				if (view.front() == 0xFEFF)
-					return utf_convert<To, char16_t, false>(view.substr(1));
-				if (view.front() == util::bswap<char16_t>(0xFEFF)) [[unlikely]]
-					return utf_convert<To, char16_t, true>(view.substr(1));
+			if (data.size() >= sizeof(char16_t)) {
+				char16_t front;
+				std::memcpy(&front, data.data(), sizeof(front));
+				if (front == 0xFEFF)
+					return utf_convert_unaligned<To, char16_t, false>(data.subspan(sizeof(front)));
+				if (front == util::bswap<char16_t>(0xFEFF)) [[unlikely]]
+					return utf_convert_unaligned<To, char16_t, true>(data.subspan(sizeof(front)));
 			}
 		}
 		// Otherwise remove the header and continue with the default.
@@ -282,6 +322,6 @@ namespace li::util {
 
 		// Decode as UTF-8 and return.
 		//
-		return utf_convert<To>(std::u8string_view{(const char8_t*) data.data(), data.size() / sizeof(char8_t)});
+		return utf_convert<To>(std::string_view{(const char*) data.data(), data.size()});
 	}
 };

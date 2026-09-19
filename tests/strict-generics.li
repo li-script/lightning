@@ -1,0 +1,59 @@
+import reflect
+
+fn compile_error(source) {
+   let caught = nil
+   try {
+      loadstring(source)
+   } catch error {
+      caught = error
+   }
+   caught
+}
+
+const program = loadstring([=[[[strict]]
+fn identity<T>(value: T) -> T { value }
+fn auto_identity(value) { value }
+fn select<T>(value: T) -> i32 { 1i32 }
+fn select<T: i32>(value: T) -> i32 { 2i32 }
+
+struct Box<T> {
+   uninit value: T
+   new!(value: T) { self.value = value }
+   get() -> T { self.value }
+}
+class Holder<T> {
+   uninit value: T
+   get() -> T { self.value }
+}
+
+let first = identity<i32>(7i32)
+let second = identity(8i32)
+let text = identity("strict")
+let automatic = auto_identity(9i32)
+let boxed = Box::new(11i32)
+let held = Holder<i32>{value: 12i32}
+assert(first == 7i32)
+assert(second == 8i32)
+assert(text == "strict")
+assert(automatic == 9i32)
+assert(boxed.get() == 11i32)
+assert(held.get() == 12i32)
+assert(select(4i32) == 2i32)
+[identity, first + second + automatic]
+]=])
+const result = program()
+assert(result[1] == 24)
+const instantiations = reflect.instantiations(result[0])
+assert(result[0](12) == 12)
+assert(result[0]("runtime") == "runtime")
+assert(instantiations::len() >= 3)
+assert(instantiations[0].status == "Inst-OK")
+assert(instantiations[1].status == "InstCache-OK")
+assert(instantiations[2].status == "InstCache-OK" || instantiations[2].status == "Inst-OK")
+assert(instantiations[0].types[0] == "i32")
+
+assert("ambiguous generic instantiation" in compile_error([=[[[strict]]
+fn choose<T>(value: T) -> i32 { 1i32 }
+fn choose<U>(value: U) -> i32 { 2i32 }
+choose(1i32)
+]=]))

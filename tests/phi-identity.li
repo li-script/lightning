@@ -1,0 +1,19 @@
+fn distinct_recurrences() {
+	let first = 0
+	while first < 5 {
+		first += 1
+	}
+
+	let second = 0
+	while second < 3 {
+		# The loop condition and this comparison have the same shape, but
+		# their recursive phis belong to different loops and hold different values.
+		if first < 3 {
+			return false
+		}
+		second += 1
+	}
+	return first == 5 && second == 3
+}
+
+assert(distinct_recurrences())

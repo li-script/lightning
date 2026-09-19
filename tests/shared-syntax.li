@@ -1,0 +1,154 @@
+import shared
+import coroutine
+
+fn rejects(action) {
+   try {
+      action()
+      false
+   } catch error {
+      error is string
+   }
+}
+
+fn compile_error(source) {
+   let caught = nil
+   try {
+      loadstring(source)
+   } catch error {
+      caught = error
+   }
+   caught
+}
+
+# `shared` is contextual: literal factories use the process heap, while the
+# imported module remains an ordinary value for explicit operations.
+const queue = shared [4]
+const counters = shared {produced: 0, consumed: 0, bad: "not numeric"}
+assert(shared.is_shared(queue))
+assert(shared.is_shared(counters))
+assert(shared.is_shared(counters.bad))
+assert(shared.is_shared(shared.create({value: 1})))
+
+class SharedBox {
+   value: number = 9
+}
+fn new() { SharedBox{} }
+const box = shared SharedBox::new()
+assert(shared.is_shared(box) && box.value == 9)
+atomic {
+   queue[0] += 2
+   box.value *= 2
+}
+assert(queue[0] == 6 && box.value == 18)
+assert(rejects(|| shared {child: {private: true}}))
+const private_counter = {value: 1}
+assert(rejects(|| atomic { private_counter.value += 1 }))
+assert(private_counter.value == 1)
+
+const lock_probe = shared {evaluations: 0}
+fn lock_target() {
+   lock_probe.evaluations += 1
+   counters
+}
+lock lock_target() {}
+assert(lock_probe.evaluations == 1)
+
+fn producer(target) {
+   lock target {
+      target.produced += 1
+   }
+}
+fn consumer(target) {
+   lock target {
+      target.consumed += 1
+   }
+}
+producer(counters)
+consumer(counters)
+assert(counters.produced == 1 && counters.consumed == 1)
+
+# Every structured exit runs the generated unlock cleanup.
+fn locked_return(target) {
+   lock target {
+      defer { target.produced += 10 }
+      return 41
+   }
+}
+assert(locked_return(counters) == 41)
+assert(counters.produced == 11)
+assert(rejects(|| shared.unlock(counters)))
+assert(lock counters { leave 17 } == 17)
+assert(rejects(|| shared.unlock(counters)))
+
+fn locked_throw(target) {
+   lock target {
+      throw "locked failure"
+   }
+}
+assert(rejects(|| locked_throw(counters)))
+assert(rejects(|| shared.unlock(counters)))
+lock counters {}
+assert(compile_error("import shared\nconst x = shared {value: 1}\nlock x { yield 1 }") is string)
+
+# An indirect yield reaches the ordinary coroutine guard while the header lock
+# is active, reports an error, and still unwinds through the unlock cleanup.
+fn indirect_yield() { yield 1 }
+const yielding = coroutine.create(|| {
+   lock counters {
+      indirect_yield()
+   }
+})
+assert(rejects(|| coroutine.resume(yielding)))
+assert(rejects(|| shared.unlock(counters)))
+lock counters {}
+
+let copied = 2
+const first = atomic {
+   counters.produced += copied
+   counters.consumed *= 3
+   counters.produced = counters.produced + counters.consumed
+   copied = copied + 5
+   counters.produced
+}
+assert(first == 16)
+assert(counters.produced == 16 && counters.consumed == 3)
+assert(copied == 7)
+
+# Numeric-local loops are ordinary restricted bytecode and have no artificial
+# transaction iteration cap.
+let limit = 5
+let sum = 0
+atomic {
+   let index = 0
+   while index < limit {
+      sum += index
+      index += 1
+   }
+   counters.consumed += sum
+}
+assert(sum == 10 && counters.consumed == 13)
+let range_sum = 0
+atomic {
+   for value in 0..limit {
+      range_sum += value
+   }
+}
+assert(range_sum == 10)
+
+# A later bad field prevents every field write and every outer-local copyback.
+let rollback_local = 4
+assert(rejects(|| atomic {
+   counters.produced += 100
+   rollback_local += 8
+   counters.bad += 1
+}))
+assert(counters.produced == 16)
+assert(counters.bad == "not numeric")
+assert(rollback_local == 4)
+
+# Forbidden effects are rejected while compiling the internal plan, before it
+# can acquire a target or execute user code.
+assert(compile_error("atomic { assert(true) }") is string)
+assert(compile_error("atomic { let value = [] }") is string)
+assert(compile_error("atomic { throw 1 }") is string)
+assert(compile_error("atomic { yield 1 }") is string)

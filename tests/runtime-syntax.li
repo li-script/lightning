@@ -1,0 +1,144 @@
+import math
+import typed
+import coroutine
+
+# Typed-array constructor syntax resolves the immutable typed module functions.
+assert(i8[] is function)
+assert(u8[] is function)
+assert(i16[] is function)
+assert(u16[] is function)
+assert(i32[] is function)
+assert(u32[] is function)
+assert(i64[] is function)
+assert(u64[] is function)
+assert(f32[] is function)
+assert(f64[] is function)
+
+const signed8 = i8[]([-128, 127])
+const unsigned8 = u8[](2)
+unsigned8[0] = 0
+unsigned8[1] = 255
+assert(signed8[0] == -128 && signed8[1] == 127)
+assert(unsigned8[0] == 0 && unsigned8[1] == 255)
+assert(i16[]([-32768, 32767])[1] == 32767)
+assert(u16[]([0, 65535])[1] == 65535)
+assert(i32[]([-2147483648, 2147483647])[0] == -2147483648)
+assert(u32[]([0, 4294967295])[1] == 4294967295)
+assert(i64[]([-9007199254740991, 9007199254740991])[1] == 9007199254740991)
+assert(u64[]([0, 9007199254740991])[1] == 9007199254740991)
+assert(f32[]([16777217])[0] == 16777216)
+assert(f64[]([1.25])[0] == 1.25)
+
+fn rejected(action) {
+	let failed = false
+	try {
+		action()
+	} catch {
+		failed = true
+	}
+	failed
+}
+assert(rejected(|| i8[]([128])))
+assert(rejected(|| u8[]([-1])))
+assert(rejected(|| i16[]([32768])))
+assert(rejected(|| u16[]([65536])))
+assert(rejected(|| i32[]([2147483648])))
+assert(rejected(|| u32[]([4294967296])))
+assert(rejected(|| i64[]([9007199254740992])))
+assert(rejected(|| u64[]([-1])))
+assert(f32[]([math.inf])[0] == math.inf)
+const f64_nan = f64[]([math.nan])
+assert(f64_nan[0] != f64_nan[0])
+
+# Yield is an ordinary expression call: resume supplies its result.
+const worker = coroutine.create(|| {
+	const resumed = yield 10 + 1
+	const resumed_again = yield resumed + 1
+	resumed_again
+})
+assert(worker.status() == "created")
+assert(worker.resume() == 11)
+assert(worker.status() == "suspended")
+assert(worker.resume(20) == 21)
+assert(worker.resume(30) == 30)
+assert(worker.status() == "dead")
+
+let outside_yield_error = nil
+try {
+	yield 1
+} catch error {
+	outside_yield_error = error
+}
+assert(outside_yield_error is string)
+assert("outside a coroutine" in outside_yield_error)
+
+# Delete removes table entries rather than storing nil.
+let mapping = {present: nil, value: 42}
+assert("present" in mapping)
+delete mapping.present
+assert(!("present" in mapping))
+assert(mapping.present == nil)
+delete mapping["value"]
+assert(!("value" in mapping))
+
+let array_delete_error = nil
+try {
+	let values = [1]
+	delete values[0]
+} catch error {
+	array_delete_error = error
+}
+assert(array_delete_error is string)
+assert("non-table" in array_delete_error)
+assert(rejected(|| {
+	delete unsigned8[0]
+}))
+
+class FixedField {
+	value: number
+}
+const fixed = FixedField{value: 7}
+let field_delete_error = nil
+try {
+	delete fixed.value
+} catch error {
+	field_delete_error = error
+}
+assert(field_delete_error is string)
+assert("non-table" in field_delete_error)
+assert(fixed.value == 7)
+
+# Decorators evaluate as name(closure), with the closure bar unambiguous.
+let decorator_trace = {evaluations: 0}
+fn plus_one(inner) {
+	decorator_trace.evaluations += 1
+	|value| inner(value) + 1
+}
+const decorated = @plus_one |value| value * 2
+assert(decorator_trace.evaluations == 1)
+assert(decorated(20) == 41)
+
+# Statements require semicolons or physical newlines. Continuations remain
+# available only in grouping/initializers and after binary operators.
+assert(eval("3; 4") == 4)
+assert(eval("3\n4") == 4)
+assert(eval("1 +\n2") == 3)
+assert(eval("(1\n+ 2)") == 3)
+assert(eval("[\n1,\n2\n]")::len() == 2)
+
+let separator_error = nil
+try {
+	eval("3 4")
+} catch error {
+	separator_error = error
+}
+assert(separator_error is string)
+assert("expected ';' or newline" in separator_error)
+
+let suffix_error = nil
+try {
+	eval("const value = {field: 1}\nvalue\n.field")
+} catch error {
+	suffix_error = error
+}
+assert(suffix_error is string)

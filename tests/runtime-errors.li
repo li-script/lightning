@@ -1,0 +1,89 @@
+import collections
+import debug
+import math
+
+assert(math.abs(math.rad(180) - math.pi) < math.epsilon * 180)
+assert(math.abs(math.deg(math.pi) - 180) < math.epsilon * 180)
+
+let caught = false
+try {
+   const value = [1][nil]
+} catch {
+   caught = true
+}
+assert(caught)
+
+caught = false
+try {
+   const value = [1][-1]
+} catch {
+   caught = true
+}
+assert(caught)
+
+caught = false
+try {
+   const value = [1]["invalid"]
+} catch {
+   caught = true
+}
+assert(caught)
+
+caught = false
+try {
+   const value = "abc"[-1]
+} catch {
+   caught = true
+}
+assert(caught)
+
+caught = false
+try {
+   const value = "abc"["invalid"]
+} catch {
+   caught = true
+}
+assert(caught)
+
+caught = false
+try {
+   const value = 42[0]
+} catch {
+   caught = true
+}
+assert(caught)
+
+let values = [1]
+caught = false
+try {
+   values[1] = 2
+} catch {
+   caught = true
+}
+assert(caught)
+
+let runtime_error = nil
+try {
+	const value = [1]["invalid"]
+} catch error {
+	runtime_error = error
+}
+const runtime_trace = debug.traceback(runtime_error)
+assert(runtime_trace::len() >= 1)
+assert("runtime-errors.li" in runtime_trace[0]["function"])
+assert(runtime_trace[0].line > 0)
+assert(!runtime_trace[0].native)
+
+let native_error = nil
+try {
+	collections.map([], 1)
+} catch error {
+	native_error = error
+}
+const native_trace = debug.traceback(native_error)
+assert(native_trace::len() >= 2)
+assert(native_trace[0]["function"] == "C")
+assert(native_trace[0].native)
+assert("runtime-errors.li" in native_trace[1]["function"])
+assert(native_trace[1].line > 0)
+assert(!native_trace[1].native)

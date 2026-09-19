@@ -1,0 +1,40 @@
+fn compile_error(source) {
+   let caught = nil
+   try {
+      loadstring(source)
+   } catch error {
+      caught = error
+   }
+   caught
+}
+
+# Exported const/function declarations publish the same immutable binding.
+export const exported_box = {value: 3}
+export fn exported_sum(left, right) {
+   left + right
+}
+assert($E.exported_box == exported_box)
+assert($E.exported_sum == exported_sum)
+assert(exported_sum(4, 5) == 9)
+
+# Const bindings retain interior mutability without permitting rebinding.
+exported_box.value = 8
+assert(exported_box.value == 8)
+assert($E.exported_box.value == 8)
+assert(compile_error("const fixed = 1\nfixed = 2") is string)
+assert(compile_error("export const fixed = 1\nfixed = 2") is string)
+assert(compile_error("export fn fixed() { 1 }\nfixed = || { 2 }") is string)
+
+# The generated file entry still gives lexical let declarations mutable slots.
+let mutable_file_local = 1
+mutable_file_local = 6
+assert(mutable_file_local == 6)
+const lexical_file = loadstring("let value = 1\nvalue = 9\nvalue")
+assert(lexical_file() == 9)
+
+# File compilation never creates or rebinds an implicit environment entry.
+assert(compile_error("implicit_environment = 1") is string)
+
+# Only fn and const declarations are exportable file bindings.
+assert(compile_error("export let mutable = 1") is string)
+assert(compile_error("export class NotAllowed {}") is string)

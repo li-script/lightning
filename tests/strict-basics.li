@@ -1,0 +1,63 @@
+fn compile_error(source) {
+   let caught = nil
+   try {
+      loadstring(source)
+   } catch error {
+      caught = error
+   }
+   caught
+}
+
+const strict_program = loadstring([=[[[strict]]
+type Count = i32
+class Box {
+   value: number = 0
+   get() -> number { self.value }
+   identity() -> Self { self }
+}
+type MaybeCount = Count?
+type BoxView = view Box
+type WeakBox = weak Box
+type Counts = Count[]
+type FourCounts = Count[4]
+fn add(left: Count, right: i32) -> i32 { left + right }
+fn choose(value: MaybeCount) -> MaybeCount { value }
+fn read(value: view Box) -> number { value.value }
+let total: Count = add(10i32, 20i32)
+let unsigned = 10u
+let precise = 3f32
+let separated = 100'000i32
+let box = Box{value: 12}
+let checked: i32 = eval("40") as i32
+let message = `total {total}`
+assert(total == 30i32)
+assert(unsigned == 10u)
+assert(precise == 3f32)
+assert(separated == 100000i32)
+assert(read(box) == 12)
+assert(box.identity() is Box)
+assert(choose(nil) == nil)
+assert(checked == 40i32)
+assert(message == "total 30")
+total
+]=])
+assert(strict_program() == 30)
+
+# Dynamic annotations retain late nominal lookup while strict names resolve at parse time.
+const forward_program = loadstring("fn identity(value: Later) -> Later { value }\nclass Later {}\n[identity, Later]")
+const forward_values = forward_program()
+const later = forward_values[1]()
+assert(forward_values[0](later) == later)
+
+const auto_template = loadstring("[[strict]] fn identity(value) { value }\nidentity(2)")
+assert(auto_template() == 2)
+assert("strict binding 'value' has an unresolved type" in compile_error("[[strict]]\nlet value = eval(\"1\")"))
+assert("strict function return type is unresolved" in compile_error("[[strict]] fn bad() { eval(\"1\") }"))
+assert("incompatible operand types" in compile_error("[[strict]]\nlet value = 1i32 + \"wrong\""))
+assert("type mismatch for assignment" in compile_error("[[strict]]\nlet value: i32 = 1i32\nvalue = \"wrong\""))
+assert("unresolved type name 'Missing'" in compile_error("[[strict]] fn bad(value: Missing) -> number { 1 }"))
+assert("duplicate type alias 'Value'" in compile_error("type Value = i32\ntype Value = i64"))
+assert("view values may not be stored in fields" in compile_error("[[strict]] class Bad { borrowed: view table }"))
+assert("may not be captured" in compile_error("[[strict]]\nclass Box { value: number = 0 }\nfn outer(value: view Box) -> function { || value }"))
+assert("requires an initial value" in compile_error("[[strict]]\nlet value: i32"))
+assert("fixed array length must be a non-negative integer" in compile_error("[[strict]]\nlet values: i32[1.5] = i32[]"))

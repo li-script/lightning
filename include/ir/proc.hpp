@@ -1,13 +1,14 @@
 #pragma once
 #include <ir/insn.hpp>
 #include <list>
+#include <ranges>
 #include <string>
 #include <unordered_map>
 #include <util/llist.hpp>
 #include <vector>
 #include <vm/bc.hpp>
 #include <vm/function.hpp>
-#include <ranges>
+#include <vm/inline_cache.hpp>
 
 namespace li::ir {
 	struct instruction_iterator {
@@ -40,8 +41,7 @@ namespace li::ir {
 			++*this;
 			return tmp;
 		}
-		bool operator==(const instruction_iterator& o) const { return at == o.at; };
-		bool operator!=(const instruction_iterator& o) const { return at != o.at; };
+		friend bool operator==(const instruction_iterator& a, const instruction_iterator& b) { return a.at == b.at; }
 	};
 
 	// Basic block type.
@@ -49,7 +49,7 @@ namespace li::ir {
 	struct basic_block : range::view_base {
 		// Range traits.
 		//
-		using iterator   = instruction_iterator;
+		using iterator = instruction_iterator;
 
 		// Unique identifier, note that this may change on sort.
 		//
@@ -57,9 +57,9 @@ namespace li::ir {
 
 		// Details of the basic block itself.
 		//
-		procedure* proc      = nullptr;  // Procedure it belongs to.
-		uint8_t    cold_hint = 0;        // Number specifying how cold this block is.
-		uint8_t    loop_depth = 0;       // Number of nested loops we're in.
+		procedure* proc       = nullptr;  // Procedure it belongs to.
+		uint8_t    cold_hint  = 0;        // Number specifying how cold this block is.
+		uint8_t    loop_depth = 0;        // Number of nested loops we're in.
 
 		// Bytecode ranges.
 		//
@@ -68,7 +68,7 @@ namespace li::ir {
 
 		// Successor and predecesor list.
 		//
-		std::vector<basic_block*> successors  = {};
+		std::vector<basic_block*> successors   = {};
 		std::vector<basic_block*> predecessors = {};
 
 		// Instruction list.
@@ -78,6 +78,14 @@ namespace li::ir {
 		// Temporary for search algorithms.
 		//
 		mutable uint64_t visited = 0;
+
+		// Cached dominator-tree intervals. Zero denotes a block outside the
+		// corresponding analysis (for example, an unreachable block).
+		//
+		mutable msize_t dominator_pre      = 0;
+		mutable msize_t dominator_post     = 0;
+		mutable msize_t postdominator_pre  = 0;
+		mutable msize_t postdominator_post = 0;
 
 		// Container observers.
 		//
@@ -137,59 +145,10 @@ namespace li::ir {
 		//
 		basic_block* split_at(const insn* at);
 
-		// Validates the basic block.
+		// Validates the containing procedure so cross-block ownership, CFG, and
+		// SSA invariants are checked even at block-scoped pipeline points.
 		//
-		void validate() {
-#if LI_DEBUG
-			size_t num_term = 0;
-			bool   phi_ok   = true;
-			for (auto i : *this) {
-				for (auto& op : i->operands) {
-					if (!op->is<insn>())
-						continue;
-					if (op->as<insn>()->parent == this) {
-						auto it2 = std::find(begin(), instruction_iterator(i), op);
-						if (it2 == instruction_iterator(i)) {
-							util::abort("cyclic reference found: %s", i->to_string(true).c_str());
-						}
-					} else if (!op->as<insn>()->parent) {
-						this->print();
-						util::abort("dangling reference found: %s", i->to_string(true).c_str());
-					}
-				}
-
-				if (!i->is<phi>()) {
-					phi_ok = false;
-				} else if (!phi_ok) {
-					util::abort("phi used after block header.");
-				} else {
-					LI_ASSERT(i->operands.size() == predecessors.size());
-					for (size_t j = 0; j != i->operands.size(); j++) {
-						if (i->operands[j]->is<insn>()) {
-							LI_ASSERT(i->operands[j]->as<insn>()->parent->dom(predecessors[j]));
-						}
-					}
-				}
-				num_term += i->is_terminator();
-				if (i->is_proc_terminator()) {
-					LI_ASSERT(successors.empty());
-				}
-
-				i->update();
-			}
-
-			if (num_term == 0) {
-				util::abort("block is not terminated");
-			}
-			if (num_term > 1) {
-				util::abort("block has multiple terminators");
-			}
-#else
-			for (auto it = begin(); it != end(); ++it) {
-				it->update();
-			}
-#endif
-		}
+		void validate();
 
 		// Printer.
 		//
@@ -254,9 +213,12 @@ namespace li::ir {
 
 		// Procedure state.
 		//
-		container basic_blocks;        // List of basic blocks, first is entry point.
-		msize_t   next_reg_name  = 0;  // Next register name.
-		msize_t   next_block_uid = 0;  // Next block uid.
+		container                           basic_blocks;                 // List of basic blocks, first is entry point.
+		std::unique_ptr<inline_cache_array> inline_caches;                // Stable generated-code field feedback.
+		bool                                cache_fields   = true;        // Enables field feedback for this compilation.
+		uint32_t                            osr_target     = bc::no_pos;  // Loop header reachable through the OSR entry, if any.
+		msize_t                             next_reg_name  = 0;           // Next register name.
+		msize_t                             next_block_uid = 0;           // Next block uid.
 
 		// Maximum local index for VCALL.
 		//
@@ -266,6 +228,9 @@ namespace li::ir {
 		//
 		uint32_t         is_topologically_sorted : 1 = 0;
 		mutable uint64_t next_visited_mark           = 0x50eaeb7446b52b12;
+		uint64_t         cfg_revision                = 1;
+		mutable uint64_t dominator_revision          = 0;
+		mutable uint64_t postdominator_revision      = 0;
 
 		// Constructed by VM instance and the function we're translating.
 		//
@@ -327,6 +292,7 @@ namespace li::ir {
 			}
 			LI_ASSERT(b->predecessors.empty());
 			LI_ASSERT(b->successors.empty());
+			mark_blocks_dirty();
 			for (auto it = basic_blocks.begin();; ++it) {
 				LI_ASSERT(it != basic_blocks.end());
 				if (it->get() == b) {
@@ -339,7 +305,16 @@ namespace li::ir {
 		//
 		void mark_blocks_dirty() {
 			is_topologically_sorted = false;
+			if (++cfg_revision == 0)
+				cfg_revision = 1;
+			dominator_revision     = 0;
+			postdominator_revision = 0;
 		}
+
+		// Lazily rebuilds cached dominance intervals for the current CFG.
+		//
+		void ensure_dominators() const;
+		void ensure_postdominators() const;
 
 		// Adds or deletes a jump.
 		//
@@ -353,14 +328,68 @@ namespace li::ir {
 		void del_jump(basic_block* from, basic_block* to, bool fix_phi = true) {
 			auto sit = range::find(from->successors, to);
 			auto pit = range::find(to->predecessors, from);
+			LI_ASSERT(sit != from->successors.end());
+			LI_ASSERT(pit != to->predecessors.end());
 			if (fix_phi) {
 				size_t n = pit - to->predecessors.begin();
-				for (auto phi : to->phis())
+				for (auto phi : to->phis()) {
+					LI_ASSERT(phi->operands.size() == to->predecessors.size());
 					phi->operands.erase(phi->operands.begin() + n);
+				}
 			}
 			from->successors.erase(sit);
 			to->predecessors.erase(pit);
 			mark_blocks_dirty();
+		}
+
+		// Removes every block that cannot be reached from the entry point.
+		//
+		size_t remove_unreachable_blocks() {
+			if (basic_blocks.empty())
+				return 0;
+
+			const auto                mark = ++next_visited_mark;
+			std::vector<basic_block*> worklist{get_entry()};
+			get_entry()->visited = mark;
+			for (size_t i = 0; i != worklist.size(); ++i) {
+				for (auto* successor : worklist[i]->successors) {
+					if (successor->visited != mark) {
+						successor->visited = mark;
+						worklist.emplace_back(successor);
+					}
+				}
+			}
+
+			std::vector<basic_block*> unreachable;
+			for (auto& block : basic_blocks) {
+				if (block->visited != mark)
+					unreachable.emplace_back(block.get());
+			}
+
+			// First detach every dead edge. This makes the predecessor lists
+			// empty even for unreachable strongly connected components.
+			//
+			for (auto* block : unreachable) {
+				while (!block->successors.empty())
+					del_jump(block, block->successors.back());
+			}
+
+			// Break operand cycles first, then drop all instructions. This also
+			// releases constants naming blocks in a dead cycle before any owner
+			// is deleted.
+			//
+			for (auto* block : unreachable) {
+				LI_ASSERT(block->predecessors.empty());
+				for (auto* instruction : *block)
+					instruction->operands.clear();
+			}
+			for (auto* block : unreachable) {
+				while (!block->empty())
+					block->erase(block->begin());
+			}
+			for (auto* block : unreachable)
+				del_block(block);
+			return unreachable.size();
 		}
 
 		// Templated DFS/BFS helper.
@@ -368,9 +397,9 @@ namespace li::ir {
 		template<typename F>
 		bool dfs(F&& fn, const basic_block* from = nullptr) const {
 			auto mark = ++next_visited_mark;
-			auto rec = [&](auto& self, const basic_block* b) -> bool {
-            b->visited = mark;
-            for (auto& s : b->successors)
+			auto rec  = [&](auto& self, const basic_block* b) -> bool {
+				b->visited = mark;
+				for (auto& s : b->successors)
 					if (s->visited != mark)
 						if (self(self, s))
 							return true;
@@ -389,12 +418,12 @@ namespace li::ir {
 		template<typename F>
 		bool bfs(F&& fn, const basic_block* from = nullptr) const {
 			auto mark = ++next_visited_mark;
-			auto rec = [&](auto& self, const basic_block* b) -> bool {
+			auto rec  = [&](auto& self, const basic_block* b) -> bool {
 				b->visited = mark;
 				if (fn((basic_block*) b))
 					return true;
 				for (auto& s : b->successors)
-               if (s->visited != mark)
+					if (s->visited != mark)
 						if (self(self, s))
 							return true;
 				return false;
@@ -436,25 +465,10 @@ namespace li::ir {
 			}
 		}
 
-		// Validates all basic blocks.
+		// Validates complete CFG and SSA invariants. Pre-SSA load/store instructions
+		// remain valid memory operations and do not weaken instruction-value checks.
 		//
-		void validate() {
-			LI_ASSERT(get_entry() != nullptr);
-			for (auto& i : basic_blocks) {
-				i->validate();
-#if LI_DEBUG
-				if (i->predecessors.empty()) {
-					LI_ASSERT(i.get() == get_entry());
-				}
-				for (auto& succ : i->successors) {
-					LI_ASSERT(std::find(succ->predecessors.begin(), succ->predecessors.end(), i.get()) != succ->predecessors.end());
-				}
-				for (auto& pred : i->predecessors) {
-					LI_ASSERT(std::find(pred->successors.begin(), pred->successors.end(), i.get()) != pred->successors.end());
-				}
-#endif
-			}
-		}
+		void validate();
 
 		// Printer.
 		//
@@ -469,8 +483,8 @@ namespace li::ir {
 	//
 	template<typename Tv>
 	static ref<> launder_value(procedure* proc, Tv&& v) {
-		if constexpr (std::is_convertible_v<Tv, const insn*>) {
-			return make_ref((insn*)v);
+		if constexpr (std::is_convertible_v<Tv, const value*>) {
+			return make_ref(const_cast<value*>(static_cast<const value*>(v)));
 		} else if constexpr (!std::is_convertible_v<Tv, ref<>>) {
 			return proc->add_const(constant{std::forward<Tv>(v)});
 		} else {

@@ -1,0 +1,49 @@
+{
+  "name": "lightning-script",
+  "displayName": "Lightning Script",
+  "description": "Language support for the Lightning scripting language.",
+  "version": "0.1.0",
+  "publisher": "li-script",
+  "license": "MIT",
+  "homepage": "https://www.liscript.org/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/li-script/lightning.git"
+  },
+  "bugs": {
+    "url": "https://github.com/li-script/lightning/issues"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "lightning",
+    "lightning-script",
+    "li"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "lightning",
+        "aliases": [
+          "Lightning",
+          "lightning"
+        ],
+        "extensions": [
+          ".li"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "lightning",
+        "scopeName": "source.lightning",
+        "path": "./syntaxes/lightning.tmLanguage.json"
+      }
+    ]
+  }
+}

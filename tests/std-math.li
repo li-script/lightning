@@ -1,0 +1,71 @@
+import math
+
+fn rejects(action) {
+	try {
+		action()
+		false
+	} catch {
+		true
+	}
+}
+
+# Scalar helpers preserve IEEE values while enforcing exact arity and numeric types.
+assert(math.clamp(5, 0, 10) == 5)
+assert(math.clamp(-1, 0, 10) == 0)
+assert(math.clamp(11, 0, 10) == 10)
+assert(math.isnan(math.clamp(math.nan, 0, 10)))
+assert(rejects(|| math.clamp(1, 2, 0)))
+assert(rejects(|| math.clamp(1, math.nan, 2)))
+assert(rejects(|| math.clamp("1", 0, 2)))
+assert(rejects(|| math.clamp(1, 0)))
+assert(rejects(|| math.clamp(1, 0, 2, 3)))
+
+assert(math.lerp(10, 20, 0) == 10)
+assert(math.lerp(10, 20, 1) == 20)
+assert(math.lerp(10, 20, 0.25) == 12.5)
+assert(rejects(|| math.lerp(0, 1, nil)))
+
+assert(math.sign(-17) == -1)
+assert(math.sign(0) == 0)
+assert(math.sign(-0.0) == 0)
+assert(math.sign(19) == 1)
+assert(math.isnan(math.sign(math.nan)))
+assert(rejects(|| math.sign()))
+assert(rejects(|| math.sign(1, 2)))
+
+assert(math.isnan(math.nan))
+assert(!math.isnan(0))
+assert(math.isfinite(0))
+assert(math.isfinite(math.huge))
+assert(!math.isfinite(math.inf))
+assert(!math.isfinite(math.nan))
+assert(rejects(|| math.isnan("nan")))
+assert(rejects(|| math.isfinite(nil)))
+
+# Integer predicates and arithmetic never truncate, wrap, or return an unsafe integer.
+assert(math.isinteger(0))
+assert(math.isinteger(-7))
+assert(!math.isinteger(1.5))
+assert(!math.isinteger(math.inf))
+assert(!math.isinteger(math.nan))
+assert(rejects(|| math.isinteger("1")))
+assert(math.gcd(54, 24) == 6)
+assert(math.gcd(-54, 24) == 6)
+assert(math.gcd(0, 0) == 0)
+assert(math.lcm(6, 15) == 30)
+assert(math.lcm(-6, 15) == 30)
+assert(math.lcm(0, 9007199254740991) == 0)
+assert(rejects(|| math.gcd(1.5, 2)))
+assert(rejects(|| math.gcd(math.inf, 2)))
+assert(rejects(|| math.lcm(9007199254740991, 2)))
+assert(rejects(|| math.gcd(1)))
+assert(rejects(|| math.lcm(1, 2, 3)))
+
+# Existing remapped functions also reject missing and extra arguments.
+assert(math.abs(-3) == 3)
+assert(math.min(4, 7) == 4)
+assert(rejects(|| math.abs()))
+assert(rejects(|| math.abs(1, 2)))
+assert(rejects(|| math.min(1)))
+assert(rejects(|| math.min(1, 2, 3)))
+assert(rejects(|| math.random(math.inf)))

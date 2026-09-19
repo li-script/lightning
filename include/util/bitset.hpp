@@ -102,7 +102,7 @@ namespace li::util {
 		bool all(bool x) const {
 			if (empty())
 				return true;
-			size_t n = data.size();
+			size_t n         = data.size();
 			size_t last_mask = fill_bits(real_length & (width - 1));
 			for (size_t i = 0; i != n; i++) {
 				size_t k = data[i];

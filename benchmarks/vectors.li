@@ -1,0 +1,23 @@
+# One million f32 vector additions with a dot-product checksum. The values reset
+# every thousand iterations so every intermediate remains exactly representable
+# in f32 and the checksum has a stable closed-form result.
+import vec3
+
+const seed = vec3::new(1, 2, 3)
+const delta = vec3::new(0.25, -0.5, 0.75)
+const weight = vec3::new(1, 2, 4)
+
+let checksum = 0
+let block = 0
+while block < 1000 {
+   let value = seed
+   let step = 0
+   while step < 1000 {
+      value = value + delta
+      checksum += value.dot(weight)
+      step += 1
+   }
+   block += 1
+}
+
+assert(checksum == 1143125000)

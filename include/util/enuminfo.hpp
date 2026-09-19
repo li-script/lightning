@@ -7,9 +7,17 @@
 #include <utility>
 
 namespace li::util {
-#define LI_REPEAT_1(_, x)   _(x)
-#define LI_REPEAT_8(_, x)   LI_REPEAT_1(_, x) LI_REPEAT_1(_, x + 1) LI_REPEAT_1(_, x + 2) LI_REPEAT_1(_, x + 3) LI_REPEAT_1(_, x + 4) LI_REPEAT_1(_, x + 5) LI_REPEAT_1(_, x + 6) LI_REPEAT_1(_, x + 7)
-#define LI_REPEAT_64(_, x)  LI_REPEAT_8(_, x) LI_REPEAT_8(_, x + (8 * 1)) LI_REPEAT_8(_, x + (8 * 2)) LI_REPEAT_8(_, x + (8 * 3)) LI_REPEAT_8(_, x + (8 * 4)) LI_REPEAT_8(_, x + (8 * 5)) LI_REPEAT_8(_, x + (8 * 6)) LI_REPEAT_8(_, x + (8 * 7))
+	// clang-format off
+#define LI_REPEAT_1(_, x) _(x)
+#define LI_REPEAT_8(_, x) \
+	LI_REPEAT_1(_, x) \
+	LI_REPEAT_1(_, x + 1) LI_REPEAT_1(_, x + 2) LI_REPEAT_1(_, x + 3) LI_REPEAT_1(_, x + 4) LI_REPEAT_1(_, x + 5) LI_REPEAT_1(_, x + 6) LI_REPEAT_1(_, x + 7)
+#define LI_REPEAT_64(_, x) \
+	LI_REPEAT_8(_, x) \
+	LI_REPEAT_8(_, x + (8 * 1)) \
+	LI_REPEAT_8(_, x + (8 * 2)) LI_REPEAT_8(_, x + (8 * 3)) LI_REPEAT_8(_, x + (8 * 4)) LI_REPEAT_8(_, x + (8 * 5)) LI_REPEAT_8(_, x + (8 * 6)) \
+	LI_REPEAT_8(_, x + (8 * 7))
+	// clang-format on
 
 	// Used to generate names for enum types.
 	//
@@ -30,7 +38,7 @@ namespace li::util {
 				name.remove_prefix(n + 1);
 			return name;
 		}
-		inline static constexpr int64_t                                       min_value     = std::is_signed_v<value_type> ? (generate<T(-2)>().empty() ? -1 : -(iteration_limit / 2)) : 0;
+		inline static constexpr int64_t min_value = std::is_signed_v<value_type> ? (generate<T(-2)>().empty() ? -1 : -(iteration_limit / 2)) : 0;
 		inline static constexpr std::array<std::string_view, iteration_limit> linear_series = {
 #define GEN_ENUM(val) generate<T(val)>(),
 			 LI_REPEAT_64(GEN_ENUM, min_value)

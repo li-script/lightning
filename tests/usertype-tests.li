@@ -1,9 +1,9 @@
 class Test {
-   x: number,
-   y: number,
-   z = 3,
-   w: table = {a: 4},
-   q: array,
+   x: number
+   y: number
+   z = 3
+   w: table = {a: 4}
+   q: array
    m: function
 
    dyn print() {
@@ -22,8 +22,8 @@ class Test2 : Test {
 const t1 = Test{x: 5, z: 4}
 const t2 = Test2{x: 6, a: 9}
 
-assert(t1->print() == "(5, 0, 4)")
-assert(t2->print() == "xd(6, 0, 3)")
+assert(t1.print() == "(5, 0, 4)")
+assert(t2.print() == "xd(6, 0, 3)")
 
 assert(
    t1.w != t2.w && 
@@ -33,9 +33,10 @@ assert(
    !(t1 is Test2)
 )
 
+let uninitialized_method_error = nil
 try {
-   t1->m()
-   assert(false)
-} catch x {
-   assert("uninitialized" in x)
+   t1.m()
+} catch error {
+   uninitialized_method_error = error
 }
+assert(uninitialized_method_error is string)

@@ -1,0 +1,49 @@
+# Deterministic binary-trees allocation and traversal workload.
+fn make_tree(item, depth) {
+   if depth == 0 {
+      return {item: item, left: nil, right: nil}
+   }
+   return {
+      item: item,
+      left: make_tree(item * 2 - 1, depth - 1),
+      right: make_tree(item * 2, depth - 1)
+   }
+}
+
+fn check_tree(tree) {
+   if tree.left == nil {
+      return tree.item
+   }
+   return tree.item + check_tree(tree.left) - check_tree(tree.right)
+}
+
+fn power_of_two(exponent) {
+   let value = 1
+   while exponent > 0 {
+      value *= 2
+      exponent -= 1
+   }
+   return value
+}
+
+const min_depth = 4
+const max_depth = 12
+const stretch_tree = make_tree(0, max_depth + 1)
+assert(check_tree(stretch_tree) == -1)
+
+const long_lived_tree = make_tree(0, max_depth)
+let depth = min_depth
+let total_check = 0
+while depth <= max_depth {
+   const iterations = power_of_two(max_depth - depth + min_depth)
+   let i = 1
+   while i <= iterations {
+      total_check += check_tree(make_tree(i, depth))
+      total_check += check_tree(make_tree(-i, depth))
+      i += 1
+   }
+   depth += 2
+}
+
+assert(total_check == -10912)
+assert(check_tree(long_lived_tree) == -1)

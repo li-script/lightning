@@ -4,7 +4,10 @@ fn exnum(x: number) {
 
 let k : string = exnum(5)
 
+let annotation_error = nil
 try {
    exnum("")
-   assert(false)
-};
+} catch error {
+   annotation_error = error
+}
+assert(annotation_error is string)

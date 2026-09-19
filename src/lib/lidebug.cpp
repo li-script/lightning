@@ -1,12 +1,15 @@
+#include <bit>
+#include <cmath>
+#include <lang/parser.hpp>
 #include <lib/std.hpp>
 #include <util/user.hpp>
-#include <vm/function.hpp>
 #include <vm/array.hpp>
-#include <vm/types.hpp>
+#include <vm/function.hpp>
 #include <vm/object.hpp>
-#include <lang/parser.hpp>
-#include <cmath>
-#include <bit>
+#include <vm/rc.hpp>
+#include <vm/shared.hpp>
+#include <vm/string.hpp>
+#include <vm/types.hpp>
 
 namespace li::lib {
 	// Registers the debug library.
@@ -28,8 +31,9 @@ namespace li::lib {
 				if (x.is_obj())
 					x = x.as_obj()->cl;
 				if (x.is_vcl()) {
+					shared::recursive_guard guard(L, x.as_vcl());
 					for (auto& f : x.as_vcl()->fields()) {
-						if (f.key == args[-1].as_str()) {
+						if (string_value_equals(f.key, args[-1].as_str())) {
 							return L->ok(number(f.value.offset));
 						}
 					}
@@ -44,6 +48,13 @@ namespace li::lib {
 			auto cstr   = string::create(L, "C");
 			auto lstr   = string::create(L, "line");
 			auto fstr   = string::create(L, "func");
+			auto fail   = [&]() -> any_t {
+				rc::release(L, result);
+				rc::release(L, cstr);
+				rc::release(L, lstr);
+				rc::release(L, fstr);
+				return exception_marker;
+			};
 
 			call_frame frame = L->last_vm_caller;
 			while (frame.stack_pos >= FRAME_SIZE) {
@@ -51,21 +62,42 @@ namespace li::lib {
 
 				if (frame.multiplexed_by_c()) {
 					auto tbl = table::create(L, 1);
-					tbl->set(L, (any) fstr, (any) cstr);
-					result->push(L, tbl);
+					if (!tbl->set(L, (any) fstr, (any) cstr) || !result->push(L, tbl)) {
+						rc::release(L, tbl);
+						return fail();
+					}
+					rc::release(L, tbl);
 				}
 
 				auto tbl = table::create(L, 2);
 				if (target.is_fn() && target.as_fn()->is_virtual()) {
-					tbl->set(L, (any) lstr, any(number(target.as_fn()->proto->lookup_line(frame.caller_pc & ~FRAME_C_FLAG))));
+					if (!tbl->set(L, (any) lstr, any(number(target.as_fn()->proto->lookup_line(frame.caller_pc & ~FRAME_C_FLAG))))) {
+						rc::release(L, tbl);
+						return fail();
+					}
 				}
-				tbl->set(L, (any) fstr, any(target));
-				result->push(L, tbl);
+				if (!tbl->set(L, (any) fstr, any(target)) || !result->push(L, tbl)) {
+					rc::release(L, tbl);
+					return fail();
+				}
+				rc::release(L, tbl);
 
 				auto ref = L->stack[frame.stack_pos + FRAME_CALLER];
 				frame    = li::bit_cast<call_frame>(ref.value);
 			}
-			return L->ok(result);
+			rc::release(L, cstr);
+			rc::release(L, lstr);
+			rc::release(L, fstr);
+			return L->take(result);
+		});
+		util::export_as(L, "debug.traceback", [](vm* L, any* args, slot_t n) -> any_t {
+			if (n > 1)
+				return L->error("traceback expects zero or one argument");
+			any    error  = n ? args[0] : L->last_ex;
+			array* result = L->copy_exception_trace(error);
+			if (!result)
+				return exception_marker;
+			return L->take(result);
 		});
 		util::export_as(L, "debug.getuval", [](vm* L, any* args, slot_t n) {
 			if (n != 2) {
@@ -82,13 +114,14 @@ namespace li::lib {
 			}
 			size_t idx = size_t(i.as_num());
 
+			shared::recursive_guard guard(L, f.as_fn());
 			if (f.as_fn()->num_uval > idx) {
 				return L->ok(f.as_fn()->uvals()[idx]);
 			} else {
 				return L->ok(nil);
 			}
 		});
-		util::export_as(L, "debug.setuval", [](vm* L, any* args, slot_t n) {
+		util::export_as(L, "debug.setuval", [](vm* L, any* args, slot_t n) -> any_t {
 			if (n != 3) {
 				return L->error("expected 3 arguments.");
 			}
@@ -103,13 +136,23 @@ namespace li::lib {
 			}
 			size_t idx = size_t(i.as_num());
 
-			auto u = args[-2];
-			if (f.as_fn()->num_uval > idx) {
-				f.as_fn()->uvals()[idx] = u;
-				return L->ok(true);
-			} else {
+			auto      u       = args[-2];
+			function* closure = f.as_fn();
+			if (closure->num_uval <= idx)
 				return L->ok(false);
+
+			shared::prepared_value prepared = shared::prepare_store(L, closure, u);
+			if (!prepared.ok)
+				return exception_marker;
+			bool replaced = false;
+			{
+				shared::recursive_guard guard(L, closure);
+				replaced = rc::try_replace(L, closure->uvals()[idx], prepared.value);
 			}
+			shared::finish_store(L, prepared);
+			if (!replaced)
+				return exception_marker;
+			return L->ok(true);
 		});
 		util::export_as(L, "debug.dump", [](vm* L, any* args, slot_t n) {
 			if (n != 1 || !args->is_fn() || !args->as_fn()->is_virtual()) {
@@ -120,69 +163,9 @@ namespace li::lib {
 			return L->ok();
 		});
 
-		util::export_as(L, "gc.suspend", [](vm* L, any* args, slot_t n) {
-			L->gc.suspend = true;
-			return L->ok();
-		});
-		util::export_as(L, "gc.resume", [](vm* L, any* args, slot_t n) {
-			L->gc.suspend = false;
-			return L->ok();
-		});
-		util::export_as(L, "gc.collect", [](vm* L, any* args, slot_t n) {
-			L->gc.collect(L);
-			return L->ok();
-		});
-		util::export_as(L, "gc.tick", [](vm* L, any* args, slot_t n) {
-			L->gc.tick(L);
-			return L->ok();
-		});
-		util::export_as(L, "gc.used_memory", [](vm* L, any* args, slot_t n) {
-			number result = 0;
-			L->gc.for_each([&](gc::page* p, bool) {
-				result += p->num_pages * ((4096.0) / (1024.0 * 1024.0));
-				return false;
-			});
-			return L->ok(result);
-		});
-		util::export_as(L, "gc.debt", [](vm* L, any* args, slot_t n) {
-			return L->ok(gc::chunk_size * (number) L->gc.debt);
-		});
-		util::export_as(L, "gc.greedy", [](vm* L, any* args, slot_t n) {
-			if (n >= 1) {
-				L->gc.greedy = args->coerce_bool();
-				L->gc.collect(L);
-			}
-			return L->ok(L->gc.greedy);
-		});
-		util::export_as(L, "gc.interval", [](vm* L, any* args, slot_t n) {
-			if (n >= 1) {
-				if (!args->is_num())
-					return L->error("expected one number");
-				L->gc.interval = (msize_t) args->as_num();
-				L->gc.collect(L);
-			}
-			return L->ok((number)L->gc.interval);
-		});
-		util::export_as(L, "gc.max_debt", [](vm* L, any* args, slot_t n) {
-			if (n >= 1) {
-				if (!args->is_num())
-					return L->error("expected one number");
-				L->gc.max_debt = (msize_t) args->as_num() / gc::chunk_size;
-				L->gc.collect(L);
-			}
-			return L->ok(gc::chunk_size * (number) L->gc.max_debt);
-		});
-		util::export_as(L, "gc.min_debt", [](vm* L, any* args, slot_t n) {
-			if (n >= 1) {
-				if (!args->is_num())
-					return L->error("expected one number");
-				L->gc.min_debt = (msize_t) args->as_num() / gc::chunk_size;
-				L->gc.collect(L);
-			}
-			return L->ok(gc::chunk_size * (number) L->gc.min_debt);
-		});
-		util::export_as(L, "gc.counter", [](vm* L, any* args, slot_t n) {
-			return L->ok((number)L->gc.collect_counter);
-		});
+		util::export_as(L, "debug.live_objects", [](vm* L, any* args, slot_t n) { return L->ok((number) L->gc.live_objects); });
+		// Retain/release counters are scoped to the calling thread, not the VM.
+		util::export_as(L, "debug.retain_count", [](vm* L, any* args, slot_t n) { return L->ok((number) rc::counts().retains); });
+		util::export_as(L, "debug.release_count", [](vm* L, any* args, slot_t n) { return L->ok((number) rc::counts().releases); });
 	}
 };

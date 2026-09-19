@@ -1,0 +1,60 @@
+# Returned locals remain alive after their frame is released.
+fn make_value() {
+   const local = {nested: [{answer: 42}]}
+   local
+}
+const returned = make_value()
+assert(returned.nested[0].answer == 42)
+
+# Replacing a borrowed argument slot must not consume the caller's binding.
+fn replace_argument(value) {
+   value = {replacement: [7, 8]}
+   value
+}
+const original = {marker: "original"}
+const replacement = replace_argument(original)
+assert(original.marker == "original")
+assert(replacement.replacement[1] == 8)
+
+# The pending exception owns its payload while every throwing frame unwinds.
+fn throw_inner() {
+   const payload = {message: "survived", data: [3, 5]}
+   throw payload
+}
+fn throw_outer() {
+   const doomed = {temporary: [1, 2]}
+   throw_inner()
+}
+let caught = nil
+try {
+   throw_outer()
+} catch error {
+   caught = error
+}
+assert(caught.message == "survived")
+assert(caught.data[1] == 5)
+
+# A returned closure owns its captured values after the creator exits.
+fn make_reader() {
+   const capture = {values: [11, 13]}
+   || capture
+}
+const reader = make_reader()
+assert(reader().values[0] == 11)
+
+# Logical operators return an owned reference to the selected operand.
+fn logical_or(value) { false || value }
+fn logical_and(value) { true && value }
+fn logical_null(value) { nil ?? value }
+const logical_value = {value: 17}
+assert(logical_or(logical_value).value == 17)
+assert(logical_and(logical_value).value == 17)
+assert(logical_null(logical_value).value == 17)
+
+# Iterator outputs own yielded collection entries across subsequent steps.
+const iterable = [{value: 19}, {value: 23}]
+let yielded = nil
+for _, value in iterable {
+   yielded = value
+}
+assert(yielded.value == 23)

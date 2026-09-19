@@ -1,29 +1,236 @@
 # Reference: https://build-cpp.github.io/cmkr/cmake-toml
 [project]
 name = "lightning"
-languages = ["CXX"]
+languages = ["C", "CXX"]
+cmake-after = """
+enable_testing()
+
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
+if(NOT EMSCRIPTEN)
+    find_package(Threads REQUIRED)
+endif()
+
+string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" LI_SYSTEM_PROCESSOR)
+set(LI_TARGET_PROCESSOR "${LI_SYSTEM_PROCESSOR}")
+if(APPLE AND CMAKE_OSX_ARCHITECTURES)
+    list(LENGTH CMAKE_OSX_ARCHITECTURES LI_OSX_ARCH_COUNT)
+    if(LI_OSX_ARCH_COUNT EQUAL 1)
+        list(GET CMAKE_OSX_ARCHITECTURES 0 LI_TARGET_PROCESSOR)
+        string(TOLOWER "${LI_TARGET_PROCESSOR}" LI_TARGET_PROCESSOR)
+    else()
+        set(LI_TARGET_PROCESSOR "universal")
+    endif()
+endif()
+
+set(LI_NATIVE_X86_64 OFF)
+set(LI_NATIVE_A64 OFF)
+if(NOT EMSCRIPTEN AND CMAKE_SIZEOF_VOID_P EQUAL 8)
+    if(LI_TARGET_PROCESSOR MATCHES "^(amd64|x86_64|x64)$")
+        if(WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Darwin" OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
+            set(LI_NATIVE_X86_64 ON)
+        endif()
+    elseif(LI_TARGET_PROCESSOR MATCHES "^(aarch64|arm64)$")
+        if(CMAKE_SYSTEM_NAME STREQUAL "Darwin" OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
+            set(LI_NATIVE_A64 ON)
+        endif()
+    endif()
+endif()
+
+set(LI_CONTEXT_X86_64_GAS OFF)
+set(LI_CONTEXT_X86_64_MASM OFF)
+set(LI_CONTEXT_A64 OFF)
+if(LI_NATIVE_X86_64)
+    if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+        set(LI_CONTEXT_X86_64_MASM ON)
+    elseif(NOT WIN32 OR CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang)$")
+        set(LI_CONTEXT_X86_64_GAS ON)
+    endif()
+elseif(LI_NATIVE_A64 AND NOT WIN32)
+    set(LI_CONTEXT_A64 ON)
+endif()
+
+set(LI_CONTEXT_X86_64 OFF)
+if(LI_CONTEXT_X86_64_GAS OR LI_CONTEXT_X86_64_MASM)
+    set(LI_CONTEXT_X86_64 ON)
+endif()
+
+set(LI_CONTEXT_SUPPORTED OFF)
+if(LI_CONTEXT_X86_64 OR LI_CONTEXT_A64)
+    set(LI_CONTEXT_SUPPORTED ON)
+endif()
+if(LI_CONTEXT_X86_64_GAS OR LI_CONTEXT_A64)
+    enable_language(ASM)
+endif()
+if(LI_CONTEXT_X86_64_MASM)
+    enable_language(ASM_MASM)
+endif()
+
+set(LI_JIT_SUPPORTED OFF)
+set(LI_JIT_DEFAULT OFF)
+if(LI_NATIVE_X86_64 OR LI_NATIVE_A64)
+    set(LI_JIT_SUPPORTED ON)
+    set(LI_JIT_DEFAULT ON)
+endif()
+
+option(LI_JIT "Build the native JIT backend" ${LI_JIT_DEFAULT})
+set(LI_JIT_X86_64 OFF)
+set(LI_JIT_A64 OFF)
+if(LI_JIT)
+    if(NOT LI_JIT_SUPPORTED)
+        message(FATAL_ERROR
+            "LI_JIT=ON is not supported for ${CMAKE_SYSTEM_NAME}/${CMAKE_SYSTEM_PROCESSOR}. "
+            "Supported targets are 64-bit x86 on Windows, macOS, or Linux and "
+            "64-bit ARM on macOS or Linux; "
+            "WebAssembly, 32-bit x86, Windows ARM64, and Apple arm64e are interpreter-only.")
+    elseif(LI_NATIVE_X86_64)
+        set(LI_JIT_X86_64 ON)
+    elseif(LI_NATIVE_A64)
+        set(LI_JIT_A64 ON)
+    endif()
+endif()
+if(LI_JIT_X86_64 AND NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/zydis/CMakeLists.txt")
+    message(FATAL_ERROR
+        "The x86-64 JIT requires the pinned Zydis submodule. "
+        "Run: git submodule update --init --recursive")
+endif()
+"""
 
 [options]
-LIGHTING_TESTS = true
+LIGHTNING_TESTS = { value = true, comment = "Build and register the Lightning test suite" }
+LI_FAST_MATH = { value = false, comment = "Use relaxed floating-point language semantics" }
+LI_SAFE_STACK = { value = true, comment = "Enable VM stack bounds checks" }
+LI_RA_TEST_PRESSURE = { value = false, comment = "Constrain JIT registers for allocator stress testing" }
 
 [conditions]
 emscripten = "EMSCRIPTEN"
-tests = "LIGHTING_TESTS"
-x86_64 = "CMAKE_SYSTEM_PROCESSOR MATCHES \"(amd64)|(AMD64)|(x86_64)\""
+native = "NOT EMSCRIPTEN"
+jit = "LI_JIT"
+jit-x86-64 = "LI_JIT_X86_64"
+jit-a64 = "LI_JIT_A64"
+context-x86-64-gas = "LI_CONTEXT_X86_64_GAS"
+context-x86-64-masm = "LI_CONTEXT_X86_64_MASM"
+context-a64 = "LI_CONTEXT_A64"
+tests = "LIGHTNING_TESTS"
 
 [subdir.zydis]
-condition = "x86_64"
+condition = "jit-x86-64"
 
 [target.libli]
 type = "static"
-x86_64.link-libraries = ["Zydis"]
-include-directories = ["include"]
+alias = "lightning::lightning"
+jit-x86-64.link-libraries = [
+    "$<BUILD_INTERFACE:Zydis>",
+    "$<INSTALL_INTERFACE:Zydis::Zydis>",
+]
+native.link-libraries = ["Threads::Threads"]
+compile-definitions = [
+    "LI_JIT=$<BOOL:${LI_JIT}>",
+    "LI_JIT_X86_64=$<BOOL:${LI_JIT_X86_64}>",
+    "LI_JIT_A64=$<BOOL:${LI_JIT_A64}>",
+    "LI_FAST_MATH=$<BOOL:${LI_FAST_MATH}>",
+    "LI_SAFE_STACK=$<BOOL:${LI_SAFE_STACK}>",
+    "LI_CONTEXT_SUPPORTED=$<BOOL:${LI_CONTEXT_SUPPORTED}>",
+    "LI_RA_TEST_PRESSURE=$<BOOL:${LI_RA_TEST_PRESSURE}>",
+]
+include-directories = [
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>",
+    "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>",
+]
 compile-features = ["cxx_std_20"]
 sources = [
-    "src/**.cpp",
-    "src/**.hpp",
+    "src/api.cpp",
+    "src/lang/**.cpp",
+    "src/lib/**.cpp",
+    "src/util/code.cpp",
+    "src/util/platform.cpp",
+    "src/util/stack.cpp",
+    "src/vm/**.cpp",
+    "include/**.h",
     "include/**.hpp",
 ]
+jit.sources = [
+    "src/ir/analysis.cpp",
+    "src/ir/bc2ir.cpp",
+    "src/ir/ir2mir.cpp",
+    "src/ir/mopt_cc.cpp",
+    "src/ir/mopt_ralloc.cpp",
+    "src/ir/opt_cfg.cpp",
+    "src/ir/opt_const.cpp",
+    "src/ir/opt_dce.cpp",
+    "src/ir/opt_escape.cpp",
+    "src/ir/opt_id.cpp",
+    "src/ir/opt_inline.cpp",
+    "src/ir/opt_licm.cpp",
+    "src/ir/opt_phi.cpp",
+    "src/ir/opt_pre.cpp",
+    "src/ir/opt_range.cpp",
+    "src/ir/opt_rc.cpp",
+    "src/ir/opt_type.cpp",
+    "src/ir/proc.cpp",
+    "src/ir/runtime.cpp",
+    "src/ir/utils.cpp",
+    "src/ir/value.cpp",
+    "src/ir/verify.cpp",
+]
+jit-x86-64.sources = ["src/ir/x86-64.cpp"]
+jit-a64.sources = ["src/ir/a64.cpp"]
+context-x86-64-gas.sources = [
+    "src/util/context.cpp",
+    "src/util/context-x86-64.S",
+]
+context-x86-64-masm.sources = [
+    "src/util/context.cpp",
+    "src/util/context-x86-64.asm",
+]
+context-a64.sources = [
+    "src/util/context.cpp",
+    "src/util/context-a64.S",
+]
+cmake-after = """
+set(LI_PACKAGE_NEEDS_THREADS OFF)
+if(NOT EMSCRIPTEN)
+    set(LI_PACKAGE_NEEDS_THREADS ON)
+endif()
+set(LI_PACKAGE_NEEDS_ZYDIS "${LI_JIT_X86_64}")
+set(LI_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/lightning")
+
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/lightningConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/lightningConfig.cmake"
+    INSTALL_DESTINATION "${LI_INSTALL_CMAKEDIR}"
+)
+
+install(
+    TARGETS libli
+    EXPORT lightningTargets
+    ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+)
+install(
+    EXPORT lightningTargets
+    FILE lightningTargets.cmake
+    NAMESPACE lightning::
+    DESTINATION "${LI_INSTALL_CMAKEDIR}"
+)
+install(
+    FILES
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/lightning.h"
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/lightning.hpp"
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+)
+install(
+    FILES "${CMAKE_CURRENT_BINARY_DIR}/lightningConfig.cmake"
+    DESTINATION "${LI_INSTALL_CMAKEDIR}"
+)
+"""
+
+[target.libli.properties]
+EXPORT_NAME = "lightning"
+OUTPUT_NAME = "lightning"
 
 [target.li]
 type = "executable"
@@ -31,8 +238,10 @@ link-libraries = ["libli"]
 sources = ["repl.cpp"]
 emscripten.link-options = [
     "-sEXPORTED_RUNTIME_METHODS=ccall,cwrap",
-    "-sEXTRA_EXPORTED_RUNTIME_METHODS=ccall,cwrap",
-    "-sEXPORTED_FUNCTIONS=_main,_runscript",
+    "-sEXPORTED_FUNCTIONS=_main,_runscript,_reset_vm",
+    "-sALLOW_MEMORY_GROWTH=1",
+    "-sASSERTIONS=1",
+    "-sSTACK_SIZE=4194304",
 ]
 
 [[install]]

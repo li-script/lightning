@@ -1,0 +1,30 @@
+# Closure creation, capture mutation, and indirect-call workload.
+fn make_counter(seed) {
+   let value = seed
+   return || {
+      value += 1
+      value
+   }
+}
+
+const count = 5000
+const counters = []
+let i = 0
+while i < count {
+   counters::push(make_counter(i))
+   i += 1
+}
+
+let checksum = 0
+let round = 0
+while round < 20 {
+   i = 0
+   while i < count {
+      checksum += counters[i]()
+      i += 1
+   }
+   round += 1
+}
+
+assert(counters::len() == count)
+assert(checksum == 251000000)

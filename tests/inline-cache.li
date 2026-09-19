@@ -1,0 +1,158 @@
+import collections
+import math
+import shared
+import traits
+import "table" as tables
+
+fn rejects(action) {
+   try {
+      action()
+      false
+   } catch {
+      true
+   }
+}
+
+fn read_value(target) {
+   target.value
+}
+
+fn write_value(target, value) {
+   target.value = value
+}
+
+# Repeated table fields populate the cache, while structural changes force a
+# validated miss rather than using a stale slot.
+let first = {value: 1}
+let total = 0
+let i = 0
+while i < 32 {
+   total += read_value(first)
+   write_value(first, read_value(first) + 1)
+   i += 1
+}
+assert(total == 528)
+assert(first.value == 33)
+
+delete first.value
+assert(read_value(first) == nil)
+write_value(first, 71)
+assert(read_value(first) == 71)
+
+tables.reserve(first, 256)
+assert(read_value(first) == 71)
+write_value(first, 73)
+assert(read_value(first) == 73)
+
+# One callsite alternating between receiver layouts must never borrow a stale
+# slot from the previous receiver.
+let second = {padding: 9, value: 101}
+assert(read_value(first) == 73)
+assert(read_value(second) == 101)
+assert(read_value(first) == 73)
+write_value(second, 103)
+write_value(first, 79)
+assert(second.value == 103 && first.value == 79)
+
+# Installing traits after a cache is warm still controls generic access.
+const observed_writes = {total: 0}
+traits.set(first, "set", |key, value| {
+   observed_writes.total += value
+})
+write_value(first, 5)
+assert(observed_writes.total == 5)
+assert(first.value == 79)
+traits.set(first, "set", nil)
+write_value(first, 83)
+assert(first.value == 83)
+
+traits.set(first, "freeze", true)
+assert(rejects(|| write_value(first, 89)))
+assert(first.value == 83)
+traits.set(first, "freeze", false)
+write_value(first, 89)
+assert(first.value == 89)
+
+# Cached same-value stores still advance mutation_version and invalidate a
+# traversal snapshot.
+assert(rejects(|| collections.each(first, |value, key| {
+   write_value(first, value)
+})))
+
+class NumericBox {
+   value: number = 2
+}
+
+class OtherNumericBox {
+   padding: number = 7
+   value: number = 11
+}
+
+let box = NumericBox{}
+i = 0
+while i < 32 {
+   total += read_value(box)
+   write_value(box, read_value(box) + 2)
+   i += 1
+}
+assert(box.value == 66)
+
+# Class feedback is keyed by immutable identity and layout, not a dangling
+# instance address.
+let other_box = OtherNumericBox{}
+assert(read_value(box) == 66)
+assert(read_value(other_box) == 11)
+assert(read_value(box) == 66)
+write_value(other_box, 13)
+write_value(box, 68)
+assert(other_box.value == 13 && box.value == 68)
+
+const class_writes = {total: 0}
+traits.set(NumericBox, "set", |key, value| {
+   class_writes.total += value
+})
+write_value(box, 3)
+assert(class_writes.total == 3 && box.value == 68)
+traits.set(NumericBox, "set", nil)
+write_value(box, 70)
+assert(box.value == 70)
+
+traits.set(NumericBox, "freeze", true)
+assert(rejects(|| write_value(box, 72)))
+assert(box.value == 70)
+traits.set(NumericBox, "freeze", false)
+write_value(box, 72)
+assert(box.value == 72)
+
+write_value(box, -0.0)
+assert(1 / read_value(box) == -math.inf)
+write_value(box, math.nan)
+assert(read_value(box) != read_value(box))
+write_value(box, 72)
+
+# Reference-valued and static class fields deliberately stay on the generic
+# path, including readonly diagnostics.
+class Holder {
+   child: table = {answer: 41}
+
+   read() {
+      self.child.answer
+   }
+}
+let holder = Holder{}
+assert(holder.child.answer == 41)
+holder.child = {answer: 43}
+assert(holder.child.answer == 43)
+assert(rejects(|| { holder.read = 1 }))
+
+# Shared containers retain their existing synchronized slow path even when the
+# generated function itself owns a cache site.
+let shared_table = shared.create({value: 5})
+assert(read_value(shared_table) == 5)
+write_value(shared_table, 7)
+assert(read_value(shared_table) == 7)
+
+let shared_box = shared.create(NumericBox{value: 17})
+assert(read_value(shared_box) == 17)
+write_value(shared_box, 19)
+assert(read_value(shared_box) == 19)

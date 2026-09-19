@@ -1,0 +1,98 @@
+import math
+import range
+import iterator
+
+fn capture_error(action) {
+   let caught = nil
+   try {
+      action()
+   } catch error {
+      caught = error
+   }
+   caught
+}
+
+fn expect_finite(sequence, expected) {
+   for _, expected_value in expected {
+      const item = iterator.next(sequence)
+      assert(item[1] == false)
+      assert(item[0] == expected_value)
+   }
+   const finished = iterator.next(sequence)
+   assert(finished[0] == nil)
+   assert(finished[1] == true)
+}
+
+# Range expressions are ordinary first-class values.
+const exclusive = 1..4
+const inclusive = 1..=4
+const descending = 5..-1 step -2
+expect_finite(exclusive, [1, 2, 3])
+expect_finite(inclusive, [1, 2, 3, 4])
+expect_finite(descending, [5, 3, 1])
+
+# The native constructor preserves the same exclusive/inclusive boundary rules.
+expect_finite(range.create(0, 2, 1, false), [0, 1])
+expect_finite(range.create(0, 2, 1, true), [0, 1, 2])
+expect_finite(range.create(4, 0, -2, false), [4, 2])
+expect_finite(range.create(4, 0, -2, true), [4, 2, 0])
+
+# Open ranges remain bounded in this fixture by taking a fixed number of items.
+const open = 2.. step -0.5
+let open_item = iterator.next(open)
+assert(open_item[0] == 2 && open_item[1] == false)
+open_item = iterator.next(open)
+assert(open_item[0] == 1.5 && open_item[1] == false)
+open_item = iterator.next(open)
+assert(open_item[0] == 1 && open_item[1] == false)
+
+# Proven numeric for-loops agree with first-class ranges, including step sign.
+let specialized = []
+for value in 0..5 step 2 {
+   specialized::push(value)
+}
+assert(specialized::len() == 3)
+assert(specialized[0] == 0 && specialized[1] == 2 && specialized[2] == 4)
+
+let specialized_descending = []
+for value in 5..=1 step -2 {
+   specialized_descending::push(value)
+}
+assert(specialized_descending::len() == 3)
+assert(specialized_descending[0] == 5)
+assert(specialized_descending[1] == 3)
+assert(specialized_descending[2] == 1)
+
+# Generic one-variable loops expose values; two-variable loops expose key/value.
+let one_variable = []
+for value in range.create(7, 10, 1, false) {
+   one_variable::push(value)
+}
+assert(one_variable::len() == 3)
+assert(one_variable[0] == 7 && one_variable[1] == 8 && one_variable[2] == 9)
+
+let keys = []
+let values = []
+for key, value in range.create(10, 13, 1, false) {
+   keys::push(key)
+   values::push(value)
+}
+assert(keys::len() == 3 && values::len() == 3)
+assert(keys[0] == 0 && keys[1] == 1 && keys[2] == 2)
+assert(values[0] == 10 && values[1] == 11 && values[2] == 12)
+
+# Invalid steps fail at range creation instead of producing a stuck iterator.
+assert(capture_error(|| { range.create(0, 3, 0, false) }) is string)
+assert(capture_error(|| { range.create(0, 3, math.nan, false) }) is string)
+assert(capture_error(|| { 0..3 step 0 }) is string)
+assert(capture_error(|| { 0..3 step math.nan }) is string)
+assert(capture_error(|| {
+   for value in 0..3 step 0 {
+      break
+   }
+}) is string)
+assert(capture_error(|| {
+   for value in 0..3 step math.nan {
+      break
+   }
+}) is string)

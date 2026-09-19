@@ -1,0 +1,16 @@
+# Repeated stateless script calls exercise bounded scalar inlining in a hot loop.
+fn mix(value, salt) {
+   (value * 17 + salt * 13) % 1009
+}
+
+fn checksum(iterations) {
+   let total = 0
+   let index = 0
+   while index < iterations {
+      total += mix(index, index % 97)
+      index += 1
+   }
+   total
+}
+
+assert(checksum(2000000) == 1008000028)

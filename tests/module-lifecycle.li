@@ -1,0 +1,21 @@
+# A module loader runs once and every initialized import receives the same
+# published export value.
+import "export-test" as first
+import "export-test" as second
+assert(first == second)
+assert(first.b == second.b)
+
+# Optional failure is explicit nil. Repeating it exercises the cached failed
+# record rather than invoking the loader again.
+import? "module-lifecycle-missing" as missing_first
+import? "module-lifecycle-missing" as missing_second
+assert(missing_first == nil)
+assert(missing_second == nil)
+
+# Native/generated-module smoke contract for embedders: generate cycle-a.li
+# exporting a value before importing cycle-b, and cycle-b.li importing cycle-a
+# and re-exporting that value. Import cycle-a twice and assert both aliases and
+# the value observed by cycle-b have identical table identity. Then generate a
+# module whose top level increments a host counter and throws; import it twice,
+# assert the counter remains one and both failures carry the first error, and
+# close the VM to verify its partial exports and cached error are released.

@@ -1,0 +1,122 @@
+import debug
+import? jit as jitlib
+
+fn arithmetic_leaf(value, salt) {
+   (value * 17 + salt * 13) % 1009
+}
+
+fn arithmetic_checksum(limit) {
+   let checksum = 0
+   let index = 0
+   while index < limit {
+      checksum += arithmetic_leaf(index, index % 23)
+      index += 1
+   }
+   checksum
+}
+
+fn branch_leaf(value) {
+   if value < 0 {
+      -value
+   } else {
+      value + 1
+   }
+}
+
+fn branch_checksum() {
+   branch_leaf(-9) * 100 + branch_leaf(4)
+}
+
+if jitlib != nil {
+   jitlib.on(arithmetic_checksum)
+   jitlib.on(branch_checksum)
+}
+assert(arithmetic_checksum(2000) == 1007172)
+assert(branch_checksum() == 905)
+
+# Unsupported call contracts stay as real calls. Missing required arguments still
+# throw, surplus arguments remain accepted, and optional/rest views see real arity.
+fn needs_two(left, right) { left + right }
+fn call_missing() { needs_two(4) }
+fn call_extra() { needs_two(4, 5, 6) }
+fn optional_value(value?) { value }
+fn call_optional_missing() { optional_value() }
+fn rest_count(head, tail...) { tail::len() }
+fn call_rest() { rest_count(1, 2, 3, 4) }
+if jitlib != nil {
+   jitlib.on(call_missing)
+   jitlib.on(call_extra)
+   jitlib.on(call_optional_missing)
+   jitlib.on(call_rest)
+}
+let missing_threw = false
+try {
+   call_missing()
+} catch {
+   missing_threw = true
+}
+assert(missing_threw)
+assert(call_extra() == 9)
+assert(call_optional_missing() == nil)
+assert(call_rest() == 3)
+
+# Concrete non-number arguments cannot turn a dynamic operator into scalar IR.
+fn typed_sum(left: number, right: number) { left + right }
+fn call_wrong_type() { typed_sum("not a number", 1) }
+if jitlib != nil {
+   jitlib.on(call_wrong_type)
+}
+let wrong_type_threw = false
+try {
+   call_wrong_type()
+} catch {
+   wrong_type_threw = true
+}
+assert(wrong_type_threw)
+
+# Captured state must be read at call time rather than snapshotted by compilation.
+fn make_counter() {
+   let value = 0
+   || {
+      value += 1
+      value
+   }
+}
+const counter = make_counter()
+fn call_counter_twice() { counter() + counter() }
+if jitlib != nil {
+   jitlib.on(call_counter_twice)
+}
+assert(call_counter_twice() == 3)
+assert(call_counter_twice() == 7)
+
+# Recursive expansion remains a bounded real call path.
+fn recursive_sum(value) {
+   if value == 0 {
+      0
+   } else {
+      value + recursive_sum(value - 1)
+   }
+}
+if jitlib != nil {
+   jitlib.on(recursive_sum)
+}
+assert(recursive_sum(50) == 1275)
+
+# A callee with user effects or a possible throw keeps its physical frame, so an
+# error-path stacktrace still reports both the callee and its compiled caller.
+fn traced_failure() {
+   throw debug.stacktrace()
+}
+fn call_traced_failure() { traced_failure() }
+if jitlib != nil {
+   jitlib.on(call_traced_failure)
+}
+let trace = nil
+try {
+   call_traced_failure()
+} catch error {
+   trace = error
+}
+assert(trace[0].func == traced_failure)
+assert(trace[1].func == call_traced_failure)

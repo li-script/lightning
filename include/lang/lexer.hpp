@@ -1,25 +1,29 @@
 #pragma once
 #include <stdio.h>
-#include <vm/types.hpp>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <util/format.hpp>
+#include <vector>
 #include <vm/string.hpp>
+#include <vm/types.hpp>
 
 namespace li {
 	struct vm;
 };
 
 namespace li::lex {
+	struct token_string_arena;
+
 	// Token enumerator:
 	//  _    => keyword        | "let"
 	//  __   => symbol mapped  | "--"
 	//  ___  => single char    | '+'
 	//  ____ => literal        | <string>
 	//
-#define LIGHTNING_ENUM_TOKENS(_, __, ___, ____)                                \
-		/* Logical operators */                                                  \
+#define LIGHTNING_ENUM_TOKENS(_, __, ___, ____)                                      \
+	/* Logical operators */                                                           \
 		__(land, &&) __(lor, ||) ___(lnot, '!') __(eq, ==) __(ne, !=)			    \
 		___(lt, '<') ___(gt, '>') __(le, <=) __(ge, >=)						          \
 		/* Arithmetic operators */															    \
@@ -32,7 +36,7 @@ namespace li::lex {
 		__(cpow, ^=) __(cnullc, ??=) __(cinc, ++) __(cdec, --)                   \
 		/* Language operators */															    \
 		__(dots, ...) __(rangei, ..=) __(range, ..) __(nullc, ??)                \
-		__(icall, ->) __(ucall, ::) __(idxlif, ?.) __(idxif, ?[)   	             \
+		__(icall, ->) __(ucall, ::) __(idxlif, ?.) __(idxif, ?[) __(fatarrow, =>) \
 		/* Literal tokens */																	    \
 		____(eof, <eof>) ____(lnum, <number>) ____(name, <name>)                 \
 		____(lstr, <string>) ____(fstr, <fstring>) ____(error, <error>) 		    \
@@ -40,7 +44,7 @@ namespace li::lex {
 		_(true) _(false) _(nil)  _(let) _(const) _(if) _(else) _(while) _(for) _(loop)  \
 		_(break) _(continue) _(try) _(catch) _(throw) _(return) _(in) _(is)      \
 		_(bool) _(number) _(table) _(array) _(string) _(object) _(class) _(function)    \
-		_(fn) _(export) _(import) _(as) _(dyn)
+		_(fn) _(struct) _(type) _(export) _(import) _(as) _(dyn) _(match) _(leave) _(yield) _(delete) _(defer)
 
 	// Token identifiers.
 	//
@@ -59,7 +63,7 @@ namespace li::lex {
 		// Literal tokens.
 		LIGHTNING_ENUM_TOKENS(LI_NOOP, LI_NOOP, LI_NOOP, TK_NAME)
 
-		token_lit_max_plus_one,
+			 token_lit_max_plus_one,
 		token_lit_max  = token_lit_max_plus_one - 1,
 		token_sym_min  = token_char_max + 1,
 		token_name_min = []() { LIGHTNING_ENUM_TOKENS(TK_RET, LI_NOOP, LI_NOOP, LI_NOOP); }(),
@@ -74,9 +78,9 @@ namespace li::lex {
 
 	// Token traits.
 	//
-	LI_INLINE static constexpr bool is_token_literal(uint8_t t) { return token_lit_min <= t && token_lit_max; }
-	LI_INLINE static constexpr bool is_token_symbolic(uint8_t t) { return token_sym_min <= t && token_sym_max; }
-	LI_INLINE static constexpr bool is_token_keyword(uint8_t t) { return token_name_min <= t && token_name_max; }
+	LI_INLINE static constexpr bool is_token_literal(uint8_t t) { return token_lit_min <= t && t <= token_lit_max; }
+	LI_INLINE static constexpr bool is_token_symbolic(uint8_t t) { return token_sym_min <= t && t < token_sym_max; }
+	LI_INLINE static constexpr bool is_token_keyword(uint8_t t) { return token_name_min <= t && t < token_name_max; }
 	LI_INLINE static constexpr bool is_token_character(uint8_t t) { return t <= token_char_max; }
 	LI_INLINE static constexpr bool is_token_complex(uint8_t t) { return token_sym_min <= t && t <= token_lit_max; }
 
@@ -103,12 +107,34 @@ namespace li::lex {
 		return {};
 	}
 
+	// Numeric literal spelling retained for strict-mode inference. Dynamic code
+	// continues to observe the ordinary binary64 value.
+	//
+	enum class numeric_kind : uint8_t {
+		number,
+		i8,
+		i16,
+		i32,
+		i64,
+		u8,
+		u16,
+		u32,
+		u64,
+		f32,
+		f64,
+	};
+
 	// Token value.
 	//
 	struct token_value {
-		// Identifier.
+		// Identifier and source span.
 		//
-		token id = token_eof;
+		token        id            = token_eof;
+		msize_t      source_line   = 1;
+		msize_t      source_column = 1;
+		msize_t      length        = 0;
+		msize_t      end_line      = 1;
+		numeric_kind num_kind      = numeric_kind::number;
 
 		// Value.
 		//
@@ -131,7 +157,7 @@ namespace li::lex {
 				result += (char) id;
 				return result;
 			} else if (id == token_eof) {
-				return util::fmt("<EOF>", str_val->c_str());
+				return "<EOF>";
 			}
 			// Named/Symbolic token.
 			else if (id < token_lit_min) {
@@ -179,6 +205,11 @@ namespace li::lex {
 		}
 	};
 
+	struct diagnostic_frame {
+		std::string label;
+		msize_t     line;
+	};
+
 	// Lexer state.
 	//
 	struct state {
@@ -186,6 +217,21 @@ namespace li::lex {
 		//
 		vm* L;
 
+	  private:
+		// Token strings are borrowed by the parser and shared by lexer snapshots.
+		// The final related state releases every string allocation made while
+		// scanning that state family.
+		//
+		std::shared_ptr<token_string_arena> token_strings;
+		std::string_view                    source      = {};
+		bool                                scan_active = false;
+		token_value                         scan_token  = {};
+		std::string_view                    scan_input  = {};
+
+		token_value diagnostic_token() const;
+		token_value report_error(const token_value& at, std::string_view message);
+
+	  public:
 		// Current parser location.
 		//
 		std::string_view input = {};
@@ -200,36 +246,41 @@ namespace li::lex {
 		token_value                tok           = {};
 		std::optional<token_value> tok_lookahead = {};
 
-		// Last lexer error.
+		// Last lexer error and the end line of the most recently consumed token.
 		//
-		std::string last_error = {};
+		std::string                   last_error      = {};
+		msize_t                       last_token_line = 0;
+		token_value                   last_token      = {};
+		std::vector<diagnostic_frame> frames          = {};
+		bool                          verbose_errors  = false;
 
 		// Initialized with a string view and a pointer to the VM for string interning.
 		//
-		state(vm* L, std::string_view input, std::string_view name = {}) : L(L), input(input), source_name(name), tok(scan()) {}
+		state(vm* L, std::string_view input, std::string_view name = {});
 		state(std::string&&) = delete;
 
-		// Default copy.
+		// Copies and moves share token ownership so lookahead/recovery snapshots
+		// cannot invalidate each other's borrowed token values.
 		//
-		state(const state&)            = default;
-		state& operator=(const state&) = default;
+		state(const state&)                = default;
+		state(state&&) noexcept            = default;
+		state& operator=(const state&)     = default;
+		state& operator=(state&&) noexcept = default;
+
+		// Creates an owned VM string, adopts it into the shared token arena, and
+		// returns a borrow valid for the lifetime of any related lexer state.
+		//
+		string* make_token_string(std::string_view value);
 
 		// Error helper.
 		//
+		token_value error_at(const token_value& at, const char* fmt, ...);
+
 		template<typename... Tx>
 		token_value error(const char* fmt, Tx... args) {
-			if (last_error.empty()) {
-				last_error = util::fmt("[%.*s:%u] ", source_name.size(), source_name.data(), line);
-				last_error += util::fmt(fmt, args...);
-			}
-			return token_value{.id = token_error};
+			return report_error(diagnostic_token(), util::fmt(fmt, args...));
 		}
-		token_value error(std::string_view err) {
-			if (last_error.empty()) {
-				last_error.assign(err);
-			}
-			return token_value{.id = token_error};
-		}
+		token_value error(std::string_view err) { return report_error(diagnostic_token(), err); }
 
 		// Scans for the next token.
 		//
@@ -271,6 +322,8 @@ namespace li::lex {
 		//
 		token_value next() {
 			token_value result = std::move(tok);
+			last_token         = result;
+			last_token_line    = result.end_line;
 			if (tok_lookahead) {
 				tok = *std::exchange(tok_lookahead, std::nullopt);
 			} else {

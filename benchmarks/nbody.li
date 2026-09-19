@@ -1,0 +1,135 @@
+# Five-body solar-system benchmark using the benchmark-game constants.
+import math
+
+const pi = 3.141592653589793
+const solar_mass = 4 * pi * pi
+const days_per_year = 365.24
+
+fn make_bodies() {
+   return [
+      {x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, mass: solar_mass},
+      {
+         x: 4.84143144246472090,
+         y: -1.16032004402742839,
+         z: -0.103622044471123109,
+         vx: 0.00166007664274403694 * days_per_year,
+         vy: 0.00769901118419740425 * days_per_year,
+         vz: -0.0000690460016972063023 * days_per_year,
+         mass: 0.000954791938424326609 * solar_mass
+      },
+      {
+         x: 8.34336671824457987,
+         y: 4.12479856412430479,
+         z: -0.403523417114321381,
+         vx: -0.00276742510726862411 * days_per_year,
+         vy: 0.00499852801234917238 * days_per_year,
+         vz: 0.0000230417297573763929 * days_per_year,
+         mass: 0.000285885980666130812 * solar_mass
+      },
+      {
+         x: 12.8943695621391310,
+         y: -15.1111514016986312,
+         z: -0.223307578892655734,
+         vx: 0.00296460137564761618 * days_per_year,
+         vy: 0.00237847173959480950 * days_per_year,
+         vz: -0.0000296589568540237556 * days_per_year,
+         mass: 0.0000436624404335156298 * solar_mass
+      },
+      {
+         x: 15.3796971148509165,
+         y: -25.9193146099879641,
+         z: 0.179258772950371181,
+         vx: 0.00268067772490389322 * days_per_year,
+         vy: 0.00162824170038242295 * days_per_year,
+         vz: -0.0000951592254519715870 * days_per_year,
+         mass: 0.0000515138902046611451 * solar_mass
+      }
+   ]
+}
+
+fn offset_momentum(bodies) {
+   let px = 0
+   let py = 0
+   let pz = 0
+   let i = 0
+   while i < bodies::len() {
+      const body = bodies[i]
+      px += body.vx * body.mass
+      py += body.vy * body.mass
+      pz += body.vz * body.mass
+      i += 1
+   }
+   bodies[0].vx = -px / solar_mass
+   bodies[0].vy = -py / solar_mass
+   bodies[0].vz = -pz / solar_mass
+}
+
+fn advance(bodies, dt) {
+   let i = 0
+   while i < bodies::len() {
+      const body_i = bodies[i]
+      let j = i + 1
+      while j < bodies::len() {
+         const body_j = bodies[j]
+         const dx = body_i.x - body_j.x
+         const dy = body_i.y - body_j.y
+         const dz = body_i.z - body_j.z
+         const distance_squared = dx * dx + dy * dy + dz * dz
+         const magnitude = dt / (distance_squared * math.sqrt(distance_squared))
+         body_i.vx -= dx * body_j.mass * magnitude
+         body_i.vy -= dy * body_j.mass * magnitude
+         body_i.vz -= dz * body_j.mass * magnitude
+         body_j.vx += dx * body_i.mass * magnitude
+         body_j.vy += dy * body_i.mass * magnitude
+         body_j.vz += dz * body_i.mass * magnitude
+         j += 1
+      }
+      i += 1
+   }
+
+   i = 0
+   while i < bodies::len() {
+      const body = bodies[i]
+      body.x += dt * body.vx
+      body.y += dt * body.vy
+      body.z += dt * body.vz
+      i += 1
+   }
+}
+
+fn energy(bodies) {
+   let result = 0
+   let i = 0
+   while i < bodies::len() {
+      const body_i = bodies[i]
+      result += 0.5 * body_i.mass * (
+         body_i.vx * body_i.vx +
+         body_i.vy * body_i.vy +
+         body_i.vz * body_i.vz
+      )
+      let j = i + 1
+      while j < bodies::len() {
+         const body_j = bodies[j]
+         const dx = body_i.x - body_j.x
+         const dy = body_i.y - body_j.y
+         const dz = body_i.z - body_j.z
+         const distance = math.sqrt(dx * dx + dy * dy + dz * dz)
+         result -= body_i.mass * body_j.mass / distance
+         j += 1
+      }
+      i += 1
+   }
+   return result
+}
+
+const bodies = make_bodies()
+offset_momentum(bodies)
+assert(math.abs(energy(bodies) + 0.169075163829) < 0.000000001)
+
+let step = 0
+while step < 1000 {
+   advance(bodies, 0.01)
+   step += 1
+}
+
+assert(math.abs(energy(bodies) + 0.169087605235) < 0.000000001)

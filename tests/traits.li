@@ -1,0 +1,187 @@
+import math
+import traits
+
+fn sum_values(other) {
+   self.value + other.value
+}
+
+# Table keys use SameValueZero even though language NaN equality is IEEE.
+let nan_keys = {}
+nan_keys[math.nan] = 1
+nan_keys[math.nan] = 2
+nan_keys[math.nan] = 3
+nan_keys[math.nan] = 4
+nan_keys[math.nan] = 5
+assert(nan_keys::len() == 1)
+assert(nan_keys[math.nan] == 5)
+
+# Tables and classes use the same at/add/len dispatch.
+let table_value = {value: 3}
+traits.set(table_value, "at", |key| {
+   if key == "double" {
+      return self.value * 2
+   }
+   nil
+})
+traits.set(table_value, "add", sum_values)
+traits.set(table_value, "len", || 31)
+assert(table_value.double == 6)
+assert(table_value + {value: 4} == 7)
+assert(table_value::len() == 31)
+
+# Duplicates own an independent descriptor and retain its installed methods.
+let trait_source = {value: 9}
+traits.set(trait_source, "len", || self.value)
+let trait_copy = trait_source::dup()
+trait_source = nil
+assert(trait_copy::len() == 9)
+
+class Box {
+   value: number = 0
+
+   at!(key) {
+      if key == "double" {
+         return self.value * 2
+      }
+      nil
+   }
+
+   add!(other) {
+      self.value + other.value
+   }
+
+   len!() {
+      47
+   }
+}
+let box = Box{value: 5}
+assert(box.double == 10)
+assert(box + Box{value: 7} == 12)
+assert(box::len() == 47)
+
+# Class trait lookup is inherited without copying the descriptor.
+class DerivedBox : Box {
+   extra: number = 1
+}
+let derived = DerivedBox{value: 8}
+assert(derived.double == 16)
+assert(derived + Box{value: 2} == 10)
+assert(derived::len() == 47)
+
+# Remaining operator and conversion traits dispatch through the same path.
+let operators = {value: 12}
+traits.set(operators, "neg", || -self.value)
+traits.set(operators, "sub", |other| self.value - other.value)
+traits.set(operators, "mul", |other| self.value * other.value)
+traits.set(operators, "div", |other| self.value / other.value)
+traits.set(operators, "mod", |other| self.value % other.value)
+traits.set(operators, "pow", |other| self.value ^ other.value)
+traits.set(operators, "lt", |other| self.value < other.value)
+traits.set(operators, "eq", |other| self.value == other.value)
+traits.set(operators, "call", |amount| self.value + amount)
+traits.set(operators, "str", || `operator({self.value})`)
+assert(-operators == -12)
+assert(operators - {value: 2} == 10)
+assert(operators * {value: 2} == 24)
+assert(operators / {value: 3} == 4)
+assert(operators % {value: 5} == 2)
+assert(operators ^ {value: 2} == 144)
+assert(operators < {value: 13})
+assert(operators <= {value: 12})
+assert(operators == {value: 12})
+assert(operators(5) == 17)
+assert(operators::str() == "operator(12)")
+
+# A set trait intercepts writes. Freeze blocks data writes but not trait changes.
+let writes = []
+let observed = {value: 1}
+traits.set(observed, "set", |key, value| writes::push({key, value}))
+observed.answer = 42
+assert(writes::len() == 1)
+assert(writes[0].key == "answer")
+assert(writes[0].value == 42)
+assert(observed.answer == nil)
+
+let frozen = {value: 1}
+traits.set(frozen, "freeze", true)
+traits.set(frozen, "len", || 9)
+assert(frozen::len() == 9)
+let freeze_error = nil
+try {
+   frozen.value = 2
+} catch error {
+   freeze_error = error
+}
+assert("modifying frozen" in freeze_error)
+assert(frozen.value == 1)
+
+# Seal only blocks trait mutation; ordinary data remains mutable.
+let sealed = {value: 1}
+traits.set(sealed, "seal", true)
+sealed.value = 2
+assert(sealed.value == 2)
+let seal_error = nil
+try {
+   traits.set(sealed, "len", || 1)
+} catch error {
+   seal_error = error
+}
+assert("modifying sealed" in seal_error)
+
+# Hide affects trait introspection only, never dispatch or ordinary fields.
+let hidden = {value: 6}
+traits.set(hidden, "add", sum_values)
+assert(traits.get(hidden, "add") is function)
+traits.set(hidden, "hide", true)
+assert(traits.get(hidden, "add") == nil)
+assert(hidden.value == 6)
+assert(hidden + {value: 2} == 8)
+
+# Reflection and user-trait errors remain catchable language exceptions.
+let reflection_error = nil
+try {
+   let invalid = {}
+   traits.set(invalid, "add", 3)
+} catch error {
+   reflection_error = error
+}
+assert("requires a function" in reflection_error)
+
+let throwing = {}
+traits.set(throwing, "at", |key| {
+   throw "at trait failed"
+})
+let at_error = nil
+try {
+   let ignored = throwing.missing
+} catch error {
+   at_error = error
+}
+assert(at_error == "at trait failed")
+
+# del! runs exactly once, synchronously after the last strong reference drops.
+let table_del_count = {value: 0}
+let doomed_table = {}
+traits.set(doomed_table, "del", || {
+   table_del_count.value += 1
+})
+let table_alias = doomed_table
+doomed_table = nil
+assert(table_del_count.value == 0)
+table_alias = nil
+assert(table_del_count.value == 1)
+
+export const class_del_count = {value: 0}
+class Finalized {
+   value: number = 0
+
+   del!() {
+      $E.class_del_count.value += 1
+   }
+}
+let doomed_object = Finalized{value: 1}
+let object_alias = doomed_object
+doomed_object = nil
+assert(class_del_count.value == 0)
+object_alias = nil
+assert(class_del_count.value == 1)

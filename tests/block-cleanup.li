@@ -1,0 +1,101 @@
+import coroutine
+
+# Deferred bodies read their captures at scope exit and run in reverse order.
+let normal_events = []
+fn normal_cleanup() {
+   let value = 1
+   defer { normal_events::push(value) }
+   defer { normal_events::push(value + 10) }
+   value = 7
+   normal_events::push(100)
+   31
+}
+assert(normal_cleanup() == 31)
+assert(normal_events::len() == 3)
+assert(normal_events[0] == 100)
+assert(normal_events[1] == 17)
+assert(normal_events[2] == 7)
+
+# leave exits only its nearest block and runs every cleanup crossed on the way.
+fn exercise_leave() {
+   let events = []
+   let result = ({
+      defer { events::push(40) }
+      let inner = ({
+         defer { events::push(30) }
+         leave 9
+      })
+      events::push(inner)
+      leave 12
+   })
+   [result, events]
+}
+const leave_result = exercise_leave()
+assert(leave_result[0] == 12)
+assert(leave_result[1]::len() == 3)
+assert(leave_result[1][0] == 30)
+assert(leave_result[1][1] == 9)
+assert(leave_result[1][2] == 40)
+
+# return preserves its value while unwinding the function scope.
+let return_events = []
+fn return_cleanup() {
+   defer { return_events::push(51) }
+   return 52
+}
+assert(return_cleanup() == 52)
+assert(return_events::len() == 1 && return_events[0] == 51)
+
+# Each loop-body scope is cleaned on normal fallthrough, continue, and break.
+let loop_events = []
+for value in 0..4 {
+   defer { loop_events::push(value * 10 + 1) }
+   if value == 1 {
+      continue
+   }
+   loop_events::push(value * 10 + 2)
+   if value == 2 {
+      break
+   }
+}
+assert(loop_events::len() == 5)
+assert(loop_events[0] == 2)
+assert(loop_events[1] == 1)
+assert(loop_events[2] == 11)
+assert(loop_events[3] == 22)
+assert(loop_events[4] == 21)
+
+# Ordinary exception unwind runs cleanup and preserves the pending value.
+let error_exit_events = []
+let pending_error = nil
+try {
+   defer { error_exit_events::push(61) }
+   throw {kind: "body", code: 60}
+} catch error {
+   pending_error = error
+}
+assert(error_exit_events::len() == 1 && error_exit_events[0] == 61)
+assert(pending_error is table)
+assert(pending_error.kind == "body" && pending_error.code == 60)
+
+# A throwing defer replaces the pending error. Outer cleanup still runs before
+# the structured replacement reaches the catch outside both cleanup scopes.
+let error_events = []
+let observed_error = nil
+try {
+   defer { error_events::push(1) }
+   ({
+      defer {
+         error_events::push(2)
+         throw {kind: "deferred", code: 22}
+      }
+      throw {kind: "pending", code: 11}
+   })
+} catch error {
+   observed_error = error
+}
+assert(error_events::len() == 2)
+assert(error_events[0] == 2 && error_events[1] == 1)
+assert(observed_error is table)
+assert(observed_error.kind == "deferred")
+assert(observed_error.code == 22)

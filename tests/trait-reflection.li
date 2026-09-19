@@ -1,0 +1,160 @@
+import traits
+import shared
+
+fn rejected(action) {
+   let failure = nil
+   try {
+      action()
+   } catch error {
+      failure = error
+   }
+   assert(failure is string)
+   failure
+}
+
+# Names and targets are checked at the reflection boundary.
+assert(rejected(|| traits.get({}, "get")) != nil)
+assert(rejected(|| traits.get({}, "le")) != nil)
+assert(rejected(|| traits.get({}, 1)) != nil)
+assert(rejected(|| traits.get(1, "add")) != nil)
+assert(rejected(|| traits.set(1, "add", nil)) != nil)
+assert(rejected(|| traits.get({})) != nil)
+assert(rejected(|| traits.set({}, "add")) != nil)
+
+# Reflected methods are owned, replaceable, and receive only the other operand;
+# the receiver is supplied as self.
+let left = {value: 10}
+let right = {value: 2}
+traits.set(left, "add", |other, surplus?| {
+   assert(other == right)
+   assert(surplus == nil)
+   self.value + other.value
+})
+assert(traits.get(left, "add") is function)
+assert(left + right == 12)
+traits.set(left, "add", |other| self.value - other.value)
+assert(left + right == 8)
+traits.set(left, "add", nil)
+assert(traits.get(left, "add") == nil)
+assert(rejected(|| left + right) != nil)
+assert(rejected(|| traits.set(left, "add", 4)) != nil)
+
+let owned_method_target = {}
+traits.set(owned_method_target, "call", |value| value + 1)
+let owned_method = traits.get(owned_method_target, "call")
+traits.set(owned_method_target, "call", nil)
+assert(owned_method(4) == 5)
+
+# Arithmetic dispatch is deliberately asymmetric: a right-hand hook is ignored.
+traits.set(right, "add", |other| 999)
+assert(rejected(|| left + right) != nil)
+
+# at is canonical and remains distinct from ordinary property storage.
+let indexed = {value: 7}
+traits.set(indexed, "at", |key| {
+   if key == "double" {
+      return self.value * 2
+   }
+   nil
+})
+assert(indexed.double == 14)
+assert(traits.get(indexed, "at") is function)
+
+# Class and object reflection resolve inherited methods without copying them.
+class BaseValue {
+   value: number = 0
+}
+class DerivedValue : BaseValue {
+}
+traits.set(BaseValue, "add", |other| self.value + other.value)
+let inherited = DerivedValue{value: 5}
+assert(traits.get(DerivedValue, "add") is function)
+assert(traits.get(inherited, "add") is function)
+assert(rejected(|| traits.set(inherited, "add", nil)) != nil)
+assert(inherited + {value: 4} == 9)
+traits.set(BaseValue, "add", |other| self.value * other.value)
+assert(inherited + {value: 4} == 20)
+traits.set(DerivedValue, "add", |other| self.value - other.value)
+assert(inherited + {value: 4} == 1)
+traits.set(DerivedValue, "add", nil)
+assert(inherited + {value: 4} == 20)
+
+# <= is lhs.lt(rhs) || lhs.eq(rhs); >= performs the same derivation in reverse.
+let low = {value: 3}
+let equal = {value: 3}
+let high = {value: 8}
+let lower = {value: 1}
+traits.set(low, "lt", |other, surplus?| {
+   assert(surplus == nil)
+   self.value < other.value
+})
+traits.set(low, "eq", |other, surplus?| {
+   assert(surplus == nil)
+   self.value == other.value
+})
+assert(low < high)
+assert(high > low)
+assert(low <= equal)
+assert(equal >= low)
+assert(!(low <= lower))
+assert(!(lower >= low))
+
+let bad_less = {}
+traits.set(bad_less, "lt", |other| 1)
+
+let identity = {}
+assert(identity == identity)
+assert(identity != {})
+let equal_from_right = {value: 11}
+traits.set(equal_from_right, "eq", |other| self.value == other.value)
+assert({value: 11} == equal_from_right)
+assert(rejected(|| bad_less < {}) != nil)
+assert(rejected(|| bad_less <= {}) != nil)
+let bad_equal = {}
+traits.set(bad_equal, "eq", |other| "yes")
+assert(rejected(|| bad_equal == {}) != nil)
+
+# Flags always reflect as booleans. Freeze blocks data writes but not trait
+# mutation, seal blocks subsequent trait mutation, and hide only masks methods.
+let frozen = {value: 1}
+assert(traits.get(frozen, "freeze") == false)
+traits.set(frozen, "freeze", true)
+assert(traits.get(frozen, "freeze") == true)
+traits.set(frozen, "neg", |surplus?| {
+   assert(surplus == nil)
+   -self.value
+})
+assert(-frozen == -1)
+assert(rejected(|| {
+   frozen.value = 2
+}) != nil)
+traits.set(frozen, "freeze", false)
+frozen.value = 2
+assert(frozen.value == 2)
+
+let sealed = {}
+traits.set(sealed, "neg", || 1)
+traits.set(sealed, "seal", true)
+assert(traits.get(sealed, "seal") == true)
+assert(rejected(|| traits.set(sealed, "neg", || 2)) != nil)
+assert(rejected(|| traits.set(sealed, "seal", false)) != nil)
+assert(-sealed == 1)
+
+let hidden = {value: 6}
+traits.set(hidden, "add", |other| self.value + other.value)
+traits.set(hidden, "hide", true)
+assert(traits.get(hidden, "hide") == true)
+assert(traits.get(hidden, "add") == nil)
+assert(hidden + {value: 2} == 8)
+traits.set(hidden, "hide", false)
+assert(traits.get(hidden, "hide") == false)
+assert(traits.get(hidden, "add") is function)
+
+# Shared owners publish transferable reflected methods under the owner lock.
+const shared_value = shared.create({value: 9})
+const shared_neg = shared.create(|| -self.value)
+traits.set(shared_value, "neg", shared_neg)
+assert(traits.get(shared_value, "neg") is function)
+const private_capture = {value: 0}
+assert(rejected(|| traits.set(shared_value, "neg", || private_capture.value)) != nil)
+assert(-shared_value == -9)

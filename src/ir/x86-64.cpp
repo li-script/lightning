@@ -1,1562 +1,987 @@
 #include <util/common.hpp>
 #if LI_JIT && LI_ARCH_X86 && !LI_32
-#include <ir/x86-64.hpp>
-#include <vm/runtime.hpp>
-#include <vm/array.hpp>
-#include <vm/table.hpp>
+	#include <exception>
+	#include <ir/ir2mir.hpp>
+	#include <ir/x86-64.hpp>
+	#include <iterator>
+	#include <limits>
+	#include <source_location>
+	#include <string>
+	#include <string_view>
+	#include <unordered_map>
 
-#if LI_VTUNE
-	#include <jitprofiling.h>
-	#pragma comment(lib, "jitprofiling.lib")
-#endif
+	#if LI_VTUNE
+		#include <jitprofiling.h>
+		#pragma comment(lib, "jitprofiling.lib")
+	#endif
 
 namespace li::ir {
-	// Emits floating-point comparison into a flag.
-	//
-	static flag_id fp_compare(mblock& b, operation cc, value* lhs, value* rhs) {
-		LI_ASSERT(is_floating_point_data(lhs->vt));
-		LI_ASSERT(is_floating_point_data(rhs->vt));
+	namespace {
+		struct compile_error final : std::exception {
+			std::string message;
 
-		// Can't have constant on LHS.
-		//
-		bool swapped = false;
-		if (lhs->is<constant>()) {
-			swapped = true;
-			std::swap(lhs, rhs);
-			LI_ASSERT(!lhs->is<constant>());
-		}
+			explicit compile_error(std::string reason = "x86 assembly rejected", std::source_location location = std::source_location::current())
+				 : message(std::move(reason) + " [" + location.file_name() + ":" + std::to_string(location.line()) + "]") {}
 
-		// If equality comparison and constant is zero:
-		//
-		auto lr  = REG(lhs);
-		if (cc == bc::CNE || cc == bc::CEQ) {
-			if (rhs->is<constant>() && rhs->as<constant>()->i == 0) {
-				auto fl = cc == bc::CEQ ? FLAG_Z : FLAG_NZ;
-				if constexpr (USE_AVX)
-					VPTEST(b, fl, lr, lr);
-				else
-					PTEST(b, fl, lr, lr);
-				return fl;
-			}
-		}
+			const char* what() const noexcept override { return message.c_str(); }
+		};
 
-		// Handle differences in precision.
-		//
-		auto rh   = RM(rhs);
-		bool prec = false;
-		if (rhs->vt == type::f32 && lhs->vt == type::f64) {
-			auto tmp = b->next_fp();
-			b.append(vop::fx32, tmp, lr);
-			lr   = tmp;
-			prec = false;
-		} else if (rhs->vt == type::f64 && lhs->vt == type::f32) {
-			auto tmp = b->next_fp();
-			b.append(vop::fx64, tmp, lr);
-			lr   = tmp;
-			prec = true;
-		} else {
-			prec = rhs->vt == type::f64;
-		}
-
-		// Map the operator.
-		//
-		flag_id f;
-		if (cc == bc::CLT) {
-			f = FLAG_B;
-		} else if (cc == bc::CGE) {
-			f = FLAG_NB;
-		} else if (cc == bc::CGT) {
-			f = FLAG_NBE;
-		} else {
-			f = FLAG_BE;
-		}
-		if (swapped)
-			f = flag_id(f ^ 1);
-
-		// Emit the operation.
-		//
-		if (prec) {
-			if constexpr (USE_AVX)
-				VUCOMISD(b, f, lr, rh);
-			else
-				UCOMISD(b, f, lr, rh);
-		} else {
-			if constexpr (USE_AVX)
-				VUCOMISS(b, f, lr, rh).target_info.force_size = 4;
-			else
-				UCOMISS(b, f, lr, rh).target_info.force_size = 4;
-		}
-		return f;
-	}
-
-	// Emits floating-point unary/binary expression into a register.
-	//
-	static mreg fp_unary(mblock& b, operation op, value* rhs, insn* result = nullptr) {
-		LI_ASSERT(rhs->vt == type::f64);
-
-		// Get the registers.
-		//
-		mreg vx = result ? REG(result) : b->next_fp();
-		mop  vr = REG(rhs);
-
-		switch (op) {
-			case bc::ANEG: {
-				auto c = b->add_const(1ull << 63);
-				if constexpr (USE_AVX) {
-					VXORPD(b, vx, vr, c);
-				} else {
-					b.append(vop::movf, vx, vr);
-					XORPD(b, vx, c);
-				}
-				return vx;
-			}
-			default:
-				return {};
-		}
-	}
-	static mreg fp_binary(mblock& b, operation op, value* lhs, value* rhs, insn* result = nullptr) {
-		LI_ASSERT(lhs->vt == type::f64);
-		LI_ASSERT(rhs->vt == type::f64);
-
-		// Get the result register.
-		//
-		mreg vx = result ? REG(result) : b->next_fp();
-		mreg vl;
-		mop vr;
-
-		// If LHS is a constant, try fixing it.
-		//
-		if (lhs->is<constant>()) {
-			if (op == bc::AMUL || op == bc::AADD)
-				std::swap(lhs, rhs);
-		}
-
-		// RHS can be a constant.
-		//
-		if (rhs->is<constant>()) {
-			vr = b->add_const(any(rhs->as<constant>()->to_any().as_num()));
-			vl = REG(lhs);
-		}
-		// If LHS is a constant, we need to load it into a temporary.
-		//
-		else if (lhs->is<constant>()) {
-			auto tmp = b->next_fp();
-			b.append(vop::movf, tmp, any(lhs->as<constant>()->to_any().as_num()));
-			vl = tmp;
-			vr = REG(rhs);
-		}
-		// Otherwise, if both are registers, all good.
-		//
-		else {
-			vl = REG(lhs);
-			vr = REG(rhs);
-		}
-
-		switch (op) {
-			case bc::AADD: {
-				if constexpr (USE_AVX) {
-					VADDSD(b, vx, vl, vr);
-				} else {
-					b.append(vop::movf, vx, vl);
-					ADDSD(b, vx, vr);
-				}
-				return vx;
-			}
-			case bc::ASUB: {
-				if constexpr (USE_AVX) {
-					VSUBSD(b, vx, vl, vr);
-				} else {
-					b.append(vop::movf, vx, vl);
-					SUBSD(b, vx, vr);
-				}
-				return vx;
-			}
-			case bc::AMUL: {
-				if constexpr (USE_AVX) {
-					VMULSD(b, vx, vl, vr);
-				} else {
-					b.append(vop::movf, vx, vl);
-					MULSD(b, vx, vr);
-				}
-				return vx;
-			}
-			case bc::ADIV: {
-				if constexpr (USE_AVX) {
-					VDIVSD(b, vx, vl, vr);
-				} else {
-					b.append(vop::movf, vx, vl);
-					DIVSD(b, vx, vr);
-				}
-				return vx;
-			}
-			case bc::AMOD: {
-				if constexpr (USE_AVX) {
-					VDIVSD(b, vx, vl, vr);
-					VROUNDSD(b, vx, vx, 11);  // = trunc(x/y)
-					VMULSD(b, vx, vx, vr);
-					VSUBSD(b, vx, vl, vx);
-				} else {
-					auto vt = b->next_fp();
-					b.append(vop::movf, vx, vl);
-					b.append(vop::movf, vt, vl);
-					DIVSD(b, vt, vr);
-					ROUNDSD(b, vt, vt, 11);
-					MULSD(b, vt, vr);
-					SUBSD(b, vx, vt);
-				}
-				return vx;
-			}
-			default:
-				return {};
-		}
-	}
-
-	// Load/store from local.
-	//
-	static void local_load(mblock& b, mop idx, mreg out) {
-		if (idx.is_const()) {
-			int64_t disp = (idx.i64 + FRAME_SIZE + 1) * 8;
-			int32_t disp32 = int32_t(disp);
-			LI_ASSERT(disp32 == disp);
-
-			if (out.is_fp())
-				b.append(vop::loadf64, out, mmem{.base = vreg_args, .disp = disp32});
-			else
-				b.append(vop::loadi64, out, mmem{.base = vreg_args, .disp = disp32});
-		} else if (idx.is_reg() && idx.reg.is_gp()) {
-			if (out.is_fp())
-				b.append(vop::loadf64, out, mmem{.base = vreg_args, .index = idx.reg, .scale = 8});
-			else
-				b.append(vop::loadi64, out, mmem{.base = vreg_args, .index = idx.reg, .scale = 8});
-		} else {
-			util::abort("invalid index value.");
-		}
-	}
-	static void local_store(mblock& b, mop idx, mop in) {
-		if (in.is_mem()) {
-			auto r = b->next_gp();
-			b.append(vop::loadi64, r, in);
-			in     = r;
-		} else if (in.is_const()) {
-			auto r = b->next_gp();
-			b.append(vop::movi, r, in);
-			in = r;
-		}
-
-		if (idx.is_const()) {
-			int64_t disp   = (idx.i64 + FRAME_SIZE + 1) * 8;
-			int32_t disp32 = int32_t(disp);
-			LI_ASSERT(disp32 == disp);
-
-			if (in.reg.is_fp())
-				b.append(vop::storef64, {}, mmem{.base = vreg_args, .disp = disp32}, in);
-			else
-				b.append(vop::storei64, {}, mmem{.base = vreg_args, .disp = disp32}, in);
-		} else if (idx.is_reg() && idx.reg.is_gp()) {
-			if (in.reg.is_fp())
-				b.append(vop::storef64, {}, mmem{.base = vreg_args, .index = idx.reg, .scale = 8}, in);
-			else
-				b.append(vop::storei64, {}, mmem{.base = vreg_args, .index = idx.reg, .scale = 8}, in);
-		} else {
-			util::abort("invalid index value.");
-		}
-	}
-	static void local_store(mblock& b, mop idx, value* in) {
-		mop type_erased;
-		if (in->is<constant>()) {
-			type_erased = in->as<constant>()->to_any();
-		} else if (in->vt != type::f64) {
-			mreg out = b->next_gp();
-			type_erase(b, in, out);
-			type_erased = out;
-		} else {
-			type_erased = RI(in);
-		}
-		local_store(b, idx, type_erased);
-	}
-
-	// Looks up a value from a table without using traits.
-	//
-	static void table_lookup_raw(mblock& b, value* vkey, mreg tbl, mreg out) {
-		// Move the key with the typed erased to a temporary.
-		//
-		auto key = b->next_gp();
-		if (vkey->vt == type::any)
-			b.append(vop::movi, key, REG(vkey));
-		else
-			type_erase(b, vkey, key);
-
-		// Hash the value and mask it, sum with table base.
-		//
-		auto base = b->next_gp();
-		value_hash(b, key, base, vkey);
-		AND(b, base, mmem{.base = tbl, .disp = offsetof(table, mask)});
-		ADD(b, base, mmem{.base = tbl, .disp = offsetof(table, node_list)});
-
-		// Allocate a temporary to hold the result.
-		//
-		auto tmp = b->next_gp();
-		b.append(vop::movi, tmp, nil);
-		for (size_t i = 0; i != overflow_factor; i++) {
-			mmem kv{.base = base, .disp = int32_t(offsetof(table_nodes, entries) + sizeof(table_entry) * i)};
-			CMP(b, FLAG_Z, key, kv);
-			kv.disp += sizeof(any);
-			CMOVZ(b, tmp, kv);
-		}
-		b.append(vop::movi, out, tmp);
-	}
-	static void array_lookup(mblock& b, value* vkey, mreg arr, mreg out) {
-		// Read table length and data pointer.
-		//
-		auto tbl_len = b->next_gp();
-		auto tbl_store = b->next_gp();
-		b.append(vop::loadi32, tbl_len, mmem{.base = arr, .disp = offsetof(array, length)});
-		b.append(vop::loadi64, tbl_store, mmem{.base = arr, .disp = offsetof(array, storage)});
-
-		// Address both and emit a range check.
-		//
-		mreg result_cc   = b->next_gp();
-		mreg result_okay = b->next_gp();
-		LEA(b, result_cc, b->add_const(nil));
-		if (vkey->is<constant>()) {
-			msize_t idx = msize_t(vkey->as<constant>()->to_any().as_num());
-			LEA(b, result_okay, mmem{.base = tbl_store, .disp = int32_t(idx * sizeof(any) + offsetof(array_store, entries))});
-			CMP(b, FLAG_NBE, tbl_len, idx);
-		} else {
-			mreg idx_reg = b->next_gp();
-			if (vkey->vt == type::f64)
-				b.append(vop::icvt, idx_reg, REG(vkey));
-			else if (is_integer_data(vkey->vt))
-				b.append(vop::izx32, idx_reg, REG(vkey));
-			else
-				util::abort("unexpected key for array lookup.");
-			LEA(b, result_okay, mmem{.base = tbl_store, .index = idx_reg, .scale = 8, .disp = int32_t(offsetof(array_store, entries))});
-			CMP(b, FLAG_NBE, tbl_len, idx_reg);
-		}
-
-		// CMOV and then load from it.
-		//
-		CMOVNBE(b, result_cc, result_okay);
-		b.append(vop::loadi64, out, mmem{.base = result_cc});
-	}
-	static void array_write(mblock& b, value* vkey, mreg arr, mreg in) {
-		// Read table length and data pointer.
-		//
-		auto tbl_len   = b->next_gp();
-		auto tbl_store = b->next_gp();
-		b.append(vop::loadi32, tbl_len, mmem{.base = arr, .disp = offsetof(array, length)});
-		b.append(vop::loadi64, tbl_store, mmem{.base = arr, .disp = offsetof(array, storage)});
-
-		// Address the destination and emit the initial comparison.
-		//
-		mmem adr;
-		if (vkey->is<constant>()) {
-			msize_t idx = msize_t(vkey->as<constant>()->to_any().as_num());
-			adr = mmem{.base = tbl_store, .disp = int32_t(idx * sizeof(any) + offsetof(array_store, entries))};
-			CMP(b, FLAG_BE, tbl_len, idx);
-		} else {
-			mreg idx_reg = b->next_gp();
-			if (vkey->vt == type::f64)
-				b.append(vop::icvt, idx_reg, REG(vkey));
-			else if (is_integer_data(vkey->vt))
-				b.append(vop::izx32, idx_reg, REG(vkey));
-			else
-				util::abort("unexpected key for array lookup.");
-			adr = mmem{.base = tbl_store, .index = idx_reg, .scale = 8, .disp = int32_t(offsetof(array_store, entries))};
-			CMP(b, FLAG_BE, tbl_len, idx_reg);
-		}
-
-		// TODO: Range check?
-		b.append(vop::storei64, {}, adr, in);
-	}
-
-	// Main lifter switch.
-	//
-	static void mlift(mblock& b, insn* i) {
-		switch (i->opc) {
-			// Locals.
-			//
-			case opcode::load_local: {
-				local_load(b, RIi(i->operands[0]), REG(i));
-				return;
-			}
-			case opcode::store_local: {
-				local_store(b, RIi(i->operands[0]), i->operands[1]);
-				return;
-			}
-
-			// Complex types.
-			//
-			// TODO: None of this is right, just testing...
-			//
-			case opcode::field_set: {
-				// If raw access:
-				//
-				/*if (i->operands[0]->as<constant>()->i1)*/
-				{
-					switch (i->operands[1]->vt) {
-						case type::arr: {
-							auto val = b->next_gp();
-							type_erase(b, i->operands[3], val);
-							array_write(b, i->operands[2], REGV(i->operands[1]), val);
-							return;
-						}
-						case type::tbl: {
-						}
-						case type::str: {
-						}
-					}
-				}
-
-				b.append(vop::movi, arch::map_gp_arg(0, 0), REF_VM());
-				type_erase(b, i->operands[1], arch::map_gp_arg(1, 0));
-				type_erase(b, i->operands[2], arch::map_gp_arg(2, 0));
-				type_erase(b, i->operands[3], arch::map_gp_arg(3, 0));
-				b.append(vop::call, {}, (int64_t) &runtime::field_set_raw);
-				// ^ result is potentially error!
-				return;
-			}
-			case opcode::field_get: {
-
-				// If raw access:
-				//
-				/*if (i->operands[0]->as<constant>()->i1)*/
-				{
-					switch (i->operands[1]->vt) {
-						case type::tbl: {
-							table_lookup_raw(b, i->operands[2], REGV(i->operands[1]), REG(i));
-							return;
-						}
-						case type::arr: {
-							array_lookup(b, i->operands[2], REGV(i->operands[1]), REG(i));
-							return;
-						}
-						case type::str: {
-
-						}
-					}
-				}
-
-				b.append(vop::movi, arch::map_gp_arg(0, 0), REF_VM());
-				type_erase(b, i->operands[1], arch::map_gp_arg(1, 0));
-				type_erase(b, i->operands[2], arch::map_gp_arg(2, 0));
-				b.append(vop::call, {}, (int64_t) &runtime::field_get_raw);
-				b.append(vop::movi, REG(i), mreg(arch::from_native(arch::gp_retval)));
-				return;
-			}
-
-			// Operators.
-			//
-			case opcode::unop: {
-				LI_ASSERT(i->vt == type::f64);
-				if (fp_unary(b, i->operands[0]->as<constant>()->vmopr, i->operands[1], i))
-					return;
-				break;
-			}
-			case opcode::binop: {
-				LI_ASSERT(i->vt == type::f64);
-				if (fp_binary(b, i->operands[0]->as<constant>()->vmopr, i->operands[1], i->operands[2], i))
-					return;
-				break;
-			}
-
-			// Upvalue.
-			//
-			case opcode::uval_get: {
-				mmem mem;
-				auto idx = RIi(i->operands[1]);
-
-				// Compute index into function uvalue table and load from it.
-				//
-				auto base = REG(i->operands[0]);
-				if (idx.is_const()) {
-					mem = {.base = base, .disp = int32_t(sizeof(function) + idx.i64 * 8)};
-				} else {
-					mem = {.base = base, .index = idx.reg, .scale = 8, .disp = sizeof(function)};
-				}
-			
-				// Load the result.
-				//
-				b.append(vop::loadi64, REG(i), mem);
-				return;
-			}
-			case opcode::uval_set: {
-				auto base = REG(i->operands[0]);
-				auto idx  = RIi(i->operands[1]);
-				mreg val;
-				vop  store;
-				if (i->operands[2]->vt == type::f64) {
-					val = REG(i->operands[2]);
-					store = vop::storef64;
-				} else {
-					val = b->next_gp();
-					type_erase(b, i->operands[2], val);
-					store = vop::storei64;
-				}
-				
-				// Add the upvalue offset and compute final offset.
-				//
-				mmem mem;
-				if (idx.is_const()) {
-					// TODO: type must be a table and we have to clear the type, fix later.
-					mem = {.base = base, .disp = int32_t(sizeof(function) + idx.i64 * 8)};
-				} else {
-					mem = {.base = base, .index = idx.reg, .scale = 8, .disp = sizeof(function)};
-				}
-			
-				// Write the result.
-				//
-				b.append(store, {}, mem, val);
-				return;
-			}
-
-			// Casts.
-			//
-			case opcode::assume_cast: {
-				auto* op  = i->operands[0].get();
-				auto  out = REG(i);
-				switch (i->vt) {
-					case type::i1: {
-						LI_ASSERT(is_integer_data(op->vt));
-						b.append(vop::movi, out, REG(op));
-						AND(b, out, 1);
-						return;
-					}
-					case type::i8:
-					case type::i16:
-					case type::i32:
-					case type::i64: {
-						auto in = b->next_fp();
-						b.append(vop::movf, in, REG(op));
-						b.append(vop::icvt, out, in);
-						return;
-					}
-					case type::f32:
-					case type::f64: {
-						LI_ASSERT(is_floating_point_data(op->vt) || op->vt == type::any);
-						b.append(vop::movf, out, REG(op));
-						if (i->vt == type::f32)
-							b.append(vop::fx32, out, out);
-						return;
-					}
-					// GC types.
-					default: {
-						gc_type_clear(b, out, REG(op));
-						return;
-					}
-					// Invalid types.
-					//
-					case type::exc:
-					case type::nil:
-					case type::any: {
-						util::abort("invalid assume_cast");
+		static std::string describe_encoder_failure(const ZydisEncoderRequest& request) {
+			const char* mnemonic = ZydisMnemonicGetString(request.mnemonic);
+			std::string result   = "x86 encoder rejected ";
+			result += mnemonic ? mnemonic : ("mnemonic#" + std::to_string(unsigned(request.mnemonic)));
+			if (request.operand_count)
+				result += " operands=";
+			for (uint8_t index = 0; index < request.operand_count; ++index) {
+				if (index)
+					result += ",";
+				const auto& operand = request.operands[index];
+				switch (operand.type) {
+					case ZYDIS_OPERAND_TYPE_REGISTER: {
+						const char* name = ZydisRegisterGetString(operand.reg.value);
+						result += "reg:";
+						result += name ? name : ("#" + std::to_string(unsigned(operand.reg.value)));
+						result += "/" + std::to_string(ZydisRegisterGetWidth(request.machine_mode, operand.reg.value)) + "b";
 						break;
 					}
+					case ZYDIS_OPERAND_TYPE_MEMORY:
+						result += "mem/" + std::to_string(operand.mem.size) + "B";
+						break;
+					case ZYDIS_OPERAND_TYPE_POINTER:
+						result += "ptr";
+						break;
+					case ZYDIS_OPERAND_TYPE_IMMEDIATE:
+						result += "imm";
+						break;
+					default:
+						result += "unused";
+						break;
 				}
 			}
-			case opcode::coerce_bool: {
-				switch (i->operands[0]->vt) {
-					case type::none:
-					case type::exc:
-					case type::nil: {
-						b.append(vop::movi, REG(i), 0);
-						return;
-					}
-					case type::any: {
-						static_assert(type_bool == (type_nil - 1), "Outdated constants.");
-
-						auto tmp = REG(i);
-						b.append(vop::movi, tmp, 0x47FFFFFFFFFFF);
-						ADD(b, tmp, RIi(i->operands[0]));
-						CMP(b, FLAG_B, tmp, -2ll);
-						b.append(vop::setcc, tmp, FLAG_B);
-						return;
-					}
-					case type::i1: {
-						b.append(vop::movi, REG(i), RIi(i->operands[0]));
-						return;
-					}
-					default: {
-						b.append(vop::movi, REG(i), 1);
-						return;
-					} 
-				}
-			}
-
-			// Helpers used before transitioning to MIR.
-			//
-			case opcode::move: {
-				YIELD(RI(i->operands[0]));
-				return;
-			}
-			case opcode::erase_type: {
-				type_erase(b, i->operands[0], REG(i));
-				return;
-			}
-
-			// Conditionals.
-			//
-			case opcode::test_type: {
-				auto vt = i->operands[1]->as<constant>()->vty;
-				LI_ASSERT(i->operands[0]->vt == type::any);
-				check_type(b, vt, REG(i), REG(i->operands[0]));
-				return;
-			}
-			case opcode::compare: {
-				auto cc   = i->operands[0]->as<constant>()->vmopr;
-				value* lhs = i->operands[1];
-				value* rhs = i->operands[2];
-
-				// If floating point:
-				//
-				if (is_floating_point_data(lhs->vt) && is_floating_point_data(rhs->vt)) {
-					auto flag = fp_compare(b, cc, lhs, rhs);
-					b.append(vop::setcc, REG(i), flag);
-					return;
-				}
-
-				// If equality comparison:
-				//
-				if (cc == bc::CEQ || cc == bc::CNE) {
-					auto flag = cc == bc::CEQ ? FLAG_Z : FLAG_NZ;
-
-					// If same type.
-					//
-					if (lhs->vt == rhs->vt) {
-						// LHS cannot be a constant.
-						//
-						if (lhs->is<constant>())
-							std::swap(lhs, rhs);
-
-						CMP(b, flag, REG(lhs), RM(rhs));
-						b.append(vop::setcc, REG(i), flag);
-						return;
-					}
-					// If it requires type erasure:
-					//
-					else if (lhs->vt == type::any || rhs->vt == type::any) {
-						// Erase type if needed.
-						//
-						mreg o1;
-						mreg o2;
-						if (lhs->vt != type::any) {
-							o1 = b->next_gp();
-							type_erase(b, lhs, o1);
-						} else {
-							o1 = REG(lhs);
-						}
-						if (rhs->vt != type::any) {
-							o2 = b->next_gp();
-							type_erase(b, rhs, o2);
-						} else {
-							o2 = REG(rhs);
-						}
-						CMP(b, flag, o1, o2);
-						b.append(vop::setcc, REG(i), flag);
-						return;
-					}
-				}
-				break; // NYI
-			}
-			case opcode::select: {
-				auto cc  = REG(i->operands[0]);
-				auto lhs = REG(i->operands[1]);
-				auto rhs = REG(i->operands[2]);
-				b.append(vop::select, REG(i), cc, lhs, rhs);
-				return;
-			}
-			case opcode::bool_xor:
-			case opcode::bool_or:
-			case opcode::bool_and: {
-				auto lhs = RI(i->operands[0]);
-				auto rhs = RI(i->operands[1]);
-				auto out = REG(i);
-				if (lhs.is_const())
-					std::swap(lhs, rhs);
-				b.append(vop::movi, out, lhs);
-
-				if (i->opc == opcode::bool_and)
-					AND(b, out, rhs);
-				else if (i->opc == opcode::bool_xor)
-					XOR(b, out, rhs);
-				else if (i->opc == opcode::bool_or)
-					OR(b, out, rhs);
-				return;
-			}
-			case opcode::phi: {
-				auto r = get_existing_reg(i->operands[0]->as<insn>());
-				for (auto& op : i->operands) {
-					LI_ASSERT(get_existing_reg(op->as<insn>()) == r);
-				}
-				YIELD(r);
-				return;
-			}
-
-			// Call types.
-			//
-			case opcode::ccall: {
-				auto*   nfni     = i->operands[0]->as<constant>()->nfni;
-				int32_t oidx     = i->operands[1]->as<constant>()->i32;
-
-				// If there is a specialized lifter, invoke it, if it succeeds return.
-				//
-				if (auto l = nfni->overloads[oidx].mir_lifter; l && l(b, i))
-					return;
-
-				// If it takes VM as it's first argument, add it.
-				//
-				int32_t gp_index = 0;
-				int32_t fp_index = 0;
-				if ((nfni->attr & func_attr_c_takes_vm)) {
-					b.append(vop::movi, arch::map_gp_arg(0, 0), REF_VM());
-					gp_index++;
-				}
-
-				// Append each argument.
-				//
-				for (msize_t n = 2; n != i->operands.size(); n++) {
-					auto& op = i->operands[n];
-
-					// Type erase if we figured it out.
-					//
-					if (nfni->overloads[oidx].args[n-2] == type::any && op->vt != type::any) {
-						// TODO: Constants :(
-
-						auto r = arch::map_gp_arg(gp_index++, fp_index);
-						if (r) {
-							type_erase(b, op, r);
-						} else {
-							mreg tmp = b->next_gp();
-							type_erase(b, op, tmp);
-							mmem mem{
-								 .base = arch::from_native(arch::sp),
-								 .disp = arch::stack_arg_begin + (gp_index + fp_index) * 8,
-							};
-							b.append(vop::storei64, {}, mem, tmp);
-							b->used_stack_length = std::max(b->used_stack_length, mem.disp + 8);
-						}
-						continue;
-					}
-					LI_ASSERT(op->vt == nfni->overloads[oidx].args[n-2]);
-
-					if (is_floating_point_data(op->vt)) {
-						auto r = arch::map_fp_arg(gp_index, fp_index++);
-						if (r) {
-							b.append(vop::movf, mreg(r), RI(op));
-						} else {
-							mmem mem{
-								 .base = arch::from_native(arch::sp),
-								 .disp = arch::stack_arg_begin + (gp_index + fp_index) * 8,
-							};
-							b.append(vop::storef64, {}, mem, REG(op));
-							b->used_stack_length = std::max(b->used_stack_length, mem.disp + 8);
-						}
-					} else {
-						auto r = arch::map_gp_arg(gp_index++, fp_index);
-						if (r) {
-							b.append(vop::movi, mreg(r), RIi(op));
-						} else {
-							mmem mem{
-								 .base = arch::from_native(arch::sp),
-								 .disp = arch::stack_arg_begin + (gp_index + fp_index) * 8,
-							};
-							b.append(vop::storei64, {}, mem, REG(op));
-							b->used_stack_length = std::max(b->used_stack_length, mem.disp + 8);
-						}
-					}
-				}
-
-				// Write the call.
-				//
-				b.append(vop::call, {}, intptr_t(nfni->overloads[oidx].cfunc));
-
-				// Read the result.
-				//
-				if (auto ty = nfni->overloads[oidx].ret; (ty == type::f32 || ty == type::f64)) {
-					b.append(vop::movf, REG(i), mreg(arch::from_native(arch::fp_retval)));
-				} else if (ty != type::none) {
-					b.append(vop::movi, REG(i), mreg(arch::from_native(arch::gp_retval)));
-				}
-				return;
-			}
-
-			case opcode::get_exception : {
-				b.append(vop::loadi64, REG(i), mmem{.base = vreg_vm, .disp = offsetof(vm, last_ex)});
-				return;
-			}
-			case opcode::set_exception: {
-				auto tmp = b->next_gp();
-				type_erase(b, i->operands[0], tmp);
-				b.append(vop::storei64, {}, mmem{.base = vreg_vm, .disp = offsetof(vm, last_ex)}, tmp);
-				return;
-			}
-			case opcode::vcall: {
-				// Define helper to dispatch arguments to stack.
-				//
-				int32_t next_index = FRAME_TARGET;
-				auto write_arg = [&](value* v) {
-               int32_t idx = next_index--;
-					mreg val;
-					if (v->is<constant>()) {
-						val = b->next_gp();
-						b.append(vop::movi, val, v->as<constant>()->to_any());
-					} else if (v->vt != type::any) {
-						if (v->vt == type::f32) {
-							auto tmp = b->next_fp();
-							b.append(vop::fx64, tmp, REG(v));
-							val = tmp;
-						} else if (v->vt != type::f64 && v->vt != type::any) {
-							auto tmp = b->next_gp();
-							type_erase(b, v, tmp);
-							val = tmp;
-						} else {
-							val = REG(v);
-						}
-					} else {
-						val = REG(v);
-					}
-
-					if (val.is_fp())
-						b.append(vop::storef64, {}, mmem{.base = vreg_tos, .disp = idx * 8}, val);
-					else
-						b.append(vop::storei64, {}, mmem{.base = vreg_tos, .disp = idx * 8}, val);
-				};
-
-				// Make sure it's a function.
-				//
-				auto& fn  = i->operands[0];
-				LI_ASSERT(fn->vt == type::fn);  // Type guaranteed by opt_type.
-
-				// Write all arguments on stack.
-				//
-				for (auto& op : i->operands)
-					write_arg(op);
-
-				// If native function, the callback will not change.
-				//
-				mop call_target;
-				if (fn->is<constant>() && fn->as<constant>()->fn->is_native()) {
-					call_target = (int64_t) fn->as<constant>()->fn->invoke;
-				}
-				// Load the function::invoke from the value.
-				//
-				else if (fn->is<constant>()) {
-					mreg r = b->next_gp();
-					b.append(vop::movi, r, (int64_t) fn->as<constant>()->fn);
-					b.append(vop::loadi64, r, mmem{.base = r, .disp = offsetof(function, invoke)});
-					call_target = r;
-				} else {
-					mreg r = b->next_gp();
-					b.append(vop::loadi64, r, mmem{.base = REG(fn), .disp = offsetof(function, invoke)});
-					call_target = r;
-				}
-
-				// Push stack info.
-				//
-				auto tmp = b->next_gp();
-				b.append(vop::movi, tmp, mop(-intptr_t(&b->source->L->stack[0])));
-				LEA(b, tmp, mmem{.base = vreg_args, .index = tmp, .scale = 1, .disp = 8 * (FRAME_SIZE + 1)});
-				SHL(b, tmp, 23 - 3);
-				OR(b, tmp, i->source_bc);
-				b.append(vop::storei64, {}, mmem{.base = vreg_tos, .disp = -8}, tmp);
-
-				// Set the arguments and call into it.
-				//
-				b.append(vop::movi, arch::map_gp_arg(0, 0), REF_VM());
-				LEA(b, mreg(arch::map_gp_arg(1, 0)), mmem{.base = vreg_tos, .disp = -8 * (FRAME_SIZE + 1)});
-				b.append(vop::movi, arch::map_gp_arg(2, 0), int32_t(i->operands.size() - 2 /*-self+fn*/));
-				b.append(vop::call, {}, call_target);
-				b.append(vop::movi, REG(i), mreg(arch::from_native(arch::gp_retval)));
-				return;
-			}
-			// Block terminators.
-			//
-			case opcode::jcc: {
-				b.append(vop::js, {}, REG(i->operands[0]), i->operands[1]->as<constant>()->bb->uid, i->operands[2]->as<constant>()->bb->uid);
-				return;
-			}
-			case opcode::jmp: {
-				b.append(vop::jmp, {}, i->operands[0]->as<constant>()->bb->uid);
-				return;
-			}
-
-			// Specials.
-			//
-			case opcode::gc_tick: {
-				// TODO: Inline tick, move collect to unlikely.
-				//
-				//b.append(vop::movi, arch::map_gp_arg(0, 0), REF_VM());
-				//b.append(vop::call, {}, (int64_t) li::bit_cast<uintptr_t>(+[](vm* L) {
-				//	return L->gc.tick(L);
-				//}));
-				return;
-			}
-
-			// Procedure terminators.
-			//
-			case opcode::ret: {
-				// Free the stack we allocated.
-				//
-				auto tmp = b->next_gp();
-				auto tmp2 = b->next_gp();
-				b.append(vop::movi, tmp2, REF_VM());
-				LEA(b, tmp, mmem{.base = vreg_args, .disp = 8 * (FRAME_SIZE + 1)});
-				b.append(vop::storei64, {}, mmem{.base = tmp2, .disp = offsetof(vm, stack_top)}, tmp);
-
-				// Return the result.
-				//
-				auto r = mreg(arch::from_native(arch::gp_retval));
-				type_erase(b, i->operands[0], r);
-				b.append(vop::ret, {}, mop(r));
-				return;
-			}
-			case opcode::unreachable: {
-				b.append(vop::unreachable, {});
-				return;
-			}
-			default:
-				break;
-		}
-		util::abort("Opcode NYI: %s", i->to_string(true).c_str());
-	}
-
-	// Generates crude machine IR from the SSA IR.
-	//
-	std::unique_ptr<mprocedure> lift_ir(procedure* p) {
-		// Set basic information.
-		//
-		auto m = std::make_unique<mprocedure>();
-		m->source         = p;
-		m->max_stack_slot = p->max_stack_slot + FRAME_SIZE;
-
-		// Clear all visitor state, we use both fields for mapping to machine structures.
-		//
-		m->source->clear_all_visitor_state();
-
-		// Pre-allocate the block list and coalesce PHI nodes.
-		//
-		for (auto& b : m->source->basic_blocks) {
-			auto* mb   = m->add_block();
-			mb->hot = int32_t(b->loop_depth) - int32_t(b->cold_hint);
-
-			b->visited = (uint64_t) mb;
-			for (auto* phi : b->phis()) {
-				// Allocate a register.
-				//
-				mreg r;
-				if (is_floating_point_data(phi->vt))
-					r = m->next_fp();
-				else
-					r = m->next_gp();
-
-				// Force into all incoming blocks.
-				//
-				for (auto& op : phi->operands) {
-					LI_ASSERT(op->is<insn>());
-
-					auto* src = op->as<insn>();
-					if (auto r2 = get_existing_reg(src)) {
-						LI_ASSERT(r == r2);
-					} else {
-						src->visited = li::bit_cast<msize_t>(r);
-					}
-				}
-			}
+			return result;
 		}
 
-		// For each block:
-		//
-		for (auto& b : m->source->basic_blocks) {
-			//printf("-- Block $%x", b->uid);
-			//if (b->cold_hint)
-			//	printf(LI_CYN " [COLD %u]" LI_DEF, (uint32_t) b->cold_hint);
-			//if (b->loop_depth)
-			//	printf(LI_RED " [LOOP %u]" LI_DEF, (uint32_t) b->loop_depth);
-			//putchar('\n');
-
-			// Fix the jumps.
-			//
-			auto* mb = (mblock*) b->visited;
-			for (auto& suc : b->successors)
-				m->add_jump(mb, (mblock*) suc->visited);
-
-			// Lift each instruction.
-			//
-			for (auto* i : b->insns()) {
-				//printf(LI_GRN "#%-5x" LI_DEF "\t\t %s\n", i->source_bc, i->to_string(true).c_str());
-				//size_t n = mb->instructions.size();
-				mlift(*mb, i);
-				// while (n != mb->instructions.size()) {
-				//	puts(mb->instructions[n++].to_string().c_str());
-				//}
-			}
-		}
-		return m;
-	}
-
-	// Operand converters.
-	//
-	static constexpr int32_t MAGIC_RELOC_CPOOL  = 0x77777777;
-	static constexpr int32_t MAGIC_RELOC_BRANCH = 0x77777778;
-	static zy::reg to_reg(mblock& b, const mreg& r, size_t n = 0) {
-		if (!r) {
-			return zy::NO_REG;
+		static std::string code_memory_failure(std::string_view operation, const std::error_code& error) {
+			return "x86 code memory " + std::string(operation) + " failed: " + error.message() + " (" + error.category().name() + ":" +
+					 std::to_string(error.value()) + ")";
 		}
 
-		zy::reg pr = arch::to_native(r.phys());
-		if (n) {
-			return zy::resize_reg(pr, n);
-		} else {
-			return pr;
-		}
-	}
-	static zy::mem to_mem(mblock& b, const mmem& m) {
-		if (m.base == vreg_cpool) {
-			b->reloc_info.emplace_back(b->assembly.size(), -m.disp);
-			return {
-				 .size  = 8,
-				 .base  = zy::RIP,
-				 .index = to_reg(b, m.index),
-				 .scale = (uint8_t) m.scale,
-				 .disp  = MAGIC_RELOC_CPOOL,
-			};
-		} else {
-			return {
-				 .size  = 8,
-				 .base  = to_reg(b, m.base),
-				 .index = to_reg(b, m.index),
-				 .scale = (uint8_t) m.scale,
-				 .disp  = m.disp,
-			};
-		}
-	}
-	static ZydisEncoderOperand to_op(mblock& b, const mop& m) {
-		if (m.is_const()) {
-			return zy::to_encoder_op(m.i64);
-		} else if (m.is_reg()) {
-			return zy::to_encoder_op(to_reg(b, m.reg));
-		} else if (m.is_mem()) {
-			return zy::to_encoder_op(to_mem(b, m.mem));
-		}
-		util::abort("invalid operand");
-	}
-
-	static void assemble_native(mblock& b, const minsn& i) {
-		ZydisEncoderRequest req;
-		memset(&req, 0, sizeof(req));
-		req.mnemonic      = arch::native_mnemonic(i.mnemonic);
-		req.machine_mode  = ZYDIS_MACHINE_MODE_LONG_64;
-		req.operand_count = 0;
-
-		auto push_operand = [&](const mop& op) {
-			//printf(" %s", op.to_string().c_str());
-			auto o                            = to_op(b, op);
-			if (auto forced_size = i.target_info.force_size) {
-				if (o.type == ZYDIS_OPERAND_TYPE_MEMORY)
-					o.mem.size = i.target_info.force_size;
-				if (o.type == ZYDIS_OPERAND_TYPE_REGISTER)
-					if (auto newreg = zy::resize_reg(o.reg.value, forced_size); newreg != zy::NO_REG)
-						o.reg.value = newreg;
-			}
-			req.operands[req.operand_count++] = o;
+		enum class relocation_kind : uint8_t {
+			branch32,
 		};
-		//printf("\t%s ", arch::name_mnemonic(req.mnemonic));
-		switch (i.target_info.rsvd) {
-			case ENC_NOP:
-				break;
-			case ENC_W_R:
-				push_operand(i.out);
-				push_operand(i.arg[0]);
-				break;
-			case ENC_RW_R:
-				push_operand(i.arg[0]);
-				push_operand(i.arg[1]);
-				break;
-			case ENC_RW:
-				push_operand(i.out);
-				break;
-			case ENC_W_R_R:
-				push_operand(i.out);
-				push_operand(i.arg[0]);
-				push_operand(i.arg[1]);
-				break;
-			case ENC_W_N_R_R:
-				push_operand(i.out);
-				push_operand(i.out);
-				push_operand(i.arg[0]);
-				push_operand(i.arg[1]);
-				break;
-			case ENC_F_R_R:
-				push_operand(i.arg[0]);
-				push_operand(i.arg[1]);
-				break;
-			default:
-				assume_unreachable();
-				break;
+		struct relocation {
+			relocation_kind kind;
+			size_t          byte_offset;
+			msize_t         target_block;
+			int64_t         addend;
+		};
+
+		static constexpr zy::reg gp_registers[] = {
+			 zy::RAX,
+			 zy::RCX,
+			 zy::RDX,
+			 zy::RBX,
+			 zy::RSP,
+			 zy::RBP,
+			 zy::RSI,
+			 zy::RDI,
+			 zy::R8,
+			 zy::R9,
+			 zy::R10,
+			 zy::R11,
+			 zy::R12,
+			 zy::R13,
+			 zy::R14,
+			 zy::R15,
+		};
+		static constexpr zy::reg fp_registers[] = {
+			 zy::XMM0,
+			 zy::XMM1,
+			 zy::XMM2,
+			 zy::XMM3,
+			 zy::XMM4,
+			 zy::XMM5,
+			 zy::XMM6,
+			 zy::XMM7,
+			 zy::XMM8,
+			 zy::XMM9,
+			 zy::XMM10,
+			 zy::XMM11,
+			 zy::XMM12,
+			 zy::XMM13,
+			 zy::XMM14,
+			 zy::XMM15,
+		};
+		static constexpr zy::reg gp_scratch = zy::R11;
+		static constexpr zy::reg fp_scratch = zy::XMM15;
+
+		static zy::reg to_reg(mreg value, size_t size = 0) {
+			if (!value)
+				return zy::NO_REG;
+			LI_ASSERT(value.is_phys());
+			auto    physical = value.phys();
+			auto    index    = arch::machine_id(physical);
+			zy::reg result   = physical > 0 ? gp_registers[index] : fp_registers[index];
+			if (size) {
+				result = zy::resize_reg(result, size);
+				if (result == zy::NO_REG)
+					throw compile_error{};
+			}
+			return result;
 		}
-		LI_ASSERT(zy::encode(b->assembly, req));
-	}
-	static void assemble_virtual(mblock& b, const minsn& i) {
-		switch (i.getv()) {
-			case vop::movf: {
-				auto  dst = to_reg(b, i.out);
-				auto& src = i.arg[0];
-				if (src.is_reg()) {
-					if (src.reg.is_gp()) {
-						constexpr auto mn = USE_AVX ? ZYDIS_MNEMONIC_VMOVQ : ZYDIS_MNEMONIC_MOVQ;
-						LI_ASSERT(zy::encode(b->assembly, mn, dst, to_reg(b, src.reg)));
-					} else if (src.reg != i.out) {
-						constexpr auto mn = USE_AVX ? ZYDIS_MNEMONIC_VMOVAPD : ZYDIS_MNEMONIC_MOVAPD;
-						LI_ASSERT(zy::encode(b->assembly, mn, dst, to_reg(b, src.reg)));
-					}
-				} else if (src.i64 == 0) {
-					if constexpr (USE_AVX) {
-						LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_VXORPD, dst, dst, dst));
+
+		static size_t integer_size(mwidth width) {
+			switch (width) {
+				case mwidth::i8:
+					return 1;
+				case mwidth::i16:
+					return 2;
+				case mwidth::i32:
+					return 4;
+				case mwidth::i64:
+					return 8;
+				default:
+					throw compile_error{};
+			}
+		}
+		static size_t scalar_size(mwidth width) {
+			if (width == mwidth::f32)
+				return 4;
+			if (width == mwidth::f64)
+				return 8;
+			return integer_size(width);
+		}
+
+		static zy::mem to_mem(const mmem& memory, size_t size) {
+			if (memory.base == mreg(vreg_cpool))
+				throw compile_error{};
+			return {
+				 .size  = uint16_t(size),
+				 .base  = to_reg(memory.base),
+				 .index = to_reg(memory.index),
+				 .scale = uint8_t(memory.index ? (uint8_t{1} << memory.shift) : 0),
+				 .disp  = memory.disp,
+			};
+		}
+
+		static void encode_or_throw(std::vector<uint8_t>& output, const ZydisEncoderRequest& request) {
+			if (!zy::encode(output, request))
+				throw compile_error{describe_encoder_failure(request)};
+		}
+		template<typename... Tx>
+		static void encode_or_throw(std::vector<uint8_t>& output, ZydisMnemonic mnemonic, const Tx&... operands) {
+			ZydisEncoderRequest request                                                       = {};
+			request.mnemonic                                                                  = mnemonic;
+			request.machine_mode                                                              = ZYDIS_MACHINE_MODE_LONG_64;
+			request.operand_count                                                             = sizeof...(Tx);
+			((std::array<ZydisEncoderOperand, ZYDIS_ENCODER_MAX_OPERANDS>&) request.operands) = {zy::to_encoder_op<Tx>(operands)...};
+			encode_or_throw(output, request);
+		}
+
+		static void append_guarded(std::vector<uint8_t>& output, ZydisMnemonic jump_over, const std::vector<uint8_t>& body) {
+			if (body.empty())
+				return;
+			encode_or_throw(output, jump_over, int64_t(body.size()));
+			output.insert(output.end(), body.begin(), body.end());
+		}
+
+		class x86_assembler {
+			mprocedure&             proc;
+			std::vector<uint8_t>    assembly;
+			std::vector<uint8_t>    epilogue;
+			std::vector<relocation> relocations;
+			size_t                  native_stack_requirement = 0;
+
+			void mov_gp(zy::reg destination, const mop& source, size_t size = 8) {
+				destination = zy::resize_reg(destination, size);
+				if (destination == zy::NO_REG)
+					throw compile_error{};
+				if (source.is_reg()) {
+					auto input = to_reg(source.reg, size);
+					if (destination != input)
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_MOV, destination, input);
+				} else if (source.is_const()) {
+					if (source.i64 == 0) {
+						auto destination32 = zy::resize_reg(destination, 4);
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_XOR, destination32, destination32);
 					} else {
-						LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_XORPD, dst, dst));
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_MOV, destination, source.i64);
 					}
-				} else if (src.i64 == -1ll) {
-					if constexpr (USE_AVX) {
-						LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_VPCMPEQB, dst, dst, dst));
+				} else if (source.is_mem()) {
+					encode_or_throw(assembly, ZYDIS_MNEMONIC_MOV, destination, to_mem(source.mem, size));
+				} else {
+					throw compile_error{};
+				}
+			}
+
+			void mov_fp(zy::reg destination, const mop& source, mwidth width) {
+				if (source.is_reg()) {
+					if (source.reg.is_fp()) {
+						auto input = to_reg(source.reg);
+						if (destination != input)
+							encode_or_throw(assembly, ZYDIS_MNEMONIC_MOVAPS, destination, input);
 					} else {
-						LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_PCMPEQB, dst, dst));
+						auto input = to_reg(source.reg, width == mwidth::f32 ? 4 : 8);
+						encode_or_throw(assembly, width == mwidth::f32 ? ZYDIS_MNEMONIC_MOVD : ZYDIS_MNEMONIC_MOVQ, destination, input);
 					}
+				} else if (source.is_const()) {
+					auto size = width == mwidth::f32 ? 4 : 8;
+					encode_or_throw(assembly, ZYDIS_MNEMONIC_MOV, zy::resize_reg(gp_scratch, size), source.i64);
+					encode_or_throw(assembly, width == mwidth::f32 ? ZYDIS_MNEMONIC_MOVD : ZYDIS_MNEMONIC_MOVQ, destination, zy::resize_reg(gp_scratch, size));
+				} else if (source.is_mem()) {
+					encode_or_throw(
+						 assembly, width == mwidth::f32 ? ZYDIS_MNEMONIC_MOVSS : ZYDIS_MNEMONIC_MOVSD, destination, to_mem(source.mem, scalar_size(width)));
 				} else {
-					auto           mem = b->add_const(i.arg[0].i64);
-					constexpr auto mn  = USE_AVX ? ZYDIS_MNEMONIC_VMOVSD : ZYDIS_MNEMONIC_MOVSD;
-					LI_ASSERT(zy::encode(b->assembly, mn, dst, to_op(b, mem)));
+					throw compile_error{};
 				}
-				break;
 			}
-			case vop::movi: {
-				auto dst = to_reg(b, i.out);
-				auto& src = i.arg[0];
-				if (src.is_reg()) {
-					if (src.reg.is_gp()) {
-						if (src.reg != i.out)
-							LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, dst, to_reg(b, src.reg)));
+
+			void move_fp_to_gp(zy::reg destination, zy::reg source, mwidth width) {
+				auto size = width == mwidth::f32 ? 4 : 8;
+				encode_or_throw(assembly, width == mwidth::f32 ? ZYDIS_MNEMONIC_MOVD : ZYDIS_MNEMONIC_MOVQ, zy::resize_reg(destination, size), source);
+			}
+
+			void emit_branch32(ZydisMnemonic mnemonic, msize_t target_block, int64_t addend = 0) {
+				ZydisEncoderRequest request = {};
+				request.mnemonic            = mnemonic;
+				request.machine_mode        = ZYDIS_MACHINE_MODE_LONG_64;
+				request.branch_type         = ZYDIS_BRANCH_TYPE_NEAR;
+				request.branch_width        = ZYDIS_BRANCH_WIDTH_32;
+				request.operand_count       = 1;
+				request.operands[0]         = zy::to_encoder_op(int32_t(0));
+				size_t begin                = assembly.size();
+				encode_or_throw(assembly, request);
+				if (assembly.size() < begin + sizeof(int32_t))
+					throw compile_error{};
+				relocations.push_back({relocation_kind::branch32, assembly.size() - sizeof(int32_t), target_block, addend});
+			}
+
+			ZydisEncoderOperand gp_rhs(const mop& operand, size_t size) {
+				if (operand.is_const() && size == 8 && operand.i64 != int32_t(operand.i64)) {
+					encode_or_throw(assembly, ZYDIS_MNEMONIC_MOV, gp_scratch, operand.i64);
+					return zy::to_encoder_op(gp_scratch);
+				}
+				if (operand.is_reg())
+					return zy::to_encoder_op(to_reg(operand.reg, size));
+				if (operand.is_mem())
+					return zy::to_encoder_op(to_mem(operand.mem, size));
+				return zy::to_encoder_op(operand.i64);
+			}
+
+			void integer_binary(const minsn& instruction, ZydisMnemonic mnemonic, bool commutative) {
+				auto        size   = integer_size(instruction.width);
+				auto        output = to_reg(instruction.out, size);
+				const auto& lhs    = instruction.arg[0];
+				const auto& rhs    = instruction.arg[1];
+				if (mnemonic == ZYDIS_MNEMONIC_IMUL && rhs.is_const() && rhs.i64 == int32_t(rhs.i64)) {
+					ZydisEncoderOperand source;
+					if (lhs.is_const()) {
+						mov_gp(gp_scratch, lhs, size);
+						source = zy::to_encoder_op(zy::resize_reg(gp_scratch, size));
 					} else {
-						constexpr auto mn = USE_AVX ? ZYDIS_MNEMONIC_VMOVQ : ZYDIS_MNEMONIC_MOVQ;
-						LI_ASSERT(zy::encode(b->assembly, mn, dst, to_reg(b, src.reg)));
+						source = gp_rhs(lhs, size);
 					}
-				} else if (src.i64 == 0) {
-					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_XOR, dst, dst));
-				} else if (src.i64 == int32_t(src.i64)) {
-					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, zy::resize_reg(dst, 4), src.i64));
-				} else {
-					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, dst, src.i64));
+					encode_or_throw(assembly, mnemonic, output, source, int32_t(rhs.i64));
+					return;
 				}
-				break;
+				if (lhs.is_reg() && to_reg(lhs.reg, size) == output) {
+					encode_or_throw(assembly, mnemonic, output, gp_rhs(rhs, size));
+					return;
+				}
+				if (commutative && rhs.is_reg() && to_reg(rhs.reg, size) == output) {
+					encode_or_throw(assembly, mnemonic, output, gp_rhs(lhs, size));
+					return;
+				}
+				if (rhs.is_reg() && to_reg(rhs.reg, size) == output) {
+					mov_gp(gp_scratch, lhs, size);
+					encode_or_throw(assembly, mnemonic, zy::resize_reg(gp_scratch, size), output);
+					mov_gp(to_reg(instruction.out), mreg(arch::r11), size);
+					return;
+				}
+				mov_gp(to_reg(instruction.out), lhs, size);
+				encode_or_throw(assembly, mnemonic, output, gp_rhs(rhs, size));
 			}
 
-			case vop::loadi8: {
-				auto dst     = to_op(b, i.out);
-				auto src     = to_op(b, i.arg[0]);
-				src.mem.size = 1;
-				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOVZX, zy::resize_reg(dst.reg.value, 4), src));
-				break;
+			void integer_unary(const minsn& instruction, ZydisMnemonic mnemonic) {
+				auto size = integer_size(instruction.width);
+				mov_gp(to_reg(instruction.out), instruction.arg[0], size);
+				encode_or_throw(assembly, mnemonic, to_reg(instruction.out, size));
 			}
-			case vop::loadi16: {
-				auto dst     = to_op(b, i.out);
-				auto src     = to_op(b, i.arg[0]);
-				src.mem.size = 2;
-				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOVZX, zy::resize_reg(dst.reg.value, 4), src));
-				break;
-			}
-			case vop::loadi32: {
-				auto dst     = to_op(b, i.out);
-				auto src     = to_op(b, i.arg[0]);
-				src.mem.size = 4;
-				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, zy::resize_reg(dst.reg.value, 4), src));
-				break;
-			}
-			case vop::loadi64: {
-				auto dst = to_op(b, i.out);
-				auto src = to_op(b, i.arg[0]);
-				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, dst, src));
-				break;
-			}
-			case vop::loadf32: {
-				auto dst          = to_op(b, i.out);
-				auto src          = to_op(b, i.arg[0]);
-				src.mem.size      = 4;
-				constexpr auto mn  = USE_AVX ? ZYDIS_MNEMONIC_VMOVSS : ZYDIS_MNEMONIC_MOVSS;
-				LI_ASSERT(zy::encode(b->assembly, mn, dst, src));
-				break;
-			}
-			case vop::loadf64: {
-				auto           dst = to_op(b, i.out);
-				auto           src = to_op(b, i.arg[0]);
-				constexpr auto mn  = USE_AVX ? ZYDIS_MNEMONIC_VMOVSD : ZYDIS_MNEMONIC_MOVSD;
-				LI_ASSERT(zy::encode(b->assembly, mn, dst, src));
-				break;
-			}
-			case vop::storei8: {
-				auto dst     = to_op(b, i.arg[0]);
-				auto src     = to_op(b, i.arg[1]);
-				dst.mem.size = 1;
-				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, dst, zy::resize_reg(src.reg.value, 1)));
-				break;
-			}
-			case vop::storei16: {
-				auto dst     = to_op(b, i.arg[0]);
-				auto src     = to_op(b, i.arg[1]);
-				dst.mem.size = 2;
-				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, dst, zy::resize_reg(src.reg.value, 2)));
-				break;
-			}
-			case vop::storei32: {
-				auto dst     = to_op(b, i.arg[0]);
-				auto src     = to_op(b, i.arg[1]);
-				dst.mem.size = 4;
-				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, dst, zy::resize_reg(src.reg.value, 4)));
-				break;
-			}
-			case vop::storei64: {
-				auto dst = to_op(b, i.arg[0]);
-				auto src = to_op(b, i.arg[1]);
-				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, dst, src));
-				break;
-			}
-			case vop::storef32: {
-				auto           dst = to_op(b, i.arg[0]);
-				auto           src = to_op(b, i.arg[1]);
-				dst.mem.size       = 4;
-				constexpr auto mn  = USE_AVX ? ZYDIS_MNEMONIC_VMOVSS : ZYDIS_MNEMONIC_MOVSS;
-				LI_ASSERT(zy::encode(b->assembly, mn, dst, src));
-				break;
-			}
-			case vop::storef64: {
-				auto           dst = to_op(b, i.arg[0]);
-				auto           src = to_op(b, i.arg[1]);
-				constexpr auto mn  = USE_AVX ? ZYDIS_MNEMONIC_VMOVSD : ZYDIS_MNEMONIC_MOVSD;
-				LI_ASSERT(zy::encode(b->assembly, mn, dst, src));
-				break;
-			}
-			case vop::setcc: {
-				auto dst   = to_reg(b, i.out);
-				auto dstb  = zy::resize_reg(dst, 1);
-				auto setcc = flags[(msize_t) i.arg[0].reg.flag()].sets;
-				LI_ASSERT(zy::encode(b->assembly, setcc, dstb));
-				break;
-			}
-			case vop::select: {
-				// Get the flag ID.
-				//
-				msize_t flag;
-				if (i.arg[0].reg.is_flag()) {
-					flag = (msize_t) i.arg[0].reg.flag();
-				} else {
-					auto r  = to_reg(b, i.arg[0].reg);
-					auto rb = zy::resize_reg(r, 1);
-					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_TEST, rb, rb));
-					flag = (msize_t) FLAG_NZ;
-				}
 
-				// Swap conditions if output is aliasing true.
-				//
-				auto o = to_reg(b, i.out);
-				auto t = to_reg(b, i.arg[1].reg);
-				auto f = to_reg(b, i.arg[2].reg);
-				if (o == t) {
-					flag ^= 1;
-					std::swap(t, f);
+			void integer_shift(const minsn& instruction, ZydisMnemonic mnemonic) {
+				auto        size   = integer_size(instruction.width);
+				auto        output = to_reg(instruction.out, size);
+				const auto& count  = instruction.arg[1];
+				if (count.is_const()) {
+					mov_gp(to_reg(instruction.out), instruction.arg[0], size);
+					encode_or_throw(assembly, mnemonic, output, uint8_t(count.i64));
+					return;
 				}
+				if (!count.is_reg())
+					throw compile_error{};
 
-				if (i.out.is_gp()) {
-					// ? mov  o, f
-					//   cmov o, t
-					if (o != f)
-						LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, o, f));
-					LI_ASSERT(zy::encode(b->assembly, flags[flag].cmovs, o, t));
-				} else {
-					//VPBROADCASTB + VBLENDVPD ?
-					util::abort("FP select NYI.");
-				}
-				break;
+				// CL is the only variable-count shift input. Preserve an allocated RCX
+				// and use R11 when RCX itself is the destination.
+				encode_or_throw(assembly, ZYDIS_MNEMONIC_PUSH, zy::RCX);
+				auto    count_register       = to_reg(count.reg);
+				bool    output_aliases_count = output == zy::resize_reg(count_register, size);
+				zy::reg work                 = output == zy::resize_reg(zy::RCX, size) || output_aliases_count ? zy::resize_reg(gp_scratch, size) : output;
+				mov_gp(work, instruction.arg[0], size);
+				if (count_register != zy::RCX)
+					encode_or_throw(assembly, ZYDIS_MNEMONIC_MOV, zy::RCX, count_register);
+				encode_or_throw(assembly, mnemonic, work, zy::CL);
+				encode_or_throw(assembly, ZYDIS_MNEMONIC_POP, zy::RCX);
+				if (work != output)
+					encode_or_throw(assembly, ZYDIS_MNEMONIC_MOV, output, work);
 			}
-			case vop::fx32: {
-				auto dst = to_reg(b, i.out);
-				auto src = to_reg(b, i.arg[0].reg);
-				if constexpr (USE_AVX)
-					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_VCVTSD2SS, dst, dst, src));
+
+			void integer_divide(const minsn& instruction) {
+				auto size = integer_size(instruction.width);
+				if (size != 4 && size != 8)
+					throw compile_error{};
+				const auto& divisor = instruction.arg[1];
+				if (divisor.is_reg())
+					mov_gp(gp_scratch, divisor, size);
+				else if (divisor.is_const())
+					mov_gp(gp_scratch, divisor, size);
 				else
-					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_CVTSD2SS, dst, src));
-				break;
-			}
-			case vop::fx64: {
-				auto dst = to_reg(b, i.out);
-				auto src = to_reg(b, i.arg[0].reg);
-				if constexpr (USE_AVX)
-					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_VCVTSS2SD, dst, dst, src));
-				else
-					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_CVTSS2SD, dst, src));
-				break;
-			}
-			case vop::fcvt: {
-				auto dst = to_reg(b, i.out);
-				auto src = to_reg(b, i.arg[0].reg);
-				if constexpr (USE_AVX)
-					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_VCVTSI2SD, dst, dst, src));
-				else
-					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_CVTSI2SD, dst, src));
-				break;
-			}
-			case vop::icvt: {
-				auto dst = to_reg(b, i.out);
-				auto src = to_reg(b, i.arg[0].reg);
-				if constexpr (USE_AVX)
-					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_VCVTTSD2SI, dst, src));
-				else
-					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_CVTTSD2SI, dst, src));
-				break;
-			}
-			case vop::izx8: {
-				auto dst = zy::resize_reg(to_reg(b, i.out), 4);
-				auto src = zy::resize_reg(to_reg(b, i.arg[0].reg), 1);
-				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOVZX, dst, src));
-				break;
-			}
-			case vop::izx16: {
-				auto dst = zy::resize_reg(to_reg(b, i.out), 4);
-				auto src = zy::resize_reg(to_reg(b, i.arg[0].reg), 2);
-				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOVZX, dst, src));
-				break;
-			}
-			case vop::izx32: {
-				auto dst = zy::resize_reg(to_reg(b, i.out), 4);
-				auto src = zy::resize_reg(to_reg(b, i.arg[0].reg), 4);
-				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, dst, src));
-				break;
-			}
-			case vop::isx8: {
-				auto dst = zy::resize_reg(to_reg(b, i.out), 4);
-				auto src = zy::resize_reg(to_reg(b, i.arg[0].reg), 1);
-				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOVSX, dst, src));
-				break;
-			}
-			case vop::isx16: {
-				auto dst = zy::resize_reg(to_reg(b, i.out), 4);
-				auto src = zy::resize_reg(to_reg(b, i.arg[0].reg), 2);
-				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOVSX, dst, src));
-				break;
-			}
-			case vop::isx32: {
-				auto dst = to_reg(b, i.out);
-				auto src = zy::resize_reg(to_reg(b, i.arg[0].reg), 4);
-				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOVSXD, dst, src));
-				break;
-			}
-			case vop::js: {
-				// Get the flag ID.
-				//
-				msize_t flag;
-				if (i.arg[0].reg.is_flag()) {
-					flag = (msize_t) i.arg[0].reg.flag();
+					throw compile_error{};
+
+				encode_or_throw(assembly, ZYDIS_MNEMONIC_PUSH, zy::RAX);
+				encode_or_throw(assembly, ZYDIS_MNEMONIC_PUSH, zy::RDX);
+				mov_gp(zy::RAX, instruction.arg[0], size);
+				if (instruction.op == vop::iudiv) {
+					encode_or_throw(assembly, ZYDIS_MNEMONIC_XOR, zy::EDX, zy::EDX);
+				} else if (size == 8) {
+					encode_or_throw(assembly, ZYDIS_MNEMONIC_CQO);
 				} else {
-					auto r  = to_reg(b, i.arg[0].reg);
-					auto rb = zy::resize_reg(r, 1);
-					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_TEST, rb, rb));
-					flag = (msize_t) FLAG_NZ;
+					encode_or_throw(assembly, ZYDIS_MNEMONIC_CDQ);
 				}
-
-				// If true branch is closer to us, invert the condition.
-				//
-				arch::native_mnemonic mn           = flags[flag].js;
-				auto                  true_branch  = i.arg[1].i64;
-				auto                  false_branch = i.arg[2].i64;
-				if (true_branch == (b.uid + 1) || (false_branch != (b.uid + 1) && true_branch < false_branch)) {
-					std::swap(true_branch, false_branch);
-					mn = flags[flag].jns;
-				}
-
-				// Emit the JCC.
-				//
-				b->reloc_info.emplace_back(b->assembly.size(), true_branch);
-				LI_ASSERT(zy::encode(b->assembly, mn, MAGIC_RELOC_BRANCH));
-
-				// Emit the next JMP.
-				//
-				if (false_branch != (b.uid + 1)) {
-					b->reloc_info.emplace_back(b->assembly.size(), false_branch);
-					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_JMP, MAGIC_RELOC_BRANCH));
-				}
-				break;
+				encode_or_throw(assembly, instruction.op == vop::iudiv ? ZYDIS_MNEMONIC_DIV : ZYDIS_MNEMONIC_IDIV, zy::resize_reg(gp_scratch, size));
+				auto result = instruction.op == vop::imod ? zy::resize_reg(zy::RDX, size) : zy::resize_reg(zy::RAX, size);
+				encode_or_throw(assembly, ZYDIS_MNEMONIC_MOV, zy::resize_reg(gp_scratch, size), result);
+				encode_or_throw(assembly, ZYDIS_MNEMONIC_POP, zy::RDX);
+				encode_or_throw(assembly, ZYDIS_MNEMONIC_POP, zy::RAX);
+				mov_gp(to_reg(instruction.out), mreg(arch::r11), size);
 			}
-			case vop::jmp:
-				if (i.arg[0].i64 != (b.uid + 1)) {
-					b->reloc_info.emplace_back(b->assembly.size(), i.arg[0].i64);
-					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_JMP, MAGIC_RELOC_BRANCH));
-				}
-				break;
-			case vop::ret: {
-				LI_ASSERT(i.arg[0].reg == preg(arch::from_native(arch::gp_retval)));
-				b->assembly.insert(b->assembly.end(), b->epilogue.begin(), b->epilogue.end());
-				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_RET));
-				break;
-			}
-			case vop::null:
-				break;
-			case vop::unreachable:
-				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_UD2));
-				break;
-			case vop::call: {
-				auto target = to_op(b, i.arg[0]);
-				if (target.type == ZYDIS_OPERAND_TYPE_IMMEDIATE) {
-					LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_MOV, zy::RAX, target));
-					target = zy::to_encoder_op(zy::RAX);
-				}
-				LI_ASSERT(zy::encode(b->assembly, ZYDIS_MNEMONIC_CALL, target));
-				break;
-			}
-			default:
-				util::abort("NYI");
-				break;
-		}
-	}
 
-	// Assembles the pseudo-target instructions in the IR.
-	//
-	jfunction* assemble_ir(mprocedure* proc) {
-		// Sort the blocks by name.
-		//
-		proc->basic_blocks.sort([](mblock& a, mblock& b) { return a.uid < b.uid; });
-
-		// Generate the epilogue and prologue.
-		//
-		{
-			auto& prologue = proc->assembly;
-			auto& epilogue = proc->epilogue;
-
-			prologue.emplace_back(0x90);
-
-			// Push non-vol GPs.
-			//
-			size_t push_count = 0;
-			for (size_t i = std::size(arch::gp_volatile); i != arch::num_gp_reg; i++) {
-				if ((proc->used_gp_mask >> i) & 1) {
-					push_count++;
-					auto reg = arch::gp_nonvolatile[i - std::size(arch::gp_volatile)];
-					LI_ASSERT(zy::encode(prologue, ZYDIS_MNEMONIC_PUSH, reg));
+			static ZydisMnemonic integer_setcc(cond condition) {
+				switch (condition) {
+					case cond::eq:
+						return ZYDIS_MNEMONIC_SETZ;
+					case cond::ne:
+						return ZYDIS_MNEMONIC_SETNZ;
+					case cond::slt:
+						return ZYDIS_MNEMONIC_SETL;
+					case cond::sle:
+						return ZYDIS_MNEMONIC_SETLE;
+					case cond::sgt:
+						return ZYDIS_MNEMONIC_SETNLE;
+					case cond::sge:
+						return ZYDIS_MNEMONIC_SETNL;
+					case cond::ult:
+						return ZYDIS_MNEMONIC_SETB;
+					case cond::ule:
+						return ZYDIS_MNEMONIC_SETBE;
+					case cond::ugt:
+						return ZYDIS_MNEMONIC_SETNBE;
+					case cond::uge:
+						return ZYDIS_MNEMONIC_SETNB;
+					default:
+						throw compile_error{};
 				}
 			}
 
-			// Allocate space and align stack.
-			//
-			int  num_fp_used = std::popcount(proc->used_fp_mask >> std::size(arch::fp_volatile));
-			auto alloc_bytes = num_fp_used * 0x10 + ((proc->used_stack_length + 0xF) & ~0xF);
-			auto fp_save_end = alloc_bytes;
-			alloc_bytes += (push_count & 1) ? 0x0 : 0x8;
-			LI_ASSERT(zy::encode(prologue, ZYDIS_MNEMONIC_SUB, arch::sp, alloc_bytes));
-
-			// Save vector registers.
-			//
-			constexpr auto vector_move = USE_AVX ? ZYDIS_MNEMONIC_VMOVAPS : ZYDIS_MNEMONIC_MOVAPS;
-			zy::mem vsave_it{.size = 0x10, .base = arch::sp, .disp = fp_save_end};
-			for (size_t i = std::size(arch::fp_volatile); i != arch::num_fp_reg; i++) {
-				if ((proc->used_fp_mask >> i) & 1) {
-					vsave_it.disp -= 0x10;
-					LI_ASSERT(zy::encode(prologue, vector_move, vsave_it, arch::fp_nonvolatile[i - std::size(arch::fp_volatile)]));
-				}
-			}
-
-			// Allocate VM stack.
-			//
-			LI_ASSERT(zy::encode(prologue, ZYDIS_MNEMONIC_ADD, zy::mem{.size = 8, .base = arch::gp_argument[0], .disp = offsetof(vm, stack_top)}, (proc->max_stack_slot - FRAME_SIZE) * 8));
-
-			// Generate the opposite as epilogue.
-			//
-			vsave_it.disp = fp_save_end;
-			for (size_t i = std::size(arch::fp_volatile); i != arch::num_fp_reg; i++) {
-				if ((proc->used_fp_mask >> i) & 1) {
-					vsave_it.disp -= 0x10;
-					LI_ASSERT(zy::encode(epilogue, vector_move, arch::fp_nonvolatile[i - std::size(arch::fp_volatile)], vsave_it));
-				}
-			}
-			LI_ASSERT(zy::encode(epilogue, ZYDIS_MNEMONIC_ADD, arch::sp, alloc_bytes));
-			for (size_t i = arch::num_gp_reg - 1; i >= std::size(arch::gp_volatile); i--) {
-				if ((proc->used_gp_mask >> i) & 1) {
-					auto reg = arch::gp_nonvolatile[i - std::size(arch::gp_volatile)];
-					LI_ASSERT(zy::encode(epilogue, ZYDIS_MNEMONIC_POP, reg));
-				}
-			}
-		}
-
-		// Assemble all instructions.
-		//
-		for (auto& b : proc->basic_blocks) {
-			b.asm_loc = proc->assembly.size();
-			for (auto& i : b.instructions) {
-				if (i.is_virtual) {
-					assemble_virtual(b, i);
+			void integer_compare(const minsn& instruction) {
+				auto        size = integer_size(instruction.width);
+				const auto& lhs  = instruction.arg[0];
+				zy::reg     left;
+				if (lhs.is_reg()) {
+					left = to_reg(lhs.reg, size);
 				} else {
-					assemble_native(b, i);
+					mov_gp(gp_scratch, lhs, size);
+					left = zy::resize_reg(gp_scratch, size);
+				}
+				const auto& rhs = instruction.arg[1];
+				if (left == zy::resize_reg(gp_scratch, size) && rhs.is_const() && size == 8 && rhs.i64 != int32_t(rhs.i64)) {
+					encode_or_throw(assembly, ZYDIS_MNEMONIC_PUSH, zy::RAX);
+					encode_or_throw(assembly, ZYDIS_MNEMONIC_MOV, zy::RAX, rhs.i64);
+					encode_or_throw(assembly, ZYDIS_MNEMONIC_CMP, left, zy::RAX);
+					encode_or_throw(assembly, ZYDIS_MNEMONIC_POP, zy::RAX);
+				} else {
+					encode_or_throw(assembly, ZYDIS_MNEMONIC_CMP, left, gp_rhs(rhs, size));
+				}
+				auto output  = to_reg(instruction.out);
+				auto output8 = zy::resize_reg(output, 1);
+				encode_or_throw(assembly, integer_setcc(cond(instruction.arg[2].i64)), output8);
+				encode_or_throw(assembly, ZYDIS_MNEMONIC_MOVZX, zy::resize_reg(output, 4), output8);
+			}
+
+			void floating_binary(const minsn& instruction, ZydisMnemonic mnemonic, bool commutative) {
+				auto        output      = to_reg(instruction.out);
+				const auto& lhs_operand = instruction.arg[0];
+				const auto& rhs_operand = instruction.arg[1];
+
+				if (!rhs_operand.is_reg()) {
+					mov_fp(output, lhs_operand, instruction.width);
+					mov_fp(fp_scratch, rhs_operand, instruction.width);
+					encode_or_throw(assembly, mnemonic, output, fp_scratch);
+					return;
+				}
+
+				auto rhs = to_reg(rhs_operand.reg);
+				if (!lhs_operand.is_reg()) {
+					if (output == rhs) {
+						mov_fp(fp_scratch, lhs_operand, instruction.width);
+						encode_or_throw(assembly, mnemonic, fp_scratch, rhs);
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_MOVAPS, output, fp_scratch);
+					} else {
+						mov_fp(output, lhs_operand, instruction.width);
+						encode_or_throw(assembly, mnemonic, output, rhs);
+					}
+					return;
+				}
+
+				auto lhs = to_reg(lhs_operand.reg);
+				if (output == lhs) {
+					encode_or_throw(assembly, mnemonic, output, rhs);
+				} else if (commutative && output == rhs) {
+					encode_or_throw(assembly, mnemonic, output, lhs);
+				} else if (output == rhs) {
+					encode_or_throw(assembly, ZYDIS_MNEMONIC_MOVAPS, fp_scratch, lhs);
+					encode_or_throw(assembly, mnemonic, fp_scratch, rhs);
+					encode_or_throw(assembly, ZYDIS_MNEMONIC_MOVAPS, output, fp_scratch);
+				} else {
+					encode_or_throw(assembly, ZYDIS_MNEMONIC_MOVAPS, output, lhs);
+					encode_or_throw(assembly, mnemonic, output, rhs);
 				}
 			}
-		}
 
-		// Allocate the code, cache-line align the assembly and append the constant pool.
-		//
-		vm*        L            = proc->source->L;
-		size_t     asm_length   = (proc->assembly.size() + 63) & ~63;
-		size_t     cpool_length = proc->const_pool.size() * sizeof(any);
-		jfunction* out          = L->alloc<jfunction>(asm_length + cpool_length);
-		memcpy(&out->code[0], proc->assembly.data(), proc->assembly.size());
-		memset(&out->code[proc->assembly.size()], 0xCC, asm_length - proc->assembly.size());
-		memcpy(&out->code[asm_length], proc->const_pool.data(), cpool_length);
-
-		// Apply the relocations.
-		//
-		for (auto& [src, dst] : proc->reloc_info) {
-			auto bytes = std::span<const uint8_t>(out->code, asm_length).subspan(src);
-
-			auto input = bytes;
-			auto dec   = zy::decode(input);
-			LI_ASSERT(dec.has_value());
-
-			auto* rip = bytes.data() + dec->ins.length;
-			auto& rel = *(int32_t*) (bytes.data() + (dec->ins.raw.disp.offset ? dec->ins.raw.disp.offset : dec->ins.raw.imm->offset));
-
-			void* target = nullptr;
-			if (rel == MAGIC_RELOC_CPOOL) {
-				target = out->code + asm_length - dst;
-			} else if (rel == MAGIC_RELOC_BRANCH) {
-				auto bb = range::find_if(proc->basic_blocks, [dst=dst](mblock& m) { return m.uid == dst; });
-				LI_ASSERT(bb != proc->basic_blocks.end());
-				target = out->code + bb->asm_loc;
-			} else {
-				util::abort("invalid reloc");
+			void floating_sign_bit(const minsn& instruction, bool clear) {
+				auto size   = instruction.width == mwidth::f32 ? 4 : 8;
+				auto bit    = instruction.width == mwidth::f32 ? 31 : 63;
+				auto input  = to_reg(instruction.arg[0].reg);
+				auto output = to_reg(instruction.out);
+				encode_or_throw(assembly, instruction.width == mwidth::f32 ? ZYDIS_MNEMONIC_MOVD : ZYDIS_MNEMONIC_MOVQ, zy::resize_reg(gp_scratch, size), input);
+				encode_or_throw(assembly, clear ? ZYDIS_MNEMONIC_BTR : ZYDIS_MNEMONIC_BTC, zy::resize_reg(gp_scratch, size), uint8_t(bit));
+				encode_or_throw(assembly, instruction.width == mwidth::f32 ? ZYDIS_MNEMONIC_MOVD : ZYDIS_MNEMONIC_MOVQ, output, zy::resize_reg(gp_scratch, size));
 			}
 
-			intptr_t disp = intptr_t(target) - intptr_t(rip);
-			LI_ASSERT(int32_t(disp) == disp);
-			rel = int32_t(disp);
-		}
+			void floating_copysign(const minsn& instruction) {
+				auto size   = instruction.width == mwidth::f32 ? 4 : 8;
+				auto bit    = instruction.width == mwidth::f32 ? 31 : 63;
+				auto move   = instruction.width == mwidth::f32 ? ZYDIS_MNEMONIC_MOVD : ZYDIS_MNEMONIC_MOVQ;
+				auto output = to_reg(instruction.out);
 
-		// Notify VTune.
-		//
-	#if LI_VTUNE
-		iJIT_Method_Load mload;
-		memset(&mload, 0, sizeof(iJIT_Method_Load));
-		mload.method_id           = iJIT_GetNewMethodID();
-		mload.method_load_address = &out->code[0];
-		mload.method_size         = (uint32_t) asm_length;
-		mload.method_name         = (char*) "Lightning JIT Code";
-		out->uid                  = mload.method_id;
-		iJIT_NotifyEvent(iJVM_EVENT_TYPE_METHOD_LOAD_FINISHED, &mload);
-		// TODO: Line info.
+				// Capture the sign before touching the output; output may alias either input.
+				encode_or_throw(assembly, move, zy::resize_reg(gp_scratch, size), to_reg(instruction.arg[1].reg));
+				encode_or_throw(assembly, ZYDIS_MNEMONIC_SHR, zy::resize_reg(gp_scratch, size), uint8_t(bit));
+				encode_or_throw(assembly, ZYDIS_MNEMONIC_SHL, zy::resize_reg(gp_scratch, size), uint8_t(bit));
+				encode_or_throw(assembly, move, fp_scratch, zy::resize_reg(gp_scratch, size));
+
+				encode_or_throw(assembly, move, zy::resize_reg(gp_scratch, size), to_reg(instruction.arg[0].reg));
+				encode_or_throw(assembly, ZYDIS_MNEMONIC_BTR, zy::resize_reg(gp_scratch, size), uint8_t(bit));
+				encode_or_throw(assembly, move, output, zy::resize_reg(gp_scratch, size));
+				encode_or_throw(assembly, instruction.width == mwidth::f32 ? ZYDIS_MNEMONIC_ORPS : ZYDIS_MNEMONIC_ORPD, output, fp_scratch);
+			}
+
+			void floating_minmax(const minsn& instruction) {
+				auto lhs           = to_reg(instruction.arg[0].reg);
+				auto rhs           = to_reg(instruction.arg[1].reg);
+				auto scalar_minmax = instruction.op == vop::fmin ? (instruction.width == mwidth::f32 ? ZYDIS_MNEMONIC_MINSS : ZYDIS_MNEMONIC_MINSD)
+																				 : (instruction.width == mwidth::f32 ? ZYDIS_MNEMONIC_MAXSS : ZYDIS_MNEMONIC_MAXSD);
+				auto compare       = instruction.width == mwidth::f32 ? ZYDIS_MNEMONIC_UCOMISS : ZYDIS_MNEMONIC_UCOMISD;
+				encode_or_throw(assembly, ZYDIS_MNEMONIC_MOVAPS, fp_scratch, lhs);
+				encode_or_throw(assembly, scalar_minmax, fp_scratch, rhs);
+
+				// x86 MIN/MAX returns the second operand for every unordered compare.
+				// C fmin/fmax instead returns the numeric operand when exactly one is NaN.
+				encode_or_throw(assembly, compare, rhs, rhs);
+				std::vector<uint8_t> restore_lhs;
+				encode_or_throw(restore_lhs, ZYDIS_MNEMONIC_MOVAPS, fp_scratch, lhs);
+				append_guarded(assembly, ZYDIS_MNEMONIC_JNP, restore_lhs);
+
+				// Equal zeros need deterministic IEEE signs: OR yields -0 for fmin,
+				// AND yields +0 for fmax. Skip this correction for unordered inputs.
+				encode_or_throw(assembly, compare, lhs, rhs);
+				std::vector<uint8_t> combine_equal;
+				encode_or_throw(combine_equal,
+					 instruction.op == vop::fmin ? (instruction.width == mwidth::f32 ? ZYDIS_MNEMONIC_ORPS : ZYDIS_MNEMONIC_ORPD)
+														  : (instruction.width == mwidth::f32 ? ZYDIS_MNEMONIC_ANDPS : ZYDIS_MNEMONIC_ANDPD),
+					 fp_scratch, lhs);
+				std::vector<uint8_t> equal_only;
+				append_guarded(equal_only, ZYDIS_MNEMONIC_JNZ, combine_equal);
+				append_guarded(assembly, ZYDIS_MNEMONIC_JP, equal_only);
+				encode_or_throw(assembly, ZYDIS_MNEMONIC_MOVAPS, to_reg(instruction.out), fp_scratch);
+			}
+
+			void emit_setcc32(ZydisMnemonic mnemonic, zy::reg output) {
+				auto byte = zy::resize_reg(output, 1);
+				encode_or_throw(assembly, mnemonic, byte);
+				encode_or_throw(assembly, ZYDIS_MNEMONIC_MOVZX, zy::resize_reg(output, 4), byte);
+			}
+
+			void floating_compare(const minsn& instruction) {
+				auto lhs = to_reg(instruction.arg[0].reg);
+				auto rhs = to_reg(instruction.arg[1].reg);
+				encode_or_throw(assembly, instruction.width == mwidth::f32 ? ZYDIS_MNEMONIC_UCOMISS : ZYDIS_MNEMONIC_UCOMISD, lhs, rhs);
+				auto output    = to_reg(instruction.out);
+				auto condition = cond(instruction.arg[2].i64);
+				switch (condition) {
+					case cond::eq:
+					case cond::slt:
+					case cond::sle:
+					case cond::ult:
+					case cond::ule: {
+						ZydisMnemonic relation = condition == cond::eq                                ? ZYDIS_MNEMONIC_SETZ
+														 : (condition == cond::slt || condition == cond::ult) ? ZYDIS_MNEMONIC_SETB
+																																: ZYDIS_MNEMONIC_SETBE;
+						emit_setcc32(relation, output);
+						emit_setcc32(ZYDIS_MNEMONIC_SETNP, gp_scratch);
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_AND, zy::resize_reg(output, 4), zy::R11D);
+						break;
+					}
+					case cond::ne:
+						emit_setcc32(ZYDIS_MNEMONIC_SETNZ, output);
+						emit_setcc32(ZYDIS_MNEMONIC_SETP, gp_scratch);
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_OR, zy::resize_reg(output, 4), zy::R11D);
+						break;
+					case cond::sgt:
+					case cond::ugt:
+						emit_setcc32(ZYDIS_MNEMONIC_SETNBE, output);
+						break;
+					case cond::sge:
+					case cond::uge:
+						emit_setcc32(ZYDIS_MNEMONIC_SETNB, output);
+						break;
+					case cond::ordered:
+						emit_setcc32(ZYDIS_MNEMONIC_SETNP, output);
+						break;
+					case cond::unordered:
+						emit_setcc32(ZYDIS_MNEMONIC_SETP, output);
+						break;
+				}
+			}
+
+			void assemble_instruction(const minsn& instruction, msize_t next_block) {
+				switch (instruction.op) {
+					case vop::null:
+						return;
+					case vop::movi: {
+						auto output = to_reg(instruction.out);
+						if (instruction.arg[0].is_reg() && instruction.arg[0].reg.is_fp())
+							move_fp_to_gp(output, to_reg(instruction.arg[0].reg), instruction.width == mwidth::i32 ? mwidth::f32 : mwidth::f64);
+						else
+							mov_gp(output, instruction.arg[0], integer_size(instruction.width));
+						return;
+					}
+					case vop::movf:
+						mov_fp(to_reg(instruction.out), instruction.arg[0], instruction.width);
+						return;
+					case vop::izx8:
+					case vop::izx16: {
+						auto source_size = instruction.op == vop::izx8 ? 1 : 2;
+						auto output      = to_reg(instruction.out);
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_MOVZX, zy::resize_reg(output, 4), to_reg(instruction.arg[0].reg, source_size));
+						return;
+					}
+					case vop::izx32:
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_MOV, to_reg(instruction.out, 4), to_reg(instruction.arg[0].reg, 4));
+						return;
+					case vop::isx8:
+					case vop::isx16: {
+						auto source_size = instruction.op == vop::isx8 ? 1 : 2;
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_MOVSX, to_reg(instruction.out), to_reg(instruction.arg[0].reg, source_size));
+						return;
+					}
+					case vop::isx32:
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_MOVSXD, to_reg(instruction.out), to_reg(instruction.arg[0].reg, 4));
+						return;
+					case vop::fx32:
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_CVTSD2SS, to_reg(instruction.out), to_reg(instruction.arg[0].reg));
+						return;
+					case vop::fx64:
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_CVTSS2SD, to_reg(instruction.out), to_reg(instruction.arg[0].reg));
+						return;
+					case vop::fcvt: {
+						auto source_size = instruction.width == mwidth::i64 ? 8 : 4;
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_CVTSI2SD, to_reg(instruction.out), to_reg(instruction.arg[0].reg, source_size));
+						return;
+					}
+					case vop::icvt: {
+						auto output           = to_reg(instruction.out);
+						auto destination_size = instruction.width == mwidth::i64 ? 8 : 4;
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_CVTTSD2SI, zy::resize_reg(output, destination_size), to_reg(instruction.arg[0].reg));
+						if (instruction.width == mwidth::i8)
+							encode_or_throw(assembly, ZYDIS_MNEMONIC_MOVSX, output, zy::resize_reg(output, 1));
+						else if (instruction.width == mwidth::i16)
+							encode_or_throw(assembly, ZYDIS_MNEMONIC_MOVSX, output, zy::resize_reg(output, 2));
+						else if (instruction.width == mwidth::i32)
+							encode_or_throw(assembly, ZYDIS_MNEMONIC_MOVSXD, output, zy::resize_reg(output, 4));
+						return;
+					}
+
+					case vop::loadi8:
+					case vop::loadi16: {
+						auto size = integer_size(instruction.width);
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_MOVZX, to_reg(instruction.out, 4), to_mem(instruction.arg[0].mem, size));
+						return;
+					}
+					case vop::loadi32:
+					case vop::loadi64: {
+						auto size = integer_size(instruction.width);
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_MOV, to_reg(instruction.out, size), to_mem(instruction.arg[0].mem, size));
+						return;
+					}
+					case vop::loadf32:
+					case vop::loadf64:
+						encode_or_throw(assembly, instruction.width == mwidth::f32 ? ZYDIS_MNEMONIC_MOVSS : ZYDIS_MNEMONIC_MOVSD, to_reg(instruction.out),
+							 to_mem(instruction.arg[0].mem, scalar_size(instruction.width)));
+						return;
+					case vop::storei8:
+					case vop::storei16:
+					case vop::storei32:
+					case vop::storei64: {
+						auto size = integer_size(instruction.width);
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_MOV, to_mem(instruction.arg[0].mem, size), to_reg(instruction.arg[1].reg, size));
+						return;
+					}
+					case vop::storef32:
+					case vop::storef64:
+						encode_or_throw(assembly, instruction.width == mwidth::f32 ? ZYDIS_MNEMONIC_MOVSS : ZYDIS_MNEMONIC_MOVSD,
+							 to_mem(instruction.arg[0].mem, scalar_size(instruction.width)), to_reg(instruction.arg[1].reg));
+						return;
+
+					case vop::iadd:
+						integer_binary(instruction, ZYDIS_MNEMONIC_ADD, true);
+						return;
+					case vop::isub:
+						integer_binary(instruction, ZYDIS_MNEMONIC_SUB, false);
+						return;
+					case vop::imul:
+						integer_binary(instruction, ZYDIS_MNEMONIC_IMUL, true);
+						return;
+					case vop::iand:
+						integer_binary(instruction, ZYDIS_MNEMONIC_AND, true);
+						return;
+					case vop::ior:
+						integer_binary(instruction, ZYDIS_MNEMONIC_OR, true);
+						return;
+					case vop::ixor:
+						integer_binary(instruction, ZYDIS_MNEMONIC_XOR, true);
+						return;
+					case vop::ineg:
+						integer_unary(instruction, ZYDIS_MNEMONIC_NEG);
+						return;
+					case vop::inot:
+						integer_unary(instruction, ZYDIS_MNEMONIC_NOT);
+						return;
+					case vop::ishl:
+						integer_shift(instruction, ZYDIS_MNEMONIC_SHL);
+						return;
+					case vop::ishr:
+						integer_shift(instruction, ZYDIS_MNEMONIC_SHR);
+						return;
+					case vop::isar:
+						integer_shift(instruction, ZYDIS_MNEMONIC_SAR);
+						return;
+					case vop::idiv:
+					case vop::iudiv:
+					case vop::imod:
+						integer_divide(instruction);
+						return;
+
+					case vop::fadd:
+						floating_binary(instruction, instruction.width == mwidth::f32 ? ZYDIS_MNEMONIC_ADDSS : ZYDIS_MNEMONIC_ADDSD, true);
+						return;
+					case vop::fsub:
+						floating_binary(instruction, instruction.width == mwidth::f32 ? ZYDIS_MNEMONIC_SUBSS : ZYDIS_MNEMONIC_SUBSD, false);
+						return;
+					case vop::fmul:
+						floating_binary(instruction, instruction.width == mwidth::f32 ? ZYDIS_MNEMONIC_MULSS : ZYDIS_MNEMONIC_MULSD, true);
+						return;
+					case vop::fdiv:
+						floating_binary(instruction, instruction.width == mwidth::f32 ? ZYDIS_MNEMONIC_DIVSS : ZYDIS_MNEMONIC_DIVSD, false);
+						return;
+					case vop::fneg:
+						floating_sign_bit(instruction, false);
+						return;
+					case vop::fabs:
+						floating_sign_bit(instruction, true);
+						return;
+					case vop::fsqrt:
+						encode_or_throw(assembly, instruction.width == mwidth::f32 ? ZYDIS_MNEMONIC_SQRTSS : ZYDIS_MNEMONIC_SQRTSD, to_reg(instruction.out),
+							 to_reg(instruction.arg[0].reg));
+						return;
+					case vop::fround: {
+						uint8_t mode;
+						switch (round_mode(instruction.arg[1].i64)) {
+							case round_mode::nearest:
+								mode = 0;
+								break;
+							case round_mode::down:
+								mode = 1;
+								break;
+							case round_mode::up:
+								mode = 2;
+								break;
+							case round_mode::toward_zero:
+								mode = 3;
+								break;
+						}
+						encode_or_throw(assembly, instruction.width == mwidth::f32 ? ZYDIS_MNEMONIC_ROUNDSS : ZYDIS_MNEMONIC_ROUNDSD, to_reg(instruction.out),
+							 to_reg(instruction.arg[0].reg), uint8_t(mode | 8));
+						return;
+					}
+					case vop::fmin:
+					case vop::fmax:
+						floating_minmax(instruction);
+						return;
+					case vop::fcopysign:
+						floating_copysign(instruction);
+						return;
+					case vop::icmp:
+						integer_compare(instruction);
+						return;
+					case vop::fcmp:
+						floating_compare(instruction);
+						return;
+					case vop::lea:
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_LEA, to_reg(instruction.out), to_mem(instruction.arg[0].mem, 8));
+						return;
+					case vop::crc32:
+						integer_binary(instruction, ZYDIS_MNEMONIC_CRC32, false);
+						return;
+					case vop::rdcycle: {
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_PUSH, zy::RAX);
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_PUSH, zy::RDX);
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_RDTSC);
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_SHL, zy::RDX, uint8_t(32));
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_OR, zy::RAX, zy::RDX);
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_MOV, gp_scratch, zy::RAX);
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_POP, zy::RDX);
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_POP, zy::RAX);
+						mov_gp(to_reg(instruction.out), mreg(arch::r11));
+						return;
+					}
+
+					case vop::select: {
+						auto condition = to_reg(instruction.arg[0].reg, 1);
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_TEST, condition, condition);
+						if (instruction.out.is_gp()) {
+							mov_gp(gp_scratch, instruction.arg[2], integer_size(instruction.width));
+							encode_or_throw(assembly, ZYDIS_MNEMONIC_CMOVNZ, zy::resize_reg(gp_scratch, integer_size(instruction.width)),
+								 to_reg(instruction.arg[1].reg, integer_size(instruction.width)));
+							mov_gp(to_reg(instruction.out), mreg(arch::r11), integer_size(instruction.width));
+						} else {
+							encode_or_throw(assembly, ZYDIS_MNEMONIC_MOVAPS, fp_scratch, to_reg(instruction.arg[2].reg));
+							std::vector<uint8_t> true_move;
+							encode_or_throw(true_move, ZYDIS_MNEMONIC_MOVAPS, fp_scratch, to_reg(instruction.arg[1].reg));
+							append_guarded(assembly, ZYDIS_MNEMONIC_JZ, true_move);
+							encode_or_throw(assembly, ZYDIS_MNEMONIC_MOVAPS, to_reg(instruction.out), fp_scratch);
+						}
+						return;
+					}
+					case vop::call: {
+						if (instruction.arg[0].is_const()) {
+							encode_or_throw(assembly, ZYDIS_MNEMONIC_MOV, gp_scratch, instruction.arg[0].i64);
+							encode_or_throw(assembly, ZYDIS_MNEMONIC_CALL, gp_scratch);
+						} else if (instruction.arg[0].is_reg()) {
+							encode_or_throw(assembly, ZYDIS_MNEMONIC_CALL, to_reg(instruction.arg[0].reg));
+						} else {
+							throw compile_error{};
+						}
+						return;
+					}
+					case vop::js: {
+						auto condition = to_reg(instruction.arg[0].reg, 1);
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_TEST, condition, condition);
+						auto true_block  = msize_t(instruction.arg[1].i64);
+						auto false_block = msize_t(instruction.arg[2].i64);
+						if (false_block == next_block) {
+							emit_branch32(ZYDIS_MNEMONIC_JNZ, true_block);
+						} else if (true_block == next_block) {
+							emit_branch32(ZYDIS_MNEMONIC_JZ, false_block);
+						} else {
+							emit_branch32(ZYDIS_MNEMONIC_JNZ, true_block);
+							emit_branch32(ZYDIS_MNEMONIC_JMP, false_block);
+						}
+						return;
+					}
+					case vop::jmp:
+						if (msize_t(instruction.arg[0].i64) != next_block)
+							emit_branch32(ZYDIS_MNEMONIC_JMP, msize_t(instruction.arg[0].i64));
+						return;
+					case vop::ret:
+						LI_ASSERT(instruction.arg[0].reg == mreg(arch::gp_retval));
+						assembly.insert(assembly.end(), epilogue.begin(), epilogue.end());
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_RET);
+						return;
+					case vop::unreachable:
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_UD2);
+						return;
+				}
+				throw compile_error{};
+			}
+
+			void build_frame() {
+				assembly.push_back(0x90);  // stable one-byte breakpoint site
+
+				std::vector<arch::reg> saved_gp;
+				for (auto reg : arch::gp_nonvolatile) {
+					if (proc.used_gp_mask & arch::mask_of(reg)) {
+						saved_gp.push_back(reg);
+						encode_or_throw(assembly, ZYDIS_MNEMONIC_PUSH, to_reg(mreg(reg)));
+					}
+				}
+
+				std::vector<arch::reg> saved_fp;
+				for (auto reg : arch::fp_nonvolatile) {
+					if (proc.used_fp_mask & arch::mask_of(reg))
+						saved_fp.push_back(reg);
+				}
+	#if LI_ABI_MS64
+				// XMM15 is reserved selector scratch and nonvolatile on Win64.
+				saved_fp.push_back(arch::xmm15);
 	#endif
-		return out;
-	}
-};
 
-void li::gc::destroy(vm* L, jfunction* o) {
-#if LI_VTUNE
-	iJIT_Method_Load mload;
-	memset(&mload, 0, sizeof(iJIT_Method_Load));
-	mload.method_id = o->uid;
-	iJIT_NotifyEvent(iJVM_EVENT_TYPE_METHOD_UNLOAD_START, &mload);
-#endif
+				auto outgoing_bytes = (size_t(proc.used_stack_length) + arch::stack_alignment - 1) & ~(arch::stack_alignment - 1);
+				auto save_bytes     = saved_fp.size() * 16;
+				auto frame_bytes    = outgoing_bytes + save_bytes;
+				auto entry_mod      = size_t(8 - 8 * saved_gp.size()) & (arch::stack_alignment - 1);
+				auto padding        = (entry_mod - frame_bytes) & (arch::stack_alignment - 1);
+				auto allocation     = frame_bytes + padding;
+
+				// CALL has already pushed its return address. The generated prologue
+				// then pushes every GP callee-save and reserves one aligned area for
+				// outgoing arguments, allocator spills, and FP callee-saves.
+				native_stack_requirement = sizeof(uintptr_t) + saved_gp.size() * sizeof(uint64_t) + allocation;
+				if (allocation)
+					encode_or_throw(assembly, ZYDIS_MNEMONIC_SUB, zy::RSP, allocation);
+
+				intptr_t save_cursor = intptr_t(outgoing_bytes + save_bytes);
+				for (auto reg : saved_fp) {
+					save_cursor -= 16;
+					encode_or_throw(assembly, ZYDIS_MNEMONIC_MOVAPS, zy::mem{.size = 16, .base = zy::RSP, .disp = save_cursor}, to_reg(mreg(reg)));
+				}
+
+				for (auto it = saved_fp.rbegin(); it != saved_fp.rend(); ++it) {
+					encode_or_throw(epilogue, ZYDIS_MNEMONIC_MOVAPS, to_reg(mreg(*it)), zy::mem{.size = 16, .base = zy::RSP, .disp = save_cursor});
+					save_cursor += 16;
+				}
+				if (allocation)
+					encode_or_throw(epilogue, ZYDIS_MNEMONIC_ADD, zy::RSP, allocation);
+				for (auto it = saved_gp.rbegin(); it != saved_gp.rend(); ++it)
+					encode_or_throw(epilogue, ZYDIS_MNEMONIC_POP, to_reg(mreg(*it)));
+			}
+
+		  public:
+			explicit x86_assembler(mprocedure& procedure) : proc(procedure) {}
+
+			jfunction* assemble() {
+				proc.basic_blocks.sort([](const mblock& lhs, const mblock& rhs) { return lhs.uid < rhs.uid; });
+				build_frame();
+				for (auto block_it = proc.basic_blocks.begin(); block_it != proc.basic_blocks.end(); ++block_it) {
+					auto& block      = *block_it;
+					auto  next_it    = std::next(block_it);
+					auto  next_block = next_it == proc.basic_blocks.end() ? std::numeric_limits<msize_t>::max() : next_it->uid;
+					block.asm_loc    = assembly.size();
+					for (const auto& instruction : block.instructions)
+						assemble_instruction(instruction, next_block);
+				}
+
+				std::unordered_map<msize_t, size_t> block_offsets;
+				for (const auto& block : proc.basic_blocks)
+					block_offsets.emplace(block.uid, block.asm_loc);
+				for (const auto& entry : relocations) {
+					if (entry.kind != relocation_kind::branch32 || entry.byte_offset > assembly.size() || assembly.size() - entry.byte_offset < sizeof(int32_t))
+						throw compile_error{"invalid x86 branch32 relocation at byte " + std::to_string(entry.byte_offset)};
+					auto target = block_offsets.find(entry.target_block);
+					if (target == block_offsets.end())
+						throw compile_error{"x86 branch32 relocation targets missing block " + std::to_string(entry.target_block)};
+					intptr_t displacement = intptr_t(target->second) + entry.addend - intptr_t(entry.byte_offset + sizeof(int32_t));
+					if (int32_t(displacement) != displacement)
+						throw compile_error{"x86 branch32 relocation displacement out of range: " + std::to_string(displacement)};
+					int32_t value = int32_t(displacement);
+					memcpy(assembly.data() + entry.byte_offset, &value, sizeof(value));
+				}
+
+				if (assembly.empty())
+					throw compile_error{};
+				std::error_code error;
+				auto            memory = platform::code_memory::allocate(assembly.size(), error);
+				if (error)
+					throw compile_error{code_memory_failure("allocation", error)};
+				if (error = memory.write(0, std::as_bytes(std::span(assembly))); error)
+					throw compile_error{code_memory_failure("write", error)};
+				if (error = memory.publish(); error)
+					throw compile_error{code_memory_failure("publication", error)};
+				auto* result = jfunction::create(proc.source->L, proc.source->f, std::move(memory),
+					 jfunction::layout{
+						  .code_size          = assembly.size(),
+						  .native_stack_bytes = native_stack_requirement,
+						  .vm_stack_slots     = size_t(proc.source->f->num_locals) + size_t(proc.source->max_stack_slot),
+						  .osr_target         = proc.source->osr_target,
+					 },
+					 proc.const_pool, std::move(proc.source->inline_caches));
+
+	#if LI_VTUNE
+				iJIT_Method_Load event    = {};
+				event.method_id           = iJIT_GetNewMethodID();
+				event.method_load_address = const_cast<void*>(result->entry_address());
+				event.method_size         = uint32_t(assembly.size());
+				event.method_name         = (char*) "Lightning JIT Code";
+				result->uid               = event.method_id;
+				iJIT_NotifyEvent(iJVM_EVENT_TYPE_METHOD_LOAD_FINISHED, &event);
+	#endif
+				return result;
+			}
+		};
+	}
+
+	jfunction* assemble_ir(mprocedure* procedure) {
+		if (!procedure)
+			return nullptr;
+		procedure->assembly_error.clear();
+		if (!procedure->source || !procedure->source->L || !procedure->source->f) {
+			if (procedure->source)
+				procedure->source->inline_caches.reset();
+			procedure->assembly_error = "x86 assembly requires a procedure with VM and function owners";
+			return nullptr;
+		}
+		try {
+			return x86_assembler(*procedure).assemble();
+		} catch (const std::exception& error) {
+			procedure->source->inline_caches.reset();
+			procedure->assembly_error = error.what();
+			return nullptr;
+		} catch (...) {
+			procedure->source->inline_caches.reset();
+			procedure->assembly_error = "x86 assembly failed with a non-standard exception";
+			return nullptr;
+		}
+	}
+
+	std::string disassemble_code(const jfunction& function) {
+		std::string result;
+		auto        bytes   = function.code_bytes();
+		auto        input   = std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size());
+		uintptr_t   address = reinterpret_cast<uintptr_t>(function.entry_address());
+		while (!input.empty()) {
+			auto before  = input.size();
+			auto decoded = zy::decode(input);
+			if (!decoded) {
+				result += util::fmt("db 0x%02x\n", input.front());
+				input = input.subspan(1);
+				address++;
+				continue;
+			}
+			result += decoded->to_string(address);
+			result += '\n';
+			address += before - input.size();
+		}
+		return result;
+	}
 }
 
 #endif

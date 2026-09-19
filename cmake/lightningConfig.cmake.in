@@ -1,0 +1,14 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+if(@LI_PACKAGE_NEEDS_THREADS@)
+	find_dependency(Threads)
+endif()
+
+if(@LI_PACKAGE_NEEDS_ZYDIS@)
+	find_dependency(Zydis CONFIG)
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/lightningTargets.cmake")
+check_required_components(lightning)

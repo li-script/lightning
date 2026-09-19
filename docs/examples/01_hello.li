@@ -1,0 +1,6 @@
+const language = "Lightning Script"
+const version = 1
+
+print(`Hello from {language}!`)
+print(`This is documentation example {version}.`)
+print("2 + 3 =", 2 + 3)

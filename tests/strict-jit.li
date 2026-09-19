@@ -1,0 +1,25 @@
+import? jit as jitlib
+
+[[strict]] fn add(a: i32, b: i32) -> i32 {
+   a + b
+}
+
+fn rejected_dynamic_call() {
+   try {
+      add({}, 1)
+      nil
+   } catch error {
+      error
+   }
+}
+
+const type_error = rejected_dynamic_call()
+assert(type_error is string)
+
+if jitlib != nil {
+   jitlib.on(add)
+   assert(jitlib.where(add) != "N/A")
+   assert(jitlib.guards(add) == 0)
+   const jit_type_error = rejected_dynamic_call()
+   assert(jit_type_error is string)
+}

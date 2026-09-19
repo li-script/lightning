@@ -35,8 +35,11 @@ namespace li {
 	struct function;
 	struct jfunction;
 	struct function_proto;
+	struct generic_template;  // Parser-owned; defined in lang/parser.hpp.
 	struct object;
 	struct vclass;
+	struct weak;
+	struct typed_array;
 	struct string_set;
 };
 
@@ -46,23 +49,30 @@ namespace li {
 	using number = double;
 	using slot_t = intptr_t;
 
+	// Immutable strings compare and hash by content across VM-local intern pools.
+	// These runtime helpers are also callable from type-specialized JIT paths.
+	bool LI_CC   string_value_equals(const string* lhs, const string* rhs) noexcept;
+	size_t LI_CC string_value_hash(const string* value) noexcept;
+
 	// Type enumerators.
 	//
 	enum value_type : uint8_t /*:4*/ {
-		type_object     = 0,   // GC: Class, further divides into user types (<0 type id in gc header).
-		type_table      = 1,   // GC: Table.
-		type_array      = 2,   // GC: Array.
-		type_function   = 3,   // GC: Function.
-		type_string     = 4,   // GC: String.
-		type_class      = 5,   // GC: Class type.
-		type_bool       = 8,   // LI: Boolean | Literals.
-		type_nil        = 9,   // LI: Nil tag.
-		type_exception  = 10,  // LI: Exception tag. Not visible to user.
-		type_number     = 11,  // LI: Double values. Not a real enumerator, everything below (if boxed) is also a number.
-		type_gc_private = 12,  // AL: Private object. | GC aliases, only used in the GC header. Cannot be converted to any.
-		type_gc_jfunc   = 13,  // AL: JIT function.
-		type_gc_proto   = 14,  // AL: Function prototype.
-		type_invalid    = 15,  // End of builtin types.
+		type_object      = 0,   // GC: Class, further divides into user types (<0 type id in gc header).
+		type_table       = 1,   // GC: Table.
+		type_array       = 2,   // GC: Array.
+		type_function    = 3,   // GC: Function.
+		type_string      = 4,   // GC: String.
+		type_class       = 5,   // GC: Class type.
+		type_weak        = 6,   // GC: Weak reference.
+		type_typed_array = 7,   // GC: Packed typed array.
+		type_bool        = 8,   // LI: Boolean | Literals.
+		type_nil         = 9,   // LI: Nil tag.
+		type_exception   = 10,  // LI: Exception tag. Not visible to user.
+		type_number      = 11,  // LI: Double values. Not a real enumerator, everything below (if boxed) is also a number.
+		type_gc_private  = 12,  // AL: Private object. | GC aliases, only used in the GC header. Cannot be converted to any.
+		type_gc_jfunc    = 13,  // AL: JIT function.
+		type_gc_proto    = 14,  // AL: Function prototype.
+		type_invalid     = 15,  // End of builtin types.
 
 		// Pseudo indices.
 		//
@@ -80,6 +90,8 @@ namespace li {
 		fn   = type_function,
 		str  = type_string,
 		vcl  = type_class,
+		weak = type_weak,
+		tarr = type_typed_array,
 		i1   = type_bool,
 		nil  = type_nil,
 		exc  = type_exception,
@@ -107,12 +119,14 @@ namespace li {
 		//
 		ptr = i64,
 	};
-	static constexpr bool is_integer_data(type t) { return type::i8 <= t && t <= type::i64; }
-	static constexpr bool is_floating_point_data(type t) { return t == type::f32 || t == type::f64; }
-	static constexpr bool is_marker_data(type t) { return t == type::nil || t == type::exc; }
-	static constexpr bool is_gc_data(type t) { return t <= type::vcl; }
+	static constexpr bool    is_integer_data(type t) { return type::i8 <= t && t <= type::i64; }
+	static constexpr bool    is_floating_point_data(type t) { return t == type::f32 || t == type::f64; }
+	static constexpr bool    is_marker_data(type t) { return t == type::nil || t == type::exc; }
+	static constexpr bool    is_gc_data(type t) { return t <= type::tarr; }
 	static constexpr msize_t size_of_data(type t) {
-		if (t == type::i8)
+		if (t <= type::tarr)
+			return sizeof(void*);
+		if (t == type::i8 || t == type::i1)
 			return 1;
 		if (t == type::i16)
 			return 2;
@@ -151,58 +165,66 @@ namespace li {
 	static constexpr std::array<const char*, 16> type_names = []() {
 		std::array<const char*, 16> result = {};
 		result.fill("invalid");
-		result[type_table]      = "table";
-		result[type_array]      = "array";
-		result[type_function]   = "function";
-		result[type_string]     = "string";
-		result[type_object]     = "object";
-		result[type_class]      = "class";
-		result[type_nil]        = "nil";
-		result[type_bool]       = "bool";
-		result[type_exception]  = "exception";
-		result[type_number]     = "number";
+		result[type_table]       = "table";
+		result[type_array]       = "array";
+		result[type_function]    = "function";
+		result[type_string]      = "string";
+		result[type_object]      = "object";
+		result[type_class]       = "class";
+		result[type_weak]        = "weak";
+		result[type_typed_array] = "typed-array";
+		result[type_nil]         = "nil";
+		result[type_bool]        = "bool";
+		result[type_exception]   = "exception";
+		result[type_number]      = "number";
 		return result;
 	}();
 	std::string_view get_type_name(vm* L, type vt);
 
 	// NaN boxing details.
 	//
-	static constexpr uint64_t           kvalue_nan = 0xfff8000000000000;
-	LI_INLINE static constexpr uint64_t mask_value(uint64_t value) { return value & util::fill_bits(47); }
-	LI_INLINE static constexpr uint64_t mix_value(uint8_t type, uint64_t value)
-	{
-#if LI_KERNEL_MODE
-		value = mask_value(value);
-#endif
-		return ((~uint64_t(type)) << 47) | value;
+	static constexpr int      kvalue_payload_bits  = 48;
+	static constexpr int      kvalue_tag_bits      = 64 - kvalue_payload_bits;
+	static constexpr uint64_t kvalue_payload_mask  = util::fill_bits(kvalue_payload_bits);
+	static constexpr uint64_t kvalue_tag_mask      = ~kvalue_payload_mask;
+	static constexpr uint64_t kvalue_exponent_mask = 0x7ff0000000000000;
+	static constexpr uint64_t kvalue_mantissa_mask = 0x000fffffffffffff;
+	static constexpr uint64_t kvalue_nan           = 0x7ff8000000000000;
+
+	LI_INLINE static constexpr uint64_t mask_value(uint64_t value) { return value & kvalue_payload_mask; }
+	LI_INLINE static constexpr uint64_t mix_value(uint8_t type, uint64_t value) { return ((~uint64_t(type)) << kvalue_payload_bits) | mask_value(value); }
+	LI_INLINE static constexpr uint64_t make_tag(uint8_t type) { return mix_value(type, kvalue_payload_mask); }
+	static constexpr uint64_t           kvalue_number_limit = mix_value(type_number, 0);
+	static constexpr uint64_t           kvalue_gc_limit     = mix_value(type_gc_last, 0);
+
+	LI_INLINE static constexpr bool is_nan_bits(uint64_t value) {
+		return (value & kvalue_exponent_mask) == kvalue_exponent_mask && (value & kvalue_mantissa_mask) != 0;
 	}
-	LI_INLINE static constexpr uint64_t make_tag(uint8_t type) { return ((~uint64_t(type)) << 47) | mask_value(~0ull); }
-	LI_INLINE static gc::header* get_gc_value(uint64_t value) {
-#if LI_KERNEL_MODE
-		value |= ~0ull << 47;
-#else
+	LI_INLINE static constexpr uint64_t canonicalize_number_bits(uint64_t value) { return is_nan_bits(value) ? kvalue_nan : value; }
+	LI_INLINE static constexpr uint64_t canonicalize_zero_bits(uint64_t value) { return (value << 1) == 0 ? 0 : value; }
+	LI_INLINE static gc::header*        get_gc_value(uint64_t value) {
 		value = mask_value(value);
+#if LI_KERNEL_MODE
+		value |= ~kvalue_payload_mask;
 #endif
 		return (gc::header*) value;
 	}
 
 	// Type and value traits.
 	//
-	LI_INLINE static constexpr uint64_t get_type(uint64_t value) { return ((~value) >> 47); }
+	LI_INLINE static constexpr uint64_t get_type(uint64_t value) { return (~value) >> kvalue_payload_bits; }
 	template<value_type Type>
 	LI_INLINE static constexpr bool is_value_of_type(uint64_t value) {
 		if constexpr (Type == type_exception || Type == type_nil) {
 			return value == make_tag(Type);
 		} else if constexpr (Type == type_number) {
-			constexpr uint32_t expected = uint32_t(make_tag(type_number + 1) >> 47);
-			return (value >> 47) < expected;
+			return value < kvalue_number_limit;
 		} else {
-			constexpr uint32_t expected = uint32_t(make_tag(Type) >> 47);
-			return (value >> 47) == expected;
+			return (value & kvalue_tag_mask) == mix_value(Type, 0);
 		}
 	}
 	LI_INLINE static constexpr bool is_type_gc(uint8_t t) { return t <= type_gc_last; }
-	LI_INLINE static constexpr bool is_value_gc(uint64_t value) { return value > (make_tag(type_gc_last + 1) + 1); }
+	LI_INLINE static constexpr bool is_value_gc(uint64_t value) { return value >= kvalue_gc_limit; }
 
 	// Forward for auto-typing.
 	//
@@ -218,9 +240,7 @@ namespace li {
 
 		// Type check.
 		//
-		LI_INLINE inline constexpr value_type type() const {
-			return (value_type) std::min(get_type(value), (uint64_t) type_number);
-		}
+		LI_INLINE inline constexpr value_type type() const { return (value_type) std::min(get_type(value), (uint64_t) type_number); }
 		template<value_type Type>
 		LI_INLINE inline constexpr bool is() const {
 			return is_value_of_type<Type>(value);
@@ -232,6 +252,8 @@ namespace li {
 		LI_INLINE inline constexpr bool is_str() const { return is<type_string>(); }
 		LI_INLINE inline constexpr bool is_obj() const { return is<type_object>(); }
 		LI_INLINE inline constexpr bool is_vcl() const { return is<type_class>(); }
+		LI_INLINE inline constexpr bool is_weak() const { return is<type_weak>(); }
+		LI_INLINE inline constexpr bool is_tarr() const { return is<type_typed_array>(); }
 		LI_INLINE inline constexpr bool is_fn() const { return is<type_function>(); }
 		LI_INLINE inline constexpr bool is_exc() const { return is<type_exception>(); }
 		LI_INLINE inline constexpr bool is_gc() const { return is_value_gc(value); }
@@ -239,7 +261,7 @@ namespace li {
 		// Full type getter and type namer.
 		//
 		const char* type_name() const;
-		li::type xtype() const;
+		li::type    xtype() const;
 
 		// Getters.
 		//
@@ -250,21 +272,22 @@ namespace li {
 		LI_INLINE inline table*           as_tbl() const { return (table*) as_gc(); }
 		LI_INLINE inline string*          as_str() const { return (string*) as_gc(); }
 		LI_INLINE inline vclass*          as_vcl() const { return (vclass*) as_gc(); }
+		LI_INLINE inline weak*            as_weak() const { return (weak*) as_gc(); }
+		LI_INLINE inline typed_array*     as_tarr() const { return (typed_array*) as_gc(); }
 		LI_INLINE inline object*          as_obj() const { return (object*) as_gc(); }
 		LI_INLINE inline function*        as_fn() const { return (function*) as_gc(); }
 
-		// Bytewise equal comparsion.
+		// Value equality. Strings compare by content; IEEE signed zeros compare equal
+		// and NaNs never compare equal.
 		//
 		LI_INLINE inline constexpr bool equals(const any_t& other) const {
-#if !LI_FAST_MATH
-			uint64_t x = value ^ other.value;
-			if (!(value << 1)) {
-				x <<= 1;
-			}
-			return x == 0 && value != kvalue_nan;
-#else
-			return value == other.value;
-#endif
+			uint64_t lhs = canonicalize_zero_bits(value);
+			uint64_t rhs = canonicalize_zero_bits(other.value);
+			if (lhs == rhs)
+				return !(is_value_of_type<type_number>(lhs) && is_nan_bits(lhs));
+			if (is_value_of_type<type_string>(lhs) && is_value_of_type<type_string>(rhs))
+				return string_value_equals(reinterpret_cast<const string*>(get_gc_value(lhs)), reinterpret_cast<const string*>(get_gc_value(rhs)));
+			return false;
 		}
 
 		// Define comparison operators.
@@ -272,7 +295,7 @@ namespace li {
 		LI_INLINE inline constexpr bool operator==(const any_t& other) const { return equals(other); }
 		LI_INLINE inline constexpr bool operator!=(const any_t& other) const { return !equals(other); }
 
-		// String conversion.
+		// String conversion. The VM string result is owned.
 		//
 		string*     to_string(vm*) const;
 		std::string to_string() const;
@@ -291,18 +314,24 @@ namespace li {
 		// Hasher.
 		//
 		inline size_t hash() const {
+			uint64_t x = canonicalize_zero_bits(value);
+			if (is_value_of_type<type_string>(x))
+				return string_value_hash(reinterpret_cast<const string*>(get_gc_value(x)));
 #if LI_32 || !LI_HAS_CRC
-			uint64_t x = value;
 			x ^= x >> 33;
 			x *= 0xff51afd7ed558ccdull;
 			x ^= x >> 33;
 			return (size_t) x;
 #else
-			uint64_t h = value >> 8;
-			return (size_t) _mm_crc32_u64(h, value);
+			uint64_t h = x >> 8;
+			return (size_t) _mm_crc32_u64(h, x);
 #endif
 		}
 	};
+
+	// Runtime entry point for neutral JIT equality on boxed values.
+	bool LI_CC any_value_equals(any_t lhs, any_t rhs) noexcept;
+
 	struct LI_TRIVIAL_ABI any : any_t {
 		// Trivially copyable and default constructable.
 		//
@@ -314,12 +343,8 @@ namespace li {
 
 		// Literal construction.
 		//
-		LI_INLINE inline constexpr any(bool v) : any_t{mix_value(type_bool, v?1:0)} {}
-		LI_INLINE inline constexpr any(number v) : any_t{li::bit_cast<uint64_t>(v)} {
-			// TODO: Might be optimized out if compiled with -ffast-math.
-			if (v != v) [[unlikely]]
-				value = kvalue_nan;
-		}
+		LI_INLINE inline constexpr any(bool v) : any_t{mix_value(type_bool, v ? 1 : 0)} {}
+		LI_INLINE inline constexpr any(number v) : any_t{canonicalize_number_bits(li::bit_cast<uint64_t>(v))} {}
 		LI_INLINE inline constexpr any(std::in_place_t, uint64_t value) : any_t{value} {}
 		LI_INLINE inline constexpr any(any_t v) : any_t{v} {}
 		LI_INLINE inline constexpr any(uint64_t v) = delete;
@@ -330,6 +355,8 @@ namespace li {
 		LI_INLINE inline any(table* v) : any_t{mix_value(type_table, (uint64_t) v)} {}
 		LI_INLINE inline any(string* v) : any_t{mix_value(type_string, (uint64_t) v)} {}
 		LI_INLINE inline any(vclass* v) : any_t{mix_value(type_class, (uint64_t) v)} {}
+		LI_INLINE inline any(weak* v) : any_t{mix_value(type_weak, (uint64_t) v)} {}
+		LI_INLINE inline any(typed_array* v) : any_t{mix_value(type_typed_array, (uint64_t) v)} {}
 		LI_INLINE inline any(object* v) : any_t{mix_value(type_object, (uint64_t) v)} {}
 		LI_INLINE inline any(function* v) : any_t{mix_value(type_function, (uint64_t) v)} {}
 		LI_INLINE inline any(gc::header* v) : any_t{mix_value(gc::identify_value_type(v), (uint64_t) v)} {}
@@ -345,14 +372,15 @@ namespace li {
 
 		// Define comparison operators.
 		//
-		LI_INLINE inline constexpr bool operator==(const any& other) const { return equals(other); }
-		LI_INLINE inline constexpr bool operator!=(const any& other) const { return !equals(other); }
+		LI_INLINE inline constexpr bool        operator==(const any& other) const { return equals(other); }
+		LI_INLINE inline constexpr bool        operator!=(const any& other) const { return !equals(other); }
 		LI_INLINE inline friend constexpr bool operator==(const any& self, const any_t& other) { return self.equals(other); }
 		LI_INLINE inline friend constexpr bool operator!=(const any& self, const any_t& other) { return !self.equals(other); }
 		LI_INLINE inline friend constexpr bool operator==(const any_t& self, const any& other) { return self.equals(other); }
 		LI_INLINE inline friend constexpr bool operator!=(const any_t& self, const any& other) { return !self.equals(other); }
 	};
 	static_assert(sizeof(any) == 8, "Invalid any size.");
+	static_assert(std::is_trivially_copyable_v<any>, "any must remain trivially copyable.");
 
 	// Constants.
 	//
@@ -363,7 +391,5 @@ namespace li {
 
 	// Fills the any[] with nils.
 	//
-	static void fill_nil(void* data, size_t count) {
-		std::fill_n((uint64_t*) data, count, make_tag(type_nil));
-	}
+	static void fill_nil(void* data, size_t count) { std::fill_n((uint64_t*) data, count, make_tag(type_nil)); }
 };

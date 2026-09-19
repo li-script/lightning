@@ -1,17 +1,18 @@
 #include <util/common.hpp>
 #if LI_JIT
 
-#include <ir/insn.hpp>
-#include <ir/opt.hpp>
-#include <ir/proc.hpp>
-#include <ir/value.hpp>
-#include <lib/std.hpp>
-#include <vm/runtime.hpp>
-#include <vm/array.hpp>
-#include <vm/table.hpp>
-#include <vm/function.hpp>
-#include <cmath>
-#include <numbers>
+	#include <cmath>
+	#include <ir/insn.hpp>
+	#include <ir/opt.hpp>
+	#include <ir/proc.hpp>
+	#include <ir/runtime.hpp>
+	#include <ir/value.hpp>
+	#include <lib/std.hpp>
+	#include <numbers>
+	#include <vm/array.hpp>
+	#include <vm/function.hpp>
+	#include <vm/runtime.hpp>
+	#include <vm/table.hpp>
 
 namespace li::ir::opt {
 	// Prepares the IR to be lifted to MIR.
@@ -28,7 +29,6 @@ namespace li::ir::opt {
 
 		for (auto& bb : proc->basic_blocks) {
 			for (auto it = bb->begin(); it != bb->end();) {
-
 				// Array/Table new.
 				//
 				if (it->is<array_new>()) {
@@ -39,20 +39,48 @@ namespace li::ir::opt {
 					continue;
 				}
 
+				// Generic operations that were not proven safe by type splitting.
+				//
+				if (it->is<unop>() && !is_floating_point_data(it->operands[1]->vt)) {
+					auto op = int32_t(it->operands[0]->as<constant>()->vmopr);
+					it      = replace_with_call(it, &runtime::unary_info, 0, it->operands[1], op);
+					continue;
+				}
+				if (it->is<binop>() && !is_floating_point_data(it->vt) && !it->as<binop>()->is_exact_integer_arithmetic()) {
+					auto op = int32_t(it->operands[0]->as<constant>()->vmopr);
+					it      = replace_with_call(it, &runtime::binary_info, 0, it->operands[1], it->operands[2], op);
+					continue;
+				}
+				// f32 mod/pow have no single-precision library lowering; box them.
+				if (it->is<binop>() && it->vt == type::f32) {
+					auto op = it->operands[0]->as<constant>()->vmopr;
+					if (op == bc::AMOD || op == bc::APOW) {
+						it = replace_with_call(it, &runtime::binary_info, 0, it->operands[1], it->operands[2], int32_t(op));
+						continue;
+					}
+				}
+				if (it->is<compare>()) {
+					auto op = it->operands[0]->as<constant>()->vmopr;
+					if (op != bc::CEQ && op != bc::CNE && (it->operands[1]->vt == type::any || it->operands[2]->vt == type::any)) {
+						it = replace_with_call(it, &runtime::binary_info, 0, it->operands[1], it->operands[2], int32_t(op));
+						continue;
+					}
+				}
+
 				// Mod and pow.
 				//
-#if !LI_FAST_MATH
+	#if !LI_FAST_MATH
 				if (it->is<binop>() && it->operands[0]->as<constant>()->vmopr == bc::AMOD) {
 					switch (it->vt) {
 						case type::f64:
-							it = replace_with_call(it, &lib::detail::math_mod_info, 0, it->operands[1], it->operands[2]);
+							it = replace_with_call(it, &lib::detail::math_mod.nfi, 0, it->operands[1], it->operands[2]);
 							break;
 						default:
 							util::abort("unexpected AMOD with invalid or unknown type.");
 					}
 					continue;
 				}
-#endif
+	#endif
 				if (it->is<binop>() && it->operands[0]->as<constant>()->vmopr == bc::APOW) {
 					// TODO: Prob better if we moved it out of here?
 					switch (it->vt) {
@@ -86,7 +114,7 @@ namespace li::ir::opt {
 				}
 				++it;
 			}
-		}	
+		}
 	}
 	void finalize_for_mir(procedure* proc) {
 		// Fixup PHIs, this should be the last operation as they are not allowed to be optimized out.

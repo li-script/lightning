@@ -1,0 +1,130 @@
+import debug
+import weak
+import traits
+
+fn choose(flag) {
+   let value = nil
+   if flag {
+      value = {side: "left", payload: [3, 5, 7]}
+   } else {
+      value = {side: "right", payload: [11, 13, 17]}
+   }
+   value
+}
+
+fn build_chain(limit) {
+   let current = {step: -1, previous: nil}
+   for i in 0..limit {
+      current = {step: i, previous: current}
+   }
+   current
+}
+
+fn throw_payload(flag) {
+   const local = choose(flag)
+   throw {message: "kept through unwind", selected: local}
+}
+
+fn overwrite_field() {
+   let parent = {child: {answer: 41}}
+   const child = parent.child
+   parent.child = nil
+   child.answer
+}
+
+fn replace_captured_slot() {
+   const holder = {child: {answer: 43}}
+   const clear = || { holder.child = nil }
+   const observe = || {
+      const child = holder.child
+      clear()
+      child.answer
+   }
+   observe()
+}
+
+fn exercise_observable_slot_lifetimes() {
+   let state = {calls: 0}
+   let target = {value: 47}
+   const observer = weak.create(target)
+   traits.set(target, "del", || {
+      state.calls += 1
+   })
+
+   let alias = target
+   target = nil
+   assert(state.calls == 0)
+   assert(!weak.expired(observer))
+   assert(alias.value == 47)
+
+   alias = nil
+   assert(state.calls == 1)
+   assert(weak.expired(observer))
+
+   let lock_target = {value: 73}
+   const lock_observer = weak.create(lock_target)
+   let locked = weak.lock(lock_observer)
+   lock_target = nil
+   assert(!weak.expired(lock_observer))
+   assert(locked.value == 73)
+
+   locked = nil
+   assert(weak.expired(lock_observer))
+}
+
+fn check_duplicate_iteration(source) {
+   const duplicate = source::dup()
+   assert(source != duplicate)
+   for key, value in source {
+      assert(value == duplicate[key])
+   }
+}
+
+fn release_overwritten_argument(value, state) {
+   value = {}
+   traits.set(value, "del", || {
+      state.calls += 1
+   })
+   value = nil
+   assert(state.calls == 1)
+}
+
+fn exercise_ownership() {
+   const left = choose(true)
+   const right = choose(false)
+   assert(left.side == "left")
+   assert(left.payload[2] == 7)
+   assert(right.side == "right")
+   assert(right.payload[1] == 13)
+
+   const chain = build_chain(32)
+   assert(chain.step == 31)
+   assert(chain.previous.step == 30)
+   assert(chain.previous.previous.step == 29)
+
+   let caught = nil
+   try {
+      throw_payload(true)
+   } catch error {
+      caught = error
+   }
+   assert(caught.message == "kept through unwind")
+   assert(caught.selected.side == "left")
+   assert(caught.selected.payload[0] == 3)
+
+   assert(overwrite_field() == 41)
+   assert(replace_captured_slot() == 43)
+   check_duplicate_iteration([1, 2, 3])
+   check_duplicate_iteration({left: 5, right: 7})
+   let argument_state = {calls: 0}
+   release_overwritten_argument({value: 53}, argument_state)
+   assert(argument_state.calls == 1)
+   exercise_observable_slot_lifetimes()
+}
+
+exercise_ownership()
+const baseline = debug.live_objects()
+for iteration in 0..64 {
+   exercise_ownership()
+   assert(debug.live_objects() == baseline)
+}

@@ -1,0 +1,52 @@
+import coroutine
+
+# Closing a yielded coroutine unwinds its suspended frame and runs defers LIFO.
+let close_events = []
+const worker = coroutine.create(|| {
+   defer { close_events::push(1) }
+   defer { close_events::push(2) }
+   close_events::push(10)
+   yield 41
+   close_events::push(99)
+})
+assert(coroutine.resume(worker) == 41)
+assert(coroutine.status(worker) == "suspended")
+assert(close_events::len() == 1 && close_events[0] == 10)
+coroutine.close(worker)
+assert(coroutine.status(worker) == "dead")
+assert(close_events::len() == 3)
+assert(close_events[0] == 10)
+assert(close_events[1] == 2)
+assert(close_events[2] == 1)
+
+# Forced close bypasses an ordinary catch. Cleanup mode remains active long
+# enough for every statement in nested deferred bodies to execute exactly once.
+let guarded_events = []
+let caught_forced_close = false
+const guarded = coroutine.create(|| {
+   defer { guarded_events::push(4) }
+   try {
+      ({
+         defer {
+            guarded_events::push(2)
+            guarded_events::push(3)
+         }
+         guarded_events::push(1)
+         yield 73
+      })
+   } catch error {
+      caught_forced_close = true
+      guarded_events::push(90)
+   }
+   guarded_events::push(100)
+})
+assert(coroutine.resume(guarded) == 73)
+assert(guarded_events::len() == 1 && guarded_events[0] == 1)
+coroutine.close(guarded)
+assert(coroutine.status(guarded) == "dead")
+assert(!caught_forced_close)
+assert(guarded_events::len() == 4)
+assert(guarded_events[0] == 1)
+assert(guarded_events[1] == 2)
+assert(guarded_events[2] == 3)
+assert(guarded_events[3] == 4)

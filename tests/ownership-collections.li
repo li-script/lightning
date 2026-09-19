@@ -1,0 +1,68 @@
+import debug
+
+fn exercise_nested_containers() {
+   let leaf = {value: 1}
+   let nested = [leaf, {child: [{value: 2}]}]
+
+   let array_copy = nested::dup()
+   assert(array_copy != nested)
+   assert(array_copy[0] == leaf)
+   array_copy[0].value = 7
+   assert(nested[0].value == 7)
+   array_copy[0] = {value: 8}
+   assert(nested[0] == leaf)
+   let popped = array_copy::pop()
+   assert(popped.child[0].value == 2)
+
+   let self_joined_array = [leaf]
+   self_joined_array::join(self_joined_array)
+   assert(self_joined_array::len() == 2)
+   assert(self_joined_array[0] == self_joined_array[1])
+
+   let resized_array = []
+   for i in 0..16 {
+      resized_array::push(leaf)
+   }
+   assert(resized_array::len() == 16)
+
+   let resized_table = {}
+   resized_table.a = leaf
+   resized_table.b = leaf
+   resized_table.c = leaf
+   resized_table.d = leaf
+   resized_table.e = leaf
+   resized_table.f = leaf
+   resized_table.g = leaf
+   resized_table.h = leaf
+   assert(resized_table::len() == 8)
+
+   let mapping = {present: nil, child: nested}
+   assert(mapping::len() == 2)
+   assert("present" in mapping)
+   assert(mapping.present == nil)
+   mapping.present = nil
+   mapping.child = mapping.child
+   assert(mapping::len() == 2)
+   assert("present" in mapping)
+
+   let self_joined_table = {child: leaf}
+   self_joined_table::join(self_joined_table)
+   assert(self_joined_table::len() == 1)
+   assert(self_joined_table.child == leaf)
+
+   let table_copy = mapping::dup()
+   assert(table_copy != mapping)
+   assert(table_copy.child == nested)
+   table_copy.child[0].value = 9
+   assert(mapping.child[0].value == 9)
+   table_copy.child = []
+   assert(mapping.child == nested)
+
+   return table_copy.present
+}
+
+const baseline = debug.live_objects()
+for i in 0..64 {
+   assert(exercise_nested_containers() == nil)
+   assert(debug.live_objects() == baseline)
+}

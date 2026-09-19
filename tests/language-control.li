@@ -1,0 +1,134 @@
+# Ternary and null coalescing are lazy.
+let trace = {count: 0}
+fn touch(value) {
+	trace.count += 1;
+	value
+}
+
+assert((true ? 10 : touch(11)) == 10)
+assert((false ? touch(12) : 13) == 13)
+assert(trace.count == 0)
+assert((nil ?? touch(20)) == 20)
+assert(trace.count == 1)
+assert((21 ?? touch(22)) == 21)
+assert(trace.count == 1)
+
+# Both operators associate from the right; ternary has lower precedence than ??.
+assert((false ? 1 : true ? 2 : 3) == 2)
+assert((true ? false ? 1 : 2 : 3) == 2)
+assert((false ?? true ? 1 : 2) == 2)
+assert((nil ?? nil ?? 23) == 23)
+
+let coalesced = nil
+coalesced ??= touch(30)
+assert(coalesced == 30)
+assert(trace.count == 2)
+coalesced ??= touch(31)
+assert(coalesced == 30)
+assert(trace.count == 2)
+
+let outer = nil
+let inner = nil
+outer ??= inner ??= touch(32)
+assert(outer == 32)
+assert(inner == 32)
+assert(trace.count == 3)
+
+# Match alternatives, half-open and inclusive ranges, wildcards, guards and types.
+const red = 1
+const green = 2
+assert((match green {
+	red | green => "color",
+	_ => "other",
+}) == "color")
+
+assert((match 5 {
+	1..5 => "half-open",
+	5..=5 => "inclusive",
+	_ => "other",
+}) == "inclusive")
+
+assert((match 7 {
+	x if x < 10 => x * 2,
+	_ => 0,
+}) == 14)
+assert((match 12 {
+	x if x < 10 => x,
+	12 | 13 => "dozen",
+	_ => "other",
+}) == "dozen")
+assert((match "text" {
+	number => "number",
+	string => "string",
+	_ => "other",
+}) == "string")
+
+class ControlBox {
+	value: number
+}
+const box = ControlBox{value: 9}
+assert((match box {
+	ControlBox => box.value,
+	_ => 0,
+}) == 9)
+
+# Leave targets the nearest block expression, independently of loop break.
+assert(({ leave 40 }) == 40)
+assert(({ { leave 3 } + 4 }) == 7)
+
+let leave_turns = 0
+let left_each_body = while leave_turns < 2 {
+	leave_turns += 1;
+	leave leave_turns
+} else {
+	leave_turns + 40
+}
+assert(left_each_body == 42)
+
+# Loop else runs only after natural exhaustion; break preserves its value and skips else.
+let while_count = 0
+let while_completed = while while_count < 3 {
+	while_count += 1
+} else {
+	while_count + 50
+}
+assert(while_completed == 53)
+
+let while_broken = while true {
+	break 60
+} else {
+	61
+}
+assert(while_broken == 60)
+
+let for_completed = for i in 0..3 {
+	i
+} else {
+	70
+}
+assert(for_completed == 70)
+
+let for_broken = for i in 0..5 {
+	if i == 2 {
+		break i * 10
+	}
+} else {
+	71
+}
+assert(for_broken == 20)
+
+let array_completed = for _, value in [1, 2, 3] {
+	value
+} else {
+	80
+}
+assert(array_completed == 80)
+
+let array_broken = for _, value in [1, 2, 3] {
+	if value == 2 {
+		break value * 50
+	}
+} else {
+	81
+}
+assert(array_broken == 100)

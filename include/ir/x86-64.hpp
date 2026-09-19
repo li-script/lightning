@@ -1,397 +1,313 @@
 #pragma once
 #include <util/common.hpp>
-#if LI_JIT && LI_ARCH_X86 && !LI_32
-#include <ir/mir.hpp>
-
-// Compiler options.
-//
-#if __AVX__
-	static constexpr bool USE_AVX = true;
-#else
-	static constexpr bool USE_AVX = false;
+#if !LI_ARCH_X86 || LI_32
+	#error "JIT mode is only available for x86-64."
 #endif
-static constexpr size_t BRANCH_ALIGN = 16; // TODO:
-static constexpr size_t MAX_NOP_LENGTH = 15;
-// clang-format off
-static constexpr uint8_t NOP_TABLE[MAX_NOP_LENGTH][MAX_NOP_LENGTH] = {
-	{ 0x90 },
-	{ 0x66, 0x90 },
-	{ 0x0F, 0x1F, 0x00 },
-	{ 0x0F, 0x1F, 0x40, 0x00 },
-	{ 0x0F, 0x1F, 0x44, 0x00, 0x00 },
-	{ 0x66, 0x0F, 0x1F, 0x44, 0x00, 0x00 },
-	{ 0x0F, 0x1F, 0x80, 0x00, 0x00, 0x00, 0x00 },
-	{ 0x0F, 0x1F, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00 },
-	{ 0x66, 0x0F, 0x1F, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00 },
-	{ 0x66, 0x2E, 0x0F, 0x1F, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00 },
-	{ 0x66, 0x66, 0x2E, 0x0F, 0x1F, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00 },
-	{ 0x66, 0x66, 0x66, 0x2E, 0x0F, 0x1F, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00 },
-	{ 0x66, 0x66, 0x66, 0x66, 0x2E, 0x0F, 0x1F, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00 },
-	{ 0x66, 0x66, 0x66, 0x66, 0x66, 0x2E, 0x0F, 0x1F, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00 },
-	{ 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x2E, 0x0F, 0x1F, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00 }
-};
-// clang-format on
+#include <Zycore/LibC.h>
+#include <Zydis/Zydis.h>
+#include <optional>
+#include <span>
+#include <string>
+#include <vector>
 
-namespace li::ir {
-	// Flags.
+namespace li::zy {
+	// Rename registers.
 	//
-	struct flag_info {
-		arch::native_mnemonic js;
-		arch::native_mnemonic jns;
-		arch::native_mnemonic sets;
-		arch::native_mnemonic setns;
-		arch::native_mnemonic cmovs;
-		arch::native_mnemonic cmovns;
+	using reg                    = ZydisRegister;
+	static constexpr auto NO_REG = ZYDIS_REGISTER_NONE;
+	static constexpr auto AL     = ZYDIS_REGISTER_AL;
+	static constexpr auto CL     = ZYDIS_REGISTER_CL;
+	static constexpr auto DL     = ZYDIS_REGISTER_DL;
+	static constexpr auto BL     = ZYDIS_REGISTER_BL;
+	static constexpr auto AH     = ZYDIS_REGISTER_AH;
+	static constexpr auto CH     = ZYDIS_REGISTER_CH;
+	static constexpr auto DH     = ZYDIS_REGISTER_DH;
+	static constexpr auto BH     = ZYDIS_REGISTER_BH;
+	static constexpr auto SPL    = ZYDIS_REGISTER_SPL;
+	static constexpr auto BPL    = ZYDIS_REGISTER_BPL;
+	static constexpr auto SIL    = ZYDIS_REGISTER_SIL;
+	static constexpr auto DIL    = ZYDIS_REGISTER_DIL;
+	static constexpr auto R8B    = ZYDIS_REGISTER_R8B;
+	static constexpr auto R9B    = ZYDIS_REGISTER_R9B;
+	static constexpr auto R10B   = ZYDIS_REGISTER_R10B;
+	static constexpr auto R11B   = ZYDIS_REGISTER_R11B;
+	static constexpr auto R12B   = ZYDIS_REGISTER_R12B;
+	static constexpr auto R13B   = ZYDIS_REGISTER_R13B;
+	static constexpr auto R14B   = ZYDIS_REGISTER_R14B;
+	static constexpr auto R15B   = ZYDIS_REGISTER_R15B;
+	static constexpr auto AX     = ZYDIS_REGISTER_AX;
+	static constexpr auto CX     = ZYDIS_REGISTER_CX;
+	static constexpr auto DX     = ZYDIS_REGISTER_DX;
+	static constexpr auto BX     = ZYDIS_REGISTER_BX;
+	static constexpr auto SP     = ZYDIS_REGISTER_SP;
+	static constexpr auto BP     = ZYDIS_REGISTER_BP;
+	static constexpr auto SI     = ZYDIS_REGISTER_SI;
+	static constexpr auto DI     = ZYDIS_REGISTER_DI;
+	static constexpr auto R8W    = ZYDIS_REGISTER_R8W;
+	static constexpr auto R9W    = ZYDIS_REGISTER_R9W;
+	static constexpr auto R10W   = ZYDIS_REGISTER_R10W;
+	static constexpr auto R11W   = ZYDIS_REGISTER_R11W;
+	static constexpr auto R12W   = ZYDIS_REGISTER_R12W;
+	static constexpr auto R13W   = ZYDIS_REGISTER_R13W;
+	static constexpr auto R14W   = ZYDIS_REGISTER_R14W;
+	static constexpr auto R15W   = ZYDIS_REGISTER_R15W;
+	static constexpr auto EAX    = ZYDIS_REGISTER_EAX;
+	static constexpr auto ECX    = ZYDIS_REGISTER_ECX;
+	static constexpr auto EDX    = ZYDIS_REGISTER_EDX;
+	static constexpr auto EBX    = ZYDIS_REGISTER_EBX;
+	static constexpr auto ESP    = ZYDIS_REGISTER_ESP;
+	static constexpr auto EBP    = ZYDIS_REGISTER_EBP;
+	static constexpr auto ESI    = ZYDIS_REGISTER_ESI;
+	static constexpr auto EDI    = ZYDIS_REGISTER_EDI;
+	static constexpr auto R8D    = ZYDIS_REGISTER_R8D;
+	static constexpr auto R9D    = ZYDIS_REGISTER_R9D;
+	static constexpr auto R10D   = ZYDIS_REGISTER_R10D;
+	static constexpr auto R11D   = ZYDIS_REGISTER_R11D;
+	static constexpr auto R12D   = ZYDIS_REGISTER_R12D;
+	static constexpr auto R13D   = ZYDIS_REGISTER_R13D;
+	static constexpr auto R14D   = ZYDIS_REGISTER_R14D;
+	static constexpr auto R15D   = ZYDIS_REGISTER_R15D;
+	static constexpr auto RAX    = ZYDIS_REGISTER_RAX;
+	static constexpr auto RCX    = ZYDIS_REGISTER_RCX;
+	static constexpr auto RDX    = ZYDIS_REGISTER_RDX;
+	static constexpr auto RBX    = ZYDIS_REGISTER_RBX;
+	static constexpr auto RSP    = ZYDIS_REGISTER_RSP;
+	static constexpr auto RBP    = ZYDIS_REGISTER_RBP;
+	static constexpr auto RSI    = ZYDIS_REGISTER_RSI;
+	static constexpr auto RDI    = ZYDIS_REGISTER_RDI;
+	static constexpr auto R8     = ZYDIS_REGISTER_R8;
+	static constexpr auto R9     = ZYDIS_REGISTER_R9;
+	static constexpr auto R10    = ZYDIS_REGISTER_R10;
+	static constexpr auto R11    = ZYDIS_REGISTER_R11;
+	static constexpr auto R12    = ZYDIS_REGISTER_R12;
+	static constexpr auto R13    = ZYDIS_REGISTER_R13;
+	static constexpr auto R14    = ZYDIS_REGISTER_R14;
+	static constexpr auto R15    = ZYDIS_REGISTER_R15;
+	static constexpr auto XMM0   = ZYDIS_REGISTER_XMM0;
+	static constexpr auto XMM1   = ZYDIS_REGISTER_XMM1;
+	static constexpr auto XMM2   = ZYDIS_REGISTER_XMM2;
+	static constexpr auto XMM3   = ZYDIS_REGISTER_XMM3;
+	static constexpr auto XMM4   = ZYDIS_REGISTER_XMM4;
+	static constexpr auto XMM5   = ZYDIS_REGISTER_XMM5;
+	static constexpr auto XMM6   = ZYDIS_REGISTER_XMM6;
+	static constexpr auto XMM7   = ZYDIS_REGISTER_XMM7;
+	static constexpr auto XMM8   = ZYDIS_REGISTER_XMM8;
+	static constexpr auto XMM9   = ZYDIS_REGISTER_XMM9;
+	static constexpr auto XMM10  = ZYDIS_REGISTER_XMM10;
+	static constexpr auto XMM11  = ZYDIS_REGISTER_XMM11;
+	static constexpr auto XMM12  = ZYDIS_REGISTER_XMM12;
+	static constexpr auto XMM13  = ZYDIS_REGISTER_XMM13;
+	static constexpr auto XMM14  = ZYDIS_REGISTER_XMM14;
+	static constexpr auto XMM15  = ZYDIS_REGISTER_XMM15;
+	static constexpr auto YMM0   = ZYDIS_REGISTER_YMM0;
+	static constexpr auto YMM1   = ZYDIS_REGISTER_YMM1;
+	static constexpr auto YMM2   = ZYDIS_REGISTER_YMM2;
+	static constexpr auto YMM3   = ZYDIS_REGISTER_YMM3;
+	static constexpr auto YMM4   = ZYDIS_REGISTER_YMM4;
+	static constexpr auto YMM5   = ZYDIS_REGISTER_YMM5;
+	static constexpr auto YMM6   = ZYDIS_REGISTER_YMM6;
+	static constexpr auto YMM7   = ZYDIS_REGISTER_YMM7;
+	static constexpr auto YMM8   = ZYDIS_REGISTER_YMM8;
+	static constexpr auto YMM9   = ZYDIS_REGISTER_YMM9;
+	static constexpr auto YMM10  = ZYDIS_REGISTER_YMM10;
+	static constexpr auto YMM11  = ZYDIS_REGISTER_YMM11;
+	static constexpr auto YMM12  = ZYDIS_REGISTER_YMM12;
+	static constexpr auto YMM13  = ZYDIS_REGISTER_YMM13;
+	static constexpr auto YMM14  = ZYDIS_REGISTER_YMM14;
+	static constexpr auto YMM15  = ZYDIS_REGISTER_YMM15;
+	static constexpr auto FLAGS  = ZYDIS_REGISTER_FLAGS;
+	static constexpr auto EFLAGS = ZYDIS_REGISTER_EFLAGS;
+	static constexpr auto RFLAGS = ZYDIS_REGISTER_RFLAGS;
+	static constexpr auto IP     = ZYDIS_REGISTER_IP;
+	static constexpr auto EIP    = ZYDIS_REGISTER_EIP;
+	static constexpr auto RIP    = ZYDIS_REGISTER_RIP;
+
+	// Encoding with explicit encoder request.
+	//
+	static bool encode(std::vector<uint8_t>& out, const ZydisEncoderRequest& req) {
+		size_t pos = out.size();
+		out.resize(pos + ZYDIS_MAX_INSTRUCTION_LENGTH);
+
+		ZyanUSize instr_length = ZYDIS_MAX_INSTRUCTION_LENGTH;
+		if (ZYAN_FAILED(ZydisEncoderEncodeInstruction(&req, out.data() + pos, &instr_length))) {
+			out.resize(pos);
+			return false;
+		}
+		assume_that(instr_length <= ZYDIS_MAX_INSTRUCTION_LENGTH);
+		out.resize(pos + instr_length);
+		return true;
+	}
+
+	// Operand conversion.
+	//
+	struct mem {
+		uint16_t size  = 0;
+		reg      base  = NO_REG;
+		reg      index = NO_REG;
+		uint8_t  scale = 0;
+		int64_t  disp  = 0;
 	};
-	#define ENUM_FLAGS(_) _(Z, 0) _(S, 2) _(B, 4) _(BE, 6) _(L, 8) _(LE, 10) _(O, 12) _(P, 14)
-	inline static constexpr flag_info flags[] = {
-	#define ENUMERATOR(F, id) \
-	 flag_info{LI_STRCAT(ZYDIS_MNEMONIC_J, F), LI_STRCAT(ZYDIS_MNEMONIC_JN, F), LI_STRCAT(ZYDIS_MNEMONIC_SET, F), LI_STRCAT(ZYDIS_MNEMONIC_SETN, F), LI_STRCAT(ZYDIS_MNEMONIC_CMOV, F), LI_STRCAT(ZYDIS_MNEMONIC_CMOVN, F)}, \
-	 flag_info{LI_STRCAT(ZYDIS_MNEMONIC_JN, F), LI_STRCAT(ZYDIS_MNEMONIC_J, F), LI_STRCAT(ZYDIS_MNEMONIC_SETN, F), LI_STRCAT(ZYDIS_MNEMONIC_SET, F), LI_STRCAT(ZYDIS_MNEMONIC_CMOVN, F), LI_STRCAT(ZYDIS_MNEMONIC_CMOV, F)},
-		 ENUM_FLAGS(ENUMERATOR)
-	#undef ENUMERATOR
-	};
-	#define ENUMERATOR(F, id)                                       \
-		static constexpr flag_id LI_STRCAT(FLAG_, F)  = flag_id(id); \
-		static constexpr flag_id LI_STRCAT(FLAG_N, F) = flag_id(id + 1);
-	ENUM_FLAGS(ENUMERATOR)
-	#undef ENUMERATOR
-	#undef ENUM_FLAGS
+	template<typename T>
+	static ZydisEncoderOperand to_encoder_op(const T& op) {
+		ZydisEncoderOperand res = {};
 
-	// Instructions.
-	//
-	enum encoding_directive : msize_t {
-		ENC_NOP,
-		ENC_W_R,
-		ENC_RW_R,
-		ENC_RW,
-		ENC_W_R_R,
-		ENC_W_N_R_R,
-		ENC_F_R_R,
-	};
-	
-	#define INSN_NOP(name, ...) \
-		static minsn& name(mblock& blk) { return blk.instructions.emplace_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__.rsvd = ENC_NOP}, {}}); }
-	#define INSN_W_R(name, ...) \
-		static minsn& name(mblock& blk, mreg a, mop b) { return blk.instructions.emplace_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__.rsvd = ENC_W_R}, a, b}); }
-	#define INSN_RW_R(name, ...) \
-		static minsn& name(mblock& blk, mreg a, mop b) { return blk.instructions.emplace_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__.rsvd = ENC_RW_R}, a, a, b}); }
-	#define INSN_RW(name, ...) \
-		static minsn& name(mblock& blk, mreg a) { return blk.instructions.emplace_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__.rsvd = ENC_RW}, a, a}); }
-	#define INSN_W_R_R(name, ...) \
-		static minsn& name(mblock& blk, mreg a, mop b, mop c) { return blk.instructions.emplace_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__.rsvd = ENC_W_R_R}, a, b, c}); }
-	#define INSN_W_N_R_R(name, ...) \
-		static minsn& name(mblock& blk, mreg a, mop b, mop c) { return blk.instructions.emplace_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__.rsvd = ENC_W_N_R_R}, a, b, c}); }
-	#define INSN_F_R_R(name, ...) \
-		static minsn& name(mblock& blk, flag_id flag, mreg a, mop b) { return blk.instructions.emplace_back(minsn{LI_STRCAT(ZYDIS_MNEMONIC_, name), {__VA_ARGS__.rsvd = ENC_F_R_R}, flag, a, b}); }
-
-	INSN_NOP(RDTSC, .implicit_gp_write = ((1u << (arch::from_native(zy::RAX) - 1)) | (1u << (arch::from_native(zy::RDX) - 1))), );
-	INSN_RW(NEG);
-	INSN_RW(NOT, .trashes_flags = false, );
-	INSN_RW_R(SHR);
-	INSN_RW_R(SHL);
-	INSN_RW_R(ADD);
-	INSN_RW_R(SUB);
-	INSN_RW_R(OR);
-	INSN_RW_R(AND);
-	INSN_RW_R(IMUL);
-	INSN_RW_R(XOR);
-	INSN_RW_R(CMOVZ);
-	INSN_RW_R(CMOVNBE);
-	INSN_RW_R(CRC32); // Always qword.
-	INSN_W_R(LEA, .trashes_flags = false, );
-	INSN_W_R_R(BZHI, .trashes_flags = false, );
-	INSN_W_R_R(RORX, .trashes_flags = false, );
-	INSN_W_R_R(ROUNDSD, .trashes_flags = false, );
-	INSN_W_N_R_R(VROUNDSD, .trashes_flags = false, );
-	INSN_RW_R(DIVSD, .trashes_flags = false, );
-	INSN_RW_R(MULSD, .trashes_flags = false, );
-	INSN_RW_R(ADDSD, .trashes_flags = false, );
-	INSN_RW_R(SQRTSD, .trashes_flags = false, );
-	INSN_RW_R(SUBSD, .trashes_flags = false, );
-	INSN_RW_R(ORPD, .trashes_flags = false, .force_size = 0x10, );
-	INSN_RW_R(ANDPD, .trashes_flags = false, .force_size = 0x10, );
-	INSN_RW_R(XORPD, .trashes_flags = false, .force_size = 0x10, );
-	INSN_RW_R(MINSD, .trashes_flags = false, );
-	INSN_RW_R(MAXSD, .trashes_flags = false, );
-	INSN_W_R_R(VORPD, .trashes_flags = false, .force_size = 0x10, );
-	INSN_W_R_R(VANDPD, .trashes_flags = false, .force_size = 0x10, );
-	INSN_W_R_R(VXORPD, .trashes_flags = false, .force_size = 0x10, );
-	INSN_W_R_R(VMINSD, .trashes_flags = false, );
-	INSN_W_R_R(VMAXSD, .trashes_flags = false, );
-	INSN_RW_R(PCMPEQB, .trashes_flags = false, );
-	INSN_W_R_R(VPCMPEQB, .trashes_flags = false, );
-	INSN_W_R_R(VDIVSD, .trashes_flags = false, );
-	INSN_W_R_R(VMULSD, .trashes_flags = false, );
-	INSN_W_R_R(VADDSD, .trashes_flags = false, );
-	INSN_W_R_R(VSQRTSD, .trashes_flags = false, );
-	INSN_W_R_R(VSUBSD, .trashes_flags = false, );
-	INSN_F_R_R(CMP);
-	INSN_F_R_R(TEST);
-	INSN_F_R_R(PTEST);
-	INSN_F_R_R(VPTEST);
-	INSN_F_R_R(VUCOMISD);
-	INSN_F_R_R(UCOMISD);
-	INSN_F_R_R(VUCOMISS);
-	INSN_F_R_R(UCOMISS);
-
-	// Operand helpers.
-	//
-	#define RI(x)    get_ri_for(b, x, false)
-	#define RIi(x)   get_ri_for(b, x, true)
-	#define RM(x)    get_rm_for(b, x)
-	#define REG(x)   get_reg_for(b, x->as<insn>())
-	#define REGV(x)   get_reg_for(b, x)
-	#define YIELD(x) yield_value(b, i, x)
-
-	#if !LI_DEBUG
-		#define REF_VM() mop(intptr_t(b->source->L))
-	#else
-		#define REF_VM() mop(mreg(vreg_vm))
-	#endif
-
-	inline static int64_t extract_constant(value* v) {
-		auto* c = v->as<constant>();
-		if (c->vt == type::f32)
-			return li::bit_cast<uint32_t>(float(c->n));
-		else
-			return c->i;
-	}
-	inline static mreg get_existing_reg(insn* i) {
-		mreg r = li::bit_cast<mreg>((msize_t) i->visited);
-		return r;
-	}
-	inline static mreg yield_value(mblock& b, insn* i, mop r) {
-		if (auto dst = get_existing_reg(i)) {
-			if (dst.is_fp())
-				b.append(vop::movf, dst, r);
-			else
-				b.append(vop::movi, dst, r);
-		} else {
-			if (!r.is_reg()) {
-				LI_ASSERT(r.is_const());
-				if (i->vt == type::f64)
-					b.append(vop::movf, (dst = b->next_fp()), r);
-				else
-					b.append(vop::movi, (dst = b->next_gp()), r);
+		if constexpr (std::is_same_v<T, ZydisEncoderOperand>) {
+			return op;
+		} else if constexpr (std::is_integral_v<T>) {
+			res.type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
+			if constexpr (std::is_unsigned_v<T>) {
+				res.imm.u = op;
 			} else {
-				dst = r.reg;
+				res.imm.s = op;
 			}
-			i->visited = li::bit_cast<msize_t>(dst);
-		}
-		return get_existing_reg(i);
-	}
-	inline static mreg get_reg_for(mblock& b, insn* i) {
-		if (auto s = get_existing_reg(i)) {
-			return s;
-		} else if (is_floating_point_data(i->vt)) {
-			return YIELD(b->next_fp());
+		} else if constexpr (std::is_pointer_v<T>) {
+			res.type  = ZYDIS_OPERAND_TYPE_IMMEDIATE;
+			res.imm.u = (uintptr_t) op;
+		} else if constexpr (std::is_same_v<T, reg>) {
+			res.type      = ZYDIS_OPERAND_TYPE_REGISTER;
+			res.reg.value = op;
+		} else if constexpr (std::is_same_v<T, mem>) {
+			res.type = ZYDIS_OPERAND_TYPE_MEMORY;
+			res.mem  = {op.base, op.index, op.scale, op.disp, op.size};
 		} else {
-			return YIELD(b->next_gp());
+			static_assert(sizeof(T) == -1, "Invalid argument.");
 		}
-	}
-	inline static mreg get_reg_for(mblock& b, value* i) {
-		if (i->is<insn>()) {
-			return get_reg_for(b, i->as<insn>());
-		} else if (is_floating_point_data(i->vt)) {
-			auto r = b->next_fp();
-			b.append(vop::movf, r, extract_constant(i));
-			return r;
-		} else {
-			auto r = b->next_gp();
-			b.append(vop::movi, r, (int64_t) i->as<constant>()->i);
-			return r;
-		}
-	}
-	inline static mop get_ri_for(mblock& b, value* i, bool integer) {
-		if (i->is<constant>()) {
-			if (integer || i->vt == type::f32) {
-				return mop(extract_constant(i));
-			} else {
-				return mop(i->as<constant>()->to_any());
-			}
-		} else {
-			return get_reg_for(b, i->as<insn>());
-		}
-	}
-	inline static mop get_rm_for(mblock& b, value* i) {
-		if (i->is<constant>()) {
-			if (auto c = i->as<constant>(); c->is(type::f64)) {
-				auto dst = b->next_fp();
-				if (c->i == 0) {
-					if constexpr (USE_AVX) {
-						VXORPD(b, dst, dst, dst);
-						return dst;
-					} else {
-						XORPD(b, dst, dst);
-						return dst;
-					}
-				} else if (c->i == -1ll) {
-					if constexpr (USE_AVX) {
-						VPCMPEQB(b, dst, dst, dst);
-						return dst;
-					} else {
-						PCMPEQB(b, dst, dst);
-						return dst;
-					}
-				}
-			}
-			return b->add_const(extract_constant(i));
-		} else {
-			return get_reg_for(b, i->as<insn>());
-		}
+		return res;
 	}
 
-	// Emits a type check of the temporary given into a flag and sets the condition flag on the temporary.
+	// Free form encoding.
 	//
-	inline static void check_type(mblock& b, value_type t, mreg out, mreg val) {
-		LI_ASSERT(out != val);
-		if (t == type_nil || t == type_exception) {
-			RORX(b, out, val, 47);
-			CMP(b, FLAG_Z, out, (int64_t) std::rotr(make_tag(t), 47));
-			b.append(vop::setcc, out, FLAG_Z);
-		} else if (t == type_number) {
-			RORX(b, out, val, 32);
-			CMP(b, FLAG_B, out, int32_t((make_tag(t) + 1) >> 32)).target_info.force_size = 4;
-			b.append(vop::setcc, out, FLAG_B);
-		} else {
-			RORX(b, out, val, 47);
-			AND(b, out, 0x1FFFF).target_info.force_size                            = 4;
-			CMP(b, FLAG_Z, out, int64_t(make_tag(t) >> 47)).target_info.force_size = 4;
-			b.append(vop::setcc, out, FLAG_Z);
-		}
-	}
-	inline static void check_type_gc(mblock& b, value_type t, mreg out, mreg val) {
-		LI_ASSERT(out != val);
-		constexpr uint64_t cmp = make_tag(type_gc_last + 1);
-		b.append(vop::movi, out, (int64_t) cmp);
-		CMP(b, FLAG_NBE, val, out);
-		b.append(vop::setcc, out, FLAG_NBE);
+	template<typename... Tx>
+		requires(sizeof...(Tx) <= ZYDIS_ENCODER_MAX_OPERANDS)
+	static bool encode(std::vector<uint8_t>& out, ZydisMnemonic mnemonic, const Tx&... operands) {
+		ZydisEncoderRequest req;
+		memset(&req, 0, sizeof(req));
+		req.mnemonic                                                                  = mnemonic;
+		req.machine_mode                                                              = ZYDIS_MACHINE_MODE_LONG_64;
+		req.operand_count                                                             = sizeof...(Tx);
+		((std::array<ZydisEncoderOperand, ZYDIS_ENCODER_MAX_OPERANDS>&) req.operands) = {to_encoder_op<Tx>(operands)...};
+		return encode(out, req);
 	}
 
-	// Clears type tag, should be a pointer type.
+	// Decoding.
 	//
-	inline static void gc_type_clear(mblock& b, mreg dst, mreg src) {
-	#if !LI_KERNEL_MODE
-		auto tmp = b->next_gp();
-		b.append(vop::movi, tmp, 47);
-		BZHI(b, dst, src, tmp);
-	#else
-		if (dst != src) {
-			b.append(vop::movi, dst, -1ll << 47);
-			OR(b, dst, src);
-		} else {
-			auto tmp = b->next_gp();
-			b.append(vop::movi, tmp, -1ll << 47);
-			OR(b, dst, tmp);
-		}
-	#endif
-	}
+	struct decoded_ins {
+		ZydisDecodedInstruction ins;
+		ZydisDecodedOperand     ops[ZYDIS_MAX_OPERAND_COUNT_VISIBLE];
 
-	// Erases the type into a general purpose register.
-	//
-	inline static void type_erase(mblock& b, mreg r, mreg out, type irty) {
-		if (irty == type::nil) {
-			b.append(vop::movi, out, nil);
-		} else if (irty == type::exc) {
-			b.append(vop::movi, out, exception_marker);
-		} else if (irty == type::i1) {
-			auto tmp = b->next_gp();
-			// mov  tmp, tag
-			b.append(vop::movi, tmp, (int64_t)mix_value(type_bool, 0));
-			// movzx out, r
-			b.append(vop::izx8, out, r);
-			// or    out, tmp
-			OR(b, out, tmp);
-		} else if (irty == type::i8) {
-			auto tg = b->next_gp();
-			auto tf = b->next_fp();
-			b.append(vop::isx8, tg, r);
-			b.append(vop::fcvt, tf, tg);
-			b.append(vop::movi, out, tf);
-		} else if (irty == type::i16) {
-			auto tg = b->next_gp();
-			auto tf = b->next_fp();
-			b.append(vop::isx16, tg, r);
-			b.append(vop::fcvt, tf, tg);
-			b.append(vop::movi, out, tf);
-		} else if (irty == type::i32) {
-			auto tg = b->next_gp();
-			auto tf = b->next_fp();
-			b.append(vop::isx32, tg, r);
-			b.append(vop::fcvt, tf, tg);
-			b.append(vop::movi, out, tf);
-		} else if (irty == type::i64) {
-			auto tf = b->next_fp();
-			b.append(vop::fcvt, tf, r);
-			b.append(vop::movi, out, tf);
-		} else if (irty == type::f32) {
-			auto tf = b->next_fp();
-			b.append(vop::fx64, tf, r);
-			b.append(vop::movi, out, tf);
-		} else if (irty == type::f64 || irty == type::any) {
-			b.append(vop::movi, out, r);
-		} else {
-			auto ty = to_value_type(irty);
-			mreg fv;
-	#if LI_KERNEL_MODE
-			fv = b->next_gp();
-			b.append(vop::movi, out, 47);
-			BZHI(b, fv, r, out);
-	#else
-			if (out == r) {
-				fv = b->next_gp();
-				b.append(vop::movi, fv, r); // out and r are allowed to alias so we have to move beforehand.
-			} else {
-				fv = r;
-			}
-	#endif
-			b.append(vop::movi, out, (int64_t) mix_value(uint8_t(ty), 0));
-			OR(b, out, fv);
-		}
-	}
-	inline static void type_erase(mblock& b, value* v, mreg out) {
-		if (v->is<constant>()) {
-			b.append(vop::movi, out, v->as<constant>()->to_any());
-			return;
-		} else if (v->vt == type::nil) {
-			b.append(vop::movi, out, nil);
-			return;
-		} else if (v->vt == type::exc) {
-			b.append(vop::movi, out, exception_marker);
-			return;
-		} else {
-			type_erase(b, REG(v), out, v->vt);
-		}
-	}
-
-	// Hashes the value as any::hash.
-	//
-	inline static void value_hash(mblock& b, mreg in, mreg out, value* v = nullptr) {
-		// Skip if constant.
+		// Formatting.
 		//
-		if (v && v->is<constant>()) {
-			b.append(vop::movi, out, (int64_t) v->as<constant>()->to_any().hash());
-			return;
+		std::string to_string(uint64_t ip = 0) const {
+			char           buffer[128];
+			ZydisFormatter formatter;
+			ZydisFormatterInit(&formatter, ZYDIS_FORMATTER_STYLE_INTEL);
+			if (ZYAN_FAILED(ZydisFormatterFormatInstruction(&formatter, &ins, ops, ins.operand_count_visible, buffer, sizeof(buffer), ip))) {
+				strcpy(buffer, "?");
+			}
+			return std::string(&buffer[0]);
 		}
+	};
+	static std::optional<decoded_ins> decode(std::span<const uint8_t>& in) {
+		std::optional<decoded_ins> result;
+		ZydisDecoder               decoder;
+		ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_STACK_WIDTH_64);
+		auto& out = result.emplace();
+		if (ZYAN_FAILED(
+				  ZydisDecoderDecodeFull(&decoder, in.data(), in.size(), &out.ins, out.ops, ZYDIS_MAX_OPERAND_COUNT_VISIBLE, ZYDIS_DFLAG_VISIBLE_OPERANDS_ONLY))) {
+			result.reset();
+		} else {
+			in = in.subspan(out.ins.length);
+		}
+		return result;
+	}
 
-		// Replicate the hash function in-line.
-		//
-	#if LI_32 || !LI_HAS_CRC
-		auto tmp2 = b->next_gp();
-		b.append(vop::movi, out, 0xff51afd7ed558ccdll);
-		b.append(vop::movi, tmp2, in);
-		SHR(b, tmp2, 33);
-		XOR(b, tmp2, in);
-		IMUL(b, tmp2, out);
-		b.append(vop::movi, out, tmp2);
-		SHR(b, out, 33);
-		XOR(b, out, tmp2);
-	#else
-		b.append(vop::movi, out, in);
-		SHR(b, out, 8);
-		CRC32(b, out, in);
-	#endif
+	// Register resize map.
+	//
+	struct reg_details {
+		reg gpr8lo = NO_REG;
+		reg gpr8hi = NO_REG;
+		reg gpr16  = NO_REG;
+		reg gpr32  = NO_REG;
+		reg gpr64  = NO_REG;
+		reg gpr128 = NO_REG;
+		reg gpr256 = NO_REG;
+	};
+	// ZYDIS_REGISTER_MAX_VALUE
+	static constexpr auto reg_details_arr = []() {
+		std::array<reg_details, ZYDIS_REGISTER_MAX_VALUE> arr      = {};
+		auto                                              push_reg = [&](reg_details r) {
+			if (r.gpr8lo != NO_REG)
+				arr[r.gpr8lo] = r;
+			if (r.gpr8hi != NO_REG)
+				arr[r.gpr8hi] = r;
+			if (r.gpr16 != NO_REG)
+				arr[r.gpr16] = r;
+			if (r.gpr32 != NO_REG)
+				arr[r.gpr32] = r;
+			if (r.gpr64 != NO_REG)
+				arr[r.gpr64] = r;
+			if (r.gpr128 != NO_REG)
+				arr[r.gpr128] = r;
+			if (r.gpr256 != NO_REG)
+				arr[r.gpr256] = r;
+		};
+		push_reg({AL, AH, AX, EAX, RAX, NO_REG, NO_REG});
+		push_reg({BL, BH, BX, EBX, RBX, NO_REG, NO_REG});
+		push_reg({CL, CH, CX, ECX, RCX, NO_REG, NO_REG});
+		push_reg({DL, DH, DX, EDX, RDX, NO_REG, NO_REG});
+		push_reg({SPL, NO_REG, SP, ESP, RSP, NO_REG, NO_REG});
+		push_reg({BPL, NO_REG, BP, EBP, RBP, NO_REG, NO_REG});
+		push_reg({SIL, NO_REG, SI, ESI, RSI, NO_REG, NO_REG});
+		push_reg({DIL, NO_REG, DI, EDI, RDI, NO_REG, NO_REG});
+		push_reg({R8B, NO_REG, R8W, R8D, R8, NO_REG, NO_REG});
+		push_reg({R9B, NO_REG, R9W, R9D, R9, NO_REG, NO_REG});
+		push_reg({R10B, NO_REG, R10W, R10D, R10, NO_REG, NO_REG});
+		push_reg({R11B, NO_REG, R11W, R11D, R11, NO_REG, NO_REG});
+		push_reg({R12B, NO_REG, R12W, R12D, R12, NO_REG, NO_REG});
+		push_reg({R13B, NO_REG, R13W, R13D, R13, NO_REG, NO_REG});
+		push_reg({R14B, NO_REG, R14W, R14D, R14, NO_REG, NO_REG});
+		push_reg({R15B, NO_REG, R15W, R15D, R15, NO_REG, NO_REG});
+
+		push_reg({NO_REG, NO_REG, IP, EIP, RIP, NO_REG, NO_REG});
+		push_reg({NO_REG, NO_REG, FLAGS, EFLAGS, RFLAGS, NO_REG, NO_REG});
+
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM0, YMM0});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM1, YMM1});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM2, YMM2});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM3, YMM3});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM4, YMM4});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM5, YMM5});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM6, YMM6});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM7, YMM7});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM8, YMM8});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM9, YMM9});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM10, YMM10});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM11, YMM11});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM12, YMM12});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM13, YMM13});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM14, YMM14});
+		push_reg({NO_REG, NO_REG, NO_REG, NO_REG, NO_REG, XMM15, YMM15});
+		return arr;
+	}();
+
+	// Register resize.
+	//
+	static constexpr reg resize_reg(reg r, size_t n) {
+		switch (n) {
+			case 1:
+				return reg_details_arr[r].gpr8lo;
+			case 2:
+				return reg_details_arr[r].gpr16;
+			case 4:
+				return reg_details_arr[r].gpr32;
+			case 8:
+				return reg_details_arr[r].gpr64;
+			case 0x10:
+				return reg_details_arr[r].gpr128;
+			case 0x20:
+				return reg_details_arr[r].gpr256;
+			default:
+				return NO_REG;
+		}
 	}
 };
-#endif

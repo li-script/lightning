@@ -1,0 +1,50 @@
+# Values produced before and by calls remain live through the final branch. This
+# deliberately pressures both FP registers (the arithmetic results) and GP
+# registers (the type-erased call results).
+fn opaque(value) {
+   return value
+}
+
+fn pressure(seed: number, take_forward: bool) {
+   const f01 = seed + 1
+   const f02 = seed + 2
+   const f03 = seed + 3
+   const f04 = seed + 4
+   const f05 = seed + 5
+   const f06 = seed + 6
+   const f07 = seed + 7
+   const f08 = seed + 8
+   const f09 = seed + 9
+   const f10 = seed + 10
+   const f11 = seed + 11
+   const f12 = seed + 12
+
+   const g01 = opaque(f01)
+   const g02 = opaque(f02)
+   const g03 = opaque(f03)
+   const g04 = opaque(f04)
+   const g05 = opaque(f05)
+   const g06 = opaque(f06)
+   const g07 = opaque(f07)
+   const g08 = opaque(f08)
+   const g09 = opaque(f09)
+   const g10 = opaque(f10)
+   const g11 = opaque(f11)
+   const g12 = opaque(f12)
+   const forward = opaque(take_forward)
+
+   if forward {
+      return f01 + f02 + f03 + f04 + f05 + f06 +
+             f07 + f08 + f09 + f10 + f11 + f12 +
+             g01 + g02 + g03 + g04 + g05 + g06 +
+             g07 + g08 + g09 + g10 + g11 + g12
+   } else {
+      return g12 + g11 + g10 + g09 + g08 + g07 +
+             g06 + g05 + g04 + g03 + g02 + g01 +
+             f12 + f11 + f10 + f09 + f08 + f07 +
+             f06 + f05 + f04 + f03 + f02 + f01
+   }
+}
+
+assert(pressure(3, true) == 228)
+assert(pressure(7, false) == 324)

@@ -1,0 +1,160 @@
+import math
+import typed
+
+fn rejects(action) {
+	try {
+		action()
+		false
+	} catch {
+		true
+	}
+}
+
+let integers = i32[]([-2147483648, -1, 0, 2147483647])
+assert(integers::len() == 4)
+assert(typed.element_size(integers) == 4)
+assert(typed.capacity(integers) == 4)
+assert(integers[0] == -2147483648)
+assert(integers[3] == 2147483647)
+integers[1] = 42
+assert(integers[1] == 42)
+assert(integers[99] == nil)
+assert(rejects(|| {
+	integers[0] = 1.5
+}))
+assert(rejects(|| {
+	integers[0] = 2147483648
+}))
+assert(rejects(|| {
+	integers[-1] = 0
+}))
+assert(rejects(|| {
+	integers[4] = 0
+}))
+
+let bytes = u8[](3)
+assert(bytes::len() == 3)
+assert(typed.element_size(bytes) == 1)
+assert(bytes[0] == 0 && bytes[1] == 0 && bytes[2] == 0)
+typed.fill(bytes, 255)
+assert(bytes[0] == 255 && bytes[1] == 255 && bytes[2] == 255)
+assert(rejects(|| typed.fill(bytes, -1)))
+assert(rejects(|| {
+	bytes[0] = 256
+}))
+assert(rejects(|| {
+	bytes[0] = math.inf
+}))
+assert(rejects(|| {
+	bytes[0] = math.nan
+}))
+assert(rejects(|| u8[]([0, "not a number"])))
+assert(rejects(|| u8[]([0, 256])))
+
+typed.reserve(bytes, 12)
+assert(bytes::len() == 3)
+assert(typed.capacity(bytes) == 12)
+typed.resize(bytes, 1)
+assert(bytes::len() == 1)
+assert(bytes[0] == 255)
+typed.resize(bytes, 4)
+assert(bytes::len() == 4)
+assert(bytes[0] == 255)
+assert(bytes[1] == 0 && bytes[2] == 0 && bytes[3] == 0)
+
+let copy = typed.dup(bytes)
+assert(copy::len() == 4)
+assert(typed.capacity(copy) == typed.capacity(bytes))
+copy[0] = 7
+assert(copy[0] == 7)
+assert(bytes[0] == 255)
+
+let singles = f32[]([1.5, 16777217])
+assert(singles::len() == 2)
+assert(typed.element_size(singles) == 4)
+assert(singles[0] == 1.5)
+assert(singles[1] == 16777216)
+singles[0] = math.inf
+assert(singles[0] == math.inf)
+singles[0] = -math.inf
+assert(singles[0] == -math.inf)
+singles[0] = math.nan
+assert(singles[0] != singles[0])
+singles[0] = -0.0
+assert(math.copysign(1, singles[0]) == -1)
+assert(f32[]([math.huge])[0] == math.inf)
+assert(f32[]([-math.huge])[0] == -math.inf)
+
+let doubles = f64[]([math.nan, math.inf, -math.inf, -0.0])
+assert(doubles[0] != doubles[0])
+assert(doubles[1] == math.inf)
+assert(doubles[2] == -math.inf)
+assert(math.copysign(1, doubles[3]) == -1)
+
+let signed64 = i64[]([-9007199254740991, 9007199254740991])
+assert(signed64[0] == -9007199254740991)
+assert(signed64[1] == 9007199254740991)
+assert(rejects(|| {
+	signed64[0] = -9007199254740992
+}))
+assert(rejects(|| {
+	signed64[0] = 9007199254740992
+}))
+
+let unsigned64 = u64[]([0, 9007199254740991])
+assert(unsigned64[1] == 9007199254740991)
+assert(rejects(|| {
+	unsigned64[0] = -1
+}))
+assert(rejects(|| {
+	unsigned64[0] = 9007199254740992
+}))
+
+assert(i8[](0)::len() == 0)
+assert(i16[](0)::len() == 0)
+assert(u16[](0)::len() == 0)
+assert(u32[](0)::len() == 0)
+assert(f64[](0)::len() == 0)
+
+struct Pair {
+	x: number = 1
+	label: string = "default"
+}
+
+class NotStruct {
+	x: number = 0
+}
+
+let structs = typed.struct_array(Pair, 2)
+assert(structs::len() == 2)
+assert(typed.kind(structs) == "struct")
+assert(typed.element_size(structs) >= 16)
+assert(structs[0] == Pair{x: 1, label: "default"})
+assert(structs[1] == Pair{x: 1, label: "default"})
+let nan_pair = Pair{x: math.nan, label: "nan"}
+assert(nan_pair != nan_pair)
+
+let source_pair = Pair{x: 7, label: "seven"}
+structs[0] = source_pair
+assert(structs[0] == source_pair)
+let materialized = structs[0]
+materialized.x = 99
+materialized.label = "changed"
+assert(structs[0] == Pair{x: 7, label: "seven"})
+
+let struct_sum = 0
+for index, value in structs {
+	struct_sum += value.x
+	assert(index == 0 || index == 1)
+	assert(value.label == (index == 0 ? "seven" : "default"))
+}
+assert(struct_sum == 8)
+
+let struct_copy = typed.dup(structs)
+struct_copy[0] = Pair{x: 42, label: "copy"}
+assert(struct_copy[0] == Pair{x: 42, label: "copy"})
+assert(structs[0] == Pair{x: 7, label: "seven"})
+assert(rejects(|| typed.struct_array(NotStruct, 1)))
+assert(rejects(|| {
+	structs[0] = NotStruct{x: 1}
+}))

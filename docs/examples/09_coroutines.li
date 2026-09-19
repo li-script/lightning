@@ -1,0 +1,33 @@
+import coroutine
+
+// A resume value is returned from the suspended yield expression.
+const conversation = coroutine.create(|| {
+   const first_reply = coroutine.yield("ready")
+   const second_reply = coroutine.yield(`first reply: {first_reply}`)
+   return `second reply: {second_reply}`
+})
+
+assert(coroutine.status(conversation) == "created")
+assert(coroutine.resume(conversation) == "ready")
+assert(coroutine.status(conversation) == "suspended")
+assert(coroutine.resume(conversation, "hello") == "first reply: hello")
+assert(coroutine.resume(conversation, "goodbye") == "second reply: goodbye")
+assert(coroutine.status(conversation) == "dead")
+
+// Closing a suspended coroutine unwinds it and executes deferred cleanup.
+let cleanup = []
+const worker = coroutine.create(|| {
+   defer { cleanup::push("outer") }
+   defer { cleanup::push("inner") }
+   coroutine.yield(1)
+   cleanup::push("unreachable")
+})
+
+assert(coroutine.resume(worker) == 1)
+coroutine.close(worker)
+assert(coroutine.status(worker) == "dead")
+assert(cleanup::len() == 2)
+assert(cleanup[0] == "inner")
+assert(cleanup[1] == "outer")
+
+print("coroutines: ok")

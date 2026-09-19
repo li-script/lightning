@@ -1,13 +1,80 @@
+import collections
 import debug
 
-fn a() { debug.stacktrace() }
-fn b() { a() }
-const result = b()
-
-const expected_funcs = [a, b, $F]
-const expected_lines = [3, 4, 5]
+# Live stack inspection remains available independently from exception traces.
+fn live_a() { debug.stacktrace() }
+fn live_b() { live_a() }
+const live = live_b()
+const expected_funcs = [live_a, live_b, $F]
+const expected_lines = [5, 6, 7]
 for k,v in expected_funcs {
-	assert(result[k].func == v, `{result[k].func} != {v}`)
-}for k,v in expected_lines {
-	assert(result[k].line == v, `{result[k].line} != {v}`)
+	assert(live[k].func == v, `{live[k].func} != {v}`)
+};for k,v in expected_lines {
+	assert(live[k].line == v, `{live[k].line} != {v}`)
 }
+
+fn throw_from_callback(value, key) {
+	throw "nested trace"
+}
+
+fn through_native() {
+	collections.map([1], throw_from_callback)
+}
+
+let nested_error = nil
+try {
+	through_native()
+} catch error {
+	nested_error = error
+}
+const nested = debug.traceback(nested_error)
+assert(nested::len() >= 4)
+assert(":throw_from_callback" in nested[0]["function"])
+assert(nested[0].line == 17)
+assert(!nested[0].native)
+assert(nested[1]["function"] == "C")
+assert(nested[1].line == 21)
+assert(nested[1].native)
+assert(":through_native" in nested[2]["function"])
+assert(nested[2].line == 21)
+assert(!nested[2].native)
+assert("stacktrace.li" in nested[3]["function"])
+assert(nested[3].line == 26)
+assert(!nested[3].native)
+
+fn original_throw() {
+	throw "rethrow trace"
+}
+
+fn rethrowing() {
+	try {
+		original_throw()
+	} catch error {
+		throw error
+	}
+}
+
+let rethrown_error = nil
+try {
+	rethrowing()
+} catch error {
+	rethrown_error = error
+}
+const rethrown = debug.traceback(rethrown_error)
+assert(":original_throw" in rethrown[0]["function"])
+assert(rethrown[0].line == 46)
+assert(!rethrown[0].native)
+assert(":rethrowing" in rethrown[1]["function"])
+assert(rethrown[1].line == 51)
+assert(!rethrown[1].native)
+
+# Omitting the argument returns the current caught exception's trace.
+let current = []
+try {
+	throw "caught trace"
+} catch error {
+	current = debug.traceback()
+}
+assert("stacktrace.li" in current[0]["function"])
+assert(current[0].line == 74)
+assert(!current[0].native)

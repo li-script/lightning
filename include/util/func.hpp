@@ -1,6 +1,6 @@
 #pragma once
-#include <util/typeinfo.hpp>
 #include <tuple>
+#include <util/typeinfo.hpp>
 
 namespace li::util {
 	// Invocation traits.

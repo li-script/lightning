@@ -1,0 +1,42 @@
+const raw = [==[first\n\x41
+"double" 'single' `format`
+]=] mismatched [=[nested]=]
+last]==]
+assert(raw == "first\\n\\x41\n\"double\" 'single' `format`\n]=] mismatched [=[nested]=]\nlast")
+
+const plain = [=[one-equals "quote" and 'apostrophe']=]
+assert(plain == "one-equals \"quote\" and 'apostrophe'")
+
+# `[[` is reserved for attribute lists, so a zero-separator opener is an
+# ordinary nested array literal rather than a long string.
+const nested = [[1, 2], [3]]
+assert(nested::len() == 2 && nested[0][1] == 2)
+
+# Zero-separator long comments remain valid.
+#[[ comment "with" 'quotes' ]] const commented = 5
+assert(commented == 5)
+
+const many = [====[four-equals keeps ]===] text]====]
+assert(many == "four-equals keeps ]===] text")
+
+const before = 1
+#[==[
+assert(false)
+"unterminated short-looking quote
+[=[ nested delimiter ]=]
+]===] mismatched closer
+]==]
+const after = 2
+assert(before + after == 3)
+
+#[====[ ignored "double" 'single' `format` [==[nested]==] ]====] const inline = 4
+assert(inline == 4)
+
+let unterminated_location = nil
+try {
+   loadstring("const value = [=[first\nsecond]=]\n#[==[\nignored\n]==]\n[==[unterminated\n")
+} catch error {
+   unterminated_location = error
+}
+assert(unterminated_location is string)
+assert(":6:" in unterminated_location)

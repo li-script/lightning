@@ -1,0 +1,56 @@
+import reflect
+
+fn compile_error(source) {
+   let caught = nil
+   try {
+      loadstring(source)
+   } catch error {
+      caught = error
+   }
+   caught
+}
+
+[[Example("hello", 7, true, nil), marker]] fn decorated(value: number) -> number {
+   value + 1
+}
+
+[[Entity("record")]]
+class AttributedClass {
+   value: number = 3
+}
+
+const function_attributes = reflect.attributes(decorated)
+assert(function_attributes.Example is array)
+assert(function_attributes.Example::len() == 4)
+assert(function_attributes.Example[0] == "hello")
+assert(function_attributes.Example[1] == 7)
+assert(function_attributes.Example[2] == true)
+assert(function_attributes.Example[3] == nil)
+assert(function_attributes.marker is array)
+assert(function_attributes.marker::len() == 0)
+
+const class_attributes = reflect.attributes(AttributedClass)
+assert(class_attributes.Entity[0] == "record")
+assert(reflect.attributes(AttributedClass()).Entity[0] == "record")
+assert(reflect.attributes(|| 1) is table)
+
+let frozen_error = nil
+try {
+   function_attributes.extra = []
+} catch error {
+   frozen_error = error
+}
+assert(frozen_error is string)
+
+# A lone leading [[strict]] is a file attribute, while other multiline lists
+# attach to the declaration that follows.
+const strict_file = loadstring("[[strict]]\nlet value = 100'000i32\nvalue")
+assert(strict_file() == 100000)
+const multiline = loadstring("[[Tag(9)]]\nfn tagged() { 1 }\ntagged")
+const tagged = multiline()
+assert(reflect.attributes(tagged).Tag[0] == 9)
+
+assert("duplicate attribute" in compile_error("[[same, same]] fn bad() { nil }"))
+assert("attribute arguments must be literals" in compile_error("[[bad(value)]] fn nope() { nil }"))
+assert("file attributes must be the leading statement" in compile_error("let value = 1\n[[strict]]\nvalue"))
+assert(compile_error("[[tag]] let value = 1") is string)

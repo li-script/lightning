@@ -1,0 +1,64 @@
+class Child {
+   value: number
+
+   read() {
+      self.value
+   }
+}
+
+class Holder {
+   child: Child = Child{value: 7}
+   label: string = "owned default"
+   extra
+
+   dyn describe() {
+      `{self.label}: {self.child.read()}`
+   }
+}
+
+class Derived : Holder {
+   marker: number = 11
+}
+
+fn make_holder() {
+   let child = Child{value: 41}
+   let holder = Holder{child: child, extra: {answer: 42}}
+   child = nil
+   return holder
+}
+
+let original = make_holder()
+let duplicate = original::dup()
+assert(duplicate != original)
+assert(duplicate.child == original.child)
+assert(duplicate.extra == original.extra)
+
+original.child = Child{value: 1}
+original.extra = nil
+assert(duplicate.child.read() == 41)
+assert(duplicate.extra.answer == 42)
+assert(duplicate.describe() == "owned default: 41")
+
+let with_defaults = Derived{}
+assert(with_defaults.child.read() == 7)
+assert(with_defaults.label == "owned default")
+assert(with_defaults.marker == 11)
+assert(with_defaults is Holder)
+assert(with_defaults is Derived)
+
+let other_defaults = Derived{}
+assert(other_defaults.child != with_defaults.child)
+with_defaults.child.value = 8
+assert(other_defaults.child.read() == 7)
+
+let assignment_failed = false
+let assignment_error = nil
+try {
+   duplicate.child = "not a child"
+} catch error {
+   assignment_failed = true
+   assignment_error = error
+}
+assert(assignment_failed)
+assert("invalid value for typed field" in assignment_error)
+assert(duplicate.child.read() == 41)

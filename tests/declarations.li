@@ -1,0 +1,169 @@
+fn compile_error(source) {
+   let caught = nil
+   try {
+      loadstring(source)
+   } catch error {
+      caught = error
+   }
+   caught
+}
+
+fn rejected(action) {
+   let caught = nil
+   try {
+      action()
+   } catch error {
+      caught = error
+   }
+   caught
+}
+
+export const declaration_state = {initializers: 0, cleanups: 0}
+fn next_initial_value() {
+   $E.declaration_state.initializers += 1
+   4
+}
+
+# Members are declarations: fields use newline/semicolon separators and may be
+# interleaved with ordinary methods, constructors, properties, and hooks.
+class Vec {
+   x: number;
+
+   total() -> number {
+      self.x + self.y
+   }
+
+   identity() -> Vec { self }
+   invalid_identity() -> Self { 1 }
+
+   y: number
+   initialized: number = next_initial_value()
+   items: array;
+
+   new!(x: number, y: number) {
+      self.x = x
+      self.y = y
+      self.items::push(x)
+      "discarded constructor result"
+   }
+
+   add!(other) -> number {
+      self.total() + other.total()
+   }
+
+   at!(key) {
+      if key == "double" {
+         return self.total() * 2
+      }
+      nil
+   }
+
+   get sum() -> number {
+      self.total()
+   }
+
+   set sum(value: number) {
+      self.x = value - self.y
+   }
+
+   del!() { nil }
+}
+
+let left = Vec(2, 3)
+let right = Vec(5, 7)
+assert(left is Vec)
+assert(left.total() == 5)
+assert(left.identity() is Vec)
+assert(rejected(|| left.invalid_identity()) is string)
+assert(left + right == 17)
+assert(left.double == 10)
+assert(left.sum == 5)
+left.sum = 20
+assert(left.x == 17 && left.sum == 20)
+assert(left.items::len() == 1 && left.items[0] == 2)
+assert($E.declaration_state.initializers == 2)
+assert(rejected(|| Vec("wrong", 1)) is string)
+assert(rejected(|| Vec(1)) is string)
+
+# get/set/new are contextual: they remain ordinary names without the accessor
+# or bang declaration shapes, while set! is the canonical write hook.
+export const contextual_writes = {stored: 0}
+class ContextualNames {
+   get() -> number { 7 }
+   set(value) -> number { value }
+   new() -> number { 9 }
+
+   set!(key, value) {
+      if key == "extra" {
+         $E.contextual_writes.stored = value
+      }
+   }
+}
+let contextual = ContextualNames()
+assert(contextual.get() == 7)
+assert(contextual.set(8) == 8)
+assert(contextual.new() == 9)
+contextual.extra = 11
+assert($E.contextual_writes.stored == 11)
+
+# Both builtin and already-declared class return types are guarded on implicit
+# and explicit returns.
+fn plus_one(value: number) -> number { value + 1 }
+assert(plus_one(4) == 5)
+
+class Marker {}
+class MarkerHolder {
+   echo(value: Marker) -> Marker { value }
+   wrong() -> Marker { 1 }
+}
+const marker = Marker()
+assert(MarkerHolder().echo(marker) is Marker)
+assert(rejected(|| MarkerHolder().wrong()) is string)
+
+fn wrong_implicit() -> number { "not a number" }
+assert(rejected(wrong_implicit) is string)
+
+fn wrong_through_cleanup() -> number {
+   defer { $E.declaration_state.cleanups += 1 }
+   return "not a number"
+}
+assert(rejected(wrong_through_cleanup) is string)
+assert($E.declaration_state.cleanups == 1)
+
+# Getter-only properties are read-only.
+class ReadonlyValue {
+   get value() -> number { 41 }
+}
+let readonly = ReadonlyValue()
+assert(readonly.value == 41)
+assert(rejected(|| { readonly.value = 2 }) is string)
+
+# Dynamic declarations are the only overridable members of each kind.
+class DynamicBase {
+   dyn value() -> number { 1 }
+   dyn get property() -> number { 2 }
+   dyn add!(other) -> number { self.value() + other.value() }
+}
+class DynamicDerived : DynamicBase {
+   value() -> number { 3 }
+   get property() -> number { 4 }
+   add!(other) -> number { self.value() * other.value() }
+}
+let dynamic = DynamicDerived()
+assert(dynamic.value() == 3)
+assert(dynamic.property == 4)
+assert(dynamic + dynamic == 9)
+
+# Invalid declarations fail while compiling, before any class value escapes.
+assert(compile_error("class UnknownHook { mystery!() { nil } }") is string)
+assert(compile_error("class LegacyGetHook { get!(key) { nil } }") is string)
+assert(compile_error("class DerivedComparison { le!(other) { true } }") is string)
+assert(compile_error("class DuplicateConstructor { new!() {}; new!() {} }") is string)
+assert(compile_error("class CommaFields { first: number, second: number }") is string)
+assert(compile_error("class FinalMethod { value() { 1 } }\nclass InvalidMethod : FinalMethod { value() { 2 } }") is string)
+assert(compile_error("class FinalProperty { get value() { 1 } }\nclass InvalidProperty : FinalProperty { get value() { 2 } }") is string)
+assert(compile_error("class FinalHook { add!(other) { 1 } }\nclass InvalidHook : FinalHook { add!(other) { 2 } }") is string)
+
+# Runtime trait attachment and the old arrow member-call spelling are gone.
+assert(compile_error("let receiver = {}\nreceiver::add!(|other| other)") is string)
+assert(compile_error("class LegacyCall { value() { 1 } }\nLegacyCall()->value()") is string)

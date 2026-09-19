@@ -1,90 +1,93 @@
 #pragma once
-#include <vm/types.hpp>
+#include <cstddef>
+#include <cstring>
 #include <optional>
 #include <util/common.hpp>
 #include <util/format.hpp>
 #include <vm/state.hpp>
+#include <vm/types.hpp>
 
 namespace li::bc {
 	// Bytecode definitions.
 	//
-#define LIGHTNING_ENUM_BC(_)                                                       \
-	/* Misc. */                                                                     \
-	_(UD, ___, ___, ___)  /* Undefined */                                           \
-	_(NOP, ___, ___, ___) /* No-op */                                               \
-                                                                                   \
-	/* Unary operators */                                                           \
-	_(LNOT, reg, reg, ___) /* A=!B */                                               \
-	_(ANEG, reg, reg, ___) /* A=-B */                                               \
-	_(MOV, reg, reg, ___)  /* A=B */                                                \
-                                                                                   \
-	/* Binary operators.  */                                                        \
-	_(AADD, reg, reg, reg) /* A=B+C */                                              \
-	_(ASUB, reg, reg, reg) /* A=B-C */                                              \
-	_(AMUL, reg, reg, reg) /* A=B*C */                                              \
-	_(ADIV, reg, reg, reg) /* A=B/C */                                              \
-	_(AMOD, reg, reg, reg) /* A=B%C */                                              \
-	_(APOW, reg, reg, reg) /* A=B^C */                                              \
-	_(LAND, reg, reg, reg) /* A=B&&C */                                             \
-	_(LOR, reg, reg, reg)  /* A=B||C */                                             \
-	_(NCS, reg, reg, reg)  /* A=B==null?C:B */                                      \
-	_(CTY, reg, reg, imm)  /* A=TYPE(B)==C */                                       \
-	_(CTYX, reg, reg, reg) /* A=C is base of B */                                   \
-	_(CEQ, reg, reg, reg)  /* A=B==C */                                             \
-	_(CNE, reg, reg, reg)  /* A=B!=C */                                             \
-	_(CLT, reg, reg, reg)  /* A=B<C */                                              \
-	_(CGE, reg, reg, reg)  /* A=B>=C */                                             \
-	_(CGT, reg, reg, reg)  /* A=B>C */                                              \
-	_(CLE, reg, reg, reg)  /* A=B<=C */                                             \
-                                                                                   \
-	/* Helpers */                                                                   \
-	_(CCAT, reg, imm, ___)  /* A=CONCAT(A..A+B) */                                  \
-	_(SETEH, rel, ___, ___) /* Exception Handler=A */                               \
-	_(SETEX, reg, ___, ___) /* Last exception=A */                                  \
-	_(GETEX, reg, ___, ___) /* A=Last exception */                                  \
-                                                                                   \
-	/* Constant operators. */                                                       \
-	_(KIMM, reg, xmm, ___) /* A=Bitcast(BC) */                                      \
-                                                                                   \
-	/* Upvalue operators. */                                                        \
-	_(UGET, reg, uvl, ___) /* A=UVAL[B] */                                          \
-	_(USET, uvl, reg, ___) /* UVAL[A]=B */                                          \
-                                                                                   \
-	/* Structure operators. */                                                      \
-	_(STRIV, reg, xmm, ___) /* A=TrivialInit{Type=B} */                             \
-	_(SGET, reg, reg, reg)  /* A=C[B] */                                            \
-	_(SSET, reg, reg, reg)  /* C[A]=B */                                            \
-                                                                                   \
-	/* Vararg operators. */                                                         \
-	_(VACNT, reg, ___, ___) /* A=num args */                                        \
-	_(VACHK, imm, xmm, ___) /* num args < imm ? throw xmm */                        \
-	_(VAGET, reg, reg, ___) /* A=args[B] || nil */                                  \
-                                                                                   \
-	/* Table/Array operators. */                                                    \
-	_(ANEW, reg, imm, ___)  /* A=ARRAY{Size=B} */                                   \
-	_(TNEW, reg, imm, ___)  /* A=TABLE{Reserved=B} */                               \
-	_(TGET, reg, reg, reg)  /* A=C[B] */                                            \
-	_(TSET, reg, reg, reg)  /* C[A]=B */                                            \
-	_(TGETR, reg, reg, reg) /* A=C[B] | Raw */                                      \
-	_(TSETR, reg, reg, reg) /* C[A]=B | Raw */                                      \
-                                                                                   \
-	/* Closure operators. */                                                        \
-	_(FDUP, reg, kvl, reg) /* A=Duplicate(KVAL[B]), A.UVAL[0]=C, A.UVAL[1]=C+1.. */ \
-                                                                                   \
-	/* Stack operators. */                                                          \
-	_(PUSHR, reg, ___, ___) /* PUSH(A) */                                           \
-	_(PUSHI, ___, xmm, ___) /* PUSH(A) */                                           \
-                                                                                   \
-	/* Type coercion. */                                                            \
-	_(TOBOOL, reg, reg, ___) /* A=bool(B) */                                        \
-                                                                                   \
-	/* Control flow. */                                                             \
-	_(CALL, reg, imm, ___) /* A=Call(w/ B Args) */                                  \
-	_(RET, reg, ___, ___)  /* RETURN A */                                           \
-	_(JMP, rel, ___, ___)  /* JMP A */                                              \
-	_(JS, rel, reg, ___)   /* JMP A if B */                                         \
-	_(JNS, rel, reg, ___)  /* JMP A if !B */                                        \
-	_(ITER, rel, reg, reg) /* B[1,2]=C[B++].kv, JMP A if end */                                                 
+#define LIGHTNING_ENUM_BC(_)                                                         \
+	/* Misc. */                                                                       \
+	_(UD, ___, ___, ___)  /* Undefined */                                             \
+	_(NOP, ___, ___, ___) /* No-op */                                                 \
+                                                                                     \
+	/* Unary operators */                                                             \
+	_(LNOT, reg, reg, ___) /* A=!B */                                                 \
+	_(ANEG, reg, reg, ___) /* A=-B */                                                 \
+	_(MOV, reg, reg, ___)  /* A=B */                                                  \
+                                                                                     \
+	/* Binary operators.  */                                                          \
+	_(AADD, reg, reg, reg)  /* A=B+C */                                               \
+	_(ASUB, reg, reg, reg)  /* A=B-C */                                               \
+	_(AMUL, reg, reg, reg)  /* A=B*C */                                               \
+	_(ADIV, reg, reg, reg)  /* A=B/C */                                               \
+	_(AMOD, reg, reg, reg)  /* A=B%C */                                               \
+	_(APOW, reg, reg, reg)  /* A=B^C */                                               \
+	_(LAND, reg, reg, reg)  /* A=B&&C */                                              \
+	_(LOR, reg, reg, reg)   /* A=B||C */                                              \
+	_(NCS, reg, reg, reg)   /* A=B==null?C:B */                                       \
+	_(CTY, reg, reg, imm)   /* A=TYPE(B)==C */                                        \
+	_(CTYX, reg, reg, reg)  /* A=C is base of B */                                    \
+	_(CTYID, reg, reg, ___) /* A=declared return class is base of B */                \
+	_(CEQ, reg, reg, reg)   /* A=B==C */                                              \
+	_(CNE, reg, reg, reg)   /* A=B!=C */                                              \
+	_(CLT, reg, reg, reg)   /* A=B<C */                                               \
+	_(CGE, reg, reg, reg)   /* A=B>=C */                                              \
+	_(CGT, reg, reg, reg)   /* A=B>C */                                               \
+	_(CLE, reg, reg, reg)   /* A=B<=C */                                              \
+                                                                                     \
+	/* Helpers */                                                                     \
+	_(CCAT, reg, imm, ___)  /* A=CONCAT(A..A+B) */                                    \
+	_(SETEH, rel, imm, rel) /* Handlers: A=normal, B=cleanup-only, C=forced unwind */ \
+	_(SETEX, reg, ___, ___) /* Last exception=A */                                    \
+	_(GETEX, reg, ___, ___) /* A=Last exception */                                    \
+                                                                                     \
+	/* Constant operators. */                                                         \
+	_(KIMM, reg, xmm, ___) /* A=Bitcast(BC) */                                        \
+                                                                                     \
+	/* Upvalue operators. */                                                          \
+	_(UGET, reg, uvl, ___) /* A=UVAL[B] */                                            \
+	_(USET, uvl, reg, ___) /* UVAL[A]=B */                                            \
+                                                                                     \
+	/* Structure operators. */                                                        \
+	_(STRIV, reg, xmm, ___) /* A=TrivialInit{Type=B} */                               \
+	_(SGET, reg, reg, reg)  /* A=C[B] */                                              \
+	_(SSET, reg, reg, reg)  /* C[A]=B */                                              \
+                                                                                     \
+	/* Vararg operators. */                                                           \
+	_(VACNT, reg, ___, ___) /* A=num args */                                          \
+	_(VACHK, imm, xmm, ___) /* num args < imm ? throw xmm */                          \
+	_(VAGET, reg, reg, ___) /* A=args[B] || nil */                                    \
+                                                                                     \
+	/* Table/Array operators. */                                                      \
+	_(ANEW, reg, imm, ___)  /* A=ARRAY{Size=B} */                                     \
+	_(TNEW, reg, imm, ___)  /* A=TABLE{Reserved=B} */                                 \
+	_(TGET, reg, reg, reg)  /* A=C[B] */                                              \
+	_(TSET, reg, reg, reg)  /* C[A]=B */                                              \
+	_(TGETR, reg, reg, reg) /* A=C[B] | Raw */                                        \
+	_(TSETR, reg, reg, reg) /* C[A]=B | Raw */                                        \
+                                                                                     \
+	/* Closure operators. */                                                          \
+	_(FDUP, reg, kvl, reg) /* A=Duplicate(KVAL[B]), A.UVAL[0]=C, A.UVAL[1]=C+1.. */   \
+                                                                                     \
+	/* Stack operators. */                                                            \
+	_(PUSHR, reg, ___, ___) /* PUSH(A) */                                             \
+	_(PUSHI, ___, xmm, ___) /* PUSH(A) */                                             \
+                                                                                     \
+	/* Type coercion. */                                                              \
+	_(TOBOOL, reg, reg, ___) /* A=bool(B) */                                          \
+                                                                                     \
+	/* Control flow. */                                                               \
+	_(CALL, reg, imm, ___) /* A=Call(w/ B Args) */                                    \
+	_(RET, reg, ___, ___)  /* RETURN A */                                             \
+	_(JMP, rel, ___, ___)  /* JMP A */                                                \
+	_(JS, rel, reg, ___)   /* JMP A if B */                                           \
+	_(JNS, rel, reg, ___)  /* JMP A if !B */                                          \
+	_(ITER, rel, reg, reg) /* B[1,2]=C[B++].kv, JMP A if end */
 
 	// Opcodes.
 	//
@@ -126,8 +129,12 @@ namespace li::bc {
 
 		// Extended immediate, always at B:C.
 		//
-		uint64_t&       xmm() { return *(uint64_t*) &b; }
-		const uint64_t& xmm() const { return *(const uint64_t*) &b; }
+		uint64_t xmm() const {
+			uint64_t value;
+			std::memcpy(&value, reinterpret_cast<const std::byte*>(this) + offsetof(insn, b), sizeof(value));
+			return value;
+		}
+		void set_xmm(uint64_t value) { std::memcpy(reinterpret_cast<std::byte*>(this) + offsetof(insn, b), &value, sizeof(value)); }
 
 		// Prints an instruction.
 		//
@@ -153,7 +160,7 @@ namespace li::bc {
 								strcpy(op, "$F");
 							} else {
 								col = LI_YLW;
-								snprintf(op, std::size(op), "a%u", (uint32_t) - (value + 3));
+								snprintf(op, std::size(op), "a%u", (uint32_t) -(value + 3));
 							}
 						} else {
 							col = LI_RED;

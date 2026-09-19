@@ -1,16 +1,21 @@
 #pragma once
-#include <vm/types.hpp>
 #include <memory>
 #include <string>
 #include <util/format.hpp>
 #include <util/typeinfo.hpp>
 #include <vector>
 #include <vm/bc.hpp>
-#include <vm/string.hpp>
 #include <vm/function.hpp>
+#include <vm/string.hpp>
+#include <vm/types.hpp>
 
 namespace li::ir {
 	using operation = bc::opcode;
+
+	enum class ownership_kind : uint8_t {
+		borrowed,
+		owned,
+	};
 
 	// Central value type.
 	//
@@ -24,9 +29,10 @@ namespace li::ir {
 		//
 		util::type_id ti;
 
-		// Value type.
+		// Value type and reference ownership.
 		//
-		type vt = type::none;
+		type           vt    = type::none;
+		ownership_kind owner = ownership_kind::borrowed;
 
 		// Constructed by type id.
 		//
@@ -34,10 +40,11 @@ namespace li::ir {
 
 		// Copy, ignores ref-counter.
 		//
-		constexpr value(const value& other) : ti(other.ti), vt(other.vt) {}
+		constexpr value(const value& other) : ti(other.ti), vt(other.vt), owner(other.owner) {}
 		constexpr value& operator=(const value& other) {
-			ti = other.ti;
-			vt = other.vt;
+			ti    = other.ti;
+			vt    = other.vt;
+			owner = other.owner;
 			return *this;
 		}
 
@@ -90,14 +97,32 @@ namespace li::ir {
 		//
 		virtual bool rec_type_check(type x) { return false; }
 
+		// Every check is a conjunction over operands, so a tentative type stays
+		// published for the whole outermost settlement. Shared subgraphs are then
+		// visited once per attempt instead of once per path.
 		bool type_try_settle(type x, bool save = false) {
 			if (vt == x || x == type::any)
 				return true;
 			if (vt != type::any)
 				return false;
-			type prev = std::exchange(vt, x);
-			bool      r    = rec_type_check(x);
-			vt             = (save && r) ? vt : prev;
+
+			struct settlement {
+				std::vector<value*> tentative;
+				uint32_t            depth = 0;
+			};
+			static thread_local settlement current;
+
+			++current.depth;
+			vt = x;
+			current.tentative.push_back(this);
+			bool r = rec_type_check(x);
+			if (--current.depth == 0) {
+				for (value* tentatively_typed : current.tentative) {
+					if (tentatively_typed != this || !(save && r))
+						tentatively_typed->vt = type::any;
+				}
+				current.tentative.clear();
+			}
 			return r;
 		}
 
@@ -243,7 +268,7 @@ namespace li::ir {
 			int64_t           i;
 			operation         vmopr;
 			value_type        vty;
-			type         dty;
+			type              dty;
 			double            n;
 			gc::header*       gc;
 			table*            tbl;
@@ -277,7 +302,7 @@ namespace li::ir {
 		constexpr constant(double v) : n(v) { vt = type::f64; }
 		constexpr constant(table* v) : tbl(v) { vt = type::tbl; }
 		constexpr constant(array* v) : arr(v) { vt = type::arr; }
-		constexpr constant(object* v) : obj(v) { vt = type::obj; } // Resolve type ID.
+		constexpr constant(object* v) : obj(v) { vt = type::obj; }  // Resolve type ID.
 		constexpr constant(vclass* v) : vcl(v) { vt = type::vcl; }
 		constexpr constant(string* v) : str(v) { vt = type::str; }
 		constexpr constant(function* v) : fn(v) { vt = type::fn; }

@@ -1,0 +1,2878 @@
+{
+  "benchmarks": [
+    {
+      "command": [
+        "/work/lightning/build-arm-jit/li",
+        "--jit=off",
+        "--metrics",
+        "--benchmark-runs=5",
+        "/work/lightning/benchmarks/binarytrees.li"
+      ],
+      "name": "binarytrees",
+      "path": "/work/lightning/benchmarks/binarytrees.li",
+      "runs": [
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/binarytrees.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 1,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 13243820,
+            "compiled_functions": 0,
+            "first_call_ns": 424031125,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 59834,
+            "process_wall_time_ns": 2144413792,
+            "releases": 115692485,
+            "retains": 102448665,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              427226041,
+              437672583,
+              431974708,
+              419346875
+            ],
+            "warm_throughput_per_second": 2.33070324174315
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":59834,\"jit_compile_ns\":0,\"first_call_ns\":424031125,\"warm_call_ns\":[427226041,437672583,431974708,419346875],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":13243820,\"retains\":102448665,\"releases\":115692485,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(419.35 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        },
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/binarytrees.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 2,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 13243820,
+            "compiled_functions": 0,
+            "first_call_ns": 431761708,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 59250,
+            "process_wall_time_ns": 2142521791,
+            "releases": 115692485,
+            "retains": 102448665,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              420856459,
+              425420042,
+              430839500,
+              428729250
+            ],
+            "warm_throughput_per_second": 2.3448785859415566
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":59250,\"jit_compile_ns\":0,\"first_call_ns\":431761708,\"warm_call_ns\":[420856459,425420042,430839500,428729250],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":13243820,\"retains\":102448665,\"releases\":115692485,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(428.73 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        },
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/binarytrees.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 3,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 13243820,
+            "compiled_functions": 0,
+            "first_call_ns": 424103750,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 52209,
+            "process_wall_time_ns": 2124752708,
+            "releases": 115692485,
+            "retains": 102448665,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              430392500,
+              420744542,
+              423286042,
+              422766333
+            ],
+            "warm_throughput_per_second": 2.356837698805896
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":52209,\"jit_compile_ns\":0,\"first_call_ns\":424103750,\"warm_call_ns\":[430392500,420744542,423286042,422766333],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":13243820,\"retains\":102448665,\"releases\":115692485,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(422.77 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        }
+      ],
+      "successful": true,
+      "summary": {
+        "allocations": {
+          "maximum": 13243820,
+          "mean": 13243820.0,
+          "median": 13243820,
+          "minimum": 13243820,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "allocations"
+        },
+        "compiled_functions": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "functions"
+        },
+        "first_call_ns": {
+          "maximum": 431761708,
+          "mean": 426632194.3333333,
+          "median": 424103750,
+          "minimum": 424031125,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "generated_code_bytes": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "bytes"
+        },
+        "jit_compile_ns": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "parse_compile_ns": {
+          "maximum": 59834,
+          "mean": 57097.666666666664,
+          "median": 59250,
+          "minimum": 52209,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "process_wall_time_ns": {
+          "maximum": 2144413792,
+          "mean": 2137229430.3333333,
+          "median": 2142521791,
+          "minimum": 2124752708,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "releases": {
+          "maximum": 115692485,
+          "mean": 115692485.0,
+          "median": 115692485,
+          "minimum": 115692485,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "operations"
+        },
+        "retains": {
+          "maximum": 102448665,
+          "mean": 102448665.0,
+          "median": 102448665,
+          "minimum": 102448665,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "operations"
+        },
+        "spill_slots": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "slots"
+        },
+        "warm_call_ns": {
+          "maximum": 437672583,
+          "mean": 426604572.9166667,
+          "median": 426323041.5,
+          "minimum": 419346875,
+          "reason": null,
+          "sample_count": 12,
+          "unit": "ns"
+        },
+        "warm_throughput_per_second": {
+          "maximum": 2.356837698805896,
+          "mean": 2.344139842163534,
+          "median": 2.3448785859415566,
+          "minimum": 2.33070324174315,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "calls/second"
+        }
+      },
+      "warmup_runs": []
+    },
+    {
+      "command": [
+        "/work/lightning/build-arm-jit/li",
+        "--jit=off",
+        "--metrics",
+        "--benchmark-runs=5",
+        "/work/lightning/benchmarks/fib.li"
+      ],
+      "name": "fib",
+      "path": "/work/lightning/benchmarks/fib.li",
+      "runs": [
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/fib.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 1,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 0,
+            "compiled_functions": 0,
+            "first_call_ns": 330132292,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 68625,
+            "process_wall_time_ns": 1634624083,
+            "releases": 25711435,
+            "retains": 25711435,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              323616916,
+              330554459,
+              326544333,
+              318413458
+            ],
+            "warm_throughput_per_second": 3.078985604115057
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":68625,\"jit_compile_ns\":0,\"first_call_ns\":330132292,\"warm_call_ns\":[323616916,330554459,326544333,318413458],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":0,\"retains\":25711435,\"releases\":25711435,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(318.41 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        },
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/fib.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 2,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 0,
+            "compiled_functions": 0,
+            "first_call_ns": 327946375,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 29459,
+            "process_wall_time_ns": 1648875875,
+            "releases": 25711435,
+            "retains": 25711435,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              333552542,
+              318011750,
+              326537834,
+              340008542
+            ],
+            "warm_throughput_per_second": 3.034646556703234
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":29459,\"jit_compile_ns\":0,\"first_call_ns\":327946375,\"warm_call_ns\":[333552542,318011750,326537834,340008542],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":0,\"retains\":25711435,\"releases\":25711435,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(340.01 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        },
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/fib.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 3,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 0,
+            "compiled_functions": 0,
+            "first_call_ns": 323300375,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 30083,
+            "process_wall_time_ns": 1630745875,
+            "releases": 25711435,
+            "retains": 25711435,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              319314791,
+              330152417,
+              332534375,
+              322235291
+            ],
+            "warm_throughput_per_second": 3.066927549542661
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":30083,\"jit_compile_ns\":0,\"first_call_ns\":323300375,\"warm_call_ns\":[319314791,330152417,332534375,322235291],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":0,\"retains\":25711435,\"releases\":25711435,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(322.24 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        }
+      ],
+      "successful": true,
+      "summary": {
+        "allocations": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "allocations"
+        },
+        "compiled_functions": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "functions"
+        },
+        "first_call_ns": {
+          "maximum": 330132292,
+          "mean": 327126347.3333333,
+          "median": 327946375,
+          "minimum": 323300375,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "generated_code_bytes": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "bytes"
+        },
+        "jit_compile_ns": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "parse_compile_ns": {
+          "maximum": 68625,
+          "mean": 42722.333333333336,
+          "median": 30083,
+          "minimum": 29459,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "process_wall_time_ns": {
+          "maximum": 1648875875,
+          "mean": 1638081944.3333333,
+          "median": 1634624083,
+          "minimum": 1630745875,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "releases": {
+          "maximum": 25711435,
+          "mean": 25711435.0,
+          "median": 25711435,
+          "minimum": 25711435,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "operations"
+        },
+        "retains": {
+          "maximum": 25711435,
+          "mean": 25711435.0,
+          "median": 25711435,
+          "minimum": 25711435,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "operations"
+        },
+        "spill_slots": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "slots"
+        },
+        "warm_call_ns": {
+          "maximum": 340008542,
+          "mean": 326789725.6666667,
+          "median": 326541083.5,
+          "minimum": 318011750,
+          "reason": null,
+          "sample_count": 12,
+          "unit": "ns"
+        },
+        "warm_throughput_per_second": {
+          "maximum": 3.078985604115057,
+          "mean": 3.0601865701203175,
+          "median": 3.066927549542661,
+          "minimum": 3.034646556703234,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "calls/second"
+        }
+      },
+      "warmup_runs": []
+    },
+    {
+      "command": [
+        "/work/lightning/build-arm-jit/li",
+        "--jit=off",
+        "--metrics",
+        "--benchmark-runs=5",
+        "/work/lightning/benchmarks/nbody.li"
+      ],
+      "name": "nbody",
+      "path": "/work/lightning/benchmarks/nbody.li",
+      "runs": [
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/nbody.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 1,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 85,
+            "compiled_functions": 0,
+            "first_call_ns": 11801041,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 125792,
+            "process_wall_time_ns": 58778541,
+            "releases": 1347375,
+            "retains": 1347290,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              11504292,
+              10751958,
+              11069375,
+              10583000
+            ],
+            "warm_throughput_per_second": 91.0982751110972
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":125792,\"jit_compile_ns\":0,\"first_call_ns\":11801041,\"warm_call_ns\":[11504292,10751958,11069375,10583000],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":85,\"retains\":1347290,\"releases\":1347375,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(10.58 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        },
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/nbody.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 2,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 85,
+            "compiled_functions": 0,
+            "first_call_ns": 10644125,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 112667,
+            "process_wall_time_ns": 59734083,
+            "releases": 1347375,
+            "retains": 1347290,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              10754000,
+              11277333,
+              11679708,
+              11953916
+            ],
+            "warm_throughput_per_second": 87.59452023572474
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":112667,\"jit_compile_ns\":0,\"first_call_ns\":10644125,\"warm_call_ns\":[10754000,11277333,11679708,11953916],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":85,\"retains\":1347290,\"releases\":1347375,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(11.95 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        },
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/nbody.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 3,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 85,
+            "compiled_functions": 0,
+            "first_call_ns": 11322417,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 115792,
+            "process_wall_time_ns": 58804542,
+            "releases": 1347375,
+            "retains": 1347290,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              10964875,
+              10930875,
+              11022167,
+              11079500
+            ],
+            "warm_throughput_per_second": 90.91442799926186
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":115792,\"jit_compile_ns\":0,\"first_call_ns\":11322417,\"warm_call_ns\":[10964875,10930875,11022167,11079500],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":85,\"retains\":1347290,\"releases\":1347375,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(11.08 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        }
+      ],
+      "successful": true,
+      "summary": {
+        "allocations": {
+          "maximum": 85,
+          "mean": 85.0,
+          "median": 85,
+          "minimum": 85,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "allocations"
+        },
+        "compiled_functions": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "functions"
+        },
+        "first_call_ns": {
+          "maximum": 11801041,
+          "mean": 11255861.0,
+          "median": 11322417,
+          "minimum": 10644125,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "generated_code_bytes": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "bytes"
+        },
+        "jit_compile_ns": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "parse_compile_ns": {
+          "maximum": 125792,
+          "mean": 118083.66666666667,
+          "median": 115792,
+          "minimum": 112667,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "process_wall_time_ns": {
+          "maximum": 59734083,
+          "mean": 59105722.0,
+          "median": 58804542,
+          "minimum": 58778541,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "releases": {
+          "maximum": 1347375,
+          "mean": 1347375.0,
+          "median": 1347375,
+          "minimum": 1347375,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "operations"
+        },
+        "retains": {
+          "maximum": 1347290,
+          "mean": 1347290.0,
+          "median": 1347290,
+          "minimum": 1347290,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "operations"
+        },
+        "spill_slots": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "slots"
+        },
+        "warm_call_ns": {
+          "maximum": 11953916,
+          "mean": 11130916.583333334,
+          "median": 11045771.0,
+          "minimum": 10583000,
+          "reason": null,
+          "sample_count": 12,
+          "unit": "ns"
+        },
+        "warm_throughput_per_second": {
+          "maximum": 91.0982751110972,
+          "mean": 89.8690744486946,
+          "median": 90.91442799926186,
+          "minimum": 87.59452023572474,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "calls/second"
+        }
+      },
+      "warmup_runs": []
+    },
+    {
+      "command": [
+        "/work/lightning/build-arm-jit/li",
+        "--jit=off",
+        "--metrics",
+        "--benchmark-runs=5",
+        "/work/lightning/benchmarks/table-heavy.li"
+      ],
+      "name": "table-heavy",
+      "path": "/work/lightning/benchmarks/table-heavy.li",
+      "runs": [
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/table-heavy.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 1,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 115,
+            "compiled_functions": 0,
+            "first_call_ns": 21163958,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 33708,
+            "process_wall_time_ns": 100958834,
+            "releases": 140,
+            "retains": 25,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              18313917,
+              18333167,
+              19645083,
+              18286125
+            ],
+            "warm_throughput_per_second": 53.63491027657217
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":33708,\"jit_compile_ns\":0,\"first_call_ns\":21163958,\"warm_call_ns\":[18313917,18333167,19645083,18286125],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":115,\"retains\":25,\"releases\":140,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(18.29 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        },
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/table-heavy.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 2,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 115,
+            "compiled_functions": 0,
+            "first_call_ns": 19851708,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 27334,
+            "process_wall_time_ns": 96820625,
+            "releases": 140,
+            "retains": 25,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              18273834,
+              17512916,
+              18309292,
+              17162083
+            ],
+            "warm_throughput_per_second": 56.13394963732206
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":27334,\"jit_compile_ns\":0,\"first_call_ns\":19851708,\"warm_call_ns\":[18273834,17512916,18309292,17162083],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":115,\"retains\":25,\"releases\":140,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(17.16 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        },
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/table-heavy.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 3,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 115,
+            "compiled_functions": 0,
+            "first_call_ns": 20362167,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 29959,
+            "process_wall_time_ns": 98786834,
+            "releases": 140,
+            "retains": 25,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              16919125,
+              21129625,
+              17772125,
+              17170042
+            ],
+            "warm_throughput_per_second": 54.801339185805816
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":29959,\"jit_compile_ns\":0,\"first_call_ns\":20362167,\"warm_call_ns\":[16919125,21129625,17772125,17170042],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":115,\"retains\":25,\"releases\":140,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(17.17 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        }
+      ],
+      "successful": true,
+      "summary": {
+        "allocations": {
+          "maximum": 115,
+          "mean": 115.0,
+          "median": 115,
+          "minimum": 115,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "allocations"
+        },
+        "compiled_functions": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "functions"
+        },
+        "first_call_ns": {
+          "maximum": 21163958,
+          "mean": 20459277.666666668,
+          "median": 20362167,
+          "minimum": 19851708,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "generated_code_bytes": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "bytes"
+        },
+        "jit_compile_ns": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "parse_compile_ns": {
+          "maximum": 33708,
+          "mean": 30333.666666666668,
+          "median": 29959,
+          "minimum": 27334,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "process_wall_time_ns": {
+          "maximum": 100958834,
+          "mean": 98855431.0,
+          "median": 98786834,
+          "minimum": 96820625,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "releases": {
+          "maximum": 140,
+          "mean": 140.0,
+          "median": 140,
+          "minimum": 140,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "operations"
+        },
+        "retains": {
+          "maximum": 25,
+          "mean": 25.0,
+          "median": 25,
+          "minimum": 25,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "operations"
+        },
+        "spill_slots": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "slots"
+        },
+        "warm_call_ns": {
+          "maximum": 21129625,
+          "mean": 18235611.166666668,
+          "median": 18279979.5,
+          "minimum": 16919125,
+          "reason": null,
+          "sample_count": 12,
+          "unit": "ns"
+        },
+        "warm_throughput_per_second": {
+          "maximum": 56.13394963732206,
+          "mean": 54.856733033233354,
+          "median": 54.801339185805816,
+          "minimum": 53.63491027657217,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "calls/second"
+        }
+      },
+      "warmup_runs": []
+    },
+    {
+      "command": [
+        "/work/lightning/build-arm-jit/li",
+        "--jit=off",
+        "--metrics",
+        "--benchmark-runs=5",
+        "/work/lightning/benchmarks/string-heavy.li"
+      ],
+      "name": "string-heavy",
+      "path": "/work/lightning/benchmarks/string-heavy.li",
+      "runs": [
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/string-heavy.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 1,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 19995,
+            "compiled_functions": 0,
+            "first_call_ns": 16119625,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 29917,
+            "process_wall_time_ns": 372723584,
+            "releases": 80050,
+            "retains": 60055,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              37313500,
+              74495708,
+              110149459,
+              130668834
+            ],
+            "warm_throughput_per_second": 11.343414761062553
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":29917,\"jit_compile_ns\":0,\"first_call_ns\":16119625,\"warm_call_ns\":[37313500,74495708,110149459,130668834],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":19995,\"retains\":60055,\"releases\":80050,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(130.67 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        },
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/string-heavy.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 2,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 19995,
+            "compiled_functions": 0,
+            "first_call_ns": 15690667,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 30042,
+            "process_wall_time_ns": 356982959,
+            "releases": 80050,
+            "retains": 60055,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              34440041,
+              68517667,
+              101970667,
+              132489250
+            ],
+            "warm_throughput_per_second": 11.854745287831363
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":30042,\"jit_compile_ns\":0,\"first_call_ns\":15690667,\"warm_call_ns\":[34440041,68517667,101970667,132489250],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":19995,\"retains\":60055,\"releases\":80050,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(132.49 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        },
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/string-heavy.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 3,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 19995,
+            "compiled_functions": 0,
+            "first_call_ns": 18860542,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 33042,
+            "process_wall_time_ns": 364355084,
+            "releases": 80050,
+            "retains": 60055,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              35982083,
+              67713750,
+              105183083,
+              129529333
+            ],
+            "warm_throughput_per_second": 11.820042838258354
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":33042,\"jit_compile_ns\":0,\"first_call_ns\":18860542,\"warm_call_ns\":[35982083,67713750,105183083,129529333],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":19995,\"retains\":60055,\"releases\":80050,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(129.53 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        }
+      ],
+      "successful": true,
+      "summary": {
+        "allocations": {
+          "maximum": 19995,
+          "mean": 19995.0,
+          "median": 19995,
+          "minimum": 19995,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "allocations"
+        },
+        "compiled_functions": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "functions"
+        },
+        "first_call_ns": {
+          "maximum": 18860542,
+          "mean": 16890278.0,
+          "median": 16119625,
+          "minimum": 15690667,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "generated_code_bytes": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "bytes"
+        },
+        "jit_compile_ns": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "parse_compile_ns": {
+          "maximum": 33042,
+          "mean": 31000.333333333332,
+          "median": 30042,
+          "minimum": 29917,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "process_wall_time_ns": {
+          "maximum": 372723584,
+          "mean": 364687209.0,
+          "median": 364355084,
+          "minimum": 356982959,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "releases": {
+          "maximum": 80050,
+          "mean": 80050.0,
+          "median": 80050,
+          "minimum": 80050,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "operations"
+        },
+        "retains": {
+          "maximum": 60055,
+          "mean": 60055.0,
+          "median": 60055,
+          "minimum": 60055,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "operations"
+        },
+        "spill_slots": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "slots"
+        },
+        "warm_call_ns": {
+          "maximum": 132489250,
+          "mean": 85704447.91666667,
+          "median": 88233187.5,
+          "minimum": 34440041,
+          "reason": null,
+          "sample_count": 12,
+          "unit": "ns"
+        },
+        "warm_throughput_per_second": {
+          "maximum": 11.854745287831363,
+          "mean": 11.672734295717424,
+          "median": 11.820042838258354,
+          "minimum": 11.343414761062553,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "calls/second"
+        }
+      },
+      "warmup_runs": []
+    },
+    {
+      "command": [
+        "/work/lightning/build-arm-jit/li",
+        "--jit=off",
+        "--metrics",
+        "--benchmark-runs=5",
+        "/work/lightning/benchmarks/closure-heavy.li"
+      ],
+      "name": "closure-heavy",
+      "path": "/work/lightning/benchmarks/closure-heavy.li",
+      "runs": [
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/closure-heavy.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 1,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 25095,
+            "compiled_functions": 0,
+            "first_call_ns": 11569917,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 41166,
+            "process_wall_time_ns": 58170041,
+            "releases": 1175120,
+            "retains": 1150025,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              11261625,
+              11833084,
+              10055000,
+              10145417
+            ],
+            "warm_throughput_per_second": 92.38915253416747
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":41166,\"jit_compile_ns\":0,\"first_call_ns\":11569917,\"warm_call_ns\":[11261625,11833084,10055000,10145417],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":25095,\"retains\":1150025,\"releases\":1175120,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(10.15 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        },
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/closure-heavy.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 2,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 25095,
+            "compiled_functions": 0,
+            "first_call_ns": 11072875,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 43333,
+            "process_wall_time_ns": 58318333,
+            "releases": 1175120,
+            "retains": 1150025,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              10962792,
+              10836542,
+              11166208,
+              11086875
+            ],
+            "warm_throughput_per_second": 90.80092018560525
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":43333,\"jit_compile_ns\":0,\"first_call_ns\":11072875,\"warm_call_ns\":[10962792,10836542,11166208,11086875],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":25095,\"retains\":1150025,\"releases\":1175120,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(11.09 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        },
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/closure-heavy.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 3,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 25095,
+            "compiled_functions": 0,
+            "first_call_ns": 10785375,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 34084,
+            "process_wall_time_ns": 57441458,
+            "releases": 1175120,
+            "retains": 1150025,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              11166875,
+              11335000,
+              10588209,
+              10629667
+            ],
+            "warm_throughput_per_second": 91.49182940223058
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":34084,\"jit_compile_ns\":0,\"first_call_ns\":10785375,\"warm_call_ns\":[11166875,11335000,10588209,10629667],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":25095,\"retains\":1150025,\"releases\":1175120,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(10.63 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        }
+      ],
+      "successful": true,
+      "summary": {
+        "allocations": {
+          "maximum": 25095,
+          "mean": 25095.0,
+          "median": 25095,
+          "minimum": 25095,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "allocations"
+        },
+        "compiled_functions": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "functions"
+        },
+        "first_call_ns": {
+          "maximum": 11569917,
+          "mean": 11142722.333333334,
+          "median": 11072875,
+          "minimum": 10785375,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "generated_code_bytes": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "bytes"
+        },
+        "jit_compile_ns": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "parse_compile_ns": {
+          "maximum": 43333,
+          "mean": 39527.666666666664,
+          "median": 41166,
+          "minimum": 34084,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "process_wall_time_ns": {
+          "maximum": 58318333,
+          "mean": 57976610.666666664,
+          "median": 58170041,
+          "minimum": 57441458,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "releases": {
+          "maximum": 1175120,
+          "mean": 1175120.0,
+          "median": 1175120,
+          "minimum": 1175120,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "operations"
+        },
+        "retains": {
+          "maximum": 1150025,
+          "mean": 1150025.0,
+          "median": 1150025,
+          "minimum": 1150025,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "operations"
+        },
+        "spill_slots": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "slots"
+        },
+        "warm_call_ns": {
+          "maximum": 11833084,
+          "mean": 10922274.5,
+          "median": 11024833.5,
+          "minimum": 10055000,
+          "reason": null,
+          "sample_count": 12,
+          "unit": "ns"
+        },
+        "warm_throughput_per_second": {
+          "maximum": 92.38915253416747,
+          "mean": 91.56063404066776,
+          "median": 91.49182940223058,
+          "minimum": 90.80092018560525,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "calls/second"
+        }
+      },
+      "warmup_runs": []
+    },
+    {
+      "command": [
+        "/work/lightning/build-arm-jit/li",
+        "--jit=off",
+        "--metrics",
+        "--benchmark-runs=5",
+        "/work/lightning/benchmarks/alloc-heavy.li"
+      ],
+      "name": "alloc-heavy",
+      "path": "/work/lightning/benchmarks/alloc-heavy.li",
+      "runs": [
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/alloc-heavy.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 1,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 2413000,
+            "compiled_functions": 0,
+            "first_call_ns": 27539292,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 33334,
+            "process_wall_time_ns": 203561667,
+            "releases": 8815015,
+            "retains": 6402015,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              35723333,
+              40983833,
+              45578500,
+              50511333
+            ],
+            "warm_throughput_per_second": 23.14855016666117
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":33334,\"jit_compile_ns\":0,\"first_call_ns\":27539292,\"warm_call_ns\":[35723333,40983833,45578500,50511333],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":2413000,\"retains\":6402015,\"releases\":8815015,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(50.51 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        },
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/alloc-heavy.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 2,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 2413000,
+            "compiled_functions": 0,
+            "first_call_ns": 28025792,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 31917,
+            "process_wall_time_ns": 200612375,
+            "releases": 8815015,
+            "retains": 6402015,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              34572917,
+              38483584,
+              47030041,
+              49704584
+            ],
+            "warm_throughput_per_second": 23.558357225335794
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":31917,\"jit_compile_ns\":0,\"first_call_ns\":28025792,\"warm_call_ns\":[34572917,38483584,47030041,49704584],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":2413000,\"retains\":6402015,\"releases\":8815015,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(49.70 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        },
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/alloc-heavy.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 3,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 2413000,
+            "compiled_functions": 0,
+            "first_call_ns": 30222708,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 34500,
+            "process_wall_time_ns": 201436333,
+            "releases": 8815015,
+            "retains": 6402015,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              36112708,
+              39241250,
+              43059292,
+              48828333
+            ],
+            "warm_throughput_per_second": 23.917496643164398
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":34500,\"jit_compile_ns\":0,\"first_call_ns\":30222708,\"warm_call_ns\":[36112708,39241250,43059292,48828333],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":2413000,\"retains\":6402015,\"releases\":8815015,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(48.83 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        }
+      ],
+      "successful": true,
+      "summary": {
+        "allocations": {
+          "maximum": 2413000,
+          "mean": 2413000.0,
+          "median": 2413000,
+          "minimum": 2413000,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "allocations"
+        },
+        "compiled_functions": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "functions"
+        },
+        "first_call_ns": {
+          "maximum": 30222708,
+          "mean": 28595930.666666668,
+          "median": 28025792,
+          "minimum": 27539292,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "generated_code_bytes": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "bytes"
+        },
+        "jit_compile_ns": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "parse_compile_ns": {
+          "maximum": 34500,
+          "mean": 33250.333333333336,
+          "median": 33334,
+          "minimum": 31917,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "process_wall_time_ns": {
+          "maximum": 203561667,
+          "mean": 201870125.0,
+          "median": 201436333,
+          "minimum": 200612375,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "releases": {
+          "maximum": 8815015,
+          "mean": 8815015.0,
+          "median": 8815015,
+          "minimum": 8815015,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "operations"
+        },
+        "retains": {
+          "maximum": 6402015,
+          "mean": 6402015.0,
+          "median": 6402015,
+          "minimum": 6402015,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "operations"
+        },
+        "spill_slots": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "slots"
+        },
+        "warm_call_ns": {
+          "maximum": 50511333,
+          "mean": 42485809.0,
+          "median": 42021562.5,
+          "minimum": 34572917,
+          "reason": null,
+          "sample_count": 12,
+          "unit": "ns"
+        },
+        "warm_throughput_per_second": {
+          "maximum": 23.917496643164398,
+          "mean": 23.541468011720454,
+          "median": 23.558357225335794,
+          "minimum": 23.14855016666117,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "calls/second"
+        }
+      },
+      "warmup_runs": []
+    },
+    {
+      "command": [
+        "/work/lightning/build-arm-jit/li",
+        "--jit=off",
+        "--metrics",
+        "--benchmark-runs=5",
+        "/work/lightning/benchmarks/escape.li"
+      ],
+      "name": "escape",
+      "path": "/work/lightning/benchmarks/escape.li",
+      "runs": [
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/escape.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 1,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 4000000,
+            "compiled_functions": 0,
+            "first_call_ns": 98653375,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 40916,
+            "process_wall_time_ns": 513509000,
+            "releases": 12333345,
+            "retains": 8333345,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              105347541,
+              103325333,
+              104841167,
+              97108458
+            ],
+            "warm_throughput_per_second": 9.74130742894339
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":40916,\"jit_compile_ns\":0,\"first_call_ns\":98653375,\"warm_call_ns\":[105347541,103325333,104841167,97108458],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":4000000,\"retains\":8333345,\"releases\":12333345,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(97.11 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        },
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/escape.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 2,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 4000000,
+            "compiled_functions": 0,
+            "first_call_ns": 100717375,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 32583,
+            "process_wall_time_ns": 512326000,
+            "releases": 12333345,
+            "retains": 8333345,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              103559750,
+              107113750,
+              99417375,
+              98518292
+            ],
+            "warm_throughput_per_second": 9.789305583543113
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":32583,\"jit_compile_ns\":0,\"first_call_ns\":100717375,\"warm_call_ns\":[103559750,107113750,99417375,98518292],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":4000000,\"retains\":8333345,\"releases\":12333345,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(98.52 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        },
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/escape.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 3,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 4000000,
+            "compiled_functions": 0,
+            "first_call_ns": 99205250,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 31750,
+            "process_wall_time_ns": 515543958,
+            "releases": 12333345,
+            "retains": 8333345,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              103248125,
+              105714917,
+              100461333,
+              103731416
+            ],
+            "warm_throughput_per_second": 9.681577959535366
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":31750,\"jit_compile_ns\":0,\"first_call_ns\":99205250,\"warm_call_ns\":[103248125,105714917,100461333,103731416],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":4000000,\"retains\":8333345,\"releases\":12333345,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(103.73 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        }
+      ],
+      "successful": true,
+      "summary": {
+        "allocations": {
+          "maximum": 4000000,
+          "mean": 4000000.0,
+          "median": 4000000,
+          "minimum": 4000000,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "allocations"
+        },
+        "compiled_functions": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "functions"
+        },
+        "first_call_ns": {
+          "maximum": 100717375,
+          "mean": 99525333.33333333,
+          "median": 99205250,
+          "minimum": 98653375,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "generated_code_bytes": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "bytes"
+        },
+        "jit_compile_ns": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "parse_compile_ns": {
+          "maximum": 40916,
+          "mean": 35083.0,
+          "median": 32583,
+          "minimum": 31750,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "process_wall_time_ns": {
+          "maximum": 515543958,
+          "mean": 513792986.0,
+          "median": 513509000,
+          "minimum": 512326000,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "releases": {
+          "maximum": 12333345,
+          "mean": 12333345.0,
+          "median": 12333345,
+          "minimum": 12333345,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "operations"
+        },
+        "retains": {
+          "maximum": 8333345,
+          "mean": 8333345.0,
+          "median": 8333345,
+          "minimum": 8333345,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "operations"
+        },
+        "spill_slots": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "slots"
+        },
+        "warm_call_ns": {
+          "maximum": 107113750,
+          "mean": 102698954.75,
+          "median": 103442541.5,
+          "minimum": 97108458,
+          "reason": null,
+          "sample_count": 12,
+          "unit": "ns"
+        },
+        "warm_throughput_per_second": {
+          "maximum": 9.789305583543113,
+          "mean": 9.737396990673956,
+          "median": 9.74130742894339,
+          "minimum": 9.681577959535366,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "calls/second"
+        }
+      },
+      "warmup_runs": []
+    },
+    {
+      "command": [
+        "/work/lightning/build-arm-jit/li",
+        "--jit=off",
+        "--metrics",
+        "--benchmark-runs=5",
+        "/work/lightning/benchmarks/inline.li"
+      ],
+      "name": "inline",
+      "path": "/work/lightning/benchmarks/inline.li",
+      "runs": [
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/inline.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 1,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 0,
+            "compiled_functions": 0,
+            "first_call_ns": 250468792,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 41542,
+            "process_wall_time_ns": 1249788458,
+            "releases": 10000015,
+            "retains": 10000015,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              247365208,
+              245962584,
+              247182167,
+              255631917
+            ],
+            "warm_throughput_per_second": 4.015492267087464
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":41542,\"jit_compile_ns\":0,\"first_call_ns\":250468792,\"warm_call_ns\":[247365208,245962584,247182167,255631917],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":0,\"retains\":10000015,\"releases\":10000015,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(255.63 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        },
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/inline.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 2,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 0,
+            "compiled_functions": 0,
+            "first_call_ns": 252062708,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 33208,
+            "process_wall_time_ns": 1243432208,
+            "releases": 10000015,
+            "retains": 10000015,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              245589083,
+              243077542,
+              250587417,
+              249050041
+            ],
+            "warm_throughput_per_second": 4.047337321381885
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":33208,\"jit_compile_ns\":0,\"first_call_ns\":252062708,\"warm_call_ns\":[245589083,243077542,250587417,249050041],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":0,\"retains\":10000015,\"releases\":10000015,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(249.05 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        },
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/inline.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 3,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 0,
+            "compiled_functions": 0,
+            "first_call_ns": 244880666,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 33042,
+            "process_wall_time_ns": 1246895250,
+            "releases": 10000015,
+            "retains": 10000015,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              248191125,
+              253486000,
+              247988625,
+              249086000
+            ],
+            "warm_throughput_per_second": 4.004999240301706
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":33042,\"jit_compile_ns\":0,\"first_call_ns\":244880666,\"warm_call_ns\":[248191125,253486000,247988625,249086000],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":0,\"retains\":10000015,\"releases\":10000015,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(249.09 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        }
+      ],
+      "successful": true,
+      "summary": {
+        "allocations": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "allocations"
+        },
+        "compiled_functions": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "functions"
+        },
+        "first_call_ns": {
+          "maximum": 252062708,
+          "mean": 249137388.66666666,
+          "median": 250468792,
+          "minimum": 244880666,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "generated_code_bytes": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "bytes"
+        },
+        "jit_compile_ns": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "parse_compile_ns": {
+          "maximum": 41542,
+          "mean": 35930.666666666664,
+          "median": 33208,
+          "minimum": 33042,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "process_wall_time_ns": {
+          "maximum": 1249788458,
+          "mean": 1246705305.3333333,
+          "median": 1246895250,
+          "minimum": 1243432208,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "releases": {
+          "maximum": 10000015,
+          "mean": 10000015.0,
+          "median": 10000015,
+          "minimum": 10000015,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "operations"
+        },
+        "retains": {
+          "maximum": 10000015,
+          "mean": 10000015.0,
+          "median": 10000015,
+          "minimum": 10000015,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "operations"
+        },
+        "spill_slots": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "slots"
+        },
+        "warm_call_ns": {
+          "maximum": 255631917,
+          "mean": 248599809.08333334,
+          "median": 248089875.0,
+          "minimum": 243077542,
+          "reason": null,
+          "sample_count": 12,
+          "unit": "ns"
+        },
+        "warm_throughput_per_second": {
+          "maximum": 4.047337321381885,
+          "mean": 4.022609609590352,
+          "median": 4.015492267087464,
+          "minimum": 4.004999240301706,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "calls/second"
+        }
+      },
+      "warmup_runs": []
+    },
+    {
+      "command": [
+        "/work/lightning/build-arm-jit/li",
+        "--jit=off",
+        "--metrics",
+        "--benchmark-runs=5",
+        "/work/lightning/benchmarks/integer-ranges.li"
+      ],
+      "name": "integer-ranges",
+      "path": "/work/lightning/benchmarks/integer-ranges.li",
+      "runs": [
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/integer-ranges.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 1,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 0,
+            "compiled_functions": 0,
+            "first_call_ns": 95977000,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 33416,
+            "process_wall_time_ns": 470097333,
+            "releases": 20,
+            "retains": 20,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              92855875,
+              93948083,
+              89396250,
+              93343792
+            ],
+            "warm_throughput_per_second": 10.824150845366182
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":33416,\"jit_compile_ns\":0,\"first_call_ns\":95977000,\"warm_call_ns\":[92855875,93948083,89396250,93343792],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":0,\"retains\":20,\"releases\":20,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(93.34 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        },
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/integer-ranges.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 2,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 0,
+            "compiled_functions": 0,
+            "first_call_ns": 97161500,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 31667,
+            "process_wall_time_ns": 473271250,
+            "releases": 20,
+            "retains": 20,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              92258084,
+              96563625,
+              91972667,
+              92399833
+            ],
+            "warm_throughput_per_second": 10.718279929150777
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":31667,\"jit_compile_ns\":0,\"first_call_ns\":97161500,\"warm_call_ns\":[92258084,96563625,91972667,92399833],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":0,\"retains\":20,\"releases\":20,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(92.40 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        },
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/integer-ranges.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 3,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 0,
+            "compiled_functions": 0,
+            "first_call_ns": 98853417,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 31334,
+            "process_wall_time_ns": 476498125,
+            "releases": 20,
+            "retains": 20,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              90786791,
+              94533542,
+              91086416,
+              98261583
+            ],
+            "warm_throughput_per_second": 10.676109130034508
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":31334,\"jit_compile_ns\":0,\"first_call_ns\":98853417,\"warm_call_ns\":[90786791,94533542,91086416,98261583],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":0,\"retains\":20,\"releases\":20,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(98.26 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        }
+      ],
+      "successful": true,
+      "summary": {
+        "allocations": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "allocations"
+        },
+        "compiled_functions": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "functions"
+        },
+        "first_call_ns": {
+          "maximum": 98853417,
+          "mean": 97330639.0,
+          "median": 97161500,
+          "minimum": 95977000,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "generated_code_bytes": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "bytes"
+        },
+        "jit_compile_ns": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "parse_compile_ns": {
+          "maximum": 33416,
+          "mean": 32139.0,
+          "median": 31667,
+          "minimum": 31334,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "process_wall_time_ns": {
+          "maximum": 476498125,
+          "mean": 473288902.6666667,
+          "median": 473271250,
+          "minimum": 470097333,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "releases": {
+          "maximum": 20,
+          "mean": 20.0,
+          "median": 20,
+          "minimum": 20,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "operations"
+        },
+        "retains": {
+          "maximum": 20,
+          "mean": 20.0,
+          "median": 20,
+          "minimum": 20,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "operations"
+        },
+        "spill_slots": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "slots"
+        },
+        "warm_call_ns": {
+          "maximum": 98261583,
+          "mean": 93117211.75,
+          "median": 92627854.0,
+          "minimum": 89396250,
+          "reason": null,
+          "sample_count": 12,
+          "unit": "ns"
+        },
+        "warm_throughput_per_second": {
+          "maximum": 10.824150845366182,
+          "mean": 10.739513301517155,
+          "median": 10.718279929150777,
+          "minimum": 10.676109130034508,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "calls/second"
+        }
+      },
+      "warmup_runs": []
+    },
+    {
+      "command": [
+        "/work/lightning/build-arm-jit/li",
+        "--jit=off",
+        "--metrics",
+        "--benchmark-runs=5",
+        "/work/lightning/benchmarks/inline-cache.li"
+      ],
+      "name": "inline-cache",
+      "path": "/work/lightning/benchmarks/inline-cache.li",
+      "runs": [
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/inline-cache.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 1,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 25,
+            "compiled_functions": 0,
+            "first_call_ns": 499341208,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 52375,
+            "process_wall_time_ns": 2485145500,
+            "releases": 70000135,
+            "retains": 70000110,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              490934042,
+              502329584,
+              492488667,
+              495717875
+            ],
+            "warm_throughput_per_second": 2.018703114787444
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":52375,\"jit_compile_ns\":0,\"first_call_ns\":499341208,\"warm_call_ns\":[490934042,502329584,492488667,495717875],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":25,\"retains\":70000110,\"releases\":70000135,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(495.72 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        },
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/inline-cache.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 2,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 25,
+            "compiled_functions": 0,
+            "first_call_ns": 496434708,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 45333,
+            "process_wall_time_ns": 2475364250,
+            "releases": 70000135,
+            "retains": 70000110,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              491272667,
+              496233375,
+              489518875,
+              498723625
+            ],
+            "warm_throughput_per_second": 2.0245491341478616
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":45333,\"jit_compile_ns\":0,\"first_call_ns\":496434708,\"warm_call_ns\":[491272667,496233375,489518875,498723625],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":25,\"retains\":70000110,\"releases\":70000135,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(498.72 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        },
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/inline-cache.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 3,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 25,
+            "compiled_functions": 0,
+            "first_call_ns": 493181792,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 47833,
+            "process_wall_time_ns": 2475111958,
+            "releases": 70000135,
+            "retains": 70000110,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              497301583,
+              498768333,
+              487419500,
+              495445083
+            ],
+            "warm_throughput_per_second": 2.021289740525161
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":47833,\"jit_compile_ns\":0,\"first_call_ns\":493181792,\"warm_call_ns\":[497301583,498768333,487419500,495445083],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":25,\"retains\":70000110,\"releases\":70000135,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(495.45 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        }
+      ],
+      "successful": true,
+      "summary": {
+        "allocations": {
+          "maximum": 25,
+          "mean": 25.0,
+          "median": 25,
+          "minimum": 25,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "allocations"
+        },
+        "compiled_functions": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "functions"
+        },
+        "first_call_ns": {
+          "maximum": 499341208,
+          "mean": 496319236.0,
+          "median": 496434708,
+          "minimum": 493181792,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "generated_code_bytes": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "bytes"
+        },
+        "jit_compile_ns": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "parse_compile_ns": {
+          "maximum": 52375,
+          "mean": 48513.666666666664,
+          "median": 47833,
+          "minimum": 45333,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "process_wall_time_ns": {
+          "maximum": 2485145500,
+          "mean": 2478540569.3333335,
+          "median": 2475364250,
+          "minimum": 2475111958,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "releases": {
+          "maximum": 70000135,
+          "mean": 70000135.0,
+          "median": 70000135,
+          "minimum": 70000135,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "operations"
+        },
+        "retains": {
+          "maximum": 70000110,
+          "mean": 70000110.0,
+          "median": 70000110,
+          "minimum": 70000110,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "operations"
+        },
+        "spill_slots": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "slots"
+        },
+        "warm_call_ns": {
+          "maximum": 502329584,
+          "mean": 494679434.0833333,
+          "median": 495581479.0,
+          "minimum": 487419500,
+          "reason": null,
+          "sample_count": 12,
+          "unit": "ns"
+        },
+        "warm_throughput_per_second": {
+          "maximum": 2.0245491341478616,
+          "mean": 2.021513996486822,
+          "median": 2.021289740525161,
+          "minimum": 2.018703114787444,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "calls/second"
+        }
+      },
+      "warmup_runs": []
+    },
+    {
+      "command": [
+        "/work/lightning/build-arm-jit/li",
+        "--jit=off",
+        "--metrics",
+        "--benchmark-runs=5",
+        "/work/lightning/benchmarks/vectors.li"
+      ],
+      "name": "vectors",
+      "path": "/work/lightning/benchmarks/vectors.li",
+      "runs": [
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/vectors.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 1,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 5000015,
+            "compiled_functions": 0,
+            "first_call_ns": 210901834,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 38792,
+            "process_wall_time_ns": 1056760792,
+            "releases": 40005100,
+            "retains": 35005085,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              205099292,
+              215461333,
+              203113708,
+              218584084
+            ],
+            "warm_throughput_per_second": 4.74913627369544
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":38792,\"jit_compile_ns\":0,\"first_call_ns\":210901834,\"warm_call_ns\":[205099292,215461333,203113708,218584084],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":5000015,\"retains\":35005085,\"releases\":40005100,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(218.58 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        },
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/vectors.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 2,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 5000015,
+            "compiled_functions": 0,
+            "first_call_ns": 204167625,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 35750,
+            "process_wall_time_ns": 1053513250,
+            "releases": 40005100,
+            "retains": 35005085,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              210926291,
+              214374708,
+              206508208,
+              212185958
+            ],
+            "warm_throughput_per_second": 4.7393636431554675
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":35750,\"jit_compile_ns\":0,\"first_call_ns\":204167625,\"warm_call_ns\":[210926291,214374708,206508208,212185958],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":5000015,\"retains\":35005085,\"releases\":40005100,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(212.19 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        },
+        {
+          "command": [
+            "/work/lightning/build-arm-jit/li",
+            "--jit=off",
+            "--metrics",
+            "--benchmark-runs=5",
+            "/work/lightning/benchmarks/vectors.li"
+          ],
+          "errors": [],
+          "exit_code": 0,
+          "iteration": 3,
+          "kind": "measurement_fresh_process",
+          "metrics": {
+            "allocations": 5000015,
+            "compiled_functions": 0,
+            "first_call_ns": 206372750,
+            "generated_code_bytes": 0,
+            "jit_compile_ns": 0,
+            "parse_compile_ns": 32208,
+            "process_wall_time_ns": 1044375667,
+            "releases": 40005100,
+            "retains": 35005085,
+            "spill_slots": 0,
+            "warm_call_ns": [
+              209939625,
+              206135917,
+              212005125,
+              206516292
+            ],
+            "warm_throughput_per_second": 4.7927325361845705
+          },
+          "stderr": "Metrics: {\"parse_compile_ns\":32208,\"jit_compile_ns\":0,\"first_call_ns\":206372750,\"warm_call_ns\":[209939625,206135917,212005125,206516292],\"generated_code_bytes\":0,\"compiled_functions\":0,\"allocations\":5000015,\"retains\":35005085,\"releases\":40005100,\"spill_slots\":0}\n",
+          "stdout": "\u001b[1;34m(206.52 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "timed_out": false
+        }
+      ],
+      "successful": true,
+      "summary": {
+        "allocations": {
+          "maximum": 5000015,
+          "mean": 5000015.0,
+          "median": 5000015,
+          "minimum": 5000015,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "allocations"
+        },
+        "compiled_functions": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "functions"
+        },
+        "first_call_ns": {
+          "maximum": 210901834,
+          "mean": 207147403.0,
+          "median": 206372750,
+          "minimum": 204167625,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "generated_code_bytes": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "bytes"
+        },
+        "jit_compile_ns": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "parse_compile_ns": {
+          "maximum": 38792,
+          "mean": 35583.333333333336,
+          "median": 35750,
+          "minimum": 32208,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "process_wall_time_ns": {
+          "maximum": 1056760792,
+          "mean": 1051549903.0,
+          "median": 1053513250,
+          "minimum": 1044375667,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "ns"
+        },
+        "releases": {
+          "maximum": 40005100,
+          "mean": 40005100.0,
+          "median": 40005100,
+          "minimum": 40005100,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "operations"
+        },
+        "retains": {
+          "maximum": 35005085,
+          "mean": 35005085.0,
+          "median": 35005085,
+          "minimum": 35005085,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "operations"
+        },
+        "spill_slots": {
+          "maximum": 0,
+          "mean": 0.0,
+          "median": 0,
+          "minimum": 0,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "slots"
+        },
+        "warm_call_ns": {
+          "maximum": 218584084,
+          "mean": 210070878.41666666,
+          "median": 210432958.0,
+          "minimum": 203113708,
+          "reason": null,
+          "sample_count": 12,
+          "unit": "ns"
+        },
+        "warm_throughput_per_second": {
+          "maximum": 4.7927325361845705,
+          "mean": 4.760410817678493,
+          "median": 4.74913627369544,
+          "minimum": 4.7393636431554675,
+          "reason": null,
+          "sample_count": 3,
+          "unit": "calls/second"
+        }
+      },
+      "warmup_runs": []
+    }
+  ],
+  "build_label": "arm64-release-p5-final",
+  "executable": "/work/lightning/build-arm-jit/li",
+  "execution_kind": "native",
+  "generated_at_utc": "2026-09-19T13:05:05.263518+00:00",
+  "historical_references": [
+    {
+      "benchmark": "binarytrees",
+      "comparable_to_current_suite": false,
+      "kind": "historical_reference",
+      "measured_at": "2022-06",
+      "runtime": "Li",
+      "source": "ROADMAP.md historical Discord benchmark report",
+      "wall_time_ms": 328
+    },
+    {
+      "benchmark": "binarytrees",
+      "comparable_to_current_suite": false,
+      "kind": "historical_reference",
+      "measured_at": "2022-06",
+      "runtime": "LuaJIT",
+      "source": "ROADMAP.md historical Discord benchmark report",
+      "wall_time_ms": 493
+    },
+    {
+      "benchmark": "binarytrees",
+      "comparable_to_current_suite": false,
+      "kind": "historical_reference",
+      "measured_at": "2022-06",
+      "runtime": "Node",
+      "source": "ROADMAP.md historical Discord benchmark report",
+      "wall_time_ms": 228
+    }
+  ],
+  "in_process_runs": 5,
+  "metrics_requested": true,
+  "mode": "interpreter",
+  "platform": {
+    "logical_cpu_count": 16,
+    "machine": "arm64",
+    "processor": "arm",
+    "python_implementation": "CPython",
+    "python_version": "3.14.7",
+    "release": "27.0.0",
+    "system": "Darwin",
+    "version": "Darwin Kernel Version 27.0.0: Tue Aug 11 21:05:48 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T6041"
+  },
+  "process_model": "fresh_process_per_invocation",
+  "repetitions": 3,
+  "schema_version": 3,
+  "selected_workloads": [
+    "binarytrees",
+    "fib",
+    "nbody",
+    "table-heavy",
+    "string-heavy",
+    "closure-heavy",
+    "alloc-heavy",
+    "escape",
+    "inline",
+    "integer-ranges",
+    "inline-cache",
+    "vectors"
+  ],
+  "successful": true,
+  "suite": "lightning-p0",
+  "timeout_seconds": 60.0,
+  "timing_semantics": {
+    "first_call_ns": "in-call wall clock for the first entry call in a newly loaded VM",
+    "jit_compile_ns": "in-process time spent in actual JIT compilation attempts during load and calls",
+    "parse_compile_ns": "in-process load_script wall clock, including eager JIT compilation",
+    "process_wall_time_ns": "process-inclusive runner wall clock: startup, file read, parsing, eager JIT compilation, all requested VM calls, and shutdown",
+    "runtime_counts": "per-thread runtime counter deltas across the requested calls in one child process",
+    "warm_call_ns": "per-call in-call wall clocks after the first call, reusing the same loaded VM",
+    "warm_throughput_per_second": "derived only from the completed warm_call_ns values when more than one in-process call was requested",
+    "warmups": "discarded fresh child processes; separate from warm calls that reuse a VM inside each child"
+  },
+  "verbose_evidence_requested": false,
+  "warmups": 0
+}

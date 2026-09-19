@@ -1,0 +1,82 @@
+# differential: mode-dependent (observes jit.where inside a running loop)
+import? jit as jitlib
+import weak
+
+# A loop specialized on numbers must fall back to the generic operation when a
+# value changes type mid-loop, producing the interpreter's result.
+export const trace = {finalized: 0}
+class Accumulator {
+   total: number = 0
+   add!(other) -> Accumulator {
+      const result = self::dup()
+      result.total = self.total + other
+      result
+   }
+   del!() { $E.trace.finalized += 1 }
+}
+
+fn mixed_loop(limit) {
+   let value = 0
+   let index = 0
+   while index < limit {
+      if index == limit - 3 {
+         value = Accumulator()
+      }
+      value = value + index
+      index += 1
+   }
+   value
+}
+
+let result = mixed_loop(100)
+assert(result is Accumulator)
+assert(result.total == 97 + 98 + 99)
+result = nil
+assert($E.trace.finalized == 4)
+
+# Errors raised after a type change unwind through the same handler in both
+# modes, and the loop state visible to the handler is the interpreter's.
+fn failing_loop(limit) {
+   let index = 0
+   let seen = nil
+   try {
+      while index < limit {
+         if index == limit - 1 {
+            seen = "text" + index
+         }
+         index += 1
+      }
+   } catch error {
+      return [index, error is string]
+   }
+   [index, false]
+}
+const failed = failing_loop(70)
+assert(failed[0] == 69 && failed[1])
+
+# A long-running loop compiled while it runs continues natively in the same
+# invocation without repeating side effects.
+export const transfer = {iterations: 0, before: "N/A", after: "N/A"}
+fn long_loop(limit) {
+   let index = 0
+   let sum = 0
+   while index < limit {
+      if jitlib != nil {
+         if index == 0 {
+            $E.transfer.before = jitlib.where(long_loop)
+         }
+         if index == limit - 1 {
+            $E.transfer.after = jitlib.where(long_loop)
+         }
+      }
+      $E.transfer.iterations += 1
+      sum += index
+      index += 1
+   }
+   sum
+}
+assert(long_loop(300) == 299 * 300 / 2)
+assert($E.transfer.iterations == 300)
+if jitlib != nil && $E.transfer.before == "N/A" && $E.transfer.after != "N/A" {
+   print("in-invocation osr transfer observed")
+}

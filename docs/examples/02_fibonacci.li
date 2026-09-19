@@ -1,0 +1,20 @@
+fn fibonacci(limit) {
+    let values = []
+    let previous = 0
+    let current = 1
+
+    for index in 0..limit {
+        values::push(previous)
+        const next = previous + current
+        previous = current
+        current = next
+    }
+
+    values
+}
+
+const sequence = fibonacci(12)
+print("First twelve Fibonacci numbers:")
+for index, value in sequence {
+    print(`fib({index}) = {value}`)
+}

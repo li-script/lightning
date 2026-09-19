@@ -1,0 +1,33 @@
+// The delimiter count, not escaping, determines a raw literal's end.
+assert(r"a\nb" == "a\\nb")
+assert(r#"a "quote" and {braces}"# == "a \"quote\" and {braces}")
+assert(r##"a "# is not the terminator"## == "a \"# is not the terminator")
+assert(r#"first
+second"# == "first\nsecond")
+assert(r"" == "")
+assert(r#"\"# == "\\")
+
+// Operators next to comments remain separate tokens.
+let total = 24 / 3 // division, then a comment
+/* An outer comment with /* nested { " ` */ arbitrary syntax. */
+total /= 2
+assert(total == 4)
+assert(2/*between tokens*/+3 == 5)
+
+// Interpolation must ignore braces and quotes in raw literals and comments.
+assert(`value {r#"}"#}` == "value }")
+assert(`value {1 /* } */ + 2}` == "value 3")
+assert(`value {'}'}` == "value 125")
+
+fn malformed(source) {
+   try {
+      eval(source)
+      false
+   } catch error {
+      error is string
+   }
+}
+assert(malformed("r#\"unterminated"))
+assert(malformed("r##\"wrong terminator\"#"))
+assert(malformed("/* unterminated"))
+assert(malformed("/* outer /* inner */"))

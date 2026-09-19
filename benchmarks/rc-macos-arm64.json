@@ -1,0 +1,359 @@
+{
+  "benchmarks": [
+    {
+      "command": [
+        "/work/lightning/build-arm/li",
+        "/work/lightning/benchmarks/binarytrees.li"
+      ],
+      "name": "binarytrees",
+      "path": "/work/lightning/benchmarks/binarytrees.li",
+      "runs": [
+        {
+          "exit_code": 0,
+          "repetition": 1,
+          "stderr": "",
+          "stdout": "\u001b[1;34m(345.92 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "wall_time_ms": 350.797292,
+          "wall_time_ns": 350797292
+        },
+        {
+          "exit_code": 0,
+          "repetition": 2,
+          "stderr": "",
+          "stdout": "\u001b[1;34m(348.11 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "wall_time_ms": 351.114834,
+          "wall_time_ns": 351114834
+        },
+        {
+          "exit_code": 0,
+          "repetition": 3,
+          "stderr": "",
+          "stdout": "\u001b[1;34m(344.02 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "wall_time_ms": 347.324709,
+          "wall_time_ns": 347324709
+        }
+      ],
+      "successful": true,
+      "summary": {
+        "maximum_wall_time_ms": 351.114834,
+        "mean_wall_time_ms": 349.74561166666666,
+        "median_wall_time_ms": 350.797292,
+        "minimum_wall_time_ms": 347.324709
+      }
+    },
+    {
+      "command": [
+        "/work/lightning/build-arm/li",
+        "/work/lightning/benchmarks/fib.li"
+      ],
+      "name": "fib",
+      "path": "/work/lightning/benchmarks/fib.li",
+      "runs": [
+        {
+          "exit_code": 0,
+          "repetition": 1,
+          "stderr": "",
+          "stdout": "\u001b[1;34m(276.26 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "wall_time_ms": 279.283292,
+          "wall_time_ns": 279283292
+        },
+        {
+          "exit_code": 0,
+          "repetition": 2,
+          "stderr": "",
+          "stdout": "\u001b[1;34m(274.31 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "wall_time_ms": 277.26425,
+          "wall_time_ns": 277264250
+        },
+        {
+          "exit_code": 0,
+          "repetition": 3,
+          "stderr": "",
+          "stdout": "\u001b[1;34m(275.83 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "wall_time_ms": 279.812958,
+          "wall_time_ns": 279812958
+        }
+      ],
+      "successful": true,
+      "summary": {
+        "maximum_wall_time_ms": 279.812958,
+        "mean_wall_time_ms": 278.78683333333333,
+        "median_wall_time_ms": 279.283292,
+        "minimum_wall_time_ms": 277.26425
+      }
+    },
+    {
+      "command": [
+        "/work/lightning/build-arm/li",
+        "/work/lightning/benchmarks/nbody.li"
+      ],
+      "name": "nbody",
+      "path": "/work/lightning/benchmarks/nbody.li",
+      "runs": [
+        {
+          "exit_code": 0,
+          "repetition": 1,
+          "stderr": "",
+          "stdout": "\u001b[1;34m(7.63 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "wall_time_ms": 10.698041,
+          "wall_time_ns": 10698041
+        },
+        {
+          "exit_code": 0,
+          "repetition": 2,
+          "stderr": "",
+          "stdout": "\u001b[1;34m(7.33 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "wall_time_ms": 10.049875,
+          "wall_time_ns": 10049875
+        },
+        {
+          "exit_code": 0,
+          "repetition": 3,
+          "stderr": "",
+          "stdout": "\u001b[1;34m(7.47 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "wall_time_ms": 10.26025,
+          "wall_time_ns": 10260250
+        }
+      ],
+      "successful": true,
+      "summary": {
+        "maximum_wall_time_ms": 10.698041,
+        "mean_wall_time_ms": 10.336055333333332,
+        "median_wall_time_ms": 10.26025,
+        "minimum_wall_time_ms": 10.049875
+      }
+    },
+    {
+      "command": [
+        "/work/lightning/build-arm/li",
+        "/work/lightning/benchmarks/table-heavy.li"
+      ],
+      "name": "table-heavy",
+      "path": "/work/lightning/benchmarks/table-heavy.li",
+      "runs": [
+        {
+          "exit_code": 0,
+          "repetition": 1,
+          "stderr": "",
+          "stdout": "\u001b[1;34m(21.17 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "wall_time_ms": 25.510375,
+          "wall_time_ns": 25510375
+        },
+        {
+          "exit_code": 0,
+          "repetition": 2,
+          "stderr": "",
+          "stdout": "\u001b[1;34m(20.38 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "wall_time_ms": 24.777625,
+          "wall_time_ns": 24777625
+        },
+        {
+          "exit_code": 0,
+          "repetition": 3,
+          "stderr": "",
+          "stdout": "\u001b[1;34m(19.89 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "wall_time_ms": 26.616833,
+          "wall_time_ns": 26616833
+        }
+      ],
+      "successful": true,
+      "summary": {
+        "maximum_wall_time_ms": 26.616833,
+        "mean_wall_time_ms": 25.634944333333333,
+        "median_wall_time_ms": 25.510375,
+        "minimum_wall_time_ms": 24.777625
+      }
+    },
+    {
+      "command": [
+        "/work/lightning/build-arm/li",
+        "/work/lightning/benchmarks/string-heavy.li"
+      ],
+      "name": "string-heavy",
+      "path": "/work/lightning/benchmarks/string-heavy.li",
+      "runs": [
+        {
+          "exit_code": 0,
+          "repetition": 1,
+          "stderr": "",
+          "stdout": "\u001b[1;34m(17.35 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "wall_time_ms": 20.727667,
+          "wall_time_ns": 20727667
+        },
+        {
+          "exit_code": 0,
+          "repetition": 2,
+          "stderr": "",
+          "stdout": "\u001b[1;34m(17.68 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "wall_time_ms": 21.161375,
+          "wall_time_ns": 21161375
+        },
+        {
+          "exit_code": 0,
+          "repetition": 3,
+          "stderr": "",
+          "stdout": "\u001b[1;34m(18.89 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "wall_time_ms": 22.122458,
+          "wall_time_ns": 22122458
+        }
+      ],
+      "successful": true,
+      "summary": {
+        "maximum_wall_time_ms": 22.122458,
+        "mean_wall_time_ms": 21.337166666666665,
+        "median_wall_time_ms": 21.161375,
+        "minimum_wall_time_ms": 20.727667
+      }
+    },
+    {
+      "command": [
+        "/work/lightning/build-arm/li",
+        "/work/lightning/benchmarks/closure-heavy.li"
+      ],
+      "name": "closure-heavy",
+      "path": "/work/lightning/benchmarks/closure-heavy.li",
+      "runs": [
+        {
+          "exit_code": 0,
+          "repetition": 1,
+          "stderr": "",
+          "stdout": "\u001b[1;34m(9.35 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "wall_time_ms": 12.340083,
+          "wall_time_ns": 12340083
+        },
+        {
+          "exit_code": 0,
+          "repetition": 2,
+          "stderr": "",
+          "stdout": "\u001b[1;34m(8.60 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "wall_time_ms": 11.508875,
+          "wall_time_ns": 11508875
+        },
+        {
+          "exit_code": 0,
+          "repetition": 3,
+          "stderr": "",
+          "stdout": "\u001b[1;34m(8.90 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "wall_time_ms": 11.810042,
+          "wall_time_ns": 11810042
+        }
+      ],
+      "successful": true,
+      "summary": {
+        "maximum_wall_time_ms": 12.340083,
+        "mean_wall_time_ms": 11.886333333333333,
+        "median_wall_time_ms": 11.810042,
+        "minimum_wall_time_ms": 11.508875
+      }
+    },
+    {
+      "command": [
+        "/work/lightning/build-arm/li",
+        "/work/lightning/benchmarks/alloc-heavy.li"
+      ],
+      "name": "alloc-heavy",
+      "path": "/work/lightning/benchmarks/alloc-heavy.li",
+      "runs": [
+        {
+          "exit_code": 0,
+          "repetition": 1,
+          "stderr": "",
+          "stdout": "\u001b[1;34m(25.09 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "wall_time_ms": 27.838333,
+          "wall_time_ns": 27838333
+        },
+        {
+          "exit_code": 0,
+          "repetition": 2,
+          "stderr": "",
+          "stdout": "\u001b[1;34m(24.74 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "wall_time_ms": 27.771125,
+          "wall_time_ns": 27771125
+        },
+        {
+          "exit_code": 0,
+          "repetition": 3,
+          "stderr": "",
+          "stdout": "\u001b[1;34m(25.14 ms) \u001b[1;32mResult: \u001b[0mOK\n",
+          "successful": true,
+          "wall_time_ms": 30.71575,
+          "wall_time_ns": 30715750
+        }
+      ],
+      "successful": true,
+      "summary": {
+        "maximum_wall_time_ms": 30.71575,
+        "mean_wall_time_ms": 28.775069333333334,
+        "median_wall_time_ms": 27.838333,
+        "minimum_wall_time_ms": 27.771125
+      }
+    }
+  ],
+  "executable": "/work/lightning/build-arm/li",
+  "generated_at_utc": "2026-09-19T07:28:55.132361+00:00",
+  "historical_references": [
+    {
+      "benchmark": "binarytrees",
+      "comparable_to_current_suite": false,
+      "kind": "historical_reference",
+      "measured_at": "2022-06",
+      "runtime": "Li",
+      "source": "ROADMAP.md historical Discord benchmark report",
+      "wall_time_ms": 328
+    },
+    {
+      "benchmark": "binarytrees",
+      "comparable_to_current_suite": false,
+      "kind": "historical_reference",
+      "measured_at": "2022-06",
+      "runtime": "LuaJIT",
+      "source": "ROADMAP.md historical Discord benchmark report",
+      "wall_time_ms": 493
+    },
+    {
+      "benchmark": "binarytrees",
+      "comparable_to_current_suite": false,
+      "kind": "historical_reference",
+      "measured_at": "2022-06",
+      "runtime": "Node",
+      "source": "ROADMAP.md historical Discord benchmark report",
+      "wall_time_ms": 228
+    }
+  ],
+  "mode": "interpreter",
+  "platform": {
+    "logical_cpu_count": 16,
+    "machine": "arm64",
+    "processor": "arm",
+    "python_implementation": "CPython",
+    "python_version": "3.14.7",
+    "release": "27.0.0",
+    "system": "Darwin",
+    "version": "Darwin Kernel Version 27.0.0: Tue Aug 11 21:05:48 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T6041",
+    "execution": "native Apple M4 Max; immediate reference counting with checked ownership"
+  },
+  "repetitions": 3,
+  "schema_version": 1,
+  "successful": true,
+  "suite": "lightning-p0"
+}

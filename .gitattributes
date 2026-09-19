@@ -1,1 +1,4 @@
 /CMakeLists.txt linguist-generated
+*.li text eol=lf
+*.txt text eol=lf
+*.S text eol=lf

@@ -4,86 +4,129 @@
 #include <util/user.hpp>
 #include <vm/array.hpp>
 #include <vm/function.hpp>
+#include <vm/object.hpp>
 #include <vm/string.hpp>
 #include <vm/table.hpp>
-#include <vm/object.hpp>
-
-// Include arch-specific header if relevant for optimizations.
-//
-#if LI_JIT && LI_ARCH_X86 && !LI_32
-	#include <ir/x86-64.hpp>
-#endif
+#include <vm/traits.hpp>
+#include <vm/typed_array.hpp>
 
 namespace li::lib {
 	static array* LI_CC builtin_new_array_i32(vm* L, msize_t n) { return array::create(L, n, 0); }
 	static table* LI_CC builtin_new_table_i32(vm* L, msize_t n) { return table::create(L, n); }
 
-	static any_t LI_CC builtin_null_functor(vm* L) {
-		return L->error("invoking uninitialized function");
-	}
+	static any_t LI_CC builtin_null_functor(vm* L) { return L->error("invoking uninitialized function"); }
 	static any_t       builtin_null_functor_vm(vm* L, any* args, slot_t nargs) { return builtin_null_functor(L); }
 
-	static table* LI_CC    builtin_dup_table(vm* L, table* a) { return a->duplicate(L); }
-	static array* LI_CC    builtin_dup_array(vm* L, array* a) { return a->duplicate(L); }
-	static function* LI_CC builtin_dup_function(vm* L, function* a) { return a->duplicate(L); }
-	static object* LI_CC   builtin_dup_object(vm* L, object* a) { return a->duplicate(L); }
-	static any_t LI_CC     builtin_dup_else(vm* L, any_t v) { return v; }
+	static any_t LI_CC builtin_dup_table(vm* L, table* a) {
+		table* result = a->duplicate(L);
+		if (!result)
+			return exception_marker;
+		return L->take(any(result));
+	}
+	static any_t LI_CC builtin_dup_array(vm* L, array* a) {
+		array* result = a->duplicate(L);
+		if (!result)
+			return exception_marker;
+		return L->take(any(result));
+	}
+	static typed_array* LI_CC builtin_dup_typed_array(vm* L, typed_array* a) { return a->duplicate(L); }
+	static function* LI_CC    builtin_dup_function(vm* L, function* a) { return a->duplicate(L); }
+	static any_t LI_CC        builtin_dup_object(vm* L, object* a) {
+		object* result = a->duplicate(L);
+		if (!result)
+			return exception_marker;
+		return L->take(any(result));
+	}
+	static any_t LI_CC builtin_dup_else(vm* L, any_t v) { return L->ok(v); }
 
 	static any_t builtin_dup_vm(vm* L, any* args, slot_t nargs) {
 		any a = args[1];
 		if (a.is_arr()) {
-			return any(builtin_dup_array(L, a.as_arr()));
+			return builtin_dup_array(L, a.as_arr());
+		} else if (a.is_tarr()) {
+			return L->take(any(builtin_dup_typed_array(L, a.as_tarr())));
 		} else if (a.is_tbl()) {
-			return any(builtin_dup_table(L, a.as_tbl()));
+			return builtin_dup_table(L, a.as_tbl());
 		} else if (a.is_fn()) {
-			return any(builtin_dup_function(L, a.as_fn()));
+			return L->take(any(builtin_dup_function(L, a.as_fn())));
 		} else if (a.is_obj()) {
-			return any(builtin_dup_object(L, a.as_obj()));
+			return builtin_dup_object(L, a.as_obj());
 		} else {
 			return builtin_dup_else(L, a);
 		}
 	}
 
-	static msize_t LI_CC builtin_len_array(vm* L, array* a) { return a->length; }
-	static msize_t LI_CC builtin_len_table(vm* L, table* t) { return t->active_count; }
-	static msize_t LI_CC builtin_len_string(vm* L, string* s) { return s->length; }
-	static any_t LI_CC   builtin_len_else(vm* L, any_t a) { return L->error("expected iterable"); }
+	static number LI_CC builtin_len_array(vm* L, array* a) { return number(a->length); }
+	static number LI_CC builtin_len_string(vm* L, string* s) { return number(s->length); }
+	static number LI_CC builtin_len_typed_array(vm* L, typed_array* a) { return number(a->length); }
+	static any_t LI_CC  builtin_len_dynamic(vm* L, any_t a) {
+		if ((a.is_tbl() || a.is_obj()) && has_trait(a, trait::len)) {
+			any result = invoke_trait(L, trait::len, a);
+			return result.is_exc() ? result : L->take(result);
+		}
+		if (a.is_tbl())
+			return any((number) a.as_tbl()->active_count);
+		return L->error("expected iterable");
+	}
 
 	static any_t builtin_len_vm(vm* L, any* args, slot_t nargs) {
 		any a = args[1];
 		if (a.is_arr()) {
 			return any((number) builtin_len_array(L, a.as_arr()));
-		} else if (a.is_tbl()) {
-			return any((number) builtin_len_table(L, a.as_tbl()));
 		} else if (a.is_str()) {
 			return any((number) builtin_len_string(L, a.as_str()));
+		} else if (a.is_tarr()) {
+			return any((number) builtin_len_typed_array(L, a.as_tarr()));
 		} else {
-			return builtin_len_else(L, a);
+			return builtin_len_dynamic(L, a);
 		}
 	}
 
-	static string* LI_CC builtin_str_coerce(vm* L, any_t v) { return v.coerce_str(L); }
-	static number LI_CC  builtin_num_coerce(any_t v) { return v.coerce_num(); }
-	static int32_t LI_CC builtin_int_coerce(any_t v) { return (int32_t) builtin_num_coerce(v); }
-
-	static any_t builtin_str_vm(vm* L, any* args, slot_t nargs) { return any(builtin_str_coerce(L, args[1])); }
-	static any_t builtin_num_vm(vm* L, any* args, slot_t nargs) { return any(builtin_num_coerce(args[1])); }
-	static any_t builtin_int_vm(vm* L, any* args, slot_t nargs) { return any(trunc(builtin_num_coerce(args[1]))); }
-
-	static table* LI_CC builtin_join_table(vm* L, table* dst, table* src) {
-		dst->join(L, src);
-		return dst;
+	static string* LI_CC builtin_str_identity(vm* L, string* value) {
+		rc::retain(value);
+		return value;
 	}
-	static array* LI_CC builtin_join_array(vm* L, array* dst, array* src) {
-		dst->join(L, src);
-		return dst;
+	static any_t LI_CC builtin_str_coerce(vm* L, any_t value) {
+		if ((value.is_tbl() || value.is_obj()) && has_trait(value, trait::str)) {
+			any result = invoke_trait(L, trait::str, value);
+			if (result.is_exc())
+				return result;
+			if (!result.is_str()) {
+				rc::release(L, result);
+				return L->error("str trait must return string");
+			}
+			return L->take(result);
+		}
+
+		if (value.is_str())
+			return L->ok(value);
+		return L->take(any(value.coerce_str(L)));
+	}
+	static number LI_CC builtin_num_coerce(any_t v) { return v.coerce_num(); }
+	static number LI_CC builtin_int_coerce(any_t v) { return trunc(builtin_num_coerce(v)); }
+
+	static any_t builtin_str_vm(vm* L, any* args, slot_t nargs) { return builtin_str_coerce(L, args[1]); }
+	static any_t builtin_num_vm(vm* L, any* args, slot_t nargs) { return any(builtin_num_coerce(args[1])); }
+	static any_t builtin_int_vm(vm* L, any* args, slot_t nargs) { return any(builtin_int_coerce(args[1])); }
+
+	static any_t LI_CC builtin_join_table(vm* L, table* dst, table* src) {
+		if (trait_flag_enabled(any(dst), trait::freeze))
+			return L->error("modifying frozen table");
+		if (!dst->join(L, src))
+			return exception_marker;
+		return L->ok(any(dst));
+	}
+	static any_t LI_CC builtin_join_array(vm* L, array* dst, array* src) {
+		if (!dst->join(L, src))
+			return exception_marker;
+		return L->ok(any(dst));
 	}
 	static string* LI_CC builtin_join_string(vm* L, string* dst, string* src) { return string::concat(L, dst, src); }
 	static any_t LI_CC   builtin_join_else(vm* L, any_t dst, any_t src) {
-		  if (dst.type() != src.type()) {
-			  return L->error("cannot join different types");
-      }
-		  return L->error("join expected table, array, or string");
+		if (dst.type() != src.type()) {
+			return L->error("cannot join different types");
+		}
+		return L->error("join expected table, array, or string");
 	}
 	static any_t builtin_join_vm(vm* L, any* args, slot_t nargs) {
 		if (nargs < 1) {
@@ -94,17 +137,17 @@ namespace li::lib {
 		any dst = args[1];
 		if (src.type() == dst.type()) {
 			if (src.is_arr()) {
-				return any(builtin_join_array(L, dst.as_arr(), src.as_arr()));
+				return builtin_join_array(L, dst.as_arr(), src.as_arr());
 			} else if (src.is_tbl()) {
 				return any(builtin_join_table(L, dst.as_tbl(), src.as_tbl()));
 			} else if (src.is_str()) {
-				return any(builtin_join_string(L, dst.as_str(), src.as_str()));
+				return L->take(any(builtin_join_string(L, dst.as_str(), src.as_str())));
 			}
 		}
 		return builtin_join_else(L, dst, src);
 	}
 
-	static void LI_CC  builtin_push_array(vm* L, array* dst, any_t val) { dst->push(L, val); }
+	static any_t LI_CC builtin_push_array(vm* L, array* dst, any_t val) { return dst->push(L, val) ? nil : exception_marker; }
 	static any_t LI_CC builtin_push_else(vm* L) { return L->error("push expected array"); }
 
 	static any_t builtin_push_vm(vm* L, any* args, slot_t nargs) {
@@ -113,14 +156,12 @@ namespace li::lib {
 		}
 		any val = args[0];
 		any dst = args[1];
-		if (dst.is_arr()) {
-			builtin_push_array(L, dst.as_arr(), val);
-			return nil;
-		}
+		if (dst.is_arr())
+			return builtin_push_array(L, dst.as_arr(), val);
 		return builtin_push_else(L);
 	}
 
-	static any_t LI_CC builtin_pop_array(vm* L, array* dst) { return dst->pop(); }
+	static any_t LI_CC builtin_pop_array(vm* L, array* dst) { return L->take(dst->pop()); }
 	static any_t LI_CC builtin_pop_else(vm* L) { return L->error("pop expected array"); }
 
 	static any_t builtin_pop_vm(vm* L, any* args, slot_t nargs) {
@@ -137,7 +178,7 @@ namespace li::lib {
 				return true;
 		return false;
 	}
-	static bool LI_CC  builtin_in_tbl_unk(vm* L, table* i, any_t v) { return v != nil && i->get(L, v) != nil; }
+	static bool LI_CC  builtin_in_tbl_unk(vm* L, table* i, any_t v) { return i->contains(v); }
 	static bool LI_CC  builtin_in_str_num(vm*, string* i, uint32_t v) { return v <= 0xFF && i->view().find((char) (v & 0xFF)) != std::string::npos; }
 	static bool LI_CC  builtin_in_str_str(vm*, string* i, string* v) { return i == v || i->view().find(v->view()) != std::string::npos; }
 	static any_t LI_CC builtin_in_else(vm* L, any_t iv) {
@@ -187,7 +228,7 @@ namespace li::lib {
 		 &builtin_push_vm,
 
 		 {
-			  nfunc_overload{li::bit_cast<const void*>(&builtin_push_array), {type::arr, type::any}, type::none},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_push_array), {type::arr, type::any}, type::any},
 			  nfunc_overload{li::bit_cast<const void*>(&builtin_push_else), {}, type::exc},
 		 },
 	};
@@ -202,13 +243,16 @@ namespace li::lib {
 		 },
 	};
 	util::native_function detail::builtin_str = {
-		 func_attr_pure | func_attr_c_takes_vm | func_attr_c_takes_self,
+		 func_attr_sideeffect | func_attr_c_takes_vm | func_attr_c_takes_self,
 		 "builtin.str",
 		 &builtin_str_vm,
-		 {nfunc_overload{li::bit_cast<const void*>(&builtin_str_coerce), {type::any}, type::str}},
+		 {
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_str_identity), {type::str}, type::str},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_str_coerce), {type::any}, type::any},
+		 },
 	};
 	util::native_function detail::builtin_num = {
-		 func_attr_pure | func_attr_c_takes_vm | func_attr_c_takes_self,
+		 func_attr_pure | func_attr_c_takes_self,
 		 "builtin.num",
 		 &builtin_num_vm,
 		 {nfunc_overload{li::bit_cast<const void*>(&builtin_num_coerce), {type::any}, type::f64}},
@@ -217,7 +261,7 @@ namespace li::lib {
 		 func_attr_pure | func_attr_c_takes_self,
 		 "builtin.int",
 		 &builtin_int_vm,
-		 {nfunc_overload{li::bit_cast<const void*>(&builtin_int_coerce), {type::any}, type::i32}},
+		 {nfunc_overload{li::bit_cast<const void*>(&builtin_int_coerce), {type::any}, type::f64}},
 	};
 	util::native_function detail::builtin_join = {
 		 func_attr_sideeffect | func_attr_c_takes_vm | func_attr_c_takes_self,
@@ -225,21 +269,21 @@ namespace li::lib {
 		 &builtin_join_vm,
 
 		 {
-			  nfunc_overload{li::bit_cast<const void*>(&builtin_join_array), {type::arr, type::arr}, type::arr},
-			  nfunc_overload{li::bit_cast<const void*>(&builtin_join_table), {type::tbl, type::tbl}, type::tbl},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_join_array), {type::arr, type::arr}, type::any},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_join_table), {type::tbl, type::tbl}, type::any},
 			  nfunc_overload{li::bit_cast<const void*>(&builtin_join_string), {type::str, type::str}, type::str},
 			  nfunc_overload{li::bit_cast<const void*>(&builtin_join_else), {type::any, type::any}, type::exc},
 		 },
 	};
 	util::native_function detail::builtin_len = {
-		 func_attr_pure | func_attr_c_takes_vm | func_attr_c_takes_self,
+		 func_attr_sideeffect | func_attr_c_takes_vm | func_attr_c_takes_self,
 		 "builtin.len",
 		 &builtin_len_vm,
 		 {
-			  nfunc_overload{li::bit_cast<const void*>(&builtin_len_array), {type::arr}, type::i32},
-			  nfunc_overload{li::bit_cast<const void*>(&builtin_len_table), {type::tbl}, type::i32},
-			  nfunc_overload{li::bit_cast<const void*>(&builtin_len_string), {type::str}, type::i32},
-			  nfunc_overload{li::bit_cast<const void*>(&builtin_len_else), {type::any}, type::any},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_len_array), {type::arr}, type::f64, intrinsic::array_len},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_len_string), {type::str}, type::f64, intrinsic::string_len},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_len_typed_array), {type::tarr}, type::f64, intrinsic::typed_len},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_len_dynamic), {type::any}, type::any},
 		 },
 	};
 	util::native_function detail::builtin_dup = {
@@ -247,11 +291,25 @@ namespace li::lib {
 		 "builtin.dup",
 		 &builtin_dup_vm,
 		 {
-			  nfunc_overload{li::bit_cast<const void*>(&builtin_dup_array), {type::arr}, type::arr},
-			  nfunc_overload{li::bit_cast<const void*>(&builtin_dup_table), {type::tbl}, type::tbl},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_dup_array), {type::arr}, type::any},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_dup_typed_array), {type::tarr}, type::tarr},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_dup_table), {type::tbl}, type::any},
 			  nfunc_overload{li::bit_cast<const void*>(&builtin_dup_function), {type::fn}, type::fn},
-			  nfunc_overload{li::bit_cast<const void*>(&builtin_dup_object), {type::obj}, type::obj},
+			  nfunc_overload{li::bit_cast<const void*>(&builtin_dup_object), {type::obj}, type::any},
 			  nfunc_overload{li::bit_cast<const void*>(&builtin_dup_else), {type::any}, type::any},
+		 },
+	};
+	util::native_function detail::builtin_class_new = {
+		 func_attr_sideeffect | func_attr_c_takes_vm | func_attr_c_takes_self,
+		 "builtin.class_new",
+		 [](vm* L, any* args, slot_t count) -> any_t {
+			 if (!args[1].is_vcl())
+				 return L->error("new requires a class receiver");
+			 if (count < 0 || !L->vm_stack_headroom_available(size_t(count) + FRAME_SIZE))
+				 return L->vm_stack_exhausted();
+			 for (slot_t index = count; index != 0; --index)
+				 L->push_stack(args[1 - index]);
+			 return L->call(count, args[1]);
 		 },
 	};
 	util::native_function detail::builtin_new_array = {
@@ -304,7 +362,7 @@ namespace li::lib {
 			if (res.is_exc()) {
 				return res;
 			}
-			return L->ok(res);
+			return L->take(res);
 		});
 		util::export_as(L, "builtin.eval", [](vm* L, any* args, slot_t n) -> any_t {
 			vm_stack_guard _g{L, args};
@@ -315,22 +373,31 @@ namespace li::lib {
 			if (res.is_exc()) {
 				return res;
 			}
-			return L->call(0, res);
+			auto result = L->call(0, res);
+			rc::release(L, res);
+			return result.is_exc() ? result : L->take(result);
 		});
-		// TODO: v-- table.reserve, also add array.fill + bunch of functional programming primitives are missing.
+		util::export_as(L, "builtin.struct_copy", [](vm* L, any* args, slot_t n) -> any_t {
+			if (n != 1 || !args[0].is_obj() || !args[0].as_obj()->cl->value_semantics)
+				return L->error("struct_copy expects a struct value");
+			object* result = args[0].as_obj()->copy(L);
+			if (!result)
+				return exception_marker;
+			return L->take(any(result));
+		});
 		util::export_as(L, "builtin.@table", [](vm* L, any* args, slot_t n) {
 			uint32_t r = 0;
 			if (n && args->is_num()) {
 				r = (uint32_t) (uint64_t) std::abs(args->as_num());
 			}
-			return L->ok(table::create(L, r));
+			return L->take(table::create(L, r));
 		});
 		util::export_as(L, "builtin.@array", [](vm* L, any* args, slot_t n) {
 			uint32_t r = 0;
 			if (n && args->is_num()) {
 				r = (uint32_t) (uint64_t) std::abs(args->as_num());
 			}
-			return L->ok(array::create(L, r));
+			return L->take(array::create(L, r));
 		});
 		util::export_as(L, "builtin.assert", [](vm* L, any* args, slot_t n) {
 			vm_stack_guard _g{L, args};
@@ -354,38 +421,5 @@ namespace li::lib {
 				return L->error("assertion failed at %s, line %u", fn, line);
 			}
 		});
-
-		// Arch specific optimization.
-		//
-#if LI_JIT && LI_ARCH_X86 && !LI_32
-		using namespace ir;
-		builtin_len.nfi.overloads[0].mir_lifter = [](mblock& b, insn* i) {
-			auto tg = b->next_gp();
-			auto tf = b->next_fp();
-			b.append(vop::loadi32, tg, mmem{.base = REG(i->operands[0]), .disp = offsetof(array, length)});
-			b.append(vop::izx32, tg, tg);
-			b.append(vop::fcvt, tf, tg);
-			b.append(vop::movi, REG(i), tf);
-			return true;
-		};
-		builtin_len.nfi.overloads[1].mir_lifter = [](mblock& b, insn* i) {
-			auto tg = b->next_gp();
-			auto tf = b->next_fp();
-			b.append(vop::loadi32, tg, mmem{.base = REG(i->operands[0]), .disp = offsetof(table, active_count)});
-			b.append(vop::izx32, tg, tg);
-			b.append(vop::fcvt, tf, tg);
-			b.append(vop::movi, REG(i), tf);
-			return true;
-		};
-		builtin_len.nfi.overloads[2].mir_lifter = [](mblock& b, insn* i) {
-			auto tg = b->next_gp();
-			auto tf = b->next_fp();
-			b.append(vop::loadi32, tg, mmem{.base = REG(i->operands[0]), .disp = offsetof(string, length)});
-			b.append(vop::izx32, tg, tg);
-			b.append(vop::fcvt, tf, tg);
-			b.append(vop::movi, REG(i), tf);
-			return true;
-		};
-#endif
 	}
 };

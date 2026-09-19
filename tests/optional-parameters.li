@@ -1,0 +1,68 @@
+fn capture_error(action) {
+   let caught = nil
+   try {
+      action()
+   } catch error {
+      caught = error
+   }
+   caught
+}
+
+# A question mark on the parameter permits omission.
+fn optional_value(value?) {
+   value
+}
+assert(optional_value() == nil)
+assert(optional_value(nil) == nil)
+assert(optional_value(17) == 17)
+
+# Omission bypasses a non-nullable guard; an explicitly passed nil does not.
+fn optional_number(value?: number) {
+   value
+}
+assert(optional_number() == nil)
+assert(optional_number(19) == 19)
+assert(capture_error(|| { optional_number(nil) }) is string)
+
+# A nullable annotation does not make the argument optional.
+fn required_nullable(value: number?) {
+   value
+}
+assert(required_nullable(nil) == nil)
+assert(required_nullable(23) == 23)
+assert(capture_error(|| { required_nullable() }) is string)
+assert(capture_error(|| { required_nullable("wrong") }) is string)
+
+# Optional nullable parameters skip their guard only when omitted.
+fn optional_nullable(value?: number?) {
+   value
+}
+assert(optional_nullable() == nil)
+assert(optional_nullable(nil) == nil)
+assert(optional_nullable(29) == 29)
+assert(capture_error(|| { optional_nullable("wrong") }) is string)
+
+# A suffix-named rest view reports only surplus arguments and preserves nil.
+fn summarize(head, tail...) {
+   [head, tail::len(), tail[0], tail[1], tail[2]]
+}
+assert(capture_error(|| { summarize() }) is string)
+const empty_tail = summarize("only")
+assert(empty_tail[0] == "only")
+assert(empty_tail[1] == 0)
+assert(empty_tail[2] == nil)
+
+const populated_tail = summarize("head", 10, nil, 30)
+assert(populated_tail[0] == "head")
+assert(populated_tail[1] == 3)
+assert(populated_tail[2] == 10)
+assert(populated_tail[3] == nil)
+assert(populated_tail[4] == 30)
+
+# Returning a temporary rest argument must transfer an owned reference.
+fn last_rest(head, values...) {
+   values[values::len() - 1]
+}
+const survivor = last_rest("head", {code: 88})
+assert(survivor is table)
+assert(survivor.code == 88)

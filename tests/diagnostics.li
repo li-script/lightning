@@ -1,0 +1,25 @@
+fn compile_error(source) {
+   let caught = nil
+   try {
+      loadstring(source)
+   } catch error {
+      caught = error
+   }
+   caught
+}
+
+const operator_error = compile_error("[[strict]]\nlet count = 1i32\nlet label = \"items\"\nlet bad = count + label\nlet after = 0")
+assert(operator_error is string)
+assert("[:4:" in operator_error)
+assert("let bad = count + label" in operator_error)
+
+const token_error = compile_error("let 12345 = 1")
+assert(token_error is string)
+assert("[:1:5" in token_error)
+assert("let 12345 = 1" in token_error)
+assert("    ^~~~~" in token_error)
+
+const syntax_error = compile_error("let value =\n)")
+assert(syntax_error is string)
+assert("[:2:1" in syntax_error)
+assert("\n)\n^" in syntax_error)

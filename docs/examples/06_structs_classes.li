@@ -1,0 +1,88 @@
+# Struct values copy at strict boundaries; class values share identity.
+
+struct Point {
+   x: number = 0
+   y: number = 0
+
+   new!(x: number, y: number) {
+      self.x = x
+      self.y = y
+   }
+
+   add!(other: Point) -> Point {
+      let result = struct_copy(self)
+      result.x += other.x
+      result.y += other.y
+      result
+   }
+
+   get length_squared() -> number {
+      self.x * self.x + self.y * self.y
+   }
+}
+
+[[strict]] fn translated(point: Point, dx: number, dy: number) -> Point {
+   point.x += dx
+   point.y += dy
+   point
+}
+
+let start = Point(3, 4)
+let moved = translated(start, 5, -2)
+assert(start.x == 3 && start.y == 4)
+assert(moved.x == 8 && moved.y == 2)
+assert(start.length_squared == 25)
+
+let total = start + Point(1, 2)
+assert(total.x == 4 && total.y == 6)
+
+# Dynamic struct boxes can be copied explicitly.
+let boxed_copy = struct_copy(start)
+boxed_copy.x = 30
+assert(start.x == 3 && boxed_copy.x == 30)
+
+class Account {
+   owner: string = ""
+   _balance: number = 0
+
+   new!(owner: string, opening_balance: number) {
+      self.owner = owner
+      self.balance = opening_balance
+   }
+
+   get balance() -> number { self._balance }
+
+   set balance(value: number) {
+      if value < 0 {
+         throw "balance cannot be negative"
+      }
+      self._balance = value
+   }
+
+   deposit(amount: number) -> number {
+      self.balance = self.balance + amount
+      self.balance
+   }
+
+   add!(amount: number) -> number {
+      self.balance + amount
+   }
+
+   at!(key) {
+      if key == "summary" {
+         return `{self.owner}: {self.balance}`
+      }
+      nil
+   }
+}
+
+let primary = Account("Ada", 125)
+let alias = primary
+assert(alias is Account)
+assert(alias.deposit(25) == 150)
+assert(primary.balance == 150)
+assert(primary + 50 == 200)
+assert(primary.summary == "Ada: 150")
+
+print("point", moved.x, moved.y)
+print("account", primary.owner, primary.balance)

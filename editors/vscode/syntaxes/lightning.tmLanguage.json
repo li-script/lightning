@@ -1,0 +1,568 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Lightning",
+  "scopeName": "source.lightning",
+  "fileTypes": [
+    "li"
+  ],
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#decorators"
+    },
+    {
+      "include": "#attributes"
+    },
+    {
+      "include": "#declarations"
+    },
+    {
+      "include": "#trait-members"
+    },
+    {
+      "include": "#types"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#constants"
+    },
+    {
+      "include": "#self"
+    },
+    {
+      "include": "#operators"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.lightning",
+          "begin": "//",
+          "end": "$"
+        },
+        {
+          "name": "comment.block.lightning",
+          "begin": "/\\*",
+          "end": "\\*/",
+          "patterns": [{ "include": "#nested-block-comment" }]
+        },
+        {
+          "name": "comment.block.lightning",
+          "begin": "(#)(\\[)(=+)(\\[)",
+          "beginCaptures": {
+            "1": {
+              "name": "punctuation.definition.comment.lightning"
+            },
+            "2": {
+              "name": "punctuation.definition.comment.begin.lightning"
+            },
+            "3": {
+              "name": "punctuation.definition.comment.begin.lightning"
+            },
+            "4": {
+              "name": "punctuation.definition.comment.begin.lightning"
+            }
+          },
+          "end": "(\\])(\\3)(\\])",
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.definition.comment.end.lightning"
+            },
+            "2": {
+              "name": "punctuation.definition.comment.end.lightning"
+            },
+            "3": {
+              "name": "punctuation.definition.comment.end.lightning"
+            }
+          }
+        },
+        {
+          "name": "keyword.operator.variadic-count.lightning",
+          "match": "#(?=[_$\\p{L}][_$\\p{L}\\p{N}]*\\.\\.\\.)"
+        },
+        {
+          "name": "comment.line.number-sign.lightning",
+          "begin": "#",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.comment.lightning"
+            }
+          },
+          "end": "$"
+        }
+      ]
+    },
+    "nested-block-comment": {
+      "name": "comment.block.lightning",
+      "begin": "/\\*",
+      "end": "\\*/",
+      "patterns": [{ "include": "#nested-block-comment" }]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.raw.lightning",
+          "begin": "\\br(#{0,})\"",
+          "end": "\"\\1"
+        },
+        {
+          "name": "string.quoted.double.lightning",
+          "begin": "\"",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.lightning"
+            }
+          },
+          "end": "\"",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.lightning"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#escapes"
+            }
+          ]
+        },
+        {
+          "name": "constant.numeric.character.lightning",
+          "begin": "'",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.character.begin.lightning"
+            }
+          },
+          "end": "'",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.character.end.lightning"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#escapes"
+            }
+          ]
+        },
+        {
+          "name": "string.interpolated.lightning",
+          "begin": "`",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.lightning"
+            }
+          },
+          "end": "`",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.lightning"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#escapes"
+            },
+            {
+              "name": "constant.character.escape.brace.lightning",
+              "match": "\\{\\{|\\}\\}"
+            },
+            {
+              "include": "#interpolation"
+            }
+          ]
+        },
+        {
+          "name": "string.unquoted.long-bracket.lightning",
+          "begin": "(\\[)(=+)(\\[)",
+          "beginCaptures": {
+            "1": {
+              "name": "punctuation.definition.string.begin.lightning"
+            },
+            "2": {
+              "name": "punctuation.definition.string.begin.lightning"
+            },
+            "3": {
+              "name": "punctuation.definition.string.begin.lightning"
+            }
+          },
+          "end": "(\\])(\\2)(\\])",
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.definition.string.end.lightning"
+            },
+            "2": {
+              "name": "punctuation.definition.string.end.lightning"
+            },
+            "3": {
+              "name": "punctuation.definition.string.end.lightning"
+            }
+          }
+        }
+      ]
+    },
+    "escapes": {
+      "patterns": [
+        {
+          "name": "constant.character.escape.lightning",
+          "match": "\\\\(?:[abfnrtv\\\\\"`']|x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4})"
+        },
+        {
+          "name": "invalid.illegal.escape.lightning",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "interpolation": {
+      "name": "meta.interpolation.lightning",
+      "begin": "(?<!\\{)\\{(?!\\{)",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.section.interpolation.begin.lightning"
+        }
+      },
+      "end": "(?<!\\})\\}(?!\\})",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.interpolation.end.lightning"
+        }
+      },
+      "contentName": "source.lightning",
+      "patterns": [
+        {
+          "include": "#braced-expression"
+        },
+        {
+          "include": "$self"
+        }
+      ]
+    },
+    "braced-expression": {
+      "name": "meta.block.lightning",
+      "begin": "\\{",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.section.block.begin.lightning"
+        }
+      },
+      "end": "\\}",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.block.end.lightning"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#braced-expression"
+        },
+        {
+          "include": "$self"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.hex.lightning",
+          "match": "\\b0[xX][0-9A-Fa-f]+(?:\\.[0-9A-Fa-f]+)?\\b"
+        },
+        {
+          "name": "constant.numeric.octal.lightning",
+          "match": "\\b0[oO][0-7]+(?:\\.[0-7]+)?(?:[eE][+-]?[0-9]+)?\\b"
+        },
+        {
+          "name": "constant.numeric.binary.lightning",
+          "match": "\\b0[bB][01]+(?:\\.[01]+)?(?:[eE][+-]?[0-9]+)?\\b"
+        },
+        {
+          "name": "constant.numeric.decimal.lightning",
+          "match": "\\b[0-9]+(?:'[0-9]+)*(?:\\.[0-9]+(?:'[0-9]+)*)?(?:[eE][+-]?[0-9]+)?(?:[iu](?:8|16|32|64)?|f(?:32|64)?)?\\b"
+        }
+      ]
+    },
+    "decorators": {
+      "patterns": [
+        {
+          "name": "meta.decorator.lightning",
+          "match": "(?<![_$@\\p{L}\\p{N}])(@)([_$\\p{L}][_$\\p{L}\\p{N}]*(?:\\.[_$\\p{L}][_$\\p{L}\\p{N}]*)*)",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.decorator.lightning"
+            },
+            "2": {
+              "name": "entity.name.function.decorator.lightning"
+            }
+          }
+        }
+      ]
+    },
+    "attributes": {
+      "patterns": [
+        {
+          "name": "meta.attribute.lightning",
+          "begin": "\\[\\[",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.annotation.begin.lightning"
+            }
+          },
+          "end": "\\]\\]",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.annotation.end.lightning"
+            }
+          },
+          "patterns": [
+            {
+              "name": "entity.name.function.decorator.lightning",
+              "match": "[_$\\p{L}][_$\\p{L}\\p{N}]*"
+            },
+            {
+              "include": "#strings"
+            },
+            {
+              "include": "#numbers"
+            }
+          ]
+        }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "name": "meta.function.definition.lightning",
+          "match": "\\b(fn)(\\s+)([_$\\p{L}][_$\\p{L}\\p{N}]*)(\\s*<[^>{}()]*>)?",
+          "captures": {
+            "1": {
+              "name": "storage.type.function.lightning"
+            },
+            "3": {
+              "name": "entity.name.function.lightning"
+            },
+            "4": {
+              "name": "meta.type.parameters.lightning"
+            }
+          }
+        },
+        {
+          "name": "meta.type.declaration.lightning",
+          "match": "\\b(class|struct|trait)(\\s+)([_$\\p{L}][_$\\p{L}\\p{N}]*)(\\s*<[^>{}()]*>)?",
+          "captures": {
+            "1": {
+              "name": "storage.type.lightning"
+            },
+            "3": {
+              "name": "entity.name.type.lightning"
+            },
+            "4": {
+              "name": "meta.type.parameters.lightning"
+            }
+          }
+        },
+        {
+          "name": "meta.variable.declaration.lightning",
+          "match": "\\b(let|const)(\\s+)([_$\\p{L}][_$\\p{L}\\p{N}]*)",
+          "captures": {
+            "1": {
+              "name": "storage.type.variable.lightning"
+            },
+            "3": {
+              "name": "variable.other.readwrite.lightning"
+            }
+          }
+        },
+        {
+          "name": "meta.property.definition.lightning",
+          "match": "\\b(get|set)(\\s+)([_$\\p{L}][_$\\p{L}\\p{N}]*)(?=\\s*\\()",
+          "captures": {
+            "1": { "name": "storage.modifier.accessor.lightning" },
+            "3": { "name": "entity.name.function.property.lightning" }
+          }
+        },
+        {
+          "name": "meta.method.definition.lightning",
+          "match": "\\b(dyn)(\\s+)([_$\\p{L}][_$\\p{L}\\p{N}]*)(?=\\s*(?:<[^>{}()]*>)?\\s*\\()",
+          "captures": {
+            "1": {
+              "name": "storage.modifier.dynamic.lightning"
+            },
+            "3": {
+              "name": "entity.name.function.method.lightning"
+            }
+          }
+        },
+        {
+          "name": "entity.name.function.method.lightning",
+          "match": "\\b[_$\\p{L}][_$\\p{L}\\p{N}]*(?=\\s*(?:<[^>{}()]*>)?\\s*\\([^()]*\\)\\s*(?:->[^{]+)?\\{)"
+        },
+        {
+          "name": "variable.parameter.lightning",
+          "match": "\\b[_$\\p{L}][_$\\p{L}\\p{N}]*(?=\\s*\\??\\s*:)"
+        }
+      ]
+    },
+    "trait-members": {
+      "patterns": [
+        {
+          "name": "entity.name.function.trait.lightning",
+          "match": "\\b(?:set|len|neg|add|sub|mul|div|mod|pow|lt|eq|call|str|next|at|new|del|to)(?=!(?:\\s*\\(|<))"
+        },
+        {
+          "name": "entity.name.function.trait.lightning",
+          "match": "\\b[_$\\p{L}][_$\\p{L}\\p{N}]*(?=!)"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "storage.type.primitive.lightning",
+          "match": "\\b(?:bool|number|table|array|string|object|function|i8|i16|i32|i64|u8|u16|u32|u64|f32|f64)\\b"
+        },
+        {
+          "name": "storage.modifier.reference.lightning",
+          "match": "\\b(?:view|weak)\\b"
+        },
+        {
+          "name": "entity.name.type.lightning",
+          "match": "\\b\\p{Lu}[_$\\p{L}\\p{N}]*\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.conditional.lightning",
+          "match": "\\b(?:if|else|match)\\b"
+        },
+        {
+          "name": "keyword.control.loop.lightning",
+          "match": "\\b(?:for|while|loop|break|continue|leave|step)\\b"
+        },
+        {
+          "name": "keyword.control.exception.lightning",
+          "match": "\\b(?:try|catch|throw)\\b"
+        },
+        {
+          "name": "keyword.control.flow.lightning",
+          "match": "\\b(?:return|defer|delete|yield)\\b"
+        },
+        {
+          "name": "keyword.control.import.lightning",
+          "match": "\\b(?:import|export|as)\\b"
+        },
+        {
+          "name": "keyword.operator.word.lightning",
+          "match": "\\b(?:in|is)\\b"
+        },
+        {
+          "name": "storage.modifier.lightning",
+          "match": "\\b(?:strict|static|dyn|shared|atomic)\\b"
+        },
+        {
+          "name": "storage.type.lightning",
+          "match": "\\b(?:fn|class|struct|trait|union)\\b"
+        },
+        {
+          "name": "keyword.other.compile-time.lightning",
+          "match": "\\b(?:require|warn|panic)\\b"
+        },
+        {
+          "name": "support.function.builtin.lightning",
+          "match": "\\b(?:assert|typeid|typeof)\\b"
+        },
+        {
+          "name": "keyword.control.concurrent.lightning",
+          "match": "\\b(?:lock)\\b"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.lightning",
+          "match": "\\b(?:true|false)\\b"
+        },
+        {
+          "name": "constant.language.null.lightning",
+          "match": "\\b(?:nil|uninit)\\b"
+        }
+      ]
+    },
+    "self": {
+      "patterns": [
+        {
+          "name": "variable.language.self.lightning",
+          "match": "\\bself\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.ufcs.lightning",
+          "match": "::"
+        },
+        {
+          "name": "punctuation.separator.return-type.lightning",
+          "match": "->"
+        },
+        {
+          "name": "keyword.operator.variadic.lightning",
+          "match": "\\.\\.\\."
+        },
+        {
+          "name": "keyword.operator.range.lightning",
+          "match": "\\.\\.=|\\.\\."
+        },
+        {
+          "name": "keyword.operator.null-coalescing.lightning",
+          "match": "\\?\\?=|\\?\\?"
+        },
+        {
+          "name": "keyword.operator.optional-access.lightning",
+          "match": "\\?\\.|\\?\\["
+        },
+        {
+          "name": "keyword.operator.arrow.lightning",
+          "match": "=>"
+        },
+        {
+          "name": "keyword.operator.comparison.lightning",
+          "match": "==|!=|<=|>=|<|>"
+        },
+        {
+          "name": "keyword.operator.assignment.lightning",
+          "match": "(?:\\+|-|\\*|/|%|\\^)?="
+        },
+        {
+          "name": "keyword.operator.logical.lightning",
+          "match": "&&|\\|\\||!"
+        },
+        {
+          "name": "keyword.operator.arithmetic.lightning",
+          "match": "\\+\\+|--|[+\\-*/%^]"
+        },
+        {
+          "name": "keyword.operator.ternary.lightning",
+          "match": "[?:]"
+        },
+        {
+          "name": "keyword.operator.bitwise.lightning",
+          "match": "[&|~]"
+        }
+      ]
+    }
+  }
+}

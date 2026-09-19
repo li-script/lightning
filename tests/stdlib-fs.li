@@ -1,0 +1,158 @@
+import fs
+import math
+
+const root = `.li-stdlib-fs-test-{math.random()}`
+const payload_path = `{root}/payload.bin`
+const first_path = `{root}/a.bin`
+const last_path = `{root}/z.bin`
+const directory_path = `{root}/middle`
+const missing_path = `{root}/missing.bin`
+
+let owned = false
+let failure = nil
+try {
+   assert(!fs.exists(root))
+   owned = fs.create_directory(root)
+   assert(owned)
+
+   const payload = "A\x00B\xff\n"
+   assert(fs.write(payload_path, payload) == 5)
+   assert(fs.read(payload_path) == payload)
+   const empty_path = `{root}/empty.bin`
+   assert(fs.write(empty_path, "") == 0)
+   assert(fs.read(empty_path) == "")
+
+   assert(fs.write(last_path, "z") == 1)
+   assert(fs.write(first_path, "a") == 1)
+   assert(fs.create_directory(directory_path))
+
+   const entries = fs.list(root)
+   assert(entries::len() == 5)
+   assert(entries[0] == "a.bin")
+   assert(entries[1] == "empty.bin")
+   assert(entries[2] == "middle")
+   assert(entries[3] == "payload.bin")
+   assert(entries[4] == "z.bin")
+
+   const file_info = fs.metadata(payload_path)
+   assert(file_info.type == "file")
+   assert(file_info.size == 5)
+   assert(file_info.modified is number)
+
+   const directory_info = fs.metadata(directory_path)
+   assert(directory_info.type == "directory")
+   assert(directory_info.size == nil)
+   assert(directory_info.modified is number)
+
+   assert(!fs.exists(missing_path))
+   assert(!fs.remove(missing_path))
+
+   let caught = false
+   try {
+      fs.read(missing_path)
+   } catch error {
+      caught = error is string
+   }
+   assert(caught)
+
+   caught = false
+   try {
+      fs.metadata(missing_path)
+   } catch error {
+      caught = error is string
+   }
+   assert(caught)
+
+   caught = false
+   try {
+      fs.read(root)
+   } catch error {
+      caught = error is string
+   }
+   assert(caught)
+
+   caught = false
+   try {
+      fs.list(missing_path)
+   } catch error {
+      caught = error is string
+   }
+   assert(caught)
+
+   caught = false
+   try {
+      fs.list(payload_path)
+   } catch error {
+      caught = error is string
+   }
+   assert(caught)
+
+   caught = false
+   try {
+      fs.write(root, "not a file")
+   } catch error {
+      caught = error is string
+   }
+   assert(caught)
+
+   caught = false
+   try {
+      fs.write(payload_path, 7)
+   } catch error {
+      caught = error is string
+   }
+   assert(caught)
+
+   caught = false
+   try {
+      fs.remove(root)
+   } catch error {
+      caught = error is string
+   }
+   assert(caught)
+
+   caught = false
+   try {
+      fs.exists(7)
+   } catch error {
+      caught = error is string
+   }
+   assert(caught)
+
+   caught = false
+   try {
+      fs.read("bad\x00path")
+   } catch error {
+      caught = error is string
+   }
+   assert(caught)
+
+   caught = false
+   try {
+      fs.write(payload_path)
+   } catch error {
+      caught = error is string
+   }
+   assert(caught)
+
+   caught = false
+   try {
+      fs.remove(nil)
+   } catch error {
+      caught = error is string
+   }
+   assert(caught)
+} catch error {
+   failure = error
+}
+
+if owned {
+   if fs.exists(payload_path) { fs.remove(payload_path) }
+   if fs.exists(`{root}/empty.bin`) { fs.remove(`{root}/empty.bin`) }
+   if fs.exists(first_path) { fs.remove(first_path) }
+   if fs.exists(last_path) { fs.remove(last_path) }
+   if fs.exists(directory_path) { fs.remove(directory_path) }
+   if fs.exists(root) { fs.remove(root) }
+}
+assert(!owned || !fs.exists(root))
+if failure != nil { throw failure }

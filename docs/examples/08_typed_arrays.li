@@ -1,0 +1,58 @@
+import math
+import typed
+
+# A byte buffer stores values densely and validates every write.
+let packet = u8[]([76, 73, 1, 0])
+assert(typed.len(packet) == 4)
+assert(packet::len() == 4)
+assert(typed.capacity(packet) == 4)
+assert(typed.element_size(packet) == 1)
+assert(typed.kind(packet) == "u8")
+assert(typed.get(packet, 0) == 76)
+
+typed.set(packet, 3, 7)
+assert(packet[3] == 7)
+typed.reserve(packet, 32)
+assert(packet::len() == 4)
+assert(typed.capacity(packet) >= 32)
+
+typed.resize(packet, 8)
+assert(packet::len() == 8)
+assert(packet[4] == 0 && packet[7] == 0)
+
+let packet_copy = typed.dup(packet)
+packet_copy[0] = 0
+assert(packet[0] == 76)
+assert(packet_copy[0] == 0)
+
+# Integer arrays never wrap or truncate their inputs.
+let signed_samples = i16[]([-32768, -10, 0, 32767])
+let counters = u32[]([0, 1000, 4294967295])
+assert(signed_samples[0] == -32768)
+assert(counters[2] == 4294967295)
+
+let safe_signed = i64[]([-9007199254740991, 9007199254740991])
+let safe_unsigned = u64[]([0, 9007199254740991])
+assert(safe_signed[1] == 9007199254740991)
+assert(safe_unsigned[1] == 9007199254740991)
+
+# f32 stores round once to binary32; f64 preserves binary64 values.
+let positions = f32[]([0.1, 16777217, -0.1])
+assert(positions[1] == 16777216)
+
+let measurements = f64[]([math.pi, math.inf, math.nan])
+assert(measurements[0] == math.pi)
+assert(measurements[1] == math.inf)
+assert(math.isnan(measurements[2]))
+
+let gains = f32[](4)
+typed.fill(gains, 0.5)
+assert(gains[0] == 0.5 && gains[3] == 0.5)
+
+# All packed numeric element kinds are available through T[] constructors.
+assert(i8[]([-128, 127])::len() == 2)
+assert(u16[]([0, 65535])[1] == 65535)
+assert(i32[]([-2147483648, 2147483647])[1] == 2147483647)
+
+print("packet bytes", packet::len(), typed.capacity(packet))
+print("f32 rounded", positions[1])

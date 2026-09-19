@@ -17,5 +17,5 @@ const arr = [1,2,0,3]
 assert(arr::reduce()==6)
 
 const tbl = {a:3, get_a: || {++self.a}}
-assert(tbl->get_a()==4)
-assert(tbl->get_a()==5)
+assert(tbl.get_a()==4)
+assert(tbl.get_a()==5)

@@ -1,372 +1,423 @@
-#include <vm/gc.hpp>
-#include <vm/state.hpp>
-#include <vm/table.hpp>
-#include <vm/string.hpp>
-#include <span>
+#include <atomic>
 #include <cmath>
+#include <cstring>
+#include <utility>
+#include <vm/array.hpp>
+#include <vm/gc.hpp>
+#include <vm/rc.hpp>
+#include <vm/shared.hpp>
+#include <vm/state.hpp>
+#include <vm/string.hpp>
+#include <vm/traits.hpp>
+#include <vm/weak.hpp>
 
 namespace li::gc {
 	static constexpr uint32_t small_class_count   = 8;
 	static constexpr uint32_t max_realistic_alloc = 2 * 1024 * 1024 / chunk_size;
-	static int size_class_of(uint32_t nchunks, bool for_alloc) {
-		if (nchunks <= small_class_count) {
-			return nchunks - 1;
-		}
-		nchunks -= small_class_count;
-		float f = std::min(1.0f, sqrtf(float(nchunks)) * sqrtf(1.0f / max_realistic_alloc));
-		if (for_alloc)
-         return small_class_count + (int) roundf((num_size_classes - small_class_count - 1) * f);
-      else
-         return small_class_count + (int) floorf((num_size_classes - small_class_count - 1) * f);
+
+	static int size_class_of(uint32_t chunks) {
+		if (chunks <= small_class_count)
+			return int(chunks - 1);
+		chunks -= small_class_count;
+		float ratio = std::min(1.0f, std::sqrt(float(chunks) / float(max_realistic_alloc)));
+		return int(small_class_count + std::floor((num_size_classes - small_class_count - 1) * ratio));
 	}
 
-	void header::gc_init(page* p, vm* L, msize_t clen, value_type t) {
-		type_id        = t;
-		num_chunks     = clen;
-		page_offset    = (uintptr_t(this) - uintptr_t(p)) >> 12;
-		stage          = L ? L->stage : 0;
-	}
-	bool header::gc_tick(stage_context s, bool weak) {
-		LI_ASSERT(!is_free());
-
-		// If already iterated or static, skip.
-		//
-		if (stage == s || is_static) [[likely]] {
-			return true;
-		}
-
-		// Update stage, recurse.
-		//
-		stage = s;
-		switch (identify_value_type(this)) {
-			case type_table:    traverse(s, (table*) this);          break;
-			case type_array:    traverse(s, (array*) this);          break;
-			case type_object:   traverse(s, (object*) this);         break;
-			case type_class:    traverse(s, (vclass*) this);         break;
-			case type_function: traverse(s, (function*) this);       break;
-			case type_gc_proto: traverse(s, (function_proto*) this); break;
-			default: break;
-		}
-
-		// Increment counter.
-		//
-		get_page()->alive_objects++;
-		return true;
+	void header::initialize(page* owner, msize_t chunks, value_type type) {
+		shared      = 0;
+		is_static   = 0;
+		page_offset = uint32_t((uintptr_t(this) - uintptr_t(owner)) >> 12);
+		num_chunks  = chunks;
+		type_id     = type;
+		refcount    = 1;
 	}
 
-	std::pair<page*, header*> state::allocate_uninit(vm* L, msize_t clen) {
-		LI_ASSERT(clen != 0);
+	std::pair<page*, header*> state::allocate_uninit(vm* L, msize_t chunks) {
+		LI_ASSERT(chunks != 0);
+		if (closing)
+			return {nullptr, nullptr};
 
-		// Fast path for small sizes.
-		//
-		if (clen <= small_class_count) [[likely]] {
-			auto& fl = free_lists[clen - 1];
-			if (fl) [[likely]] {
-				auto* it          = std::exchange(fl, fl->get_next_free());
-				auto* page        = it->get_page();
-				it->type_id       = type_invalid;
-				page->num_objects++;
-				return {page, it};
+		if (chunks <= small_class_count) [[likely]] {
+			auto& exact = free_lists[chunks - 1];
+			if (exact) [[likely]] {
+				header* result  = std::exchange(exact, exact->get_next_free());
+				page*   owner   = result->get_page();
+				result->type_id = type_invalid;
+				owner->num_objects++;
+				return {owner, result};
 			}
 		}
 
-		// Try allocating from a free list.
-		//
-		auto* free_list = &free_lists[size_class_of(clen, true)];
-		if (!*free_list && free_list != &free_lists[num_size_classes-1])
-			free_list++;
-
-		header* prev = nullptr;
-		header* it   = *free_list;
-		while (it) {
-			if (it->num_chunks < clen) [[unlikely]] {
-				prev = it;
-				it   = it->get_next_free();
-				continue;
-			}
-
-			// Unlink the entry.
-			//
-			if (prev) {
-				prev->set_next_free(it->get_next_free());
-			} else {
-				*free_list = it->get_next_free();
-			}
-
-			// Get the page and change the type.
-			//
-			auto* page  = it->get_page();
-			it->type_id = type_invalid;
-			page->num_objects++;
-
-			// If we didn't allocate all of the space, re-insert into the free-list.
-			//
-			if (msize_t leftover = it->num_chunks - clen) {
-				it->num_chunks     = clen;
-				auto& free_list    = free_lists[size_class_of(leftover, false)];
-				auto* fh2          = it->next();
-				fh2->type_id       = type_gc_free;
-				fh2->num_chunks    = leftover;
-				fh2->page_offset   = (uintptr_t(fh2) - uintptr_t(page)) >> 12;
-				fh2->set_next_free(free_list);
-				free_list = fh2;
-			}
-
-			// Return the result.
-			//
-			return {page, it};
-		}
-
-		// Find a page with enough size to fit our object or allocate one.
-		//
-		page* pg = initial_page->next;
-		if (!pg->check_space(clen)) {
-			pg = add_page<false>(L, size_t(clen) << chunk_shift);
-			if (!pg)
-				return {nullptr, nullptr};
-		}
-
-		// Increment GC debt, return the result.
-		//
-		debt += clen;
-		if (debt >= max_debt)
-			ticks = 0;
-		else if (debt >= min_debt)
-			ticks = interval;
-		return {pg, pg->alloc_arena(clen)};
-	}
-	std::pair<page*, header*> state::allocate_uninit_ex(vm* L, msize_t clen) {
-		LI_ASSERT(clen != 0);
-
-		// Try allocating from the free list.
-		//
-		header* it   = ex_free_list;
-		header* prev = nullptr;
-		while (it) {
-			if (it->num_chunks >= clen) {
-				// Unlink the entry.
-				//
-				if (prev) {
-					prev->set_next_free(it->get_next_free());
-				} else {
-					ex_free_list = it->get_next_free();
+		for (int class_index = size_class_of(chunks); class_index < int(num_size_classes); class_index++) {
+			header** link = &free_lists[class_index];
+			while (header* candidate = *link) {
+				if (candidate->num_chunks < chunks) {
+					link = &candidate->ref_next_free();
+					continue;
 				}
 
-				// Get the page and change the type.
-				//
-				auto* page  = it->get_page();
-				it->type_id = type_invalid;
-				page->num_objects++;
+				*link       = candidate->get_next_free();
+				page* owner = candidate->get_page();
+				owner->num_objects++;
+				candidate->type_id = type_invalid;
 
-				// If we didn't allocate all of the space, re-insert into the free-list.
-				//
-				if (msize_t leftover = it->num_chunks - clen) {
-					it->num_chunks     = clen;
-					auto& free_list    = ex_free_list;
-					auto* fh2          = it->next();
-					fh2->type_id       = type_gc_free;
-					fh2->num_chunks    = leftover;
-					fh2->page_offset   = (uintptr_t(fh2) - uintptr_t(page)) >> 12;
-					fh2->set_next_free(free_list);
-					free_list = fh2;
+				if (msize_t leftover = candidate->num_chunks - chunks) {
+					candidate->num_chunks  = chunks;
+					header* remainder      = candidate->next();
+					remainder->shared      = 0;
+					remainder->is_static   = 0;
+					remainder->page_offset = uint32_t((uintptr_t(remainder) - uintptr_t(owner)) >> 12);
+					remainder->num_chunks  = leftover;
+					remainder->type_id     = type_gc_free;
+					remainder->refcount    = 0;
+					auto& remainder_list   = free_lists[size_class_of(leftover)];
+					remainder->set_next_free(remainder_list);
+					remainder_list = remainder;
 				}
-
-				// Return the result.
-				//
-				return {page, it};
-			} else {
-				prev = it;
-				it   = it->get_next_free();
+				return {owner, candidate};
 			}
 		}
 
-		// Find a page with enough size to fit our object or allocate one.
-		//
-		page* pg = for_each_ex([&](page* p, bool exec) LI_INLINE { return p->check_space(clen); });
-		if (!pg) {
-			pg = add_page<true>(L, size_t(clen) << chunk_shift);
-			if (!pg)
+		page* owner = initial_page->next;
+		if (!owner->check_space(chunks)) {
+			owner = add_page(L, size_t(chunks) << chunk_shift);
+			if (!owner)
 				return {nullptr, nullptr};
 		}
-		return {pg, pg->alloc_arena(clen)};
+		return {owner, owner->alloc_arena(chunks)};
 	}
-	void state::free(vm* L, header* o, bool within_gc) {
-		LI_ASSERT(!o->is_static);
-		LI_ASSERT_MSG("Double free", !o->is_free());
 
-		// Decrement counters.
-		//
-		auto* page = o->get_page();
-		if (!within_gc)
-			page->alive_objects--;
-		page->num_objects--;
+	void state::free_storage(header* value) {
+		LI_ASSERT(value && !value->is_static && !value->is_free());
+		LI_ASSERT(value->shared ? std::atomic_ref<uint32_t>(value->refcount).load(std::memory_order_relaxed) == destroying_refcount
+										: value->refcount == destroying_refcount);
 
-		// Run destructor if relevant.
-		//
-		switch (identify_value_type(o)) {
-			case type_object:   destroy(L, (object*) o); break;
-			case type_class:    destroy(L, (vclass*) o); break;
-#if LI_JIT
-			case type_gc_jfunc: destroy(L, (jfunction*) o); break;
-#endif
-			default: break;
-		}
+		page*   owner  = value->get_page();
+		msize_t chunks = value->num_chunks;
+		owner->num_objects--;
+		live_objects--;
+
 #if LI_DEBUG
-		memset(o + 1, 0xCC, o->object_bytes());
+		std::memset(value + 1, 0xCC, value->object_bytes());
 #endif
 
-		// Insert into the free list or adjust arena.
-		//
-		bool at_arena_end = o->next() == page->end();
-		if (at_arena_end && !page->is_exec) {
-			at_arena_end = page == initial_page->next;
+		bool arena_tail = value->next() == owner->end() && owner == initial_page->next;
+		if (arena_tail) {
+			owner->next_chunk -= chunks;
+			return;
 		}
-		if (!at_arena_end) {
-			auto& free_list  = page->is_exec ? ex_free_list : free_lists[size_class_of(o->num_chunks, false)];
-			o->type_id       = type_gc_free;
-			o->set_next_free(free_list);
-			free_list = o;
-		} else {
-			page->next_chunk -= o->num_chunks;
+
+		value->shared      = 0;
+		value->is_static   = 0;
+		value->type_id     = type_gc_free;
+		value->refcount    = 0;
+		header*& free_list = free_lists[size_class_of(chunks)];
+		value->set_next_free(free_list);
+		free_list = value;
+	}
+
+	static void destroy_contents(vm* L, header* value) {
+		switch (identify_value_type(value)) {
+			case type_array:
+				destroy(L, reinterpret_cast<array*>(value));
+				break;
+			case type_table:
+				destroy(L, reinterpret_cast<table*>(value));
+				break;
+			case type_string:
+				destroy(L, reinterpret_cast<string*>(value));
+				break;
+			case type_function:
+				destroy(L, reinterpret_cast<function*>(value));
+				break;
+			case type_gc_proto:
+				destroy(L, reinterpret_cast<function_proto*>(value));
+				break;
+			case type_object:
+				destroy(L, reinterpret_cast<object*>(value));
+				break;
+			case type_class:
+				destroy(L, reinterpret_cast<vclass*>(value));
+				break;
+			case type_weak:
+				destroy(L, reinterpret_cast<weak*>(value));
+				break;
+			case type_typed_array:
+				destroy(L, reinterpret_cast<typed_array*>(value));
+				break;
+#if LI_JIT
+			case type_gc_jfunc:
+				destroy(L, reinterpret_cast<jfunction*>(value));
+				break;
+#endif
+			default:
+				break;
 		}
 	}
 
-	static void traverse_live(vm* L, stage_context s) {
-		// Stack.
-		//
-		for (auto& e : std::span{L->stack, L->stack_top}) {
-			if (e.is_gc())
-				e.as_gc()->gc_tick(s);
+	static void destroy_object(vm* L, header* value, bool run_finalizer) {
+		invalidate_weak(L, value);
+		if (run_finalizer) {
+			header* previous_context = std::exchange(L->gc.finalizer_context, value);
+			run_trait_finalizer(L, value);
+			L->gc.finalizer_context = previous_context;
 		}
-		if (L->last_ex.is_gc())
-			L->last_ex.as_gc()->gc_tick(s);
+		destroy_contents(L, value);
+	}
 
-		// Globals.
-		//
-		L->modules->gc_tick(s);
-		if (L->repl_scope) {
-			L->repl_scope->gc_tick(s);
+	static void drain_pending(vm* L) {
+		state& allocator = L->gc;
+		if (allocator.destroying)
+			return;
+
+		allocator.destroying = true;
+		while (!allocator.pending.empty()) {
+			header* value = allocator.pending.back();
+			allocator.pending.pop_back();
+			destroy_object(L, value, true);
+			allocator.free_storage(value);
 		}
-
-		// Constants.
-		//
-		((header*) L->empty_string)->gc_tick(s);
-		((header*) L->strset)->gc_tick(s);
-		((header*) L->typeset)->gc_tick(s);
+		allocator.destroying = false;
 	}
 
 	void state::close(vm* L) {
-		// Clear stack and globals.
-		//
-		L->stack_top = L->stack;
-		L->modules->mask = 0;
-		if (L->repl_scope) {
-			L->repl_scope->mask = 0;
-		}
+		if (shutting_down)
+			L->panic("VM shutdown re-entry");
+		shutting_down = true;
 
-		// GC.
-		//
-		L->gc.collect(L);
+		L->truncate_stack(L->stack);
+		L->clear_exception();
+		shutdown_module_records(L);
 
-		// Free all pages.
-		//
-		auto* alloc = alloc_fn;
-		void* actx  = alloc_ctx;
-		auto* exhead = initial_ex_page;
-		auto* head  = initial_page;
-		if (exhead) {
-			for (auto it = exhead->next; it != exhead;) {
-				auto p = std::exchange(it, it->next);
-				alloc(actx, p, p->num_pages, true);
-			}
+		auto release_root = [L](auto*& slot) {
+			auto* value = slot;
+			slot        = nullptr;
+			rc::release(L, reinterpret_cast<header*>(value));
+		};
+		release_root(L->modules);
+		release_root(L->module_records);
+		release_root(L->repl_scope);
+		release_root(L->empty_string);
+
+		header* vm_header       = static_cast<header*>(L);
+		header* string_registry = reinterpret_cast<header*>(L->strset);
+		header* type_registry   = reinterpret_cast<header*>(L->typeset);
+
+		// Root-triggered finalizers above may allocate and call user code. Only
+		// the final residual-cycle teardown forbids allocation.
+		closing    = true;
+		destroying = true;
+		for_each([&](page* owner, bool) {
+			owner->for_each([&](header* value) {
+				if (!value->is_free() && value != vm_header && value != string_registry && value != type_registry) {
+					LI_ASSERT(value->refcount != destroying_refcount);
+					value->refcount = destroying_refcount;
+					pending.push_back(value);
+				}
+				return false;
+			});
+			return false;
+		});
+		// Strong cycles never reach a last release, so user finalizers do not run
+		// for this shutdown-only forced reclamation pass.
+		for (header* value : pending)
+			destroy_object(L, value, false);
+		for (auto it = pending.rbegin(); it != pending.rend(); ++it)
+			free_storage(*it);
+		pending.clear();
+		destroying = false;
+
+		release_root(L->strset);
+		release_root(L->typeset);
+		shutdown_weak(L);
+		LI_ASSERT(live_objects == 1);
+
+		std::vector<header*>{}.swap(pending);
+		auto* allocator         = alloc_fn;
+		void* allocator_context = alloc_ctx;
+		page* writable_head     = initial_page;
+
+		for (page* current = writable_head->next; current != writable_head;) {
+			page* next_value = current->next;
+			allocator(allocator_context, current, current->num_pages, false);
+			current = next_value;
 		}
-		for (auto it = head->next; it != head;) {
-			auto p = std::exchange(it, it->next);
-			alloc(actx, p, p->num_pages, false);
-		}
-		alloc(actx, head, head->num_pages, false);
-		alloc(actx, actx, 0, false);
+		allocator(allocator_context, writable_head, writable_head->num_pages, false);
+		allocator(allocator_context, allocator_context, 0, false);
+	}
+}
+
+namespace li::shared::detail {
+	static thread_local vm* active_release_caller = nullptr;
+
+	void run_finalizer(vm* caller, gc::header* value) {
+		gc::header* previous_context = std::exchange(caller->gc.finalizer_context, value);
+		run_trait_finalizer(caller, value);
+		caller->gc.finalizer_context = previous_context;
 	}
 
-	LI_COLD void state::collect(vm* L) {
-		if (suspend) [[unlikely]]
+	void destroy_object(vm* caller, gc::header* value) {
+		vm* previous_caller = std::exchange(active_release_caller, caller);
+		gc::destroy_contents(shared::allocator_vm(), value);
+		active_release_caller = previous_caller;
+	}
+
+	vm* release_caller(vm* fallback) { return active_release_caller ? active_release_caller : fallback; }
+}
+
+namespace li::rc {
+	[[noreturn]] static void fail(vm* L, const char* message) {
+		if (L)
+			L->panic(message);
+		util::abort("li panic: %s", message);
+	}
+
+	void retain(gc::header* value) {
+		if (!value || value->is_static)
+			return;
+		if (value->shared) {
+			shared::retain(value);
+			return;
+		}
+		uint32_t current = value->refcount;
+		if (current == 0 || current == gc::destroying_refcount)
+			fail(nullptr, "attempted to resurrect a destroyed value");
+		if (current == gc::maximum_refcount)
+			fail(nullptr, "reference count overflow");
+		value->refcount = current + 1;
+		counts().retains++;
+	}
+
+	void retain(any_t value) {
+		if (value.is_gc())
+			retain(value.as_gc());
+	}
+
+	bool check_store(vm* L, gc::header* value) {
+		if (!value || value->is_static)
+			return true;
+		if (!L)
+			fail(nullptr, "checked store requires a VM");
+		uint32_t current = value->shared ? std::atomic_ref<uint32_t>(value->refcount).load(std::memory_order_acquire) : value->refcount;
+		if (current == gc::destroying_refcount) {
+			L->error("cannot retain a finalizing value");
+			return false;
+		}
+		if (current == 0)
+			fail(L, "attempted to store a destroyed value");
+		return true;
+	}
+
+	bool check_store(vm* L, any_t value) { return !value.is_gc() || check_store(L, value.as_gc()); }
+
+	bool try_retain(vm* L, gc::header* value) {
+		if (value && value->shared) {
+			if (!shared::try_retain(value)) {
+				L->error("cannot retain a finalizing value");
+				return false;
+			}
+			return true;
+		}
+		if (!check_store(L, value))
+			return false;
+		retain(value);
+		return true;
+	}
+
+	bool try_retain(vm* L, any_t value) { return !value.is_gc() || try_retain(L, value.as_gc()); }
+
+	void retain_frame(vm* L, gc::header* value) {
+		if (!value || value->is_static)
+			return;
+		if (!L)
+			fail(nullptr, "frame retain requires a VM");
+		uint32_t current = value->shared ? std::atomic_ref<uint32_t>(value->refcount).load(std::memory_order_acquire) : value->refcount;
+		if (current == gc::destroying_refcount) {
+			if (L->gc.finalizer_context == value)
+				return;
+			fail(L, "destroying value escaped its finalizer context");
+		}
+		retain(value);
+	}
+
+	void retain_frame(vm* L, any_t value) {
+		if (value.is_gc())
+			retain_frame(L, value.as_gc());
+	}
+
+	void release(vm* L, gc::header* value) {
+		if (!value || value->is_static)
+			return;
+		if (!L)
+			fail(nullptr, "dynamic value released without a VM");
+		if (value->shared) {
+			shared::release(shared::detail::release_caller(L), value);
+			return;
+		}
+
+		uint32_t current = value->refcount;
+		if (current == gc::destroying_refcount)
+			return;
+		if (current == 0) {
+			if (L->gc.closing && value->is_free())
+				return;
+			fail(L, "reference count underflow");
+		}
+
+		counts().releases++;
+		current--;
+		value->refcount = current;
+		if (current)
 			return;
 
-		// Reset GC tick.
-		//
-		ticks = min_debt ? INT64_MAX : interval;
-		debt  = 0;
-		collect_counter++;
-
-		// Clear alive counter in all pages.
-		//
-		for_each([](page* p, bool x){
-			p->alive_objects = 0;
-			return false;
-		});
-
-		// Mark all alive objects.
-		//
-		L->stage ^= 1;
-		stage_context ms{bool(L->stage)};
-		traverse_live(L, ms);
-
-		// Free all dead objects.
-		//
-		page* dead_page_list = nullptr;
-		for_each([&](page* it, bool ex) LI_INLINE {
-			if (it->alive_objects != it->num_objects) {
-				it->for_each([&](header* obj) LI_INLINE {
-					if (!obj->is_free() && obj->stage != ms) {
-						free(L, obj, true);
-					}
-					return false;
-				});
-
-				if (it->alive_objects || greedy || it->is_permanent)
-					return false;
-				util::unlink(it);
-				if (!dead_page_list) {
-					it->next       = nullptr;
-					dead_page_list = it;
-				} else {
-					it->next       = dead_page_list;
-					dead_page_list = it;
-				}
-			}
-			return false;
-		});
-
-		// Sweep dead references.
-		//
-		strset_sweep(L, ms);
-		typeset_sweep(L, ms);
-
-		// If we can free any pages, do so.
-		//
-		if (dead_page_list) [[unlikely]] {
-			// Fix free lists.
-			//
-			for (size_t i = 0; i != free_lists.size(); i++) {
-				header** prev = &free_lists[i];
-				for (auto it = *prev; it;) {
-					auto* next = it->get_next_free();
-
-					if (!it->get_page()->alive_objects) {
-						*prev = it->get_next_free();
-					} else {
-						prev = &it->ref_next_free();
-					}
-					it = next;
-				}
-			}
-
-			// Deallocate.
-			//
-			while (dead_page_list) {
-				auto i = std::exchange(dead_page_list, dead_page_list->next);
-				alloc_fn(alloc_ctx, i, i->num_pages, i->is_exec);
-			}
-		}
+		value->refcount = gc::destroying_refcount;
+		L->gc.pending.push_back(value);
+		gc::drain_pending(L);
 	}
-};
+
+	void release(vm* L, any_t value) {
+		if (value.is_gc())
+			release(L, value.as_gc());
+	}
+
+	void replace(vm* L, any& slot, any_t borrowed) {
+		if (slot.value == borrowed.value)
+			return;
+		retain(borrowed);
+		any previous = slot;
+		slot         = any{borrowed};
+		release(L, previous);
+	}
+
+	bool try_replace(vm* L, any& slot, any_t borrowed) {
+		if (slot.value == borrowed.value)
+			return true;
+		if (!try_retain(L, borrowed))
+			return false;
+		any previous = slot;
+		slot         = any{borrowed};
+		release(L, previous);
+		return true;
+	}
+
+	void replace_frame(vm* L, any& slot, any_t borrowed) {
+		if (slot.value == borrowed.value)
+			return;
+		retain_frame(L, borrowed);
+		any previous = slot;
+		slot         = any{borrowed};
+		release(L, previous);
+	}
+
+	void replace_adopt(vm* L, any& slot, any_t owned) {
+		any previous = slot;
+		slot         = any{owned};
+		release(L, previous);
+	}
+
+	void clear(vm* L, any& slot) {
+		any previous = slot;
+		slot         = nil;
+		release(L, previous);
+	}
+}

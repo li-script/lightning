@@ -1,0 +1,108 @@
+import math
+
+assert((-5.5 % 2) == -1.5)
+assert((5.5 % -2) == 1.5)
+if !math.fast {
+   assert((1 % 0) != (1 % 0))
+   assert((math.inf % 3) != (math.inf % 3))
+   assert((3 % math.inf) == 3)
+   assert(1 / (-0.0 % 2) == -math.inf)
+}
+assert(math.abs(-0.25) == 0.25)
+assert(1 / math.abs(-0.0) == math.inf)
+assert(math.floor(-1.25) == -2)
+assert(math.ceil(-1.25) == -1)
+assert(math.trunc(-1.75) == -1)
+assert(math.round(1.5) == 2)
+assert(math.round(-1.5) == -2)
+assert(math.min(math.nan, 7) == 7)
+assert(math.min(7, math.nan) == 7)
+assert(math.max(math.nan, 7) == 7)
+assert(math.max(7, math.nan) == 7)
+assert(math.sqrt(-1) != math.sqrt(-1))
+
+# Decimal source text is converted once, with binary64 rounding rather than
+# accumulating a rounded value for each digit.
+assert(0.0625 == 1 / 16)
+assert(0.0009765625 == 1 / 1024)
+assert(123.125 == 985 / 8)
+assert(9007199254740993 == 9007199254740992)
+assert(1.00000000000000011102230246251565404236316680908203125 == 1)
+assert(1.0000000000000002220446049250313080847263336181640625 == 1 + 1 / 4503599627370496)
+
+assert(625e-4 == 0.0625)
+assert(625e+2 == 62500)
+
+# Exponent signs belong to the literal, while range dots remain separate tokens.
+let exponent_range_values = []
+for value in 1e-3..2e-3 {
+   exponent_range_values::push(value)
+}
+assert(exponent_range_values::len() == 1)
+assert(exponent_range_values[0] == 0.001)
+
+# Non-decimal prefixes keep their existing digit and fractional semantics.
+assert(0b101.01 == 5.25)
+assert(0o10.4 == 8.5)
+assert(0xA.F == 10.9375)
+
+fn rejects_numeric_source(source) {
+   try {
+      eval(source)
+   } catch error {
+      return error is string
+   }
+   return false
+}
+assert(rejects_numeric_source("1e"))
+assert(rejects_numeric_source("1e+"))
+assert(rejects_numeric_source("1e-"))
+assert(rejects_numeric_source("1e-3suffix"))
+assert(rejects_numeric_source("0b102"))
+
+let keys = {}
+for index in 0..8 {
+   keys[math.nan] = index
+}
+assert(keys::len() == 1)
+assert(keys[math.nan] == 7)
+delete keys[math.nan]
+assert(keys::len() == 0)
+
+# The native vararg count is an internal i32, but comparisons are language
+# numeric operations and therefore coerce it to f64 without losing IEEE rules.
+fn check_vararg_numeric_contract(...) {
+   const count = $VA::len()
+   assert(count == 2.0)
+   assert(count != 1.0)
+   assert(count > 1.5)
+   assert(count >= 2.0)
+   assert(count < 2.5)
+   assert(count <= 2.0)
+   assert(count + 0.5 == 2.5)
+   assert(-count == -2.0)
+   assert(!(count == math.nan))
+   assert(count != math.nan)
+   assert(!(count < math.nan))
+   assert(!(count <= math.nan))
+   assert(!(count > math.nan))
+   assert(!(count >= math.nan))
+   assert($VA[0] == "present")
+   assert($VA[1] == nil)
+}
+const dynamic_vararg_check = check_vararg_numeric_contract
+dynamic_vararg_check("present", nil)
+
+fn vararg_presence(...) {
+   [$VA::len() == 0.0, $VA::len() == 1.0, $VA[0]]
+}
+const omitted_vararg = vararg_presence()
+const explicit_nil_vararg = vararg_presence(nil)
+assert(omitted_vararg[0] && !omitted_vararg[1] && omitted_vararg[2] == nil)
+assert(!explicit_nil_vararg[0] && explicit_nil_vararg[1] && explicit_nil_vararg[2] == nil)
+
+assert("0xA"::num() == 10)
+assert("+5.5"::int() == 5)
+assert(nil::num() == 0)
+assert(false::num() == 0)
+assert(true::num() == 1)

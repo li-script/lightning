@@ -1,0 +1,272 @@
+import "array" as arrays
+import collections
+import math
+import range
+import "table" as tables
+import traits
+import typed
+
+fn rejects(action) {
+	try {
+		action()
+		false
+	} catch {
+		true
+	}
+}
+
+# Reserve changes capacity only; it does not alter table entries or array length.
+let mapping = {alpha: 1, beta: nil}
+tables.reserve(mapping, 64)
+assert(mapping::len() == 2)
+assert(mapping.alpha == 1)
+assert("beta" in mapping)
+assert(mapping.beta == nil)
+assert(rejects(|| tables.reserve(mapping, -1)))
+assert(rejects(|| tables.reserve(mapping, 1.5)))
+assert(rejects(|| tables.reserve(mapping, math.nan)))
+
+let values = [1, 2, 3, 4]
+arrays.reserve(values, 32)
+assert(values::len() == 4)
+assert(values[0] == 1 && values[3] == 4)
+assert(rejects(|| arrays.reserve(values, -1)))
+assert(rejects(|| arrays.reserve(values, math.nan)))
+
+# Fill uses half-open bounds and validates every bound before changing the array.
+arrays.fill(values, 9, 1, 3)
+assert(values[0] == 1 && values[1] == 9 && values[2] == 9 && values[3] == 4)
+arrays.fill(values, 7, 2)
+assert(values[0] == 1 && values[1] == 9 && values[2] == 7 && values[3] == 7)
+arrays.fill(values, 5, 2, 2)
+assert(values[0] == 1 && values[1] == 9 && values[2] == 7 && values[3] == 7)
+assert(rejects(|| arrays.fill(values, 0, -1, 2)))
+assert(rejects(|| arrays.fill(values, 0, math.nan, 2)))
+assert(rejects(|| arrays.fill(values, 0, 3, 2)))
+assert(rejects(|| arrays.fill(values, 0, 0, 5)))
+assert(values[0] == 1 && values[1] == 9 && values[2] == 7 && values[3] == 7)
+arrays.fill(values, 6)
+assert(values[0] == 6 && values[1] == 6 && values[2] == 6 && values[3] == 6)
+
+let filled_object = {marker: 11}
+let filled_slots = [nil, nil]
+arrays.fill(filled_slots, filled_object)
+filled_object = nil
+assert(filled_slots[0].marker == 11 && filled_slots[1].marker == 11)
+
+arrays.resize(values, 2)
+assert(values::len() == 2)
+assert(values[0] == 6 && values[1] == 6)
+arrays.resize(values, 5)
+assert(values::len() == 5)
+assert(values[0] == 6 && values[1] == 6)
+assert(values[2] == nil && values[3] == nil && values[4] == nil)
+assert(rejects(|| arrays.resize(values, -1)))
+assert(rejects(|| arrays.resize(values, 2.25)))
+assert(rejects(|| arrays.resize(values, math.nan)))
+assert(values::len() == 5)
+
+let kept_object = {marker: 13}
+let resized_objects = [kept_object, {marker: 17}]
+arrays.resize(resized_objects, 1)
+kept_object = nil
+assert(resized_objects[0].marker == 13)
+
+# Array and string traversal is positional and callbacks receive (value, key).
+assert(rejects(|| collections.map([], 1)))
+assert(rejects(|| collections.map(42, || 1)))
+const mapped = collections.map([2, 4, 6], |value, key| value * 10 + key)
+assert(mapped::len() == 3)
+assert(mapped[0] == 20 && mapped[1] == 41 && mapped[2] == 62)
+
+const string_bytes = collections.map("ABC", |value, key| value + key)
+assert(string_bytes::len() == 3)
+assert(string_bytes[0] == 65 && string_bytes[1] == 67 && string_bytes[2] == 69)
+
+const packed = i16[]([1, 2, 3, 4, 5])
+const filtered = collections.filter(packed, |value, key| value % 2 == 1 && key < 4)
+assert(filtered::len() == 2)
+assert(filtered[0] == 1 && filtered[1] == 3)
+
+# Reduce receives (accumulator, value, key), and an empty reduction returns its initial value.
+assert(collections.reduce([3, 5, 7], 0, |accumulator, value, key| accumulator + value * (key + 1)) == 34)
+const initial = {answer: 42}
+assert(collections.reduce([], initial, |accumulator, value, key| value) == initial)
+
+# Table traversal follows one stable deterministic order and exposes both key and value.
+const table_values = {first: 3, second: 5, third: 7}
+const keys_first = collections.map(table_values, |value, key| key)
+const keys_second = collections.map(table_values, |value, key| key)
+assert(keys_first::len() == 3 && keys_second::len() == 3)
+assert(keys_first[0] == keys_second[0])
+assert(keys_first[1] == keys_second[1])
+assert(keys_first[2] == keys_second[2])
+assert(collections.reduce(table_values, 0, |accumulator, value, key| accumulator + value) == 15)
+
+let visited = {}
+assert(collections.each(table_values, |value, key| {
+	visited[key] = value * 2
+}) == table_values)
+assert(visited.first == 6 && visited.second == 10 && visited.third == 14)
+
+# Callback exceptions propagate unchanged and discard any partial output.
+let callback_error = nil
+try {
+	collections.map([1, 2, 3], |value, key| {
+		if key == 1 {
+			throw "collection callback failed"
+		}
+		value
+	})
+} catch error {
+	callback_error = error
+}
+assert(callback_error == "collection callback failed")
+
+let reduce_error = nil
+try {
+	collections.reduce([1, 2], 0, |accumulator, value, key| {
+		if key == 1 {
+			throw "reduce callback failed"
+		}
+		accumulator + value
+	})
+} catch error {
+	reduce_error = error
+}
+assert(reduce_error == "reduce callback failed")
+
+# Mutating the collection being traversed invalidates the operation, including same-value stores.
+let mutating_array = [1, 2]
+assert(rejects(|| collections.each(mutating_array, |value, key| {
+	if key == 0 {
+		mutating_array[0] = value
+	}
+})))
+
+let mutating_table = {value: 1, other: 2}
+assert(rejects(|| collections.each(mutating_table, |value, key| {
+	mutating_table[key] = value
+})))
+
+let mutating_typed = u8[]([1, 2])
+assert(rejects(|| collections.each(mutating_typed, |value, key| {
+	if key == 0 {
+		mutating_typed[0] = value
+	}
+})))
+
+# Mutating a different collection from a callback remains valid.
+let side_effects = []
+const traversed = [8, 9]
+assert(collections.each(traversed, |value, key| side_effects::push(value + key)) == traversed)
+assert(side_effects::len() == 2)
+assert(side_effects[0] == 8 && side_effects[1] == 10)
+
+# Predicates are strict booleans, short-circuit, and preserve nil as an ordinary value.
+const selected_nil = collections.filter([nil, 1, nil], |value, key| value == nil)
+assert(selected_nil::len() == 2 && selected_nil[0] == nil && selected_nil[1] == nil)
+assert(rejects(|| collections.filter([1], |value, key| value)))
+assert(rejects(|| collections.any([1], |value, key| value)))
+assert(rejects(|| collections.all([1], |value, key| value)))
+assert(rejects(|| collections.find([1], |value, key| value)))
+
+const predicate_calls = {count: 0}
+assert(collections.any([1, 2, 3], |value, key| {
+	predicate_calls.count += 1
+	value == 2
+}))
+assert(predicate_calls.count == 2)
+predicate_calls.count = 0
+assert(!collections.all([1, 2, 3], |value, key| {
+	predicate_calls.count += 1
+	value < 2
+}))
+assert(predicate_calls.count == 2)
+assert(!collections.any([], |value, key| true))
+assert(collections.all([], |value, key| false))
+const nil_find_calls = {count: 0}
+assert(collections.find([nil, 4, 7], |value, key| {
+	nil_find_calls.count += 1
+	key == 0
+}) == nil)
+assert(nil_find_calls.count == 1)
+assert(collections.find([nil, 4, 7], |value, key| value == 7) == 7)
+assert(collections.find([], |value, key| true) == nil)
+
+# keys/values expose the traversal pair, including table keys whose values are nil.
+const keyed_values = {alpha: 11, beta: nil, gamma: 13}
+const extracted_keys = collections.keys(keyed_values)
+const extracted_values = collections.values(keyed_values)
+assert(extracted_keys::len() == 3 && extracted_values::len() == 3)
+let rebuilt = {}
+for index in 0..extracted_keys::len() {
+	rebuilt[extracted_keys[index]] = extracted_values[index]
+}
+assert(rebuilt.alpha == 11 && "beta" in rebuilt && rebuilt.beta == nil && rebuilt.gamma == 13)
+const positional_keys = collections.keys([9, 8])
+assert(positional_keys[0] == 0 && positional_keys[1] == 1)
+assert(collections.keys([])::len() == 0)
+assert(collections.values([])::len() == 0)
+
+# Sort is stable, returns a new array, and propagates comparator type/errors.
+const unsorted = [{key: 2, tag: "a"}, {key: 1, tag: "b"}, {key: 2, tag: "c"}]
+const sorted = collections.sort(unsorted, |lhs, rhs| lhs.key < rhs.key)
+assert(sorted::len() == 3)
+assert(sorted[0].tag == "b" && sorted[1].tag == "a" && sorted[2].tag == "c")
+assert(unsorted[0].tag == "a" && unsorted[1].tag == "b" && unsorted[2].tag == "c")
+assert(collections.sort([], |lhs, rhs| false)::len() == 0)
+assert(rejects(|| collections.sort([2, 1], |lhs, rhs| lhs - rhs)))
+let comparator_error = nil
+try {
+	collections.sort([3, 2, 1], |lhs, rhs| {
+		if lhs == 2 && rhs == 3 { throw "comparator failed" }
+		lhs < rhs
+	})
+} catch error {
+	comparator_error = error
+}
+assert(comparator_error == "comparator failed")
+
+# Every eager adapter accepts the same next protocol as for-loops and ranges.
+const range_map = collections.map(range.create(2, 6, 1, false), |value, key| value * 10 + key)
+assert(range_map::len() == 4)
+assert(range_map[0] == 20 && range_map[1] == 31 && range_map[2] == 42 && range_map[3] == 53)
+const range_filter = collections.filter(range.create(0, 6, 1, false), |value, key| value % 2 == 0)
+assert(range_filter::len() == 3 && range_filter[0] == 0 && range_filter[1] == 2 && range_filter[2] == 4)
+assert(collections.reduce(range.create(1, 5, 1, false), 0, |accumulator, value, key| accumulator + value) == 10)
+
+let custom = {position: 0}
+traits.set(custom, "next", || {
+	self.position += 1
+	if self.position == 1 { return [nil, false] }
+	if self.position == 2 { return [5, false] }
+	[nil, true]
+})
+const custom_values = collections.map(custom, |value, key| value)
+assert(custom_values::len() == 2 && custom_values[0] == nil && custom_values[1] == 5)
+
+const zipped = collections.zip([1, nil, 3], range.create(10, 14, 1, false), ["a", "b"])
+assert(zipped::len() == 2)
+assert(zipped[0][0] == 1 && zipped[0][1] == 10 && zipped[0][2] == "a")
+assert(zipped[1][0] == nil && zipped[1][1] == 11 && zipped[1][2] == "b")
+assert(rejects(|| collections.zip()))
+let zip_mutated = [1, 2]
+let zip_mutator = {}
+traits.set(zip_mutator, "next", || {
+	zip_mutated[0] = 1
+	[nil, true]
+})
+assert(rejects(|| collections.zip(zip_mutated, zip_mutator)))
+
+# Mutation is rejected even when a short-circuiting predicate would return immediately.
+let mutating_any = [1, 2]
+assert(rejects(|| collections.any(mutating_any, |value, key| {
+	mutating_any[0] = value
+	true
+})))
+let mutating_find = {first: 1, second: 2}
+assert(rejects(|| collections.find(mutating_find, |value, key| {
+	mutating_find[key] = value
+	true
+})))

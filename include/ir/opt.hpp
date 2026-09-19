@@ -1,18 +1,22 @@
 #pragma once
-#include <ir/proc.hpp>
 #include <ir/mir.hpp>
+#include <ir/ownership.hpp>
+#include <ir/proc.hpp>
 
 //
 // -- SSA IR Optimizations --
 //
-namespace li::ir::opt {	
+namespace li::ir::opt {
+	namespace detail {
+		// Shared proof used by scalar optimizations. It recognizes only
+		// operations whose concrete operand types exclude dynamic dispatch.
+		bool is_mathematical_scalar(const insn* instruction);
+		bool may_trap_target_integer(const insn* instruction);
+	};
+
 	// Lowers load/store of locals to PHI nodes and named registers.
 	//
 	void lift_phi(procedure* proc);
-
-	// Re-schedules GC ticks.
-	//
-	void schedule_gc(procedure* proc);
 
 	// Applies constant folding.
 	//
@@ -37,6 +41,19 @@ namespace li::ir::opt {
 	// Infers constant type information and optimizes the control flow.
 	//
 	void type_inference(procedure* proc);
+
+	// Hoists loop-invariant, effect-free scalar operations.
+	//
+	void licm(procedure* proc);
+
+	// Replaces proven non-escaping aggregates with scalar SSA values.
+	size_t scalar_replace(procedure* proc);
+
+	// Inlines known scalar script calls within a bounded instruction budget.
+	size_t inline_calls(procedure* proc, size_t instruction_budget = 512);
+
+	// Specializes exact, bounded integral arithmetic without changing number semantics.
+	size_t specialize_integer_ranges(procedure* proc);
 
 	// Prepares the IR to be lifted to MIR.
 	//

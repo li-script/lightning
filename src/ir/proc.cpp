@@ -1,6 +1,30 @@
 #include <ir/proc.hpp>
+#include <ir/verify.hpp>
 
 namespace li::ir {
+	void basic_block::validate() {
+		if (ir_verification_enabled()) {
+			if (!proc)
+				util::abort("IR verifier: block has no procedure [block $%x]\n", unsigned(uid));
+			if (auto error = verify_ir(*proc))
+				util::abort("%s\n", error->describe().c_str());
+		} else {
+			for (auto* instruction : *this)
+				instruction->update();
+		}
+	}
+
+	void procedure::validate() {
+		if (ir_verification_enabled()) {
+			if (auto error = verify_ir(*this))
+				util::abort("%s\n", error->describe().c_str());
+		} else {
+			LI_ASSERT(get_entry() != nullptr);
+			for (auto& block : basic_blocks)
+				for (auto* instruction : *block)
+					instruction->update();
+		}
+	}
 	// Recursive value copy.
 	//
 	static ref<> recursive_value_copy(value* a, procedure* proc) {
@@ -18,7 +42,7 @@ namespace li::ir {
 		//
 		auto* i = a->as<insn>();
 		if (i->visited)
-			return make_ref((insn*)i->visited);
+			return make_ref((insn*) i->visited);
 
 		// Duplicate the instruction.
 		//
@@ -54,7 +78,7 @@ namespace li::ir {
 		// Pre-allocate the basic blocks, map using visitor_context.
 		//
 		for (size_t i = 0; i != basic_blocks.size(); i++) {
-			basic_block* newbb               = result->basic_blocks.emplace_back(std::make_unique<basic_block>(result.get())).get();
+			basic_block* newbb       = result->basic_blocks.emplace_back(std::make_unique<basic_block>(result.get())).get();
 			basic_blocks[i]->visited = (uintptr_t) newbb;
 		}
 
@@ -63,8 +87,8 @@ namespace li::ir {
 		for (size_t i = 0; i != basic_blocks.size(); i++) {
 			// Copy the basic block state.
 			//
-			auto bf = basic_blocks[i].get();
-			auto bb = result->basic_blocks[i].get();
+			auto bf        = basic_blocks[i].get();
+			auto bb        = result->basic_blocks[i].get();
 			bb->uid        = bf->uid;
 			bb->cold_hint  = bf->cold_hint;
 			bb->loop_depth = bf->loop_depth;

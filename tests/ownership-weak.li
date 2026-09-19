@@ -1,0 +1,38 @@
+import debug
+import weak
+
+fn make_expired_observer() {
+   const target = {payload: [{value: 42}]}
+   const observer = weak.create(target)
+   assert(!weak.expired(observer))
+   const locked = weak.lock(observer)
+   assert(locked == target)
+   assert(locked.payload[0].value == 42)
+   return observer
+}
+
+fn make_lock_owned_observer() {
+   let target = {value: 73}
+   const observer = weak.create(target)
+   const locked = weak.lock(observer)
+   target = nil
+   assert(!weak.expired(observer))
+   assert(locked.value == 73)
+   return observer
+}
+
+fn exercise_weak_ownership() {
+   const expired_after_return = make_expired_observer()
+   assert(weak.expired(expired_after_return))
+   assert(weak.lock(expired_after_return) == nil)
+
+   const expired_after_lock = make_lock_owned_observer()
+   assert(weak.expired(expired_after_lock))
+   assert(weak.lock(expired_after_lock) == nil)
+}
+
+const baseline = debug.live_objects()
+for iteration in 0..64 {
+   exercise_weak_ownership()
+   assert(debug.live_objects() == baseline)
+}

@@ -1,0 +1,30 @@
+fn make_counter(start, step?) {
+    const increment = step ?? 1
+    let current = start
+
+    || {
+        current += increment
+        current
+    }
+}
+
+let label = "captured before reassignment"
+const read_label = || label
+label = "outer binding changed"
+
+const by_one = make_counter(0)
+const by_five = make_counter(10, 5)
+
+print(read_label())
+print("by one:", by_one(), by_one(), by_one())
+print("by five:", by_five(), by_five())
+
+fn describe(prefix?, values...) {
+    const heading = prefix ?? "values"
+    print(`{heading} ({values::len()} items)`)
+    for index in 0..values::len() {
+        print(`  {index}: {values[index]}`)
+    }
+}
+
+describe("counter snapshots", by_one(), by_five(), 42::str())

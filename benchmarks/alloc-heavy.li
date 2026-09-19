@@ -1,0 +1,22 @@
+# Short-lived nested array and table allocation workload.
+let checksum = 0
+let last_batch_size = 0
+let outer = 0
+while outer < 200 {
+   let batch = []
+   let inner = 0
+   while inner < 400 {
+      const value = {
+         values: [outer, inner, outer + inner],
+         marker: {left: outer, right: inner}
+      }
+      batch::push(value)
+      checksum += value.values[2]
+      inner += 1
+   }
+   last_batch_size = batch::len()
+   outer += 1
+}
+
+assert(last_batch_size == 400)
+assert(checksum == 23920000)

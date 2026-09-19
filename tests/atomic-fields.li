@@ -1,0 +1,78 @@
+import shared
+
+fn compile_error(source) {
+   let caught = nil
+   try {
+      loadstring(source)
+   } catch error {
+      caught = error
+   }
+   caught
+}
+
+[[strict]] struct AtomicPair {
+   atomic value: i32 = 0i32
+}
+
+[[strict]] class Counter {
+   atomic count: i32 = 0i32
+}
+
+[[strict]] fn exercise(counter: Counter) -> i32 {
+   assert(counter.count == 0i32)
+   counter.count = 20i32
+   assert(counter.count == 20i32)
+   counter.count += 5i32
+   assert(counter.count == 25i32)
+   counter.count -= 3i32
+   assert(counter.count == 22i32)
+   counter.count *= 2i32
+   assert(counter.count == 44i32)
+   counter.count /= 4i32
+   assert(counter.count == 11i32)
+   counter.count %= 6i32
+   assert(counter.count == 5i32)
+   assert(counter.count++ == 5i32)
+   assert(counter.count == 6i32)
+   assert(++counter.count == 7i32)
+   assert(counter.count-- == 7i32)
+   assert(--counter.count == 5i32)
+   counter.count
+}
+
+let private_counter = Counter::new()
+assert(exercise(private_counter) == 5i32)
+
+[[strict]] fn exercise_pair(pair: AtomicPair) -> i32 {
+   pair.value = 9i32
+   assert(pair.value == 9i32)
+   pair.value += 4i32
+   assert(pair.value == 13i32)
+   pair.value
+}
+
+let private_pair = AtomicPair::new()
+assert(exercise_pair(private_pair) == 13i32)
+
+let shared_counter = shared.create(Counter::new()) as Counter
+assert(shared.is_shared(shared_counter))
+assert(exercise(shared_counter) == 5i32)
+
+[[strict]] fn exercise_shared_pair(pair: AtomicPair) -> i32 {
+   pair.value = 12i32
+   pair.value *= 3i32
+   assert(pair.value == 36i32)
+   pair.value
+}
+
+let shared_pair = shared.create(AtomicPair::new()) as AtomicPair
+assert(shared.is_shared(shared_pair))
+assert(exercise_shared_pair(shared_pair) == 36i32)
+
+# A dynamically compiled store still reaches the atomic-field runtime hook.
+loadstring("fn store(target, value) { target.count = value }\nstore")()(shared_counter, 41)
+assert(shared_counter.count == 41i32)
+
+assert("atomic fields must be numeric" in compile_error("[[strict]] class Bad { atomic label: string = \"bad\" }"))
+assert("atomic fields require strict mode" in compile_error("[[strict]] struct Bad { union { atomic count: i32 } }"))
+assert("atomic fields require strict mode" in compile_error("class Bad { atomic count: i32 = 0i32 }"))

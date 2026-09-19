@@ -1,9 +1,12 @@
 #pragma once
-#include <cstdint>
-#include <cstring>
+#include <algorithm>
 #include <cstddef>
-#include <type_traits>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <ranges>
+#include <type_traits>
 
 // Compiler details.
 //
@@ -32,10 +35,11 @@
 
 // Detect architecture.
 //
-#if defined(__amd64__) || defined(__amd64) || defined(__x86_64__) || defined(__x86_64) || defined(__AMD_64) || defined(_M_AMD64) || defined(_M_IX86) || defined(__i386)
-	#define LI_ARCH_X86  1
+#if defined(__amd64__) || defined(__amd64) || defined(__x86_64__) || defined(__x86_64) || defined(__AMD_64) || defined(_M_AMD64) || defined(_M_IX86) || \
+	 defined(__i386)
+	#define LI_ARCH_X86 1
 #elif defined(__aarch64__) || defined(_M_ARM64)
-	#define LI_ARCH_ARM  1
+	#define LI_ARCH_ARM 1
 #elif defined(__EMSCRIPTEN__)
 	#define LI_ARCH_WASM 1
 #else
@@ -86,7 +90,7 @@
 		#define _mm_crc32_u32 __builtin_ia32_crc32si
 		#define _mm_crc32_u64 __builtin_ia32_crc32di
 	#elif LI_MSVC
-		#define LI_HAS_CRC    1
+		#define LI_HAS_CRC 1
 		#include <intrin.h>
 	#endif
 #endif
@@ -112,15 +116,13 @@
 	#define LI_CC
 #endif
 
-// Options and JIT capability.
+// Build options. CMake publishes explicit 0/1 values to consumers.
 //
 #ifndef LI_FAST_MATH
-	#define LI_FAST_MATH 1
+	#define LI_FAST_MATH 0
 #endif
 #ifndef LI_JIT
-	#if LI_ARCH_X86 && !LI_32
-		#define LI_JIT 1
-	#endif
+	#define LI_JIT 0
 #endif
 
 // Common macros.
@@ -130,7 +132,7 @@
 #define LI_STRCAT_I(x, y) x##y
 #define LI_STRCAT(x, y)   LI_STRCAT_I(x, y)
 #define LI_NOOP(...)
-#define LI_IDENTITY(...)  __VA_ARGS__
+#define LI_IDENTITY(...) __VA_ARGS__
 #if LI_MS_EXTS
 	#define FUNCTION_NAME __FUNCSIG__
 #else
@@ -156,11 +158,11 @@
 #endif
 
 namespace li {
-	namespace view  = std::views;
+	namespace view = std::views;
 
-	// Fix emscripten's non-cpp20 compliant STL.
-	//
-	#if defined(__EMSCRIPTEN__)
+// Fix emscripten's non-cpp20 compliant STL.
+//
+#if defined(__EMSCRIPTEN__)
 	namespace range {
 		using namespace std::ranges;
 
@@ -181,9 +183,9 @@ namespace li {
 			return std::find_if(r.begin(), r.end(), std::forward<F>(fn));
 		}
 	};
-	#else
+#else
 	namespace range = std::ranges;
-	#endif
+#endif
 
 	// Small size type.
 	//
@@ -275,7 +277,7 @@ namespace li {
 		__assume(condition);
 #endif
 	}
-	LI_INLINE inline static void assume_unreachable [[noreturn]] () {
+	LI_INLINE inline static void assume_unreachable [[noreturn]]() {
 #if __has_builtin(__builtin_unreachable)
 		__builtin_unreachable();
 #else

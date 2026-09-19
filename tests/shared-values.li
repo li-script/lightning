@@ -1,0 +1,99 @@
+import shared
+import weak
+
+fn rejects(callback) {
+   try {
+      callback()
+      false
+   } catch error {
+      error is string
+   }
+}
+
+# This fixture deliberately keeps the explicit native API independently
+# exercised; contextual shared/lock/atomic syntax has its own fixture.
+const private_value = {value: 1}
+assert(!shared.is_shared(private_value))
+assert(rejects(|| shared.create(1)))
+const shared_text = shared.create("cross-vm immutable")
+assert(shared.is_shared(shared_text))
+assert(shared_text == "cross-vm immutable")
+assert(rejects(|| shared.lock(private_value)))
+assert(rejects(|| shared.unlock(private_value)))
+
+const value = shared.create({counter: 1, label: "shared-value"})
+assert(shared.is_shared(value))
+assert(shared.is_shared(value.label))
+assert(value.label == "shared-value")
+assert(shared.atomic_add(value, "counter", 2) == 3)
+assert(value.counter == 3)
+
+const values = shared.create([4])
+assert(shared.is_shared(values))
+assert(shared.atomic_add(values, 0, 1.5) == 5.5)
+assert(values[0] == 5.5)
+
+class SharedBox {
+   value: number = 8
+}
+const box = shared.create(SharedBox{})
+assert(shared.is_shared(box))
+assert(shared.atomic_add(box, "value", -3) == 5)
+assert(box.value == 5)
+
+# Native locks are recursive. `defer` is the explicit API's exception-safe
+# spelling; ordinary source should prefer a lock block.
+fn update_locked(target) {
+   shared.lock(target)
+   defer { shared.unlock(target) }
+   shared.lock(target)
+   target.counter = target.counter + 4
+   shared.unlock(target)
+}
+update_locked(value)
+assert(value.counter == 7)
+
+fn throw_locked(target) {
+   shared.lock(target)
+   defer { shared.unlock(target) }
+   throw "expected shared lock failure"
+}
+assert(rejects(|| throw_locked(value)))
+shared.lock(value)
+shared.unlock(value)
+
+# The public native lock owns one strong reference per acquisition. Dropping
+# the caller's original root cannot destroy locked storage before unlock.
+let pinned = shared.create({value: 9})
+const pinned_observer = weak.create(pinned)
+shared.lock(pinned)
+pinned = nil
+assert(!weak.expired(pinned_observer))
+let recovered = weak.lock(pinned_observer)
+assert(recovered != nil)
+shared.unlock(recovered)
+recovered = nil
+assert(weak.expired(pinned_observer))
+
+assert(rejects(|| shared.unlock(value)))
+assert(rejects(|| shared.atomic_add(private_value, "value", 1)))
+assert(rejects(|| shared.atomic_add(value, "label", 1)))
+assert(value.label == "shared-value")
+
+# Root containers are copied, but a private mutable child is never silently
+# cloned or made reachable from the process-wide heap.
+assert(rejects(|| shared.create({child: {private: true}})))
+
+fn exercise_shared_weak_backedge() {
+   let parent = shared.create({child: nil})
+   const parent_observer = weak.create(parent)
+   let child = shared.create({parent: parent_observer})
+   const child_observer = weak.create(child)
+   parent.child = child
+   child = nil
+   assert(!weak.expired(child_observer))
+   parent = nil
+   assert(weak.expired(parent_observer))
+   assert(weak.expired(child_observer))
+}
+exercise_shared_weak_backedge()

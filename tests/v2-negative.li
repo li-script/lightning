@@ -1,0 +1,51 @@
+fn compile_error(source) {
+   let caught = nil
+   try {
+      loadstring(source)
+   } catch error {
+      caught = error
+   }
+   caught
+}
+
+const add_error = compile_error([=[[[strict]]
+fn Add<T, U>(left: T, right: U) { left + right }
+Add(1i32, "wrong")
+]=])
+assert("incompatible operand types" in add_error)
+assert("left + right" in add_error)
+
+const ambiguity = compile_error([=[[[strict]]
+fn choose<T>(value: T) -> i32 { 1i32 }
+fn choose<U>(value: U) -> i32 { 2i32 }
+choose(1i32)
+]=])
+assert("ambiguous generic instantiation" in ambiguity)
+
+const requirement = compile_error([=[[[strict]]
+fn only_numbers<T>(value: T) -> T {
+   static require(T is i32, "only i32 is accepted")
+   value
+}
+only_numbers("wrong")
+]=])
+assert("only i32 is accepted" in requirement)
+
+const union_error = compile_error([=[[[strict]]
+struct Choice {
+   union {
+      left: i32
+      right: f32
+   }
+}
+fn wrong(value: Choice) -> f32 { value.right }
+let value = Choice{left: 1i32}
+wrong(value)
+]=])
+assert("was not the most recently assigned" in union_error)
+
+const unresolved = compile_error([=[[[strict]]
+fn unresolved<T, U>(value: T) -> T { value }
+unresolved(1i32)
+]=])
+assert("cannot resolve generic parameters" in unresolved)

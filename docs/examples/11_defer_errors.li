@@ -1,0 +1,43 @@
+// Deferred blocks run on normal return and exceptional unwind.
+let events = []
+
+fn divide(numerator, denominator) {
+   defer { events::push("leave divide") }
+
+   if denominator == 0 {
+      throw "division by zero"
+   }
+   return numerator / denominator
+}
+
+assert(divide(12, 3) == 4)
+assert(events::len() == 1)
+assert(events[0] == "leave divide")
+
+let caught = nil
+try {
+   divide(12, 0)
+} catch error {
+   caught = error
+   events::push("caught error")
+}
+
+assert(caught == "division by zero")
+assert(events::len() == 3)
+assert(events[1] == "leave divide")
+assert(events[2] == "caught error")
+
+// Multiple deferred blocks in one scope run in last-in, first-out order.
+fn nested_cleanup() {
+   defer { events::push("first defer") }
+   defer { events::push("second defer") }
+   events::push("body")
+   return 42
+}
+
+assert(nested_cleanup() == 42)
+assert(events[3] == "body")
+assert(events[4] == "second defer")
+assert(events[5] == "first defer")
+
+print("defer and errors: ok")

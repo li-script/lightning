@@ -1,9 +1,22 @@
 #include <ir/insn.hpp>
 #include <ir/proc.hpp>
+#include <limits>
 #include <util/enuminfo.hpp>
 
 namespace li::ir {
 	// String conversion.
+	// Keep compile-time constants on the same public boxing path as runtime values.
+	//
+	static_assert(any(std::numeric_limits<number>::quiet_NaN()).value == kvalue_nan);
+	static_assert(any(std::numeric_limits<number>::quiet_NaN()).is_num());
+	static_assert(!any(std::numeric_limits<number>::quiet_NaN()).is_gc());
+	static_assert(any(-std::numeric_limits<number>::infinity()).is_num());
+	static_assert(any(0.0).equals(any(-0.0)));
+	static_assert(mask_value(uint64_t{1} << 47) == (uint64_t{1} << 47));
+	static_assert(mask_value(mix_value(type_table, uint64_t{1} << 47)) == (uint64_t{1} << 47));
+	static_assert(is_value_of_type<type_table>(mix_value(type_table, uint64_t{1} << 47)));
+	static_assert(is_value_gc(mix_value(type_table, uint64_t{1} << 47)));
+
 	//
 	std::string constant::to_string(bool) const {
 		switch (vt) {
@@ -73,7 +86,7 @@ namespace li::ir {
 		} else {
 			s = util::fmt(LI_YLW "%%%u" LI_DEF ":%s = " LI_RED "%s%s " LI_DEF, name, ret, op_pfx, opcode_name);
 		}
-		
+
 		if (operands.empty()) {
 			s += "()";
 		} else {

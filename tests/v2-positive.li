@@ -1,0 +1,85 @@
+import reflect
+
+const program = loadstring([=[[[strict]]
+import typed
+struct Vec3<T> {
+   x: T = {}
+   uninit y: T
+   z: T = {0}
+
+   new!(x: T, y: T, z: T) {
+      self.x = x
+      self.y = y
+      self.z = z
+   }
+
+   reduce_add() -> T { self.x + self.y + self.z }
+   get sum() -> T { self.reduce_add() }
+
+   add!(other: Self) -> Self {
+      let result = self
+      result.x += other.x
+      result.y += other.y
+      result.z += other.z
+      result
+   }
+
+   to!<U>() -> U {
+      static require(U is bool, "Vec3 only converts to bool")
+      self.x != 0f32
+   }
+}
+
+fn test2<T1>(value: T1) -> T1 { value }
+fn test3(value) { value }
+fn type_branch<T>(value: T) -> i32 {
+   static assert(typeid(T) == typeid(typeof(value)))
+   static if T is f32 { 1i32 } else { 0i32 }
+}
+fn count<Tx...>(values: Tx...) -> u32 { #Tx... }
+fn sum_lengths(points: Vec3<f32>[], count: i32) -> f32 {
+   let total: f32 = 0f32
+   let index: i32 = 0i32
+   while index < count {
+      let value = points[index]
+      total += value.x * value.x + value.y * value.y + value.z * value.z
+      index += 1i32
+   }
+   total
+}
+
+struct Nullable<T> {
+   uninit value: T
+   kind() -> i32 { 1i32 }
+}
+struct Nullable<T: f32> {
+   uninit value: T
+   kind() -> i32 { 2i32 }
+}
+
+let left = Vec3<f32>::new(1f32, 2f32, 3f32)
+let right = Vec3<f32>::new(4f32, 5f32, 6f32)
+let sum = left + right
+assert(sum.x == 5f32)
+assert(sum.y == 7f32)
+assert(sum.z == 9f32)
+assert(sum.reduce_add() == 21f32)
+assert(sum.sum == 21f32)
+assert(sum.to!<bool>() == true)
+assert(test2<i32>(12i32) == 12i32)
+assert(test3("auto") == "auto")
+assert(type_branch(1f32) == 1i32)
+assert(type_branch(1i32) == 0i32)
+assert(Nullable<i32>{value: 1i32}.kind() == 1i32)
+assert(Nullable<f32>{value: 1f32}.kind() == 2i32)
+assert(count(1i32, 2f32, "three") == 3u32)
+let points: Vec3<f32>[] = typed.struct_array(Vec3<f32>, 2)
+points[0] = Vec3<f32>::new(1f32, 2f32, 3f32)
+points[1] = Vec3<f32>::new(1f32, 2f32, 3f32)
+assert(sum_lengths(points, 2i32) == 28f32)
+assert((points[0] + points[1]).reduce_add() == 12f32)
+[typeid(typeof(sum)), test2]
+]=])
+const result = program()
+assert(result[0] == "Vec3<f32>")
+assert(reflect.instantiations(result[1])::len() >= 1)

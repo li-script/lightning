@@ -1,12 +1,168 @@
+#if (defined(__linux__) || defined(__EMSCRIPTEN__)) && !defined(_GNU_SOURCE)
+	#define _GNU_SOURCE
+#endif
+
 #include <stdarg.h>
+#include <stdlib.h>
 #include <array>
+#if !defined(__EMSCRIPTEN__)
+	#include <charconv>
+#endif
+#include <locale.h>
+#include <limits>
+#if defined(__APPLE__)
+	#include <xlocale.h>
+#endif
 #include <cmath>
 #include <lang/lexer.hpp>
 #include <util/common.hpp>
 #include <util/format.hpp>
 #include <util/utf.hpp>
+#include <vector>
+#include <vm/rc.hpp>
+#include <vm/state.hpp>
 
 namespace li::lex {
+	// Shared by copied lexer states. Each entry is the one owned reference
+	// returned by string::create; token_value instances only borrow it.
+	//
+	struct token_string_arena {
+		vm*                  L;
+		std::vector<string*> values;
+
+		explicit token_string_arena(vm* L) : L(L) {}
+
+		~token_string_arena() {
+			for (string* value : values) {
+				rc::release(L, value);
+			}
+		}
+
+		string* adopt(string* value) {
+			try {
+				values.push_back(value);
+			} catch (...) {
+				rc::release(L, value);
+				throw;
+			}
+			return value;
+		}
+	};
+
+	state::state(vm* owner, std::string_view source, std::string_view name)
+		 : L(owner),
+			token_strings(std::make_shared<token_string_arena>(owner)),
+			source(source),
+			input(source),
+			source_name(name),
+			verbose_errors(owner->verbose_errors) {
+		tok = scan();
+	}
+
+	string* state::make_token_string(std::string_view value) { return token_strings->adopt(string::create(L, value)); }
+
+	static msize_t source_column(std::string_view source, std::string_view remaining) {
+		const uintptr_t source_begin = reinterpret_cast<uintptr_t>(source.data());
+		const uintptr_t source_end   = source_begin + source.size();
+		const uintptr_t position     = reinterpret_cast<uintptr_t>(remaining.data());
+		if (position < source_begin || position > source_end)
+			return 1;
+
+		const size_t offset     = size_t(position - source_begin);
+		const size_t line_break = offset ? source.rfind('\n', offset - 1) : std::string_view::npos;
+		return msize_t(offset - (line_break == std::string_view::npos ? 0 : line_break + 1) + 1);
+	}
+
+	static std::optional<std::string_view> source_excerpt(std::string_view source, msize_t line) {
+		if (line == 0)
+			return std::nullopt;
+
+		size_t begin = 0;
+		for (msize_t current = 1; current < line; ++current) {
+			const size_t newline = source.find('\n', begin);
+			if (newline == std::string_view::npos)
+				return std::nullopt;
+			begin = newline + 1;
+		}
+		size_t end = source.find('\n', begin);
+		if (end == std::string_view::npos)
+			end = source.size();
+		if (end > begin && source[end - 1] == '\r')
+			--end;
+		return source.substr(begin, end - begin);
+	}
+
+	token_value state::diagnostic_token() const {
+		if (scan_active) {
+			token_value  result   = scan_token;
+			const size_t consumed = scan_input.size() >= input.size() ? scan_input.size() - input.size() : 0;
+			if (consumed)
+				result.length = msize_t(consumed);
+			return result;
+		}
+		// EOF has no span of its own; a keyword that starts a later line belongs
+		// to the next statement. Both anchor at the last consumed token.
+		if (last_token_line && (tok.id == token_eof || (tok.source_line > last_token.end_line && is_token_keyword(tok.id))))
+			return last_token;
+		return tok;
+	}
+
+	token_value state::report_error(const token_value& at, std::string_view message) {
+		if (last_error.empty()) {
+			last_error = util::fmt("[%.*s:%u:%u] %.*s", int(source_name.size()), source_name.data(), unsigned(at.source_line), unsigned(at.source_column),
+				 int(message.size()), message.data());
+
+			if (auto excerpt = source_excerpt(source, at.source_line)) {
+				last_error.push_back('\n');
+				last_error.append(*excerpt);
+				last_error.push_back('\n');
+
+				const size_t column = std::min<size_t>(at.source_column ? at.source_column - 1 : 0, excerpt->size());
+				for (size_t i = 0; i != column; ++i)
+					last_error.push_back((*excerpt)[i] == '\t' ? '\t' : ' ');
+				last_error.push_back('^');
+
+				size_t underline = std::max<size_t>(at.length, 1);
+				underline        = std::min(underline, excerpt->size() > column ? excerpt->size() - column : size_t(1));
+				last_error.append(underline - 1, '~');
+			}
+
+			if (!frames.empty()) {
+				if (verbose_errors) {
+					for (auto it = frames.rbegin(); it != frames.rend(); ++it) {
+						last_error += "\n  note: ";
+						last_error += it->label;
+					}
+				} else {
+					last_error += "\n  note: ";
+					last_error += frames.back().label;
+				}
+			}
+		}
+
+		token_value result = at;
+		result.id          = token_error;
+		return result;
+	}
+
+	token_value state::error_at(const token_value& at, const char* fmt, ...) {
+		va_list args;
+		va_start(args, fmt);
+		va_list copy;
+		va_copy(copy, args);
+		const int size = vsnprintf(nullptr, 0, fmt, copy);
+		va_end(copy);
+
+		std::string message;
+		if (size > 0) {
+			message.resize(size_t(size) + 1);
+			vsnprintf(message.data(), message.size(), fmt, args);
+			message.pop_back();
+		}
+		va_end(args);
+		return report_error(at, message);
+	}
+
 	// Character traits.
 	//
 	enum char_trait : uint8_t {
@@ -105,7 +261,7 @@ namespace li::lex {
 
 	// Lexer error.
 	//
-	void error [[noreturn]] (const char* fmt, ...) {
+	void error [[noreturn]](const char* fmt, ...) {
 		va_list args;
 		va_start(args, fmt);
 		vprintf(fmt, args);
@@ -237,6 +393,134 @@ namespace li::lex {
 		}
 	}
 
+	struct long_bracket_span {
+		size_t content_end;
+		size_t consumed;
+		size_t lines;
+	};
+
+	// Returns the number of '=' characters in a long-bracket opener.
+	//
+	static std::optional<size_t> long_bracket_separator(std::string_view input) {
+		if (input.size() < 2 || input.front() != '[') {
+			return std::nullopt;
+		}
+
+		size_t cursor = 1;
+		while (cursor < input.size() && input[cursor] == '=') {
+			cursor++;
+		}
+		if (cursor == input.size() || input[cursor] != '[') {
+			return std::nullopt;
+		}
+		return cursor - 1;
+	}
+
+	// Finds the exact matching delimiter without treating nested or mismatched
+	// delimiter text specially.
+	//
+	static std::optional<long_bracket_span> find_long_bracket(std::string_view input, size_t separator) {
+		const size_t content_begin = separator + 2;
+		size_t       lines         = 0;
+		for (size_t cursor = content_begin; cursor < input.size(); cursor++) {
+			if (input[cursor] == '\n') {
+				lines++;
+				continue;
+			}
+			if (input[cursor] != ']') {
+				continue;
+			}
+
+			size_t delimiter = cursor + 1;
+			size_t equals    = 0;
+			while (delimiter < input.size() && input[delimiter] == '=') {
+				delimiter++;
+				equals++;
+			}
+			if (equals == separator && delimiter < input.size() && input[delimiter] == ']') {
+				return long_bracket_span{
+					 .content_end = cursor,
+					 .consumed    = delimiter + 1,
+					 .lines       = lines,
+				};
+			}
+		}
+		return std::nullopt;
+	}
+
+	// Verbatim literals keep their line breaks; a CRLF sequence from a Windows
+	// checkout means the same source text as LF, so it is normalized.
+	static std::string normalize_line_breaks(std::string_view text) {
+		std::string result;
+		result.reserve(text.size());
+		for (size_t i = 0; i != text.size(); i++) {
+			if (text[i] == '\r' && i + 1 != text.size() && text[i + 1] == '\n')
+				continue;
+			result.push_back(text[i]);
+		}
+		return result;
+	}
+
+	static token_value scan_long_string(state& state, size_t separator) {
+		auto span = find_long_bracket(state.input, separator);
+		if (!span) {
+			return state.error("unterminated long string.");
+		}
+
+		const size_t content_begin = separator + 2;
+		string*      value         = state.make_token_string(normalize_line_breaks(state.input.substr(content_begin, span->content_end - content_begin)));
+		state.line += span->lines;
+		state.input.remove_prefix(span->consumed);
+		return {.id = token_lstr, .str_val = value};
+	}
+
+	static std::optional<size_t> raw_string_separator(std::string_view input) {
+		if (input.empty() || input.front() != 'r')
+			return std::nullopt;
+		size_t cursor = 1;
+		while (cursor < input.size() && input[cursor] == '#')
+			++cursor;
+		if (cursor == input.size() || input[cursor] != '"')
+			return std::nullopt;
+		return cursor - 1;
+	}
+
+	static std::optional<long_bracket_span> find_raw_string(std::string_view input, size_t separator) {
+		size_t lines = 0;
+		for (size_t cursor = separator + 2; cursor < input.size(); ++cursor) {
+			if (input[cursor] == '\n')
+				++lines;
+			if (input[cursor] != '"')
+				continue;
+			size_t suffix = 0;
+			while (suffix < separator && cursor + 1 + suffix < input.size() && input[cursor + 1 + suffix] == '#')
+				++suffix;
+			if (suffix == separator)
+				return long_bracket_span{cursor, cursor + 1 + suffix, lines};
+		}
+		return std::nullopt;
+	}
+
+	static std::optional<long_bracket_span> find_block_comment(std::string_view input) {
+		size_t depth = 1;
+		size_t lines = 0;
+		for (size_t cursor = 2; cursor < input.size(); ++cursor) {
+			if (input[cursor] == '\n')
+				++lines;
+			if (cursor + 1 == input.size())
+				break;
+			if (input[cursor] == '/' && input[cursor + 1] == '*') {
+				++depth;
+				++cursor;
+			} else if (input[cursor] == '*' && input[cursor + 1] == '/') {
+				if (--depth == 0)
+					return long_bracket_span{cursor, cursor + 2, lines};
+				++cursor;
+			}
+		}
+		return std::nullopt;
+	}
+
 	// String reader.
 	//
 	static token_value scan_fstr(state& state) {
@@ -316,7 +600,33 @@ namespace li::lex {
 				// If processing blocks:
 				//
 				if (!in_str) {
-					if (str[it] == '"' || str[it] == '`') {
+					auto remaining = str.substr(it);
+					if (auto separator = raw_string_separator(remaining)) {
+						auto span = find_raw_string(remaining, *separator);
+						if (!span)
+							return state.error("unterminated raw string in interpolation.");
+						state.line += span->lines;
+						it += span->consumed - 1;
+						continue;
+					}
+					if (remaining.starts_with("/*")) {
+						auto span = find_block_comment(remaining);
+						if (!span)
+							return state.error("unterminated block comment in interpolation.");
+						state.line += span->lines;
+						it += span->consumed - 1;
+						continue;
+					}
+					if (remaining.starts_with("//")) {
+						auto end = remaining.find('\n');
+						if (end == std::string_view::npos)
+							return state.error("unmatched format string.");
+						it += end - 1;
+						continue;
+					}
+					if (str[it] == '\n')
+						++state.line;
+					if (str[it] == '"' || str[it] == '`' || str[it] == '\'') {
 						in_str = str[it];
 						continue;
 					}
@@ -341,14 +651,13 @@ namespace li::lex {
 		if (!err.empty()) {
 			return state.error(err);
 		}
-		return {.id = token_fstr, .str_val = string::create(state.L, result)};
+		return {.id = token_fstr, .str_val = state.make_token_string(result)};
 	}
 	static token_value scan_str(state& state) {
 		// Consume the quote.
 		//
 		state.input.remove_prefix(1);
 
-		// TODO: Long string
 		bool escape = false;
 		for (size_t i = 0;; i++) {
 			// If we reached EOF|EOL and there is no end of string, error.
@@ -367,7 +676,7 @@ namespace li::lex {
 				if (!err.empty()) {
 					return state.error(err);
 				}
-				token_value result = {.id = token_lstr, .str_val = string::create(state.L, str)};
+				token_value result = {.id = token_lstr, .str_val = state.make_token_string(str)};
 				state.input.remove_prefix(i + 1);
 				return result;
 			}
@@ -415,6 +724,165 @@ namespace li::lex {
 
 	// Number reader.
 	//
+	struct c_numeric_locale {
+#if LI_WINDOWS
+		_locale_t value = _create_locale(LC_NUMERIC, "C");
+
+		~c_numeric_locale() {
+			if (value)
+				_free_locale(value);
+		}
+#else
+		locale_t value = newlocale(LC_NUMERIC_MASK, "C", nullptr);
+
+		~c_numeric_locale() {
+			if (value)
+				freelocale(value);
+		}
+#endif
+	};
+
+	static bool parse_decimal_c_locale(std::string_view literal, number& value) {
+		std::array<char, 128> local;
+		std::string           allocated;
+		const char*           text;
+
+		if (literal.size() < local.size()) {
+			memcpy(local.data(), literal.data(), literal.size());
+			local[literal.size()] = '\0';
+			text                  = local.data();
+		} else {
+			allocated.assign(literal);
+			text = allocated.c_str();
+		}
+
+		static const c_numeric_locale locale;
+		if (!locale.value)
+			return false;
+
+		char* end = nullptr;
+#if LI_WINDOWS
+		value = _strtod_l(text, &end, locale.value);
+#else
+		value = strtod_l(text, &end, locale.value);
+#endif
+		return end == text + literal.size();
+	}
+
+	static bool parse_decimal(std::string_view literal, number& value) {
+#if LI_EMSCRIPTEN || defined(_LIBCPP_VERSION)
+		// Some supported libc++ releases do not provide floating-point
+		// from_chars. Their C-locale conversion is correctly rounded.
+		return parse_decimal_c_locale(literal, value);
+#else
+		const char* end    = literal.data() + literal.size();
+		auto        parsed = std::from_chars(literal.data(), end, value, std::chars_format::general);
+		if (parsed.ec == std::errc::result_out_of_range)
+			return parse_decimal_c_locale(literal, value);
+		return parsed.ec == std::errc{} && parsed.ptr == end;
+#endif
+	}
+
+	static std::optional<numeric_kind> parse_numeric_suffix(std::string_view suffix) {
+		if (suffix.empty())
+			return numeric_kind::number;
+		if (suffix == "i8")
+			return numeric_kind::i8;
+		if (suffix == "i16")
+			return numeric_kind::i16;
+		if (suffix == "i32")
+			return numeric_kind::i32;
+		if (suffix == "i64")
+			return numeric_kind::i64;
+		if (suffix == "u8")
+			return numeric_kind::u8;
+		if (suffix == "u16")
+			return numeric_kind::u16;
+		if (suffix == "u32" || suffix == "u")
+			return numeric_kind::u32;
+		if (suffix == "u64")
+			return numeric_kind::u64;
+		if (suffix == "f32")
+			return numeric_kind::f32;
+		if (suffix == "f64")
+			return numeric_kind::f64;
+		return std::nullopt;
+	}
+
+	static bool append_decimal_digits(std::string& normalized, std::string_view source, size_t& end) {
+		bool saw_digit = false;
+		bool separator = false;
+		while (end < source.size() && (is_num(source[end]) || source[end] == '\'')) {
+			if (source[end] == '\'') {
+				if (!saw_digit || separator || end + 1 == source.size() || !is_num(source[end + 1]))
+					return false;
+				separator = true;
+			} else {
+				normalized.push_back(source[end]);
+				saw_digit = true;
+				separator = false;
+			}
+			end++;
+		}
+		return saw_digit && !separator;
+	}
+
+	static token_value scan_decimal_number(state& state) {
+		const std::string_view source = state.input;
+		std::string            literal;
+		size_t                 end = 0;
+		if (!append_decimal_digits(literal, source, end)) {
+			state.input.remove_prefix(std::max<size_t>(end, 1));
+			return state.error("Invalid numeric separator placement.");
+		}
+
+		bool fractional = false;
+		if (end < source.size() && source[end] == '.' && !source.substr(end).starts_with("..")) {
+			fractional = true;
+			literal.push_back('.');
+			end++;
+			if (!append_decimal_digits(literal, source, end)) {
+				state.input.remove_prefix(end);
+				return state.error("Expected a digit after the decimal point.");
+			}
+		}
+
+		bool exponent = false;
+		if (end < source.size() && (source[end] == 'e' || source[end] == 'E')) {
+			exponent = true;
+			literal.push_back('e');
+			end++;
+			if (end < source.size() && (source[end] == '+' || source[end] == '-'))
+				literal.push_back(source[end++]);
+			if (!append_decimal_digits(literal, source, end)) {
+				state.input.remove_prefix(end);
+				return state.error("Expected a digit in the numeric exponent.");
+			}
+		}
+
+		const size_t suffix_begin = end;
+		while (end < source.size() && (char_traits[uint8_t(source[end])] & (char_alpha | char_num)))
+			end++;
+		auto suffix = source.substr(suffix_begin, end - suffix_begin);
+		auto kind   = parse_numeric_suffix(suffix);
+		state.input.remove_prefix(end);
+		if (!kind)
+			return state.error("Unexpected numeric literal suffix '%.*s'.", int(suffix.size()), suffix.data());
+		if ((fractional || exponent) && *kind >= numeric_kind::i8 && *kind <= numeric_kind::u64)
+			return state.error("Integer suffix is not valid on a fractional literal.");
+
+		number value;
+		if (!parse_decimal(literal, value))
+			return state.error("Invalid decimal literal.");
+		if (*kind >= numeric_kind::i8 && *kind <= numeric_kind::u64) {
+			if (!std::isfinite(value) || std::trunc(value) != value)
+				return state.error("Integer literal must have an integral finite value.");
+		} else if (*kind == numeric_kind::f32 && std::isfinite(value) && std::abs(value) > std::numeric_limits<float>::max()) {
+			return state.error("Floating-point literal is out of range for f32.");
+		}
+		return {.id = token_lnum, .num_kind = *kind, .num_val = value};
+	}
+
 	template<int Base>
 	LI_INLINE static std::optional<int> parse_digit(std::string_view& value) {
 		// Pop first character.
@@ -542,15 +1010,33 @@ namespace li::lex {
 			state.input.remove_prefix(2);
 			return parse_number<2>(state);
 		} else {
-			return parse_number<10>(state);
+			return scan_decimal_number(state);
 		}
 	}
 
 	// Scans for the next token.
 	//
 	token_value state::scan() {
+		scan_active = true;
+		auto stamp  = [&](token_value value, msize_t source_line) {
+			value.source_line   = source_line;
+			value.source_column = scan_token.source_column;
+			value.length        = msize_t(scan_input.size() >= input.size() ? scan_input.size() - input.size() : 0);
+			if (value.id != token_eof && value.length == 0)
+				value.length = std::max<msize_t>(scan_token.length, 1);
+			value.end_line = line;
+			scan_active    = false;
+			return value;
+		};
+
 		while (!input.empty()) {
-			char c = input.front();
+			scan_input               = input;
+			scan_token               = {};
+			scan_token.source_line   = line;
+			scan_token.source_column = source_column(source, input);
+			const size_t first_line  = input.find('\n');
+			scan_token.length        = msize_t(first_line == std::string_view::npos ? input.size() : first_line);
+			char c                   = input.front();
 			if (!c) {
 				input = {};
 				break;
@@ -563,31 +1049,57 @@ namespace li::lex {
 			}
 			// If identifier, keyword or numeric literal.
 			else if (is_ident(c)) {
+				const msize_t source_line = line;
+				if (auto separator = raw_string_separator(input)) {
+					auto span = find_raw_string(input, *separator);
+					if (!span)
+						return stamp(error("unterminated raw string."), source_line);
+					const size_t content_begin = *separator + 2;
+					auto*        value         = make_token_string(normalize_line_breaks(input.substr(content_begin, span->content_end - content_begin)));
+					line += span->lines;
+					input.remove_prefix(span->consumed);
+					return stamp({.id = token_lstr, .str_val = value}, source_line);
+				}
+
 				// Numeric literal.
 				if (is_num(c)) {
-					return scan_num(*this);
+					return stamp(scan_num(*this), source_line);
 				}
 
 				// Try matching against a keyword.
 				auto word = str_consume_all<char_ident>(input);
 				for (uint8_t i = token_name_min; i <= token_name_max; i++) {
 					if (word == cx_token_to_strv(i)) {
-						return {.id = token(i)};
+						return stamp({.id = token(i)}, source_line);
 					}
 				}
 
 				// Otherwise return as identifier.
-				return {.id = token_name, .str_val = string::create(L, word)};
+				return stamp({.id = token_name, .str_val = make_token_string(word)}, source_line);
 			}
 			// If punctuation, try matching with a symbol.
 			//
 			else if (is_punct(c)) {
+				if (input.starts_with("//")) {
+					nextline(*this);
+					continue;
+				}
+				if (input.starts_with("/*")) {
+					const msize_t source_line = line;
+					auto          span        = find_block_comment(input);
+					if (!span)
+						return stamp(error("unterminated block comment."), source_line);
+					line += span->lines;
+					input.remove_prefix(span->consumed);
+					continue;
+				}
 				// Handle all symbols:
 				for (uint8_t i = token_sym_min; i <= token_sym_max; i++) {
 					std::string_view sym = cx_token_to_strv(i);
 					if (input.starts_with(sym)) {
+						const msize_t source_line = line;
 						input.remove_prefix(sym.size());
-						return {.id = token(i)};
+						return stamp({.id = token(i)}, source_line);
 					}
 				}
 			}
@@ -605,30 +1117,65 @@ namespace li::lex {
 					input.remove_prefix(1);
 					continue;
 
-				// Comment:
+				// Pack counts use `#Name...`; every other `#` form remains a comment.
 				case '#':
+					if (input.size() > 1 && is_ident(input[1]) && !is_num(input[1])) {
+						const msize_t source_line = line;
+						input.remove_prefix(1);
+						return stamp({.id = token('#')}, source_line);
+					}
 					input.remove_prefix(1);
-					nextline(*this);
+					if (auto separator = long_bracket_separator(input)) {
+						auto span = find_long_bracket(input, *separator);
+						if (!span) {
+							return stamp(error("unterminated long comment."), line);
+						}
+						line += span->lines;
+						input.remove_prefix(span->consumed);
+					} else {
+						nextline(*this);
+					}
 					continue;
 
 				// Character literal:
 				//
 				case '\'': {
-					return scan_chr(*this);
+					const msize_t source_line = line;
+					return stamp(scan_chr(*this), source_line);
 				}
 
 				// String literal:
-				case '`':
-					return scan_fstr(*this);
-				case '"':
-					return scan_str(*this);
+				case '`': {
+					const msize_t source_line = line;
+					return stamp(scan_fstr(*this), source_line);
+				}
+				case '"': {
+					const msize_t source_line = line;
+					return stamp(scan_str(*this), source_line);
+				}
+				case '[': {
+					// `[[` opens an attribute list; long strings need at least one
+					// separator (`[=[ ... ]=]`). Long comments keep the zero form.
+					const msize_t source_line = line;
+					if (auto separator = long_bracket_separator(input); separator && *separator != 0) {
+						return stamp(scan_long_string(*this, *separator), source_line);
+					}
+					input.remove_prefix(1);
+					return stamp({.id = token('[')}, source_line);
+				}
 
 				// Finally, return as a single char token.
-				default:
+				default: {
+					const msize_t source_line = line;
 					input.remove_prefix(1);
-					return {.id = token(c)};
+					return stamp({.id = token(c)}, source_line);
+				}
 			}
 		}
-		return {.id = token_eof};
+		scan_input               = input;
+		scan_token               = {};
+		scan_token.source_line   = line;
+		scan_token.source_column = source_column(source, input);
+		return stamp({.id = token_eof}, line);
 	}
 }

@@ -1,0 +1,48 @@
+const program = loadstring([=[[[strict]]
+fn classify<T>(value: T) -> i32 {
+   static if T is i32 {
+      10i32
+   } else {
+      20i32
+   }
+}
+
+fn checked<T>(value: T) -> T {
+   static assert(typeid(T) == typeid(typeof(value)), "type identity mismatch")
+   static warn("checked instantiation")
+   value
+}
+
+fn fallback<T: i32>(value: T) -> i32 {
+   static require(false, "constrained candidate rejected")
+   1i32
+}
+fn fallback<T>(value: T) -> i32 { 2i32 }
+
+fn count<Tx...>(values: Tx...) -> u32 { #Tx... }
+
+struct Defaults {
+   integer: i32 = {}
+   scalar: f32 = {}
+   flag: bool = {}
+   text: string = {}
+   maybe: i32? = {}
+}
+
+let defaults = Defaults{}
+assert(defaults.integer == 0i32)
+assert(defaults.scalar == 0f32)
+assert(defaults.flag == false)
+assert(defaults.text == "")
+assert(defaults.maybe == nil)
+
+let numeric = checked(4i32)
+let copy: typeof(numeric) = numeric
+assert(classify(1i32) == 10i32)
+assert(classify("x") == 20i32)
+assert(copy == 4i32)
+assert(fallback(3i32) == 2i32)
+assert(count(1i32, 2f32, "three") == 3u32)
+true
+]=])
+assert(program() == true)

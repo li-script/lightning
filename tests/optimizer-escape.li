@@ -1,0 +1,77 @@
+# Straight-line array and table literals keep only their scalar fields.
+fn local_numeric_aggregates() {
+	let values = [4, 7, 0]
+	values[2] = 11
+	let point = {x: 3, y: 5}
+	point.x = 13
+	values[0] + values[1] + values[2] + point.x + point.y
+}
+assert(local_numeric_aggregates() == 40)
+
+# Writes on either side of a join become scalar SSA values.
+fn conditional_table_write(flag) {
+	let state = {value: 4, bias: 3}
+	if flag {
+		state.value = 9
+	}
+	state.value * 10 + state.bias
+}
+assert(conditional_table_write(false) == 43)
+assert(conditional_table_write(true) == 93)
+
+fn conditional_array_write(flag) {
+	let values = [2, 5, 8]
+	if flag {
+		values[1] = 17
+	} else {
+		values[2] = 19
+	}
+	values[0] + values[1] + values[2]
+}
+assert(conditional_array_write(false) == 26)
+assert(conditional_array_write(true) == 27)
+
+# A missing table key and a valid index beyond an array's length both read nil.
+fn missing_reads() {
+	let record = {present: 7}
+	let values = [1, 2]
+	record.absent == nil && values[9] == nil
+}
+assert(missing_reads())
+
+# An escaped alias keeps object identity and observes mutations through a call.
+fn mutate_escaped_alias(target) {
+	target.value = 29
+	target.value
+}
+fn escaped_alias() {
+	let original = {value: 5}
+	let alias = original
+	assert(alias == original)
+	assert(mutate_escaped_alias(alias) == 29)
+	original.value
+}
+assert(escaped_alias() == 29)
+
+# Invalid and out-of-range array operations must retain their checked failures.
+fn rejects_out_of_range_write() {
+	let values = [1, 2]
+	try {
+		values[2] = 3
+	} catch error {
+		return error != nil
+	}
+	false
+}
+assert(rejects_out_of_range_write())
+
+fn rejects_invalid_index() {
+	let values = [1, 2]
+	try {
+		values[-1]
+	} catch error {
+		return error != nil
+	}
+	false
+}
+assert(rejects_invalid_index())

@@ -1,8 +1,8 @@
 #pragma once
-#include <vm/types.hpp>
-#include <vm/bc.hpp>
 #include <lang/lexer.hpp>
 #include <tuple>
+#include <vm/bc.hpp>
+#include <vm/types.hpp>
 
 namespace li {
 	struct vm;
@@ -10,17 +10,17 @@ namespace li {
 	// Applies the unary/binary operator the values given. On failure (e.g. type mismatch),
 	// returns the exception as the result.
 	//
-	LI_INLINE any apply_unary(vm* L, any a, bc::opcode op);
-	LI_INLINE any apply_binary(vm* L, any a, any b, bc::opcode op);
+	any apply_unary(vm* L, any a, bc::opcode op);
+	any apply_binary(vm* L, any a, any b, bc::opcode op);
 
 	// List of operators with their traits.
 	//
 	struct operator_traits {
 		// Lexer token and the emitted bytecode.
 		//
-		lex::token token;
+		lex::token                token;
 		std::optional<lex::token> compound_token = {};
-		bc::opcode opcode;
+		bc::opcode                opcode;
 
 		// Precedence.
 		//

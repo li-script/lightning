@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>11. System and Concurrency — Lightning Docs</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Crect width='256' height='256' rx='48' fill='%230a0a0b'/%3E%3Cpath d='M150 28 L64 150 H122 L106 228 L192 106 H134 Z' fill='%23f4f4f5'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="gitbook.css">
+</head>
+<body>
+  <aside class="sidebar" id="docs-sidebar" aria-label="Documentation navigation">
+    <div class="sidebar-header">
+      <span class="sidebar-title">Documentation</span>
+    </div>
+
+    <div class="search-box">
+      <input type="search" id="search-input" class="search-input" placeholder="Search pages" aria-label="Search documentation pages" autocomplete="off">
+    </div>
+
+    <div class="nav-groups">
+  <section class="nav-group">
+    <div class="nav-group-title">Getting Started</div>
+    <a href="index.html" class="nav-link">Overview</a>
+    <a href="1-getting-started.html" class="nav-link">1. Getting Started</a>
+    <a href="2-basic-concepts.html" class="nav-link">2. Basic Concepts</a>
+  </section>
+  <section class="nav-group">
+    <div class="nav-group-title">The Language</div>
+    <a href="3-language-syntax.html" class="nav-link">3. Language Syntax</a>
+    <a href="4-control-flow.html" class="nav-link">4. Control Flow</a>
+    <a href="5-functions-and-closures.html" class="nav-link">5. Functions and Closures</a>
+    <a href="6-structs-and-classes.html" class="nav-link">6. Structs and Classes</a>
+    <a href="7-strict-tier.html" class="nav-link">7. The Strict Tier</a>
+  </section>
+  <section class="nav-group">
+    <div class="nav-group-title">Standard Libraries</div>
+    <a href="8-stdlib-builtins.html" class="nav-link">8. Built-in Functions</a>
+    <a href="9-stdlib-collections.html" class="nav-link">9. Collections</a>
+    <a href="10-stdlib-math-and-typed.html" class="nav-link">10. Mathematics and Typed Values</a>
+    <a href="11-stdlib-system-and-concurrency.html" class="nav-link active" aria-current="page">11. System and Concurrency</a>
+  </section>
+  <section class="nav-group">
+    <div class="nav-group-title">Host Interface</div>
+    <a href="12-embedding-api.html" class="nav-link">12. Embedding API</a>
+    <a href="examples.html" class="nav-link">Examples</a>
+  </section>
+</div>
+  <p class="sidebar-empty">No matching pages</p>
+
+  </aside>
+  <button type="button" class="sidebar-backdrop" aria-label="Close navigation"></button>
+
+  <div class="main-wrapper">
+    <header class="top-nav">
+      <div class="top-nav-left">
+        <button type="button" id="menu-button" class="menu-button" aria-label="Open navigation" aria-controls="docs-sidebar" aria-expanded="false">
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
+        <a href="index.html" class="brand-link">
+          <svg class="brand-icon" viewBox="0 0 256 256" aria-hidden="true"><rect width="256" height="256" rx="48" fill="#0a0a0b"/><path d="M150 28 L64 150 H122 L106 228 L192 106 H134 Z" fill="#f4f4f5"/></svg>
+          <span>Lightning</span>
+        </a>
+        <span class="product-area">Docs</span>
+      </div>
+      <nav class="top-nav-right" aria-label="Product links">
+        <a href="../index.html" class="header-link">Playground</a>
+        <a href="https://github.com/li-script/lightning" class="header-link">GitHub</a>
+      </nav>
+    </header>
+
+    <main class="content-container">
+      <article class="markdown-body">
+        <h1 id="11-system-concurrency-and-runtime-libraries">11. System, Concurrency, and Runtime Libraries</h1>
+<p>This chapter covers the standard modules that connect Lightning Script to the host system and runtime. Import only the modules a program uses:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=import%20fs%0Aimport%20chrono%0Aimport%20coroutine%0Aimport%20shared%0Aimport%20weak%0Aimport%20vec3%0Aimport%20reflect%0Aimport%20debug%0Aimport%20jit%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">import fs
+import chrono
+import coroutine
+import shared
+import weak
+import vec3
+import reflect
+import debug
+import jit
+</code></pre>
+</div>
+<p>System modules are not a sandbox. In particular, <code>fs</code> uses the permissions of the host process, and native or JIT facilities do not impose resource limits.</p>
+<h2 id="111-file-system-fs">11.1 File system: <code>fs</code></h2>
+<p>The <code>fs</code> module provides synchronous file and directory operations when the host registers the standard filesystem implementation. An embedder may replace it with a restricted module or omit it entirely.</p>
+<p>Paths are UTF-8 byte strings interpreted by the host platform. Embedded NUL bytes are rejected. These functions throw a catchable error for invalid arguments and operating-system failures unless their contract below handles a missing path explicitly.</p>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fs.read(path)</code></td>
+<td>Reads the complete file into a binary-safe string. Open, seek, and partial-read failures throw.</td>
+</tr>
+<tr>
+<td><code>fs.write(path, bytes)</code></td>
+<td>Creates or replaces a file, writes the complete string, and returns the byte count. A partial write or close failure throws.</td>
+</tr>
+<tr>
+<td><code>fs.exists(path)</code></td>
+<td>Returns <code>false</code> for a missing path. Other inspection failures throw.</td>
+</tr>
+<tr>
+<td><code>fs.remove(path)</code></td>
+<td>Removes one file or empty directory without recursion. Returns whether an entry was removed.</td>
+</tr>
+<tr>
+<td><code>fs.create_directory(path)</code></td>
+<td>Creates one directory, without creating missing parents. Returns whether a directory was created.</td>
+</tr>
+<tr>
+<td><code>fs.list(path)</code></td>
+<td>Returns the direct child basenames in bytewise-sorted order. Missing paths and nondirectories throw.</td>
+</tr>
+<tr>
+<td><code>fs.metadata(path)</code></td>
+<td>Returns <code>{type, size, modified}</code> for an existing path. Missing and inaccessible paths throw.</td>
+</tr>
+</tbody>
+</table>
+<p><code>fs.write</code> requires a string. A successful zero-length write still creates or truncates the file and returns <code>0</code>.</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=import%20fs%0A%0Aconst%20path%20%3D%20%22.lightning-manual-fs.bin%22%0Adefer%20%7B%20fs.remove%28path%29%20%7D%0A%0Aconst%20payload%20%3D%20%22A%5Cx00B%5Cn%22%0Aassert%28fs.write%28path%2C%20payload%29%20%3D%3D%204%29%0Aassert%28fs.read%28path%29%20%3D%3D%20payload%29%0Aassert%28fs.metadata%28path%29.size%20%3D%3D%204%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">import fs
+
+const path = &quot;.lightning-manual-fs.bin&quot;
+defer { fs.remove(path) }
+
+const payload = &quot;A\x00B\n&quot;
+assert(fs.write(path, payload) == 4)
+assert(fs.read(path) == payload)
+assert(fs.metadata(path).size == 4)
+</code></pre>
+</div>
+<p>The <code>type</code> metadata field is <code>"file"</code>, <code>"directory"</code>, <code>"symlink"</code>, or <code>"other"</code>, based on the directory entry itself. <code>size</code> is the byte size for a regular file and <code>nil</code> otherwise. <code>modified</code> is a Unix-seconds number; portable last-write-time lookup follows a symlink target.</p>
+<p>The standard module provides no path or capability sandbox. Restricted applications expose a host-defined replacement or enforce process-level filesystem boundaries.</p>
+<h2 id="112-high-resolution-timing-chrono">11.2 High-resolution timing: <code>chrono</code></h2>
+<h3 id="chrononow"><code>chrono.now()</code></h3>
+<p>Returns the current high-resolution clock reading in nanoseconds. The value is intended for elapsed-time measurement rather than civil-calendar formatting. Subtract two readings obtained in the same process:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=import%20chrono%0A%0Aconst%20started%20%3D%20chrono.now%28%29%0A//%20measured%20work%0Aconst%20elapsed_ns%20%3D%20chrono.now%28%29%20-%20started%0Aprint%28%60elapsed%3A%20%7Belapsed_ns%7D%20ns%60%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">import chrono
+
+const started = chrono.now()
+// measured work
+const elapsed_ns = chrono.now() - started
+print(`elapsed: {elapsed_ns} ns`)
+</code></pre>
+</div>
+<p>The result is a binary64 number. Very large absolute timestamps cannot represent every individual nanosecond; elapsed intervals remain the recommended use. The module may also expose target-specific cycle-counter facilities, but portable programs should use <code>chrono.now()</code>.</p>
+<h2 id="113-stackful-coroutines-coroutine">11.3 Stackful coroutines: <code>coroutine</code></h2>
+<p>Lightning coroutines are stackful. Each coroutine owns one VM stack and one guarded native stack segment, so suspension preserves interpreted and JIT frames directly; functions are not rewritten into stackless state machines. A coroutine remains confined to its VM thread, even when its arguments include shared values.</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=import%20coroutine%0A%0Aconst%20co%20%3D%20coroutine.create%28%7C%7C%20%7B%0A%20%20%20const%20reply%20%3D%20yield%20%22ready%22%0A%20%20%20%60received%20%7Breply%7D%60%0A%7D%29%0A%0Aassert%28co.status%28%29%20%3D%3D%20%22created%22%29%0Aassert%28co.resume%28%29%20%3D%3D%20%22ready%22%29%0Aassert%28co.status%28%29%20%3D%3D%20%22suspended%22%29%0Aassert%28co.resume%287%29%20%3D%3D%20%22received%207%22%29%0Aassert%28co.status%28%29%20%3D%3D%20%22dead%22%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">import coroutine
+
+const co = coroutine.create(|| {
+   const reply = yield &quot;ready&quot;
+   `received {reply}`
+})
+
+assert(co.status() == &quot;created&quot;)
+assert(co.resume() == &quot;ready&quot;)
+assert(co.status() == &quot;suspended&quot;)
+assert(co.resume(7) == &quot;received 7&quot;)
+assert(co.status() == &quot;dead&quot;)
+</code></pre>
+</div>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>coroutine.create(fn)</code></td>
+<td>Creates a coroutine in the <code>"created"</code> state without calling <code>fn</code>.</td>
+</tr>
+<tr>
+<td><code>coroutine.resume(co, ...)</code></td>
+<td>Starts or resumes <code>co</code>. Initial arguments go to <code>fn</code>; later arguments become the results of the suspended <code>yield</code>.</td>
+</tr>
+<tr>
+<td><code>coroutine.yield(value)</code> or <code>yield value</code></td>
+<td>Suspends the running coroutine and returns the value to its resumer.</td>
+</tr>
+<tr>
+<td><code>coroutine.status(co)</code></td>
+<td>Returns <code>"created"</code>, <code>"running"</code>, <code>"suspended"</code>, or <code>"dead"</code>.</td>
+</tr>
+<tr>
+<td><code>coroutine.close(co)</code></td>
+<td>Unwinds an unstarted or suspended coroutine and marks it dead.</td>
+</tr>
+</tbody>
+</table>
+<p>The method forms, such as <code>co.resume()</code> and <code>co.status()</code>, have the same behavior. Normal completion returns the function result to the resumer. Resuming a running or dead coroutine is an error.</p>
+<p>A suspended coroutine owns every value in its frames, including spills, captures, pending exceptions, handlers, and deferred cleanup. <code>close</code> is an unwind operation: it runs <code>defer</code> blocks in last-in, first-out order and releases frame values exactly once. Capturing a coroutine from an object in its own frames creates an ordinary strong cycle; use a weak edge or call <code>close</code> explicitly.</p>
+<p>Yielding inside <code>try</code> is allowed because the handler state is part of the coroutine stack. An uncaught exception kills the coroutine and is thrown into the resumer with the coroutine frames in its traceback. Native-stack overflow inside a coroutine is likewise a catchable language error rather than a process crash.</p>
+<p>Coroutine storage has deterministic lifetime. Dropping or closing a suspended coroutine releases both stacks and all retained frame values. One million create, resume, and drop cycles must return live-object and stack resources to their baseline. A coroutine used as a generator implements the common iterator result <code>(value, done)</code>. Coroutines do not provide <code>async</code>/<code>await</code>, an event loop, or cross-thread resume.</p>
+<p>A coroutine cannot yield while a shared lock is held, while a finalizer is running, or while forced cleanup is in progress. The locking rules are detailed in the next section.</p>
+<h2 id="114-process-wide-shared-values-and-concurrency">11.4 Process-wide shared values and concurrency</h2>
+<p>A VM and its private heap are confined to one thread. Private values use non-atomic reference counts and cannot be sent to another VM. Private allocation, retain and release, and container access do not take a shared-heap mutex, perform atomic reference counting, or acquire object locks.</p>
+<p>Cross-VM reachability is explicit. Values published through <code>shared</code> live in a process-wide heap with its own allocator and registries, atomic strong counts, and a 64-bit recursive lock word in each object header that records the owning thread id and recursion count. A shared value remains valid after its creating VM closes while another strong reference exists. Releasing the last shared reference destroys the value on the releasing VM, expires synchronized weak observers, and returns its storage to the shared heap.</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=import%20shared%0A%0Aconst%20counters%20%3D%20shared%20%7Bproduced%3A%200%2C%20consumed%3A%200%7D%0Aassert%28shared.is_shared%28counters%29%29%0A%0Alock%20counters%20%7B%0A%20%20%20counters.produced%20%2B%3D%201%0A%20%20%20counters.consumed%20%3D%20counters.produced%0A%7D%0Aassert%28shared.atomic_add%28counters%2C%20%22produced%22%2C%202%29%20%3D%3D%203%29%0A%0Aatomic%20%7B%0A%20%20%20counters.produced%20%2B%3D%204%0A%20%20%20counters.consumed%20%2A%3D%202%0A%7D%0Aassert%28counters.produced%20%3D%3D%207%29%0Aassert%28counters.consumed%20%3D%3D%202%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">import shared
+
+const counters = shared {produced: 0, consumed: 0}
+assert(shared.is_shared(counters))
+
+lock counters {
+   counters.produced += 1
+   counters.consumed = counters.produced
+}
+assert(shared.atomic_add(counters, &quot;produced&quot;, 2) == 3)
+
+atomic {
+   counters.produced += 4
+   counters.consumed *= 2
+}
+assert(counters.produced == 7)
+assert(counters.consumed == 2)
+</code></pre>
+</div>
+<p>The explicitly imported module provides these operations:</p>
+<table>
+<thead>
+<tr>
+<th>API</th>
+<th>Contract</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>shared.create(value)</code></td>
+<td>Returns an owned shared copy of a table, array, class instance, immutable string, class, or transferable function. Immediate roots are invalid. Immediate and already-shared children are retained; private immutable strings and code metadata are copied; any private mutable child rejects the entire publication.</td>
+</tr>
+<tr>
+<td><code>shared.is_shared(value)</code></td>
+<td>Reports whether a heap value belongs to the shared heap. Immediate and private values return <code>false</code>.</td>
+</tr>
+<tr>
+<td><code>shared.lock(value)</code></td>
+<td>Acquires the recursive header lock and a strong pin for this acquisition. It is an error to lock a private value.</td>
+</tr>
+<tr>
+<td><code>shared.unlock(value)</code></td>
+<td>Releases one recursion level and that acquisition's pin. A non-owner unlock, over-unlock, or private target throws.</td>
+</tr>
+<tr>
+<td><code>shared.atomic_add(value, key, delta)</code></td>
+<td>Atomically adds numeric <code>delta</code> to a numeric table, array, or object field and returns the new number. A missing or nonnumeric field, invalid key, or private target fails before mutation.</td>
+</tr>
+</tbody>
+</table>
+<p>Shared container reads and writes acquire the header lock internally. An explicit lock extends that same recursive lock across several operations; it does not convert a private value to shared storage. Each recursive acquisition holds a separate strong pin, so dropping the caller's original reference cannot reclaim a locked object. Failing to unlock leaks the lock and pin rather than leaving a dangling locked object.</p>
+<p>A shared store validates its new edge before changing the destination or its mutation version. Shared destinations accept immediate and shared values, copy private immutable strings, and reject private mutable values. Shared strings compare and hash by content across VM-local intern tables.</p>
+<p>Prefer <code>lock value { ... }</code> to the low-level functions. The target expression is evaluated once, and normal exit, <code>return</code>, <code>leave</code>, or exception unwind releases the lock exactly once. Code that calls <code>shared.lock</code> directly must pair it with <code>defer { shared.unlock(value) }</code>.</p>
+<p>A lexical <code>yield</code> inside a lock block is a compile error. If a function called while any lock is held attempts to yield indirectly, the yield throws a catchable runtime error before switching contexts; unwind cleanup then releases the lock.</p>
+<h3 id="atomic-blocks">Atomic blocks</h3>
+<p>An <code>atomic { ... }</code> block is a restricted numeric transaction over shared fields and numeric locals. It supports field <code>set</code>, <code>add</code>, <code>sub</code>, <code>mul</code>, <code>div</code>, and <code>mod</code>, along with arithmetic, comparisons, branches, and bounded language loops. Calls, allocation, callbacks, exception handling, throwing, and yielding are forbidden. A form that cannot be lowered to this numeric plan is a compile error with a diagnostic telling you to use <code>lock</code> instead.</p>
+<p>Before publishing anything, the runtime validates every target, key, current field, operation, operand, result slot, and captured-local copyback. It then locks unique targets in stable address order, computes the complete batch, and commits it all at once. A failure therefore exposes neither partial shared-field writes nor partial local copyback. <code>shared.atomic_add</code> uses the single-field compare/exchange path; larger representable batches use the same all-or-nothing transaction contract.</p>
+<p>A strict struct or class can mark a numeric field <code>atomic</code> so that every assignment and compound assignment to it is a single-field atomic update without writing an <code>atomic</code> block; see <a href="7-strict-tier.html#atomic-fields">Chapter 7</a>.</p>
+<h2 id="115-weak-references-weak">11.5 Weak references: <code>weak</code></h2>
+<p>A weak reference observes an object without keeping it alive. It is the standard tool for parent links, caches, and other graph edges that must not form an owning cycle.</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=import%20weak%0A%0Alet%20target%20%3D%20%7Bname%3A%20%22temporary%22%7D%0Aconst%20observer%20%3D%20weak.create%28target%29%0Aassert%28weak.lock%28observer%29.name%20%3D%3D%20%22temporary%22%29%0Atarget%20%3D%20nil%0Aassert%28weak.lock%28observer%29%20%3D%3D%20nil%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">import weak
+
+let target = {name: &quot;temporary&quot;}
+const observer = weak.create(target)
+assert(weak.lock(observer).name == &quot;temporary&quot;)
+target = nil
+assert(weak.lock(observer) == nil)
+</code></pre>
+</div>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>weak.create(obj)</code></td>
+<td>Creates a weak reference to a heap object.</td>
+</tr>
+<tr>
+<td><code>weak.lock(w)</code></td>
+<td>Returns a new strong reference to the live target, or <code>nil</code> after expiration.</td>
+</tr>
+<tr>
+<td><code>weak.expired(w)</code></td>
+<td>Reports whether the target has expired.</td>
+</tr>
+</tbody>
+</table>
+<p>A successful <code>weak.lock</code> owns a strong reference: the returned value remains alive independently of the weak reference.</p>
+<p>Weak references do not collect strong cycles. Lightning uses deterministic reference counting; a diagnostic cycle detector can report cycles, but programs must break owning cycles themselves.</p>
+<h2 id="116-native-vectors-vec3">11.6 Native vectors: <code>vec3</code></h2>
+<p><code>vec3</code> is a native three-component vector class with IEEE 754 binary32 (<code>f32</code>) storage. Constructor arguments, component assignments, and operation results round once when stored; reading <code>x</code>, <code>y</code>, or <code>z</code> widens the stored value to an ordinary binary64 Lightning number.</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=import%20vec3%0A%0Aconst%20position%20%3D%20vec3%3A%3Anew%281%2C%202%2C%203%29%0Aconst%20velocity%20%3D%20vec3%3A%3Anew%280.5%2C%200%2C%20-1%29%0Aconst%20next%20%3D%20position%20%2B%20velocity%0A%0Aassert%28next%20%3D%3D%20vec3%3A%3Anew%281.5%2C%202%2C%202%29%29%0Aassert%28position.dot%28velocity%29%20%3D%3D%20-2.5%29%0Aassert%28position.cross%28velocity%29%20%3D%3D%20vec3%3A%3Anew%28-2%2C%202.5%2C%20-1%29%29%0Aassert%28vec3%3A%3Anew%2816777217%2C%200%2C%200%29.x%20%3D%3D%2016777216%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">import vec3
+
+const position = vec3::new(1, 2, 3)
+const velocity = vec3::new(0.5, 0, -1)
+const next = position + velocity
+
+assert(next == vec3::new(1.5, 2, 2))
+assert(position.dot(velocity) == -2.5)
+assert(position.cross(velocity) == vec3::new(-2, 2.5, -1))
+assert(vec3::new(16777217, 0, 0).x == 16777216)
+</code></pre>
+</div>
+<p>Component-wise <code>+</code>, <code>-</code>, <code>*</code>, and <code>/</code> accept either another <code>vec3</code> or a number. Unary <code>-</code> negates each component, and <code>==</code> compares components. The methods are <code>dot</code>, <code>cross</code>, <code>length</code>, <code>normalize</code>, and <code>lerp</code>.</p>
+<p><code>vec2</code> and <code>vec4</code> provide the corresponding two- and four-component types; only <code>vec3</code> has <code>cross</code>. Vector instances are private values and may be published with <code>shared.create</code> like other class instances.</p>
+<h2 id="117-reflection-and-debugging">11.7 Reflection and debugging</h2>
+<h3 id="reflect"><code>reflect</code></h3>
+<p>Reflection exposes declaration metadata without making executable declarations mutable. Attributes, generics, and instantiation records are described in <a href="7-strict-tier.html">Chapter 7</a>.</p>
+<p><code>reflect.attributes(value)</code> accepts a function, class, struct, or instance and returns its declaration attributes as a frozen, sealed table:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=import%20reflect%0A%0A%5B%5BRoute%28%22/health%22%29%2C%20Public%5D%5D%0Afn%20health%28%29%20%7B%20%22ok%22%20%7D%0A%0Aconst%20attributes%20%3D%20reflect.attributes%28health%29%0Aassert%28attributes.Route%5B0%5D%20%3D%3D%20%22/health%22%29%0Aassert%28attributes.Public%3A%3Alen%28%29%20%3D%3D%200%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">import reflect
+
+[[Route(&quot;/health&quot;), Public]]
+fn health() { &quot;ok&quot; }
+
+const attributes = reflect.attributes(health)
+assert(attributes.Route[0] == &quot;/health&quot;)
+assert(attributes.Public::len() == 0)
+</code></pre>
+</div>
+<p><code>reflect.instantiations(template)</code> returns the cached successful, reused, and failed instantiation records for a generic template. <code>reflect.signature(value)</code> returns immutable callable metadata: parameter names and annotations, optional/default and variadic status, and the return annotation when available. A native function exposes only metadata registered by its host binding.</p>
+<h3 id="debug"><code>debug</code></h3>
+<p>The debug module is diagnostic. Exact bytecode, address, and formatting details are not a program-logic or serialization interface.</p>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>debug.traceback(error?)</code></td>
+<td>Returns exception frames innermost first. Each frame has <code>{function, line, native}</code>; native callbacks set <code>native</code> to <code>true</code>. With no argument inside a <code>catch</code>, it uses the current exception. Rethrow preserves the original frames.</td>
+</tr>
+<tr>
+<td><code>debug.live_objects()</code></td>
+<td>Returns the current VM's live heap-object count, useful for lifetime diagnostics.</td>
+</tr>
+<tr>
+<td><code>debug.dump(fn)</code></td>
+<td>Prints the bytecode of a script function and returns <code>nil</code>.</td>
+</tr>
+<tr>
+<td><code>debug.find_cycles()</code></td>
+<td>Reports suspected strong cycles without retaining, marking, finalizing, or freeing them. It is not a tracing collector.</td>
+</tr>
+</tbody>
+</table>
+<p><code>debug.stacktrace()</code> inspects the currently executing stack, as distinct from the stored trace attached to an exception. Debug and reflection results retain any returned metadata through ordinary ownership rules.</p>
+<h2 id="118-jit-controls-jit">11.8 JIT controls: <code>jit</code></h2>
+<p>Lightning uses a method JIT: it compiles and caches whole functions rather than recording traces. Interpreter and native execution have the same results, errors, finalizer order, ownership, cleanup, coroutine behavior, and shared-memory rules. Only JIT diagnostics and compilation counters reveal which mode executed a function.</p>
+<p>The command-line policy selects when compilation is required:</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Policy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--jit=off</code></td>
+<td>Runs interpreted code without automatic compilation. Explicit <code>jit.on</code> may still request a supported function.</td>
+</tr>
+<tr>
+<td><code>--jit=auto</code></td>
+<td>Counts calls and taken backedges and compiles a function after it becomes hot. This is the default in a JIT build.</td>
+</tr>
+<tr>
+<td><code>--jit</code></td>
+<td>Requires native compilation. A function that the backend cannot compile produces an error rather than entering an incomplete native body.</td>
+</tr>
+</tbody>
+</table>
+<p>Automatic compilation requested by a hot loop backedge creates an on-stack-replacement entry for that loop header. At the next backedge, the running invocation adopts its live frame slots and continues natively without replaying a side effect. If later numeric speculation fails, the native frame restores its live values and handler state and resumes the interpreter at the same bytecode position.</p>
+<p>The <code>jit</code> module controls and inspects individual script functions:</p>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>jit.on(fn)</code></td>
+<td>Compiles and enables native execution for a private function value. Compilation failure throws and records a rejection diagnostic.</td>
+</tr>
+<tr>
+<td><code>jit.off(fn)</code></td>
+<td>Disables native execution for that private function value. Shared functions cannot be disabled.</td>
+</tr>
+<tr>
+<td><code>jit.where(fn)</code></td>
+<td>Returns the native entry address as a string, or <code>"N/A"</code> while the function is interpreted.</td>
+</tr>
+<tr>
+<td><code>jit.disasm(fn)</code></td>
+<td>Returns native disassembly for compiled code, or the recorded diagnostic for a rejected compilation.</td>
+</tr>
+<tr>
+<td><code>jit.guards(fn)</code></td>
+<td>Returns the number of speculative guards in the compiled function. It requires a JIT record.</td>
+</tr>
+</tbody>
+</table>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=import%20jit%0A%0Afn%20add%28left%2C%20right%29%20%7B%20left%20%2B%20right%20%7D%0A%0Ajit.on%28add%29%0Aassert%28jit.where%28add%29%20%21%3D%20%22N/A%22%29%0Aassert%28add%2820%2C%2022%29%20%3D%3D%2042%29%0Aassert%28jit.guards%28add%29%20%3E%3D%200%29%0Aassert%28jit.disasm%28add%29%20is%20string%29%0A%0Ajit.off%28add%29%0Aassert%28jit.where%28add%29%20%3D%3D%20%22N/A%22%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">import jit
+
+fn add(left, right) { left + right }
+
+jit.on(add)
+assert(jit.where(add) != &quot;N/A&quot;)
+assert(add(20, 22) == 42)
+assert(jit.guards(add) &gt;= 0)
+assert(jit.disasm(add) is string)
+
+jit.off(add)
+assert(jit.where(add) == &quot;N/A&quot;)
+</code></pre>
+</div>
+<p>Type-specialized operations guard their assumptions. A failed guard performs the generic operation or a defined side exit; it never executes <code>ud2</code>, <code>unreachable</code>, or another trap. Unsupported functions are rejected before native execution: automatic mode records the rejection and leaves them interpreted, while required mode fails. <code>jit.disasm</code> preserves the rejection reason so tooling can explain why a function stayed interpreted.</p>
+      </article>
+
+      <nav class="chapter-nav">
+        <a href="10-stdlib-math-and-typed.html" class="chapter-btn">
+  <span class="nav-direction">← Previous</span>
+  <span class="nav-title">10. Mathematics and Typed Values</span>
+</a>
+        <a href="12-embedding-api.html" class="chapter-btn next">
+  <span class="nav-direction">Next →</span>
+  <span class="nav-title">12. Embedding API</span>
+</a>
+      </nav>
+    </main>
+  </div>
+
+  <script src="prism.min.js"></script>
+  <script src="prism-lightning.js"></script>
+  <script src="gitbook.js"></script>
+</body>
+</html>

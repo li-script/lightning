@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
+  <title>Lightning Playground</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Crect width='256' height='256' rx='48' fill='%230a0a0b'/%3E%3Cpath d='M150 28 L64 150 H122 L106 228 L192 106 H134 Z' fill='%23f4f4f5'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <header class="top-bar">
+      <a class="brand" href="./" aria-label="Lightning playground home">
+        <svg class="brand-mark" viewBox="0 0 256 256" aria-hidden="true">
+          <rect width="256" height="256" rx="48" fill="#0a0a0b"/>
+          <path d="M150 28 L64 150 H122 L106 228 L192 106 H134 Z" fill="#f4f4f5"/>
+        </svg>
+        <span class="brand-name">Lightning</span>
+        <span class="product-label">Playground</span>
+      </a>
+
+      <div class="example-control">
+        <label for="example-select">Example</label>
+        <select id="example-select" class="select-input">
+          <option value="welcome">Welcome &amp; quick start</option>
+          <option value="fibonacci">Fibonacci &amp; recursion</option>
+          <option value="tables">Tables &amp; arrays</option>
+          <option value="structs">Structs &amp; methods</option>
+          <option value="closures">Closures &amp; higher-order</option>
+          <option value="loops">Loops &amp; control flow</option>
+        </select>
+      </div>
+
+      <nav class="actions-group" aria-label="Playground actions">
+        <a href="docs/index.html" class="docs-link">Docs</a>
+        <button id="btn-reset" class="button button-secondary" type="button" title="Reset runtime state">Reset</button>
+        <button id="btn-clear" class="button button-secondary" type="button" title="Clear output">Clear</button>
+        <button id="btn-run" class="button button-primary" type="button" title="Run script (Ctrl+Enter or Cmd+Enter)" disabled>
+          <span>Run</span>
+          <span class="shortcut-key" aria-hidden="true">⌘↵</span>
+        </button>
+      </nav>
+    </header>
+
+    <main class="workspace" id="workspace">
+      <section class="pane editor-pane" id="editor-pane" aria-label="Script editor">
+        <div class="pane-header">
+          <span class="pane-title">Editor</span>
+          <div class="pane-actions">
+            <span id="editor-status" class="editor-status-text">Line 1, Col 1</span>
+            <button id="btn-copy-code" class="tool-button" type="button" title="Copy editor contents">Copy</button>
+          </div>
+        </div>
+
+        <div class="editor-container">
+          <div class="line-numbers" id="line-numbers" aria-hidden="true">1</div>
+          <div class="editor-stage">
+            <pre class="editor-highlight" id="editor-highlight" aria-hidden="true"><code id="highlight-code"></code></pre>
+            <textarea id="code-editor" class="code-editor" aria-label="Lightning source code" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" disabled></textarea>
+          </div>
+        </div>
+      </section>
+
+      <div class="resizer" id="resizer" role="separator" aria-label="Resize editor and output panes" aria-orientation="vertical" tabindex="0"></div>
+
+      <section class="pane output-pane" id="output-pane" aria-label="Program output">
+        <div class="pane-header">
+          <span class="pane-title">Output</span>
+          <span id="status-badge" class="status-indicator loading"><span class="status-dot" aria-hidden="true"></span><span class="status-text">Loading runtime</span></span>
+        </div>
+
+        <div class="output-container" id="output-container">
+          <pre id="output-log" class="output-log" aria-live="polite"></pre>
+        </div>
+
+        <form class="repl-bar" id="repl-form">
+          <label class="repl-prompt-symbol" for="repl-input">›</label>
+          <input
+            type="text"
+            id="repl-input"
+            class="repl-input"
+            aria-label="REPL input"
+            placeholder="Evaluate an expression or statement"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
+            disabled
+          >
+          <button id="btn-repl-send" class="repl-send" type="submit" title="Evaluate input" disabled>Enter</button>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <script src="prism.min.js"></script>
+  <script src="prism-lightning.js"></script>
+  <script src="app.js"></script>
+  <script src="li.js" onerror="window.Module &amp;&amp; window.Module.onRuntimeUnavailable &amp;&amp; window.Module.onRuntimeUnavailable()"></script>
+</body>
+</html>

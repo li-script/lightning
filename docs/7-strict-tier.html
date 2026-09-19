@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>7. The Strict Tier — Lightning Docs</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Crect width='256' height='256' rx='48' fill='%230a0a0b'/%3E%3Cpath d='M150 28 L64 150 H122 L106 228 L192 106 H134 Z' fill='%23f4f4f5'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="gitbook.css">
+</head>
+<body>
+  <aside class="sidebar" id="docs-sidebar" aria-label="Documentation navigation">
+    <div class="sidebar-header">
+      <span class="sidebar-title">Documentation</span>
+    </div>
+
+    <div class="search-box">
+      <input type="search" id="search-input" class="search-input" placeholder="Search pages" aria-label="Search documentation pages" autocomplete="off">
+    </div>
+
+    <div class="nav-groups">
+  <section class="nav-group">
+    <div class="nav-group-title">Getting Started</div>
+    <a href="index.html" class="nav-link">Overview</a>
+    <a href="1-getting-started.html" class="nav-link">1. Getting Started</a>
+    <a href="2-basic-concepts.html" class="nav-link">2. Basic Concepts</a>
+  </section>
+  <section class="nav-group">
+    <div class="nav-group-title">The Language</div>
+    <a href="3-language-syntax.html" class="nav-link">3. Language Syntax</a>
+    <a href="4-control-flow.html" class="nav-link">4. Control Flow</a>
+    <a href="5-functions-and-closures.html" class="nav-link">5. Functions and Closures</a>
+    <a href="6-structs-and-classes.html" class="nav-link">6. Structs and Classes</a>
+    <a href="7-strict-tier.html" class="nav-link active" aria-current="page">7. The Strict Tier</a>
+  </section>
+  <section class="nav-group">
+    <div class="nav-group-title">Standard Libraries</div>
+    <a href="8-stdlib-builtins.html" class="nav-link">8. Built-in Functions</a>
+    <a href="9-stdlib-collections.html" class="nav-link">9. Collections</a>
+    <a href="10-stdlib-math-and-typed.html" class="nav-link">10. Mathematics and Typed Values</a>
+    <a href="11-stdlib-system-and-concurrency.html" class="nav-link">11. System and Concurrency</a>
+  </section>
+  <section class="nav-group">
+    <div class="nav-group-title">Host Interface</div>
+    <a href="12-embedding-api.html" class="nav-link">12. Embedding API</a>
+    <a href="examples.html" class="nav-link">Examples</a>
+  </section>
+</div>
+  <p class="sidebar-empty">No matching pages</p>
+
+  </aside>
+  <button type="button" class="sidebar-backdrop" aria-label="Close navigation"></button>
+
+  <div class="main-wrapper">
+    <header class="top-nav">
+      <div class="top-nav-left">
+        <button type="button" id="menu-button" class="menu-button" aria-label="Open navigation" aria-controls="docs-sidebar" aria-expanded="false">
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
+        <a href="index.html" class="brand-link">
+          <svg class="brand-icon" viewBox="0 0 256 256" aria-hidden="true"><rect width="256" height="256" rx="48" fill="#0a0a0b"/><path d="M150 28 L64 150 H122 L106 228 L192 106 H134 Z" fill="#f4f4f5"/></svg>
+          <span>Lightning</span>
+        </a>
+        <span class="product-area">Docs</span>
+      </div>
+      <nav class="top-nav-right" aria-label="Product links">
+        <a href="../index.html" class="header-link">Playground</a>
+        <a href="https://github.com/li-script/lightning" class="header-link">GitHub</a>
+      </nav>
+    </header>
+
+    <main class="content-container">
+      <article class="markdown-body">
+        <h1 id="7-the-strict-tier">7. The Strict Tier</h1>
+<p>Lightning is a dynamic language, and every program in the preceding chapters runs without a single type annotation. The strict tier is an optional layer on top of the same values, bytecode, VM, and JIT: inside strict code every binding has a type that is known when the code is compiled, incompatible operations are reported before the program runs, and generic declarations are instantiated per type tuple. Strict code and dynamic code call each other freely; the boundary between them is checked exactly once at runtime.</p>
+<p>Nothing about the strict tier changes how dynamic code behaves. A program that never writes <code>[[strict]]</code> never sees it.</p>
+<h2 id="71-attributes-and-strict">7.1 Attributes and <code>[[strict]]</code></h2>
+<p>An attribute list is written <code>[[name, name(literal, ...)]]</code>. Arguments must be literals. Placed before a <code>fn</code>, <code>class</code>, or <code>struct</code>, the list attaches to that declaration and is kept as reflection metadata; placed alone as the first statement of a file, it applies to the whole file.</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=import%20reflect%0A%5B%5BEntity%28%22record%22%29%2C%20cached%5D%5D%0Aclass%20Row%20%7B%20id%3A%20number%20%3D%200%20%7D%0A%0A%5B%5Bpure%2C%20Cost%283%29%5D%5D%20fn%20triple%28value%3A%20number%29%20-%3E%20number%20%7B%20value%20%2A%203%20%7D%0A%0Aconst%20attributes%20%3D%20reflect.attributes%28triple%29%0Aassert%28attributes.Cost%5B0%5D%20%3D%3D%203%20%26%26%20attributes.pure%3A%3Alen%28%29%20%3D%3D%200%29%0Aassert%28reflect.attributes%28Row%29.Entity%5B0%5D%20%3D%3D%20%22record%22%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">import reflect
+[[Entity(&quot;record&quot;), cached]]
+class Row { id: number = 0 }
+
+[[pure, Cost(3)]] fn triple(value: number) -&gt; number { value * 3 }
+
+const attributes = reflect.attributes(triple)
+assert(attributes.Cost[0] == 3 &amp;&amp; attributes.pure::len() == 0)
+assert(reflect.attributes(Row).Entity[0] == &quot;record&quot;)
+</code></pre>
+</div>
+<p><code>reflect.attributes(value)</code> accepts a function, class, struct, or instance and returns a frozen, sealed table mapping each attribute name to its argument array; a declaration without attributes yields an empty frozen table. Duplicate names and non-literal arguments are parse errors, and a file attribute that is not the leading statement is rejected.</p>
+<p><code>strict</code> is an attribute like any other. <code>[[strict]] fn f(...)</code> makes one function strict; a file that begins with <code>[[strict]]</code> is strict throughout, including its imports and nested functions. Because <code>[[</code> opens an attribute list, a long string needs at least one separator: <code>[=[ ... ]=]</code>.</p>
+<p>Put the file attribute first. <code>import reflect</code> followed by a lone <code>[[strict]]</code> attaches the attribute to the next declaration only, because the attribute is no longer the leading statement.</p>
+<h2 id="72-types-and-typed-literals">7.2 Types and typed literals</h2>
+<p>A strict type is written after a colon on parameters, fields, and <code>let</code>/<code>const</code> bindings, and after <code>-&gt;</code> for return values.</p>
+<table>
+<thead>
+<tr>
+<th>Syntax</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>number</code>, <code>bool</code>, <code>string</code>, <code>table</code>, <code>array</code>, <code>function</code></td>
+<td>The dynamic value kinds of <a href="2-basic-concepts.html">Chapter 2</a>.</td>
+</tr>
+<tr>
+<td><code>i8</code> <code>i16</code> <code>i32</code> <code>i64</code> <code>u8</code> <code>u16</code> <code>u32</code> <code>u64</code></td>
+<td>Sized integer storage types.</td>
+</tr>
+<tr>
+<td><code>f32</code>, <code>f64</code></td>
+<td>Single- and double-precision floating storage types.</td>
+</tr>
+<tr>
+<td><code>Name</code>, <code>Name&lt;T&gt;</code>, <code>Self</code></td>
+<td>A class or struct, an instantiated generic, or the enclosing declaration.</td>
+</tr>
+<tr>
+<td><code>T?</code></td>
+<td><code>T</code> or <code>nil</code>.</td>
+</tr>
+<tr>
+<td><code>view T</code></td>
+<td>A borrowed reference to <code>T</code> that may not be stored in a field or captured by a closure.</td>
+</tr>
+<tr>
+<td><code>weak T</code></td>
+<td>A weak reference (see <a href="11-stdlib-system-and-concurrency.html">Chapter 11</a>).</td>
+</tr>
+<tr>
+<td><code>T[]</code>, <code>T[N]</code></td>
+<td>A typed array of <code>T</code>, dynamically or fixed sized.</td>
+</tr>
+<tr>
+<td><code>type Alias = T</code></td>
+<td>A statement introducing a type alias.</td>
+</tr>
+</tbody>
+</table>
+<p>Typed numeric literals carry their type: <code>10i32</code>, <code>3f32</code>, <code>10u</code> (an <code>u32</code>), <code>0.5f64</code>. Digit groups may be separated with <code>'</code>, as in <code>100'000i32</code>.</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=%5B%5Bstrict%5D%5D%0Atype%20Count%20%3D%20i32%0A%0Afn%20add%28left%3A%20Count%2C%20right%3A%20Count%29%20-%3E%20Count%20%7B%20left%20%2B%20right%20%7D%0A%0Alet%20total%3A%20Count%20%3D%20add%2810i32%2C%2020i32%29%0Alet%20ratio%20%3D%203f32%20/%204f32%0Alet%20separated%20%3D%20100%27000i32%0Alet%20label%20%3D%20%60total%20%7Btotal%7D%60%0Aassert%28total%20%3D%3D%2030i32%20%26%26%20ratio%20%3D%3D%200.75f32%20%26%26%20separated%20%3D%3D%20100000i32%29%0Aassert%28label%20%3D%3D%20%22total%2030%22%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">[[strict]]
+type Count = i32
+
+fn add(left: Count, right: Count) -&gt; Count { left + right }
+
+let total: Count = add(10i32, 20i32)
+let ratio = 3f32 / 4f32
+let separated = 100'000i32
+let label = `total {total}`
+assert(total == 30i32 &amp;&amp; ratio == 0.75f32 &amp;&amp; separated == 100000i32)
+assert(label == &quot;total 30&quot;)
+</code></pre>
+</div>
+<p>Sized integers and <code>f32</code> are storage types. Arithmetic is performed in binary64, which is correctly rounded for <code>+</code>, <code>-</code>, <code>*</code>, and <code>/</code>; a value is rounded once to its width when it is stored into a typed field or typed array element, and it is boxed to an ordinary <code>number</code> when it crosses into dynamic code. An <code>i64</code> or <code>u64</code> value outside the 53-bit range cannot cross that boundary and raises a runtime error instead of losing precision.</p>
+<p>Every strict binding needs a type. Most are inferred forward from the initializer: literals, arithmetic on typed operands, comparisons, string interpolation, constructors, and calls to strict functions all have known types. A value that comes from dynamic code is <code>any</code> and must be annotated or converted with <code>as</code> before it is used in a typed position; the conversion is the one place a runtime check is emitted.</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=%5B%5Bstrict%5D%5D%0Alet%20checked%3A%20i32%20%3D%20eval%28%2240%22%29%20as%20i32%0Alet%20maybe%3A%20i32%3F%20%3D%20nil%0Aassert%28checked%20%3D%3D%2040i32%20%26%26%20maybe%20%3D%3D%20nil%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">[[strict]]
+let checked: i32 = eval(&quot;40&quot;) as i32
+let maybe: i32? = nil
+assert(checked == 40i32 &amp;&amp; maybe == nil)
+</code></pre>
+</div>
+<p>Inference is forward only: a binding's type is fixed by the statement that introduces it and is never revised by a later use.</p>
+<h2 id="73-diagnostics-and-the-dynamic-boundary">7.3 Diagnostics and the dynamic boundary</h2>
+<p>Incompatible operations inside strict code are parse errors. A diagnostic names the location as <code>[file:line:col]</code>, shows the source line, and underlines the offending span:</p>
+<pre><code>[main.li:4:19] incompatible operand types: _i32_ and _string_
+let bad = count + label
+                  ^~~~~
+</code></pre>
+<p>Other strict-only errors include an unannotated binding whose initializer is dynamic, an unresolved type name, assigning a value of the wrong type, storing a <code>view</code> in a field or capturing it in a closure, and a strict function whose return type cannot be resolved.</p>
+<p>Dynamic code may call a strict function through the ordinary call path. The declared parameter types become runtime checks at function entry, so a wrong argument is a catchable exception rather than undefined behavior:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=%5B%5Bstrict%5D%5D%20fn%20scale%28value%3A%20i32%2C%20factor%3A%20i32%29%20-%3E%20i32%20%7B%20value%20%2A%20factor%20%7D%0A%0Aassert%28scale%286i32%2C%207i32%29%20%3D%3D%2042i32%29%0Alet%20error%20%3D%20nil%0Atry%20%7B%20scale%28%7B%7D%2C%202%29%20%7D%20catch%20e%20%7B%20error%20%3D%20e%20%7D%0Aassert%28%22expected%20variable%20%27value%27%20to%20be%20of%20type%20%27i32%27%22%20in%20error%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">[[strict]] fn scale(value: i32, factor: i32) -&gt; i32 { value * factor }
+
+assert(scale(6i32, 7i32) == 42i32)
+let error = nil
+try { scale({}, 2) } catch e { error = e }
+assert(&quot;expected variable 'value' to be of type 'i32'&quot; in error)
+</code></pre>
+</div>
+<p>The same checks protect the return value of a strict function that a dynamic caller receives, and the <code>as T</code> conversion at the other side of the boundary.</p>
+<h2 id="74-structs-in-strict-code">7.4 Structs in strict code</h2>
+<p><a href="6-structs-and-classes.html">Chapter 6</a> introduces <code>struct</code> as a class with value semantics. Strict code is where those semantics are enforced by the compiler: assigning a struct from an lvalue, passing it as an argument, and returning it each copy the fields. A value that is already fresh, such as a constructor result or an element read from a struct typed array, is not copied again.</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=%5B%5Bstrict%5D%5D%0Astruct%20Pair%20%7B%20left%3A%20i32%20%3D%200i32%3B%20right%3A%20i32%20%3D%200i32%20%7D%0A%0Alet%20first%20%3D%20Pair%7Bleft%3A%201i32%2C%20right%3A%202i32%7D%0Alet%20second%20%3D%20first%0Asecond.left%20%3D%2010i32%0Aassert%28first.left%20%3D%3D%201i32%20%26%26%20second.left%20%3D%3D%2010i32%29%0Aassert%28first%20%3D%3D%20Pair%7Bleft%3A%201i32%2C%20right%3A%202i32%7D%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">[[strict]]
+struct Pair { left: i32 = 0i32; right: i32 = 0i32 }
+
+let first = Pair{left: 1i32, right: 2i32}
+let second = first
+second.left = 10i32
+assert(first.left == 1i32 &amp;&amp; second.left == 10i32)
+assert(first == Pair{left: 1i32, right: 2i32})
+</code></pre>
+</div>
+<p>Field defaults may be written as <code>= {}</code> (the default value of the field's type: zero, <code>false</code>, <code>""</code>, <code>nil</code> for an optional, or a default-constructed struct) or <code>= {value}</code> for a typed initial value. A struct may contain a <code>union { ... }</code> block whose fields share storage; strict code may read only the union field that was most recently assigned in the same function body, and any other read is a parse error.</p>
+<p>Struct typed arrays (<code>typed.struct_array(Type, length)</code>, <a href="10-stdlib-math-and-typed.html">Chapter 10</a>) store elements inline. <code>array[i]</code> materializes a copy, while both <code>array[i] = value</code> and <code>array[i].field = value</code> write back into the element.</p>
+<h3 id="atomic-fields">Atomic fields</h3>
+<p>A numeric field of a strict struct or class may be declared <code>atomic</code>. Every write to it is one atomic update: <code>=</code> becomes an atomic store, and <code>+=</code>, <code>-=</code>, <code>*=</code>, <code>/=</code>, <code>%=</code>, <code>++</code>, and <code>--</code> each become a single atomic read-modify-write. Reads are ordinary loads. On a private instance the operations are plain typed stores; on a <code>shared</code> instance (<a href="11-stdlib-system-and-concurrency.html">Chapter 11</a>) they use the same compare-and-exchange path as <code>shared.atomic_add</code>, and dynamic code that writes the field is routed through the same path, so a non-atomic write to an atomic field cannot happen.</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=%5B%5Bstrict%5D%5D%0Aimport%20shared%0A%0Aclass%20Counter%20%7B%0A%20%20%20atomic%20count%3A%20i32%20%3D%200i32%0A%20%20%20new%21%28%29%20%7B%7D%0A%7D%0A%0Aconst%20counter%3A%20Counter%20%3D%20shared.create%28Counter%3A%3Anew%28%29%29%0Acounter.count%20%2B%3D%205i32%0Acounter.count%20%2A%3D%204i32%0Aassert%28counter.count%20%3D%3D%2020i32%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">[[strict]]
+import shared
+
+class Counter {
+   atomic count: i32 = 0i32
+   new!() {}
+}
+
+const counter: Counter = shared.create(Counter::new())
+counter.count += 5i32
+counter.count *= 4i32
+assert(counter.count == 20i32)
+</code></pre>
+</div>
+<p><code>atomic</code> requires strict mode and a numeric field type; <code>^=</code> is not available on atomic fields.</p>
+<h2 id="75-generics">7.5 Generics</h2>
+<p>A declaration with type parameters is a template. It is instantiated when it is used with a concrete type tuple, either written explicitly as <code>identity&lt;i32&gt;(5i32)</code> or deduced forward from the argument types.</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=%5B%5Bstrict%5D%5D%0Aimport%20reflect%0A%0Afn%20identity%3CT%3E%28value%3A%20T%29%20-%3E%20T%20%7B%20value%20%7D%0Afn%20describe%3CT%3E%28value%3A%20T%29%20-%3E%20string%20%7B%0A%20%20%20static%20if%20T%20is%20i32%20%7B%20%22integer%22%20%7D%20else%20%7B%20%22other%22%20%7D%0A%7D%0Afn%20pick%3CT%3E%28value%3A%20T%29%20-%3E%20i32%20%7B%201i32%20%7D%0Afn%20pick%3CT%3A%20f32%3E%28value%3A%20T%29%20-%3E%20i32%20%7B%202i32%20%7D%0Afn%20count_args%3CTx...%3E%28args%3A%20Tx...%29%20-%3E%20u32%20%7B%20%23Tx...%20%7D%0Afn%20auto%28value%29%20%7B%20value%20%7D%0A%0Aassert%28identity%285i32%29%20%3D%3D%205i32%29%0Aassert%28identity%28%22text%22%29%20%3D%3D%20%22text%22%29%0Aassert%28describe%281i32%29%20%3D%3D%20%22integer%22%20%26%26%20describe%281f32%29%20%3D%3D%20%22other%22%29%0Aassert%28pick%281i32%29%20%3D%3D%201i32%20%26%26%20pick%281f32%29%20%3D%3D%202i32%29%0Aassert%28count_args%281i32%2C%202i32%2C%203i32%29%20%3D%3D%203u%29%0Aassert%28auto%284i32%29%20%3D%3D%204i32%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">[[strict]]
+import reflect
+
+fn identity&lt;T&gt;(value: T) -&gt; T { value }
+fn describe&lt;T&gt;(value: T) -&gt; string {
+   static if T is i32 { &quot;integer&quot; } else { &quot;other&quot; }
+}
+fn pick&lt;T&gt;(value: T) -&gt; i32 { 1i32 }
+fn pick&lt;T: f32&gt;(value: T) -&gt; i32 { 2i32 }
+fn count_args&lt;Tx...&gt;(args: Tx...) -&gt; u32 { #Tx... }
+fn auto(value) { value }
+
+assert(identity(5i32) == 5i32)
+assert(identity(&quot;text&quot;) == &quot;text&quot;)
+assert(describe(1i32) == &quot;integer&quot; &amp;&amp; describe(1f32) == &quot;other&quot;)
+assert(pick(1i32) == 1i32 &amp;&amp; pick(1f32) == 2i32)
+assert(count_args(1i32, 2i32, 3i32) == 3u)
+assert(auto(4i32) == 4i32)
+</code></pre>
+</div>
+<ul>
+<li>Each instantiation reparses the declaration with its type parameters bound, produces a separate function or class, and is cached per type tuple. Instantiated classes are named by their arguments, so <code>Vec3&lt;f32&gt;</code> prints and compares as such.</li>
+<li>A constraint such as <code>&lt;T: f32&gt;</code> makes a candidate more specific. When several candidates match, the most specific wins; two equally specific candidates are an ambiguity error.</li>
+<li><code>Tx...</code> declares a type pack. <code>args: Tx...</code> accepts one argument per pack element and <code>#Tx...</code> is the element count, a <code>u32</code>.</li>
+<li>In strict code an unannotated parameter makes the function a template over that parameter, so <code>fn auto(value)</code> behaves like <code>fn auto&lt;T&gt;(value: T)</code>.</li>
+<li>Deduction is forward only. A call decides the type tuple from the arguments it has; nothing is inferred backward from how the result is later used.</li>
+</ul>
+<p><code>reflect.instantiations(template)</code> reports what the cache saw, one record per attempt with <code>types</code> (the spelled type arguments) and <code>status</code> (<code>"Inst-OK"</code>, <code>"InstCache-OK"</code>, or <code>"Inst-Failed"</code>):</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=identity%286i32%29%0Afor%20record%20in%20reflect.instantiations%28identity%29%20%7B%20print%28record.status%2C%20record.types%5B0%5D%29%20%7D%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">identity(6i32)
+for record in reflect.instantiations(identity) { print(record.status, record.types[0]) }
+</code></pre>
+</div>
+<pre><code>Inst-OK      i32
+Inst-OK      string
+InstCache-OK i32
+</code></pre>
+<p>Generic structs and classes follow the same rules, and a template may refer to itself:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=%5B%5Bstrict%5D%5D%0Aimport%20typed%0A%0Astruct%20Vec3%3CT%3E%20%7B%0A%20%20%20x%3A%20T%20%3D%20%7B%7D%3B%20y%3A%20T%20%3D%20%7B%7D%3B%20z%3A%20T%20%3D%20%7B%7D%0A%20%20%20new%21%28x%3A%20T%2C%20y%3A%20T%2C%20z%3A%20T%29%20%7B%20self.x%20%3D%20x%3B%20self.y%20%3D%20y%3B%20self.z%20%3D%20z%20%7D%0A%20%20%20add%21%28other%3A%20Self%29%20-%3E%20Self%20%7B%20Vec3%3CT%3E%3A%3Anew%28self.x%20%2B%20other.x%2C%20self.y%20%2B%20other.y%2C%20self.z%20%2B%20other.z%29%20%7D%0A%20%20%20reduce_add%28%29%20-%3E%20T%20%7B%20self.x%20%2B%20self.y%20%2B%20self.z%20%7D%0A%7D%0A%0Aconst%20points%3A%20Vec3%3Cf32%3E%5B%5D%20%3D%20typed.struct_array%28Vec3%3Cf32%3E%2C%204%29%0Alet%20i%20%3D%200%0Awhile%20i%20%3C%204%20%7B%20points%5Bi%5D%20%3D%20Vec3%3Cf32%3E%3A%3Anew%281f32%2C%202f32%2C%203f32%29%3B%20i%20%2B%3D%201%20%7D%0Aassert%28%28points%5B0%5D%20%2B%20points%5B1%5D%29.reduce_add%28%29%20%3D%3D%2012f32%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">[[strict]]
+import typed
+
+struct Vec3&lt;T&gt; {
+   x: T = {}; y: T = {}; z: T = {}
+   new!(x: T, y: T, z: T) { self.x = x; self.y = y; self.z = z }
+   add!(other: Self) -&gt; Self { Vec3&lt;T&gt;::new(self.x + other.x, self.y + other.y, self.z + other.z) }
+   reduce_add() -&gt; T { self.x + self.y + self.z }
+}
+
+const points: Vec3&lt;f32&gt;[] = typed.struct_array(Vec3&lt;f32&gt;, 4)
+let i = 0
+while i &lt; 4 { points[i] = Vec3&lt;f32&gt;::new(1f32, 2f32, 3f32); i += 1 }
+assert((points[0] + points[1]).reduce_add() == 12f32)
+</code></pre>
+</div>
+<p>Operator methods such as <code>add!</code>, comparison methods <code>eq!</code>/<code>lt!</code>, the conversion method <code>to!&lt;T&gt;()</code>, and the <code>new!</code>/<code>del!</code> lifecycle hooks are resolved statically inside strict code: a call is a direct call to the instantiated method rather than a runtime trait lookup.</p>
+<h2 id="76-compile-time-evaluation">7.6 Compile-time evaluation</h2>
+<p>Inside a template body, <code>static</code> statements run while the instantiation is being parsed. They see the bound type parameters through the predicates <code>T is U</code>, <code>typeid(T)</code> (the canonical type identifier string), and <code>typeof(expr)</code> (the static type of an expression), together with the constant folder.</p>
+<table>
+<thead>
+<tr>
+<th>Statement</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>static if cond { ... } else { ... }</code></td>
+<td>Compiles only the selected branch.</td>
+</tr>
+<tr>
+<td><code>static assert(cond, message?)</code></td>
+<td>Fails the instantiation with <code>message</code>.</td>
+</tr>
+<tr>
+<td><code>static warn(message)</code></td>
+<td>Prints <code>message</code> during instantiation and continues.</td>
+</tr>
+<tr>
+<td><code>static panic(message)</code></td>
+<td>Fails the instantiation unconditionally.</td>
+</tr>
+<tr>
+<td><code>static require(cond, message)</code></td>
+<td>Cancels only this candidate; the call fails with <code>message</code> when no candidate remains.</td>
+</tr>
+</tbody>
+</table>
+<p><code>static require</code> is how a template restricts itself without producing a wall of errors. A failed requirement removes that candidate from consideration, so an overloaded template falls through to the next candidate, and only when every candidate has been cancelled does the call report the innermost message:</p>
+<pre><code>[main.li:6:10] only_bool converts booleans
+only_bool(1i32)
+         ^
+</code></pre>
+<p>A hard failure inside an instantiation is reported at the failing statement together with one instantiation frame:</p>
+<pre><code>[main.li:3:11] checked wants i32
+   static assert(typeid(T) == typeid(i32), &quot;checked wants i32&quot;)
+          ^~~~~~
+  note: in instantiation of checked&lt;f32&gt;
+</code></pre>
+<p>Only the innermost frame is shown by default; <code>li --verbose-errors</code> prints the full instantiation chain.</p>
+<h2 id="77-strict-code-and-the-jit">7.7 Strict code and the JIT</h2>
+<p>Strict code compiles to the same bytecode as dynamic code and runs on the same interpreter and JIT. The difference is what the compiler already knows: a strict function's declared parameter and return types seed the JIT's type information, so the compiled function starts from those types instead of speculating and guarding.</p>
+<p>In a strict function that loops over a struct typed array, an element read whose only uses are field reads is not materialized at all. The compiled loop performs one element-class check and one bounds check per access and then loads the fields directly from the array's storage, with no allocation, no boxing, and no speculative type guards:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=%5B%5Bstrict%5D%5D%20fn%20sum_lengths%28points%3A%20Vec3%3Cf32%3E%5B%5D%2C%20count%3A%20i32%29%20-%3E%20f32%20%7B%0A%20%20%20let%20total%3A%20f32%20%3D%200f32%0A%20%20%20let%20index%3A%20i32%20%3D%200i32%0A%20%20%20while%20index%20%3C%20count%20%7B%0A%20%20%20%20%20%20let%20value%20%3D%20points%5Bindex%5D%0A%20%20%20%20%20%20total%20%2B%3D%20value.x%20%2A%20value.x%20%2B%20value.y%20%2A%20value.y%20%2B%20value.z%20%2A%20value.z%0A%20%20%20%20%20%20index%20%2B%3D%201i32%0A%20%20%20%7D%0A%20%20%20total%0A%7D%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">[[strict]] fn sum_lengths(points: Vec3&lt;f32&gt;[], count: i32) -&gt; f32 {
+   let total: f32 = 0f32
+   let index: i32 = 0i32
+   while index &lt; count {
+      let value = points[index]
+      total += value.x * value.x + value.y * value.y + value.z * value.z
+      index += 1i32
+   }
+   total
+}
+</code></pre>
+</div>
+<p><code>jit.guards(f)</code> reports the number of speculative type guards left in a compiled function, and <code>li --metrics</code> reports the total as <code>jit_guards</code>; both exclude the declared-signature checks at the dynamic boundary. For <code>sum_lengths</code> both are zero on every native backend, and the loop allocates nothing. See <a href="11-stdlib-system-and-concurrency.html">Chapter 11</a> for the <code>jit</code> module.</p>
+      </article>
+
+      <nav class="chapter-nav">
+        <a href="6-structs-and-classes.html" class="chapter-btn">
+  <span class="nav-direction">← Previous</span>
+  <span class="nav-title">6. Structs and Classes</span>
+</a>
+        <a href="8-stdlib-builtins.html" class="chapter-btn next">
+  <span class="nav-direction">Next →</span>
+  <span class="nav-title">8. Built-in Functions</span>
+</a>
+      </nav>
+    </main>
+  </div>
+
+  <script src="prism.min.js"></script>
+  <script src="prism-lightning.js"></script>
+  <script src="gitbook.js"></script>
+</body>
+</html>

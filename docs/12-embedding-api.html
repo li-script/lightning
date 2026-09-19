@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>12. Embedding API — Lightning Docs</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Crect width='256' height='256' rx='48' fill='%230a0a0b'/%3E%3Cpath d='M150 28 L64 150 H122 L106 228 L192 106 H134 Z' fill='%23f4f4f5'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="gitbook.css">
+</head>
+<body>
+  <aside class="sidebar" id="docs-sidebar" aria-label="Documentation navigation">
+    <div class="sidebar-header">
+      <span class="sidebar-title">Documentation</span>
+    </div>
+
+    <div class="search-box">
+      <input type="search" id="search-input" class="search-input" placeholder="Search pages" aria-label="Search documentation pages" autocomplete="off">
+    </div>
+
+    <div class="nav-groups">
+  <section class="nav-group">
+    <div class="nav-group-title">Getting Started</div>
+    <a href="index.html" class="nav-link">Overview</a>
+    <a href="1-getting-started.html" class="nav-link">1. Getting Started</a>
+    <a href="2-basic-concepts.html" class="nav-link">2. Basic Concepts</a>
+  </section>
+  <section class="nav-group">
+    <div class="nav-group-title">The Language</div>
+    <a href="3-language-syntax.html" class="nav-link">3. Language Syntax</a>
+    <a href="4-control-flow.html" class="nav-link">4. Control Flow</a>
+    <a href="5-functions-and-closures.html" class="nav-link">5. Functions and Closures</a>
+    <a href="6-structs-and-classes.html" class="nav-link">6. Structs and Classes</a>
+    <a href="7-strict-tier.html" class="nav-link">7. The Strict Tier</a>
+  </section>
+  <section class="nav-group">
+    <div class="nav-group-title">Standard Libraries</div>
+    <a href="8-stdlib-builtins.html" class="nav-link">8. Built-in Functions</a>
+    <a href="9-stdlib-collections.html" class="nav-link">9. Collections</a>
+    <a href="10-stdlib-math-and-typed.html" class="nav-link">10. Mathematics and Typed Values</a>
+    <a href="11-stdlib-system-and-concurrency.html" class="nav-link">11. System and Concurrency</a>
+  </section>
+  <section class="nav-group">
+    <div class="nav-group-title">Host Interface</div>
+    <a href="12-embedding-api.html" class="nav-link active" aria-current="page">12. Embedding API</a>
+    <a href="examples.html" class="nav-link">Examples</a>
+  </section>
+</div>
+  <p class="sidebar-empty">No matching pages</p>
+
+  </aside>
+  <button type="button" class="sidebar-backdrop" aria-label="Close navigation"></button>
+
+  <div class="main-wrapper">
+    <header class="top-nav">
+      <div class="top-nav-left">
+        <button type="button" id="menu-button" class="menu-button" aria-label="Open navigation" aria-controls="docs-sidebar" aria-expanded="false">
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
+        <a href="index.html" class="brand-link">
+          <svg class="brand-icon" viewBox="0 0 256 256" aria-hidden="true"><rect width="256" height="256" rx="48" fill="#0a0a0b"/><path d="M150 28 L64 150 H122 L106 228 L192 106 H134 Z" fill="#f4f4f5"/></svg>
+          <span>Lightning</span>
+        </a>
+        <span class="product-area">Docs</span>
+      </div>
+      <nav class="top-nav-right" aria-label="Product links">
+        <a href="../index.html" class="header-link">Playground</a>
+        <a href="https://github.com/li-script/lightning" class="header-link">GitHub</a>
+      </nav>
+    </header>
+
+    <main class="content-container">
+      <article class="markdown-body">
+        <h1 id="12-embedding-api">12. Embedding API</h1>
+<p>Lightning can be embedded through a stable C ABI in <code>&lt;lightning.h&gt;</code> or a C++20 RAII layer in <code>&lt;lightning.hpp&gt;</code>. Both interfaces drive the same VM used by the <code>li</code> executable.</p>
+<p>The C ABI is the portability boundary. It never permits a C++ exception to unwind through Lightning frames or across an <code>extern "C"</code> call. The C++ wrapper owns C handles, converts non-success statuses into <code>lightning::error</code>, and otherwise preserves the C API's execution and ownership rules.</p>
+<h2 id="121-architecture">12.1 Architecture</h2>
+<p>An embedded application normally performs these steps:</p>
+<ol>
+<li>Create one or more <code>li_vm</code> instances.</li>
+<li>Configure imports, allocation, and error observation if the defaults are insufficient.</li>
+<li>Register host functions.</li>
+<li>Load a script into a callable function or execute it immediately.</li>
+<li>Convert arguments to Lightning values and call functions.</li>
+<li>Release every owning value handle.</li>
+<li>Close the VM.</li>
+</ol>
+<p>A private VM admits one entrant at a time. Public operations serialize through its recursive lock, so a native callback may reenter the same VM on the current thread. Prefer one private VM per execution thread when parallel work is required. Explicit shared values are safe to retain across threads, but their mutable contents still require Lightning shared locks or atomic operations.</p>
+<h2 id="122-c-abi-lightningh">12.2 C ABI: <code>&lt;lightning.h&gt;</code></h2>
+<p>Include the public header and link the installed Lightning library:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">C</span>
+    <div class="code-actions">
+      
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-c">#include &lt;lightning.h&gt;
+</code></pre>
+</div>
+<p>All fallible operations return <code>li_status</code>. <code>LI_STATUS_OK</code> means success. Other statuses distinguish invalid arguments, closed VMs, type errors, script exceptions, callback failures, allocation failures, contained C++ exceptions, and lifetime errors. <code>li_status_name(status)</code> returns a static name; <code>li_vm_last_error</code> returns the VM's detailed diagnostic.</p>
+<h3 id="minimal-c-program">Minimal C program</h3>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">C</span>
+    <div class="code-actions">
+      
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-c">#include &lt;lightning.h&gt;
+
+#include &lt;stdio.h&gt;
+
+static li_status twice(
+    li_vm* vm,
+    const li_value* const* args,
+    size_t argument_count,
+    void* userdata,
+    li_value** result) {
+    double input;
+    static const char message[] = &quot;twice expects one number&quot;;
+    (void) userdata;
+
+    if (argument_count != 1 ||
+        li_value_get_number(args[0], &amp;input) != LI_STATUS_OK)
+        return li_vm_set_error(vm, message, sizeof(message) - 1);
+    return li_value_create_number(vm, input * 2, result);
+}
+
+static int report_error(li_vm* vm, li_status status) {
+    const char* message = NULL;
+    size_t size = 0;
+
+    if (vm != NULL &amp;&amp;
+        li_vm_last_error(vm, &amp;message, &amp;size) == LI_STATUS_OK &amp;&amp; size != 0)
+        fprintf(stderr, &quot;%.*s\n&quot;, (int) size, message);
+    else
+        fprintf(stderr, &quot;%s\n&quot;, li_status_name(status));
+    return 1;
+}
+
+int main(void) {
+    static const char source[] = &quot;twice(21)&quot;;
+    li_vm* vm = NULL;
+    li_value* value = NULL;
+    li_status status;
+    double answer;
+
+    status = li_vm_create(NULL, &amp;vm);
+    if (status != LI_STATUS_OK)
+        return report_error(NULL, status);
+
+    status = li_vm_register_native(vm, &quot;twice&quot;, 5, twice, NULL);
+    if (status != LI_STATUS_OK) {
+        report_error(vm, status);
+        li_vm_close(vm);
+        return 1;
+    }
+
+    status = li_vm_execute(
+        vm, source, sizeof(source) - 1, &quot;example&quot;, 7, &amp;value);
+    if (status != LI_STATUS_OK) {
+        report_error(vm, status);
+        li_vm_close(vm);
+        return 1;
+    }
+
+    status = li_value_get_number(value, &amp;answer);
+    if (status != LI_STATUS_OK) {
+        report_error(vm, status);
+        li_value_release(value);
+        li_vm_close(vm);
+        return 1;
+    }
+
+    printf(&quot;%.0f\n&quot;, answer);
+    li_value_release(value);
+    li_vm_close(vm);
+    return 0;
+}
+</code></pre>
+</div>
+<p>This program prints <code>42</code>.</p>
+<h3 id="api-naming">API naming</h3>
+<p>The exported ABI uses explicit <code>li_vm_*</code> and <code>li_value_*</code> names. Embedding discussions sometimes use the shorter conceptual names shown in the first column:</p>
+<table>
+<thead>
+<tr>
+<th>Conceptual name</th>
+<th>Exported C symbol</th>
+<th>Operation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>li_create</code></td>
+<td><code>li_vm_create</code></td>
+<td>Create a VM.</td>
+</tr>
+<tr>
+<td><code>li_close</code></td>
+<td><code>li_vm_close</code></td>
+<td>Logically close a VM and consume the host pointer.</td>
+</tr>
+<tr>
+<td><code>li_eval</code></td>
+<td><code>li_vm_execute</code></td>
+<td>Compile and execute source.</td>
+</tr>
+<tr>
+<td><code>li_load_script</code></td>
+<td><code>li_vm_load</code></td>
+<td>Compile source and return a function without calling it.</td>
+</tr>
+<tr>
+<td><code>li_call</code></td>
+<td><code>li_vm_call</code></td>
+<td>Invoke a Lightning function.</td>
+</tr>
+<tr>
+<td><code>li_register</code></td>
+<td><code>li_vm_register_native</code></td>
+<td>Register a native function.</td>
+</tr>
+</tbody>
+</table>
+<p>Use the exported names when compiling against <code>&lt;lightning.h&gt;</code>.</p>
+<h3 id="lifecycle-and-ownership">Lifecycle and ownership</h3>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">C</span>
+    <div class="code-actions">
+      
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-c">li_vm* vm = NULL;
+li_status status = li_vm_create(NULL, &amp;vm);
+if (status != LI_STATUS_OK) {
+    fprintf(stderr, &quot;%s\n&quot;, li_status_name(status));
+    return 1;
+}
+
+/* Register functions and run scripts. */
+
+status = li_vm_close(vm);
+vm = NULL; /* li_vm_close consumed the pointer, even if close reported an error. */
+</code></pre>
+</div>
+<p>Passing <code>NULL</code> options selects defaults. To install hooks, initialize the versioned options structure first:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">C</span>
+    <div class="code-actions">
+      
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-c">li_vm_options options;
+li_vm_options_init(&amp;options);
+options.import = my_import;
+options.import_userdata = app;
+options.error = observe_error;
+options.error_userdata = app;
+
+li_vm* vm = NULL;
+li_status status = li_vm_create(&amp;options, &amp;vm);
+</code></pre>
+</div>
+<p>Do not zero-initialize <code>li_vm_options</code> by hand: <code>li_vm_options_init</code> sets <code>struct_size</code> and future-compatible defaults. Do not change the initialized <code>struct_size</code>. Hook functions and their userdata are borrowed and must remain valid until physical VM destruction.</p>
+<p>Every successful operation that writes an <code>li_value**</code> returns one owning persistent host handle. Release it exactly once with <code>li_value_release</code>; releasing <code>NULL</code> is harmless. <code>li_value_copy</code> creates another independently owned handle. The public C ABI exposes strong handles only. A handle whose value has kind <code>LI_KIND_WEAK</code> keeps the weak observer alive, not its target; <code>weak.lock</code> returns a new strong script reference or <code>nil</code> as described in <a href="2-basic-concepts.html#cycles-and-weak-references">Chapter 2</a>.</p>
+<p><code>li_vm_close</code> consumes the host's VM pointer immediately and rejects new script work. Never use that pointer again, even when close reports an error. Outstanding <code>li_value</code> handles retain the underlying VM and delay physical heap destruction until the last handle is released. Kind and value getters, <code>li_value_copy</code>, and <code>li_value_release</code> remain valid on those handles after close. A string or userdata pointer returned by a getter is borrowed from its handle and must not outlive that handle.</p>
+<p>Synchronize close against new calls from other threads. The source VM of a live handle may already be logically closed when the value is copied or shared to an open destination VM.</p>
+<h3 id="loading-evaluating-and-calling">Loading, evaluating, and calling</h3>
+<p><code>li_vm_load</code> compiles a byte span and returns an owning function handle. It does not call the function. <code>li_vm_execute</code> compiles and immediately calls the resulting top-level function.</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">C</span>
+    <div class="code-actions">
+      
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-c">static const char source[] = &quot;fn square(x) { x * x }\nsquare&quot;;
+li_value* square = NULL;
+li_status status = li_vm_execute(
+    vm,
+    source, sizeof(source) - 1,
+    &quot;embedded-square.li&quot;, sizeof(&quot;embedded-square.li&quot;) - 1,
+    &amp;square);
+</code></pre>
+</div>
+<p>The source and source-name parameters are byte spans and need not be NUL-terminated. The source name appears in diagnostics and stack traces.</p>
+<p>Call a returned function by passing borrowed argument handles. The result is a new owning handle:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">C</span>
+    <div class="code-actions">
+      
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-c">li_value* argument = NULL;
+li_value* result = NULL;
+const li_value* arguments[1];
+double number = 0;
+
+status = li_value_create_number(vm, 9.0, &amp;argument);
+if (status == LI_STATUS_OK) {
+    arguments[0] = argument;
+    status = li_vm_call(vm, square, arguments, 1, &amp;result);
+}
+if (status == LI_STATUS_OK)
+    status = li_value_get_number(result, &amp;number);
+
+li_value_release(result);
+li_value_release(argument);
+li_value_release(square);
+</code></pre>
+</div>
+<p>Output handles are set to <code>NULL</code> on failure. Always check the status before inspecting them. <code>li_value_release(NULL)</code> is harmless.</p>
+<h3 id="reporting-errors">Reporting errors</h3>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">C</span>
+    <div class="code-actions">
+      
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-c">static void print_error(li_vm* vm, li_status status) {
+    const char* message = NULL;
+    size_t size = 0;
+
+    if (vm != NULL &amp;&amp;
+        li_vm_last_error(vm, &amp;message, &amp;size) == LI_STATUS_OK &amp;&amp;
+        size != 0) {
+        fprintf(stderr, &quot;%.*s\n&quot;, (int)size, message);
+    } else {
+        fprintf(stderr, &quot;%s\n&quot;, li_status_name(status));
+    }
+}
+</code></pre>
+</div>
+<p>The message returned by <code>li_vm_last_error</code> is borrowed and remains valid only until the VM reports another error. The error hook observes a report but does not replace status checking or <code>li_vm_last_error</code>. A native or import callback uses <code>li_vm_set_error</code> to create a catchable script exception and returns the resulting <code>LI_STATUS_SCRIPT_ERROR</code>.</p>
+<h3 id="hooks">Hooks</h3>
+<p><code>li_vm_options</code> provides allocator, import, and error hooks. All strings passed to callbacks are byte spans and need not be NUL-terminated. The hooks and their userdata are borrowed; keep them valid until physical VM destruction. Registered native userdata follows the same host-owned lifetime rule.</p>
+<p>The allocator works in 4096-byte pages. A call with a <code>NULL</code> pointer requests <code>page_count</code> pages; returning <code>NULL</code> reports allocation failure. A call with a non-<code>NULL</code> pointer releases the same page count and must return <code>NULL</code>. <code>executable</code> is nonzero for code pages. Physical destruction can release pages after <code>li_vm_close</code> when value handles remain alive. An allocator exception is contained as an allocation failure; during VM creation it produces <code>LI_STATUS_CXX_EXCEPTION</code>.</p>
+<p>The import hook receives the importing module name and the requested module name. On success it must transfer one owning handle from the callback's VM whose value is an exports table. Returning another kind produces <code>LI_STATUS_CALLBACK_ERROR</code> and the importing script fails. The hook may reenter <code>li_vm_execute</code>, for example to execute a loader that returns its <code>$E</code> exports table. Once transferred, the hook must not release or reuse the handle. On failure, call <code>li_vm_set_error</code> before returning so the importing script receives a useful catchable exception.</p>
+<p>The error hook runs synchronously with a borrowed message. An exception thrown by the error hook is swallowed. An exception thrown by a native or import callback becomes a script failure, and an exception thrown by a userdata destructor is reported through the error hook.</p>
+<p>Fatal VM invariant failures are process or host failures, not catchable script exceptions. The public C ABI has no panic hook; do not treat the error callback as one.</p>
+<h2 id="123-values-any_t-and-nan-boxing">12.3 Values, <code>any_t</code>, and NaN-boxing</h2>
+<p>Inside the runtime, a Lightning value is represented by the eight-byte NaN-boxed word commonly called <code>any_t</code>. Ordinary IEEE 754 binary64 numbers are stored directly. Reserved quiet-NaN bit patterns encode <code>nil</code>, booleans, and heap references. Numeric NaNs are canonicalized so they remain disjoint from tagged values. Heap pointers retain all required low address bits.</p>
+<p>NaN-boxing is an implementation representation, not permission for an embedder to reinterpret value bits. The public C ABI deliberately exposes opaque <code>li_value*</code> handles. This keeps ownership, VM association, pointer-width details, and future representation changes behind the ABI.</p>
+<h3 id="type-tests-and-conversions">Type tests and conversions</h3>
+<p>Bindings often describe conversion helpers generically as three families:</p>
+<ul>
+<li><code>li_is_*</code> — test whether an <code>any_t</code> has a particular kind;</li>
+<li><code>li_as_*</code> — extract an already-validated payload;</li>
+<li><code>li_from_*</code> — construct a boxed value.</li>
+</ul>
+<p>At the public handle boundary, the corresponding supported operations are:</p>
+<table>
+<thead>
+<tr>
+<th>Generic family</th>
+<th>Public C operation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>li_is_*</code></td>
+<td><code>li_value_get_kind(value)</code> and comparison with <code>LI_KIND_*</code>.</td>
+</tr>
+<tr>
+<td><code>li_as_bool</code></td>
+<td><code>li_value_get_bool(value, &amp;out)</code>.</td>
+</tr>
+<tr>
+<td><code>li_as_number</code></td>
+<td><code>li_value_get_number(value, &amp;out)</code>.</td>
+</tr>
+<tr>
+<td><code>li_as_string</code></td>
+<td><code>li_value_get_string(value, &amp;data, &amp;size)</code>.</td>
+</tr>
+<tr>
+<td><code>li_from_nil</code></td>
+<td><code>li_value_create_nil(vm, &amp;out)</code>.</td>
+</tr>
+<tr>
+<td><code>li_from_bool</code></td>
+<td><code>li_value_create_bool(vm, value, &amp;out)</code>.</td>
+</tr>
+<tr>
+<td><code>li_from_number</code></td>
+<td><code>li_value_create_number(vm, value, &amp;out)</code>.</td>
+</tr>
+<tr>
+<td><code>li_from_string</code></td>
+<td><code>li_value_create_string(vm, data, size, &amp;out)</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>Getters perform checked conversion and return <code>LI_STATUS_TYPE_ERROR</code> on a mismatched kind; they do not coerce. A string view returned by <code>li_value_get_string</code> is borrowed from the owning handle and must not outlive that handle.</p>
+<p><code>li_value_copy</code> creates another independently owned persistent handle to the same value. The copy must be released exactly once. Callback argument handles are borrowed and must not be released; copy one before retaining it beyond the callback.</p>
+<h3 id="cross-vm-values">Cross-VM values</h3>
+<p>Private heap values belong to their creating VM. Creating another handle or passing a value to an API does not silently publish its object graph. Use explicit transfer:</p>
+<ul>
+<li><code>li_value_share(destination, source, &amp;result)</code> copies a supported private string, table, array, class instance, class, or script function into process-wide shared storage. Private strings become immutable shared strings. Immediate roots, unsupported heap graphs, and graphs with private mutable child edges fail with <code>LI_STATUS_SCRIPT_ERROR</code>; an already shared value is retained.</li>
+<li><code>li_value_copy_to(destination, source, &amp;result)</code> transfers immediate values and shared values, copies an immutable private string into the destination, and returns <code>LI_STATUS_TYPE_ERROR</code> for another private heap value. When source and destination are the same VM, it behaves like an ordinary handle copy.</li>
+</ul>
+<p>Both operations borrow <code>source</code>, set <code>result</code> to <code>NULL</code> on failure, and return one independently owned destination handle on success. The destination VM must be open. The source VM may be logically closed because the source handle keeps its heap alive.</p>
+<p>To pass a foreign immediate value or private string to <code>li_vm_call</code>, first rehome it with <code>li_value_copy_to</code>. A foreign shared function or shared argument may be used directly. The target VM owns the call's returned handle.</p>
+<p>The C++ spellings are <code>destination.share(source)</code> and <code>destination.copy_to(source)</code>. Script code publishes values explicitly with <code>shared.create</code>. Concurrent compound mutation of a shared container must use <code>shared.lock</code> and <code>shared.unlock</code>; supported numeric field updates may use <code>shared.atomic_add</code>. <a href="11-stdlib-system-and-concurrency.html">Chapter 11</a> describes the complete locking contract.</p>
+<h2 id="124-registering-native-functions">12.4 Registering native functions</h2>
+<p>A native callback has this signature:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">C</span>
+    <div class="code-actions">
+      
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-c">typedef li_status (*li_native_fn)(
+    li_vm* vm,
+    const li_value* const* args,
+    size_t argument_count,
+    void* userdata,
+    li_value** result);
+</code></pre>
+</div>
+<p>The callback receives its VM, borrowed arguments, host userdata, and an output slot for an optional owning result.</p>
+<h3 id="native-names-and-transfers">Native names and transfers</h3>
+<p>An unqualified registration such as <code>"twice"</code> is placed in <code>builtin</code> and is visible as a script global. A dotted name preserves its module path. Canonical duplicate detection treats <code>"twice"</code> and <code>"builtin.twice"</code> as the same registration; registering either form again returns <code>LI_STATUS_INVALID_ARGUMENT</code>. Registration borrows <code>userdata</code>; the host controls its lifetime.</p>
+<p>The argument array and each argument handle are borrowed only for the callback. Do not release them. Call <code>li_value_copy</code> before retaining an argument beyond the callback. A borrowed value that is already finalizing cannot be resurrected: copying it returns <code>LI_STATUS_LIFETIME_ERROR</code>, leaves the output <code>NULL</code>, and reports the diagnostic through the error hook and <code>li_vm_last_error</code>.</p>
+<p><code>*result</code> starts as <code>NULL</code>. On success, leave it <code>NULL</code> to return <code>nil</code>, or transfer one owning handle created by the callback's VM. After transfer, do not release or reuse the handle. On failure, use <code>li_vm_set_error</code> to set the current script exception and return the resulting status.</p>
+<h3 id="custom-calling-signatures">Custom calling signatures</h3>
+<p>The stable C callback always receives a value array, but a binding layer can impose a custom signature by validating arity and kinds before dispatch:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">C</span>
+    <div class="code-actions">
+      
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-c">typedef struct scale_context {
+    double factor;
+} scale_context;
+
+static li_status scale_native(
+    li_vm* vm,
+    const li_value* const* args,
+    size_t count,
+    void* userdata,
+    li_value** result) {
+    scale_context* context = (scale_context*)userdata;
+    double input;
+
+    if (count != 1 ||
+        li_value_get_number(args[0], &amp;input) != LI_STATUS_OK) {
+        static const char message[] = &quot;scale(number) expected&quot;;
+        return li_vm_set_error(vm, message, sizeof(message) - 1);
+    }
+    return li_value_create_number(vm, input * context-&gt;factor, result);
+}
+</code></pre>
+</div>
+<p>A generated trampoline may perform the same checks for richer signatures, optional parameters, or userdata receivers. Keep the C callback as the exception boundary: catch host-language exceptions, convert them to <code>li_vm_set_error</code>, and return a failure status. Although the ABI contains C++ exceptions automatically, explicit conversion produces better domain diagnostics.</p>
+<h2 id="125-stack-thread-and-lifetime-safety">12.5 Stack, thread, and lifetime safety</h2>
+<p>Native code participates in Lightning's ownership and call stack. Follow these rules:</p>
+<ol>
+<li>Treat callback arguments as borrowed. Never release them.</li>
+<li>Use <code>li_value_copy</code> before storing an argument after the callback returns.</li>
+<li>Return only an owning handle from the callback's VM, and transfer it exactly once.</li>
+<li>Check every <code>li_status</code>; do not interpret an output after failure.</li>
+<li>Do not keep string or userdata views past the owning handle's lifetime.</li>
+<li>Do not release the same handle concurrently with an operation using it.</li>
+<li>Do not let a C++ exception escape a C callback intentionally.</li>
+<li>Avoid unbounded native recursion. Calling back into Lightning consumes native and Lightning stack space and may encounter coroutine stack-headroom checks.</li>
+<li>A callback may reenter its VM, but it must preserve its borrowed inputs and must tolerate script exceptions returned by the nested call.</li>
+<li>Do not close a VM while another thread is beginning an entry. Closing from the currently executing callback is allowed, but the in-flight script invocation then fails as closed.</li>
+</ol>
+<p>Public C operations that enter or mutate a VM, together with handle copy and release, serialize through the VM's recursive lock. A native or import callback may therefore reenter the public API on the same VM from its current thread. Cross-VM sharing and private-string copying lock both VMs in a stable order.</p>
+<p>Independent host calls and distinct handles may be used from different threads, but each VM still admits one executing entrant at a time. Never race an operation on a particular handle with release of that handle. Shared-value reference counts are cross-thread safe; mutable shared contents still require the shared locks or atomic operations in <a href="11-stdlib-system-and-concurrency.html">Chapter 11</a>. Prefer one private VM per execution thread.</p>
+<p>Closing a VM from its current native or import callback is allowed. The close consumes the pointer and the in-flight script operation then fails with <code>LI_STATUS_CLOSED</code>. Externally synchronize close against any thread that could begin a new entry.</p>
+<p>Script throws unwind interpreted, JIT, and native-call frames in one logical order. When a native calls back into script, an uncaught script exception returns as a non-OK status; the native may handle it or propagate a catchable script error with <code>li_vm_set_error</code>. An exception escaping the outermost C invocation returns failure and is never disguised as a successful <code>nil</code>. The diagnostic is available through <code>li_vm_last_error</code>.</p>
+<p><code>debug.traceback(error)</code> returns frames innermost first with <code>function</code>, <code>line</code>, and <code>native</code> fields. Registered native frames have <code>native == true</code>; interpreted and JIT frames have <code>native == false</code> and report the same source line for the same function. Rethrowing preserves the original frames.</p>
+<p>Lightning catches exceptions from a C++ implementation of a native or import callback before they can unwind through VM or JIT frames. Public operations report <code>LI_STATUS_CXX_EXCEPTION</code> where a status can be returned. Do not throw from callbacks as a control-flow mechanism.</p>
+<h2 id="126-c20-raii-interface-lightninghpp">12.6 C++20 RAII interface: <code>&lt;lightning.hpp&gt;</code></h2>
+<p>The C++ wrapper provides <code>lightning::vm</code>, <code>lightning::value</code>, and <code>lightning::error</code>.</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">CPP</span>
+    <div class="code-actions">
+      
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-cpp">#include &lt;lightning.hpp&gt;
+
+#include &lt;array&gt;
+#include &lt;iostream&gt;
+
+int main() {
+    try {
+        lightning::vm vm;
+        lightning::value square = vm.execute(
+            &quot;fn square(x) { x * x }\nsquare&quot;,
+            &quot;cpp-example.li&quot;);
+        lightning::value input = vm.number(12);
+        std::array&lt;lightning::value, 1&gt; arguments{std::move(input)};
+        lightning::value output = vm.call(square, arguments);
+        std::cout &lt;&lt; output.as_number() &lt;&lt; '\n';
+    } catch (const lightning::error&amp; error) {
+        std::cerr &lt;&lt; li_status_name(error.code())
+                  &lt;&lt; &quot;: &quot; &lt;&lt; error.what() &lt;&lt; '\n';
+        return 1;
+    }
+}
+</code></pre>
+</div>
+<h3 id="lightningvm"><code>lightning::vm</code></h3>
+<p><code>lightning::vm</code> is move-only and closes its handle in its destructor. Its principal methods are:</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>C equivalent</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>load(source, source_name)</code></td>
+<td><code>li_vm_load</code></td>
+</tr>
+<tr>
+<td><code>execute(source, source_name)</code></td>
+<td><code>li_vm_execute</code></td>
+</tr>
+<tr>
+<td><code>call(function, arguments)</code></td>
+<td><code>li_vm_call</code></td>
+</tr>
+<tr>
+<td><code>register_native(name, callback, userdata)</code></td>
+<td><code>li_vm_register_native</code></td>
+</tr>
+<tr>
+<td><code>nil()</code>, <code>boolean(v)</code>, <code>number(v)</code>, <code>string(v)</code></td>
+<td><code>li_value_create_*</code></td>
+</tr>
+<tr>
+<td><code>userdata(type, pointer, destroy, userdata)</code></td>
+<td><code>li_value_create_userdata</code></td>
+</tr>
+<tr>
+<td><code>share(value)</code></td>
+<td><code>li_value_share</code></td>
+</tr>
+<tr>
+<td><code>copy_to(value)</code></td>
+<td><code>li_value_copy_to</code></td>
+</tr>
+<tr>
+<td><code>close()</code></td>
+<td><code>li_vm_close</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>lightning::value</code> releases its owning C handle in its destructor. It is copyable by creating an independent C handle and movable without allocation. <code>kind()</code>, <code>as_bool()</code>, <code>as_number()</code>, <code>as_string()</code>, and userdata accessors provide checked inspection. A <code>std::string_view</code> returned by <code>as_string()</code> remains borrowed from the <code>lightning::value</code>.</p>
+<h3 id="exception-conversion">Exception conversion</h3>
+<p>Every wrapper method checks the returned status. A failure throws <code>lightning::error</code>, derived from <code>std::runtime_error</code>. <code>what()</code> contains the VM diagnostic and <code>code()</code> preserves the original <code>li_status</code>.</p>
+<p>This conversion is one-way at the wrapper boundary:</p>
+<ul>
+<li>script or VM failure becomes <code>lightning::error</code> in host C++;</li>
+<li>a C++ exception thrown by a registered callback is contained by the C ABI and becomes a catchable script/native failure;</li>
+<li>no C++ exception is allowed to unwind through interpreter or JIT frames.</li>
+</ul>
+<p>Catch <code>lightning::error</code> around each host transaction where recovery is meaningful. Destructors for <code>lightning::value</code> and <code>lightning::vm</code> are non-throwing cleanup boundaries.</p>
+<h2 id="127-userdata">12.7 Userdata</h2>
+<p>Register a process-global opaque type ID, then create typed userdata values:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">CPP</span>
+    <div class="code-actions">
+      
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-cpp">struct counter { int value; };
+
+const li_type_id counter_type =
+    lightning::register_userdata_type(&quot;example.counter&quot;);
+
+lightning::value wrapped = vm.userdata(
+    counter_type,
+    new counter{0},
+    [](void* pointer, void*) {
+        delete static_cast&lt;counter*&gt;(pointer);
+    });
+</code></pre>
+</div>
+<p><code>li_userdata_type_register</code> maps an exact byte name to a process-global opaque type ID. Registering the same name again returns the same ID, including from another VM. Register a type before creating its values; do not assign IDs yourself.</p>
+<p>The destroy callback runs exactly once when the last script or host reference is released, possibly after logical VM close. Retrieving a pointer requires the expected type ID; a mismatch returns <code>LI_STATUS_TYPE_ERROR</code>. Lightning synchronizes the userdata object's lifetime, not the pointee's internal state—the host remains responsible for that synchronization and for the pointee's invariants.</p>
+<h2 id="128-security-boundary">12.8 Security boundary</h2>
+<p>Lightning executes trusted scripts. It is not a sandbox and provides no memory, CPU, recursion, allocation, module, filesystem, native-call, or denial-of-service isolation from hostile code. Validate untrusted input outside the VM, expose only intended natives and imports, and enforce resource and privilege boundaries at the process level.</p>
+<p>The <code>fs</code> module uses the host process's filesystem permissions and performs no path or capability confinement. The host controls whether scripts can import it; an embedder that needs confinement must deny it through the import policy, replace it with a restricted module, or isolate the process. Likewise, <code>loadstring</code> and <code>eval</code> compile and execute source with the VM's available modules and native bindings. The host must treat access to them as permission to run dynamic Lightning code.</p>
+<p>A crash, type confusion, or ownership violation caused by well-formed trusted script is still an implementation bug. The trusted-script boundary does not weaken the API contracts in this chapter.</p>
+<h2 id="129-embedding-checklist">12.9 Embedding checklist</h2>
+<ul>
+<li>Initialize options with <code>li_vm_options_init</code>.</li>
+<li>Check every <code>li_status</code> or catch <code>lightning::error</code>.</li>
+<li>Give source buffers meaningful source names.</li>
+<li>Release every owning C handle exactly once.</li>
+<li>Copy borrowed callback arguments before retaining them.</li>
+<li>Keep registered userdata and hook contexts alive long enough.</li>
+<li>Convert host failures into <code>li_vm_set_error</code> diagnostics.</li>
+<li>Use explicit <code>share</code>/<code>copy_to</code> operations across VMs.</li>
+<li>Synchronize VM close and same-handle release across threads.</li>
+<li>Enforce trust and resource boundaries outside Lightning.</li>
+</ul>
+      </article>
+
+      <nav class="chapter-nav">
+        <a href="11-stdlib-system-and-concurrency.html" class="chapter-btn">
+  <span class="nav-direction">← Previous</span>
+  <span class="nav-title">11. System and Concurrency</span>
+</a>
+        <a href="examples.html" class="chapter-btn next">
+  <span class="nav-direction">Next →</span>
+  <span class="nav-title">Examples</span>
+</a>
+      </nav>
+    </main>
+  </div>
+
+  <script src="prism.min.js"></script>
+  <script src="prism-lightning.js"></script>
+  <script src="gitbook.js"></script>
+</body>
+</html>

@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Examples — Lightning Docs</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Crect width='256' height='256' rx='48' fill='%230a0a0b'/%3E%3Cpath d='M150 28 L64 150 H122 L106 228 L192 106 H134 Z' fill='%23f4f4f5'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="gitbook.css">
+</head>
+<body>
+  <aside class="sidebar" id="docs-sidebar" aria-label="Documentation navigation">
+    <div class="sidebar-header">
+      <span class="sidebar-title">Documentation</span>
+    </div>
+
+    <div class="search-box">
+      <input type="search" id="search-input" class="search-input" placeholder="Search pages" aria-label="Search documentation pages" autocomplete="off">
+    </div>
+
+    <div class="nav-groups">
+  <section class="nav-group">
+    <div class="nav-group-title">Getting Started</div>
+    <a href="index.html" class="nav-link">Overview</a>
+    <a href="1-getting-started.html" class="nav-link">1. Getting Started</a>
+    <a href="2-basic-concepts.html" class="nav-link">2. Basic Concepts</a>
+  </section>
+  <section class="nav-group">
+    <div class="nav-group-title">The Language</div>
+    <a href="3-language-syntax.html" class="nav-link">3. Language Syntax</a>
+    <a href="4-control-flow.html" class="nav-link">4. Control Flow</a>
+    <a href="5-functions-and-closures.html" class="nav-link">5. Functions and Closures</a>
+    <a href="6-structs-and-classes.html" class="nav-link">6. Structs and Classes</a>
+    <a href="7-strict-tier.html" class="nav-link">7. The Strict Tier</a>
+  </section>
+  <section class="nav-group">
+    <div class="nav-group-title">Standard Libraries</div>
+    <a href="8-stdlib-builtins.html" class="nav-link">8. Built-in Functions</a>
+    <a href="9-stdlib-collections.html" class="nav-link">9. Collections</a>
+    <a href="10-stdlib-math-and-typed.html" class="nav-link">10. Mathematics and Typed Values</a>
+    <a href="11-stdlib-system-and-concurrency.html" class="nav-link">11. System and Concurrency</a>
+  </section>
+  <section class="nav-group">
+    <div class="nav-group-title">Host Interface</div>
+    <a href="12-embedding-api.html" class="nav-link">12. Embedding API</a>
+    <a href="examples.html" class="nav-link active" aria-current="page">Examples</a>
+  </section>
+</div>
+  <p class="sidebar-empty">No matching pages</p>
+
+  </aside>
+  <button type="button" class="sidebar-backdrop" aria-label="Close navigation"></button>
+
+  <div class="main-wrapper">
+    <header class="top-nav">
+      <div class="top-nav-left">
+        <button type="button" id="menu-button" class="menu-button" aria-label="Open navigation" aria-controls="docs-sidebar" aria-expanded="false">
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
+        <a href="index.html" class="brand-link">
+          <svg class="brand-icon" viewBox="0 0 256 256" aria-hidden="true"><rect width="256" height="256" rx="48" fill="#0a0a0b"/><path d="M150 28 L64 150 H122 L106 228 L192 106 H134 Z" fill="#f4f4f5"/></svg>
+          <span>Lightning</span>
+        </a>
+        <span class="product-area">Docs</span>
+      </div>
+      <nav class="top-nav-right" aria-label="Product links">
+        <a href="../index.html" class="header-link">Playground</a>
+        <a href="https://github.com/li-script/lightning" class="header-link">GitHub</a>
+      </nav>
+    </header>
+
+    <main class="content-container">
+      <article class="markdown-body">
+        <h1 id="lightning-script-examples">Lightning Script Examples</h1>
+<p>Complete, runnable programs covering the core features of Lightning Script. Open any example in the playground or copy it for local use.</p>
+
+<h2 id="example-01-hello-li">01 Hello <code>01_hello.li</code></h2>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LIGHTNING</span>
+    <div class="code-actions">
+      <a href="../index.html?code=const%20language%20%3D%20%22Lightning%20Script%22%0Aconst%20version%20%3D%201%0A%0Aprint%28%60Hello%20from%20%7Blanguage%7D%21%60%29%0Aprint%28%60This%20is%20documentation%20example%20%7Bversion%7D.%60%29%0Aprint%28%222%20%2B%203%20%3D%22%2C%202%20%2B%203%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-lightning">const language = "Lightning Script"
+const version = 1
+
+print(`Hello from {language}!`)
+print(`This is documentation example {version}.`)
+print("2 + 3 =", 2 + 3)
+</code></pre>
+</div>
+
+<h2 id="example-02-fibonacci-li">02 Fibonacci <code>02_fibonacci.li</code></h2>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LIGHTNING</span>
+    <div class="code-actions">
+      <a href="../index.html?code=fn%20fibonacci%28limit%29%20%7B%0A%20%20%20%20let%20values%20%3D%20%5B%5D%0A%20%20%20%20let%20previous%20%3D%200%0A%20%20%20%20let%20current%20%3D%201%0A%0A%20%20%20%20for%20index%20in%200..limit%20%7B%0A%20%20%20%20%20%20%20%20values%3A%3Apush%28previous%29%0A%20%20%20%20%20%20%20%20const%20next%20%3D%20previous%20%2B%20current%0A%20%20%20%20%20%20%20%20previous%20%3D%20current%0A%20%20%20%20%20%20%20%20current%20%3D%20next%0A%20%20%20%20%7D%0A%0A%20%20%20%20values%0A%7D%0A%0Aconst%20sequence%20%3D%20fibonacci%2812%29%0Aprint%28%22First%20twelve%20Fibonacci%20numbers%3A%22%29%0Afor%20index%2C%20value%20in%20sequence%20%7B%0A%20%20%20%20print%28%60fib%28%7Bindex%7D%29%20%3D%20%7Bvalue%7D%60%29%0A%7D%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-lightning">fn fibonacci(limit) {
+    let values = []
+    let previous = 0
+    let current = 1
+
+    for index in 0..limit {
+        values::push(previous)
+        const next = previous + current
+        previous = current
+        current = next
+    }
+
+    values
+}
+
+const sequence = fibonacci(12)
+print("First twelve Fibonacci numbers:")
+for index, value in sequence {
+    print(`fib({index}) = {value}`)
+}
+</code></pre>
+</div>
+
+<h2 id="example-03-strings-li">03 Strings <code>03_strings.li</code></h2>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LIGHTNING</span>
+    <div class="code-actions">
+      <a href="../index.html?code=const%20single%20%3D%20%27S%27%0Aconst%20double%20%3D%20%22double-quoted%20string%20with%20a%20newline%5Cnon%20the%20second%20line%22%0Aconst%20raw%20%3D%20%5B%3D%5BC%3A%5Cprojects%5Clightning%5C%7Bliteral%7D.li%5D%3D%5D%0Aconst%20name%20%3D%20%22Mira%22%0Aconst%20completed%20%3D%204%0Aconst%20total%20%3D%207%0Aconst%20message%20%3D%20%60Hello%2C%20%7Bname%7D%3A%20%7Bcompleted%20%2B%201%7D%20of%20%7Btotal%7D%20tasks%20complete%60%0A%0Aprint%28%22Single-quoted%20literal%3A%22%2C%20single%29%0Aprint%28double%29%0Aprint%28%60Raw%20path%3A%20%7Braw%7D%60%29%0Aprint%28message%29%0Aprint%28%60Literal%20braces%20look%20like%20%7B%7Bthis%7D%7D.%60%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-lightning">const single = 'S'
+const double = "double-quoted string with a newline\non the second line"
+const raw = [=[C:\projects\lightning\{literal}.li]=]
+const name = "Mira"
+const completed = 4
+const total = 7
+const message = `Hello, {name}: {completed + 1} of {total} tasks complete`
+
+print("Single-quoted literal:", single)
+print(double)
+print(`Raw path: {raw}`)
+print(message)
+print(`Literal braces look like {{this}}.`)
+</code></pre>
+</div>
+
+<h2 id="example-04-control-flow-li">04 Control Flow <code>04_control_flow.li</code></h2>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LIGHTNING</span>
+    <div class="code-actions">
+      <a href="../index.html?code=fn%20first_even%28values%29%20%7B%0A%20%20%20%20defer%20%7B%20print%28%22finished%20searching%22%29%20%7D%0A%0A%20%20%20%20for%20index%2C%20value%20in%20values%20%7B%0A%20%20%20%20%20%20%20%20if%20value%20%3C%200%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20continue%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20if%20value%20%25%202%20%3D%3D%200%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20%7Bindex%3A%20index%2C%20value%3A%20value%7D%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%0A%0A%20%20%20%20nil%0A%7D%0A%0Alet%20countdown%20%3D%203%0Awhile%20countdown%20%3E%200%20%7B%0A%20%20%20%20print%28%60launch%20in%20%7Bcountdown%7D%60%29%0A%20%20%20%20countdown%20-%3D%201%0A%7D%0A%0Atry%20%7B%0A%20%20%20%20const%20result%20%3D%20first_even%28%5B-5%2C%203%2C%207%2C%2012%2C%2015%5D%29%0A%20%20%20%20if%20result%20%7B%0A%20%20%20%20%20%20%20%20print%28%60first%20nonnegative%20even%20value%3A%20%7Bresult.value%7D%20at%20index%20%7Bresult.index%7D%60%29%0A%20%20%20%20%7D%20else%20%7B%0A%20%20%20%20%20%20%20%20throw%20%22no%20nonnegative%20even%20value%20found%22%0A%20%20%20%20%7D%0A%7D%20catch%20error%20%7B%0A%20%20%20%20print%28%60search%20failed%3A%20%7Berror%7D%60%29%0A%7D%0A%0Afor%20value%20in%200..10%20%7B%0A%20%20%20%20if%20value%20%3D%3D%206%20%7B%0A%20%20%20%20%20%20%20%20break%0A%20%20%20%20%7D%0A%20%20%20%20if%20value%20%25%202%20%21%3D%200%20%7B%0A%20%20%20%20%20%20%20%20continue%0A%20%20%20%20%7D%0A%20%20%20%20print%28%60range%20value%3A%20%7Bvalue%7D%60%29%0A%7D%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-lightning">fn first_even(values) {
+    defer { print("finished searching") }
+
+    for index, value in values {
+        if value &lt; 0 {
+            continue
+        }
+        if value % 2 == 0 {
+            return {index: index, value: value}
+        }
+    }
+
+    nil
+}
+
+let countdown = 3
+while countdown &gt; 0 {
+    print(`launch in {countdown}`)
+    countdown -= 1
+}
+
+try {
+    const result = first_even([-5, 3, 7, 12, 15])
+    if result {
+        print(`first nonnegative even value: {result.value} at index {result.index}`)
+    } else {
+        throw "no nonnegative even value found"
+    }
+} catch error {
+    print(`search failed: {error}`)
+}
+
+for value in 0..10 {
+    if value == 6 {
+        break
+    }
+    if value % 2 != 0 {
+        continue
+    }
+    print(`range value: {value}`)
+}
+</code></pre>
+</div>
+
+<h2 id="example-05-closures-li">05 Closures <code>05_closures.li</code></h2>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LIGHTNING</span>
+    <div class="code-actions">
+      <a href="../index.html?code=fn%20make_counter%28start%2C%20step%3F%29%20%7B%0A%20%20%20%20const%20increment%20%3D%20step%20%3F%3F%201%0A%20%20%20%20let%20current%20%3D%20start%0A%0A%20%20%20%20%7C%7C%20%7B%0A%20%20%20%20%20%20%20%20current%20%2B%3D%20increment%0A%20%20%20%20%20%20%20%20current%0A%20%20%20%20%7D%0A%7D%0A%0Alet%20label%20%3D%20%22captured%20before%20reassignment%22%0Aconst%20read_label%20%3D%20%7C%7C%20label%0Alabel%20%3D%20%22outer%20binding%20changed%22%0A%0Aconst%20by_one%20%3D%20make_counter%280%29%0Aconst%20by_five%20%3D%20make_counter%2810%2C%205%29%0A%0Aprint%28read_label%28%29%29%0Aprint%28%22by%20one%3A%22%2C%20by_one%28%29%2C%20by_one%28%29%2C%20by_one%28%29%29%0Aprint%28%22by%20five%3A%22%2C%20by_five%28%29%2C%20by_five%28%29%29%0A%0Afn%20describe%28prefix%3F%2C%20values...%29%20%7B%0A%20%20%20%20const%20heading%20%3D%20prefix%20%3F%3F%20%22values%22%0A%20%20%20%20print%28%60%7Bheading%7D%20%28%7Bvalues%3A%3Alen%28%29%7D%20items%29%60%29%0A%20%20%20%20for%20index%20in%200..values%3A%3Alen%28%29%20%7B%0A%20%20%20%20%20%20%20%20print%28%60%20%20%7Bindex%7D%3A%20%7Bvalues%5Bindex%5D%7D%60%29%0A%20%20%20%20%7D%0A%7D%0A%0Adescribe%28%22counter%20snapshots%22%2C%20by_one%28%29%2C%20by_five%28%29%2C%2042%3A%3Astr%28%29%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-lightning">fn make_counter(start, step?) {
+    const increment = step ?? 1
+    let current = start
+
+    || {
+        current += increment
+        current
+    }
+}
+
+let label = "captured before reassignment"
+const read_label = || label
+label = "outer binding changed"
+
+const by_one = make_counter(0)
+const by_five = make_counter(10, 5)
+
+print(read_label())
+print("by one:", by_one(), by_one(), by_one())
+print("by five:", by_five(), by_five())
+
+fn describe(prefix?, values...) {
+    const heading = prefix ?? "values"
+    print(`{heading} ({values::len()} items)`)
+    for index in 0..values::len() {
+        print(`  {index}: {values[index]}`)
+    }
+}
+
+describe("counter snapshots", by_one(), by_five(), 42::str())
+</code></pre>
+</div>
+
+<h2 id="example-06-structs-classes-li">06 Structs Classes <code>06_structs_classes.li</code></h2>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LIGHTNING</span>
+    <div class="code-actions">
+      <a href="../index.html?code=%23%20Struct%20values%20copy%20at%20strict%20boundaries%3B%20class%20values%20share%20identity.%0A%0Astruct%20Point%20%7B%0A%20%20%20x%3A%20number%20%3D%200%0A%20%20%20y%3A%20number%20%3D%200%0A%0A%20%20%20new%21%28x%3A%20number%2C%20y%3A%20number%29%20%7B%0A%20%20%20%20%20%20self.x%20%3D%20x%0A%20%20%20%20%20%20self.y%20%3D%20y%0A%20%20%20%7D%0A%0A%20%20%20add%21%28other%3A%20Point%29%20-%3E%20Point%20%7B%0A%20%20%20%20%20%20let%20result%20%3D%20struct_copy%28self%29%0A%20%20%20%20%20%20result.x%20%2B%3D%20other.x%0A%20%20%20%20%20%20result.y%20%2B%3D%20other.y%0A%20%20%20%20%20%20result%0A%20%20%20%7D%0A%0A%20%20%20get%20length_squared%28%29%20-%3E%20number%20%7B%0A%20%20%20%20%20%20self.x%20%2A%20self.x%20%2B%20self.y%20%2A%20self.y%0A%20%20%20%7D%0A%7D%0A%0A%5B%5Bstrict%5D%5D%20fn%20translated%28point%3A%20Point%2C%20dx%3A%20number%2C%20dy%3A%20number%29%20-%3E%20Point%20%7B%0A%20%20%20point.x%20%2B%3D%20dx%0A%20%20%20point.y%20%2B%3D%20dy%0A%20%20%20point%0A%7D%0A%0Alet%20start%20%3D%20Point%283%2C%204%29%0Alet%20moved%20%3D%20translated%28start%2C%205%2C%20-2%29%0Aassert%28start.x%20%3D%3D%203%20%26%26%20start.y%20%3D%3D%204%29%0Aassert%28moved.x%20%3D%3D%208%20%26%26%20moved.y%20%3D%3D%202%29%0Aassert%28start.length_squared%20%3D%3D%2025%29%0A%0Alet%20total%20%3D%20start%20%2B%20Point%281%2C%202%29%0Aassert%28total.x%20%3D%3D%204%20%26%26%20total.y%20%3D%3D%206%29%0A%0A%23%20Dynamic%20struct%20boxes%20can%20be%20copied%20explicitly.%0Alet%20boxed_copy%20%3D%20struct_copy%28start%29%0Aboxed_copy.x%20%3D%2030%0Aassert%28start.x%20%3D%3D%203%20%26%26%20boxed_copy.x%20%3D%3D%2030%29%0A%0Aclass%20Account%20%7B%0A%20%20%20owner%3A%20string%20%3D%20%22%22%0A%20%20%20_balance%3A%20number%20%3D%200%0A%0A%20%20%20new%21%28owner%3A%20string%2C%20opening_balance%3A%20number%29%20%7B%0A%20%20%20%20%20%20self.owner%20%3D%20owner%0A%20%20%20%20%20%20self.balance%20%3D%20opening_balance%0A%20%20%20%7D%0A%0A%20%20%20get%20balance%28%29%20-%3E%20number%20%7B%20self._balance%20%7D%0A%0A%20%20%20set%20balance%28value%3A%20number%29%20%7B%0A%20%20%20%20%20%20if%20value%20%3C%200%20%7B%0A%20%20%20%20%20%20%20%20%20throw%20%22balance%20cannot%20be%20negative%22%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20self._balance%20%3D%20value%0A%20%20%20%7D%0A%0A%20%20%20deposit%28amount%3A%20number%29%20-%3E%20number%20%7B%0A%20%20%20%20%20%20self.balance%20%3D%20self.balance%20%2B%20amount%0A%20%20%20%20%20%20self.balance%0A%20%20%20%7D%0A%0A%20%20%20add%21%28amount%3A%20number%29%20-%3E%20number%20%7B%0A%20%20%20%20%20%20self.balance%20%2B%20amount%0A%20%20%20%7D%0A%0A%20%20%20at%21%28key%29%20%7B%0A%20%20%20%20%20%20if%20key%20%3D%3D%20%22summary%22%20%7B%0A%20%20%20%20%20%20%20%20%20return%20%60%7Bself.owner%7D%3A%20%7Bself.balance%7D%60%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20nil%0A%20%20%20%7D%0A%7D%0A%0Alet%20primary%20%3D%20Account%28%22Ada%22%2C%20125%29%0Alet%20alias%20%3D%20primary%0Aassert%28alias%20is%20Account%29%0Aassert%28alias.deposit%2825%29%20%3D%3D%20150%29%0Aassert%28primary.balance%20%3D%3D%20150%29%0Aassert%28primary%20%2B%2050%20%3D%3D%20200%29%0Aassert%28primary.summary%20%3D%3D%20%22Ada%3A%20150%22%29%0A%0Aprint%28%22point%22%2C%20moved.x%2C%20moved.y%29%0Aprint%28%22account%22%2C%20primary.owner%2C%20primary.balance%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-lightning"># Struct values copy at strict boundaries; class values share identity.
+
+struct Point {
+   x: number = 0
+   y: number = 0
+
+   new!(x: number, y: number) {
+      self.x = x
+      self.y = y
+   }
+
+   add!(other: Point) -&gt; Point {
+      let result = struct_copy(self)
+      result.x += other.x
+      result.y += other.y
+      result
+   }
+
+   get length_squared() -&gt; number {
+      self.x * self.x + self.y * self.y
+   }
+}
+
+[[strict]] fn translated(point: Point, dx: number, dy: number) -&gt; Point {
+   point.x += dx
+   point.y += dy
+   point
+}
+
+let start = Point(3, 4)
+let moved = translated(start, 5, -2)
+assert(start.x == 3 &amp;&amp; start.y == 4)
+assert(moved.x == 8 &amp;&amp; moved.y == 2)
+assert(start.length_squared == 25)
+
+let total = start + Point(1, 2)
+assert(total.x == 4 &amp;&amp; total.y == 6)
+
+# Dynamic struct boxes can be copied explicitly.
+let boxed_copy = struct_copy(start)
+boxed_copy.x = 30
+assert(start.x == 3 &amp;&amp; boxed_copy.x == 30)
+
+class Account {
+   owner: string = ""
+   _balance: number = 0
+
+   new!(owner: string, opening_balance: number) {
+      self.owner = owner
+      self.balance = opening_balance
+   }
+
+   get balance() -&gt; number { self._balance }
+
+   set balance(value: number) {
+      if value &lt; 0 {
+         throw "balance cannot be negative"
+      }
+      self._balance = value
+   }
+
+   deposit(amount: number) -&gt; number {
+      self.balance = self.balance + amount
+      self.balance
+   }
+
+   add!(amount: number) -&gt; number {
+      self.balance + amount
+   }
+
+   at!(key) {
+      if key == "summary" {
+         return `{self.owner}: {self.balance}`
+      }
+      nil
+   }
+}
+
+let primary = Account("Ada", 125)
+let alias = primary
+assert(alias is Account)
+assert(alias.deposit(25) == 150)
+assert(primary.balance == 150)
+assert(primary + 50 == 200)
+assert(primary.summary == "Ada: 150")
+
+print("point", moved.x, moved.y)
+print("account", primary.owner, primary.balance)
+</code></pre>
+</div>
+
+<h2 id="example-07-collections-li">07 Collections <code>07_collections.li</code></h2>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LIGHTNING</span>
+    <div class="code-actions">
+      <a href="../index.html?code=import%20%22array%22%20as%20arrays%0Aimport%20collections%0Aimport%20%22table%22%20as%20tables%0A%0A%23%20Tables%20provide%20hashed%20keys%20and%20arrays%20provide%20contiguous%20positional%20storage.%0Alet%20inventory%20%3D%20%7Bapples%3A%204%2C%20pears%3A%202%7D%0Atables.reserve%28inventory%2C%2032%29%0Ainventory%5B%22oranges%22%5D%20%3D%206%0Ainventory.apples%20%2B%3D%201%0Aassert%28inventory.apples%20%3D%3D%205%29%0Aassert%28inventory%5B%22oranges%22%5D%20%3D%3D%206%29%0A%0Alet%20queue%20%3D%20%5B%22parse%22%2C%20%22compile%22%5D%0Aarrays.reserve%28queue%2C%2016%29%0Aqueue%3A%3Apush%28%22execute%22%29%0Aassert%28queue%3A%3Alen%28%29%20%3D%3D%203%29%0A%0Aarrays.resize%28queue%2C%205%29%0Aassert%28queue%5B3%5D%20%3D%3D%20nil%20%26%26%20queue%5B4%5D%20%3D%3D%20nil%29%0Aarrays.fill%28queue%2C%20%22pending%22%2C%203%2C%205%29%0Aassert%28queue%5B3%5D%20%3D%3D%20%22pending%22%20%26%26%20queue%5B4%5D%20%3D%3D%20%22pending%22%29%0Aarrays.resize%28queue%2C%203%29%0A%0Aconst%20scores%20%3D%20%5B12%2C%207%2C%2019%2C%2010%2C%207%5D%0Aconst%20doubled%20%3D%20collections.map%28scores%2C%20%7Cvalue%2C%20index%7C%20value%20%2A%202%29%0Aassert%28doubled%5B0%5D%20%3D%3D%2024%20%26%26%20doubled%5B2%5D%20%3D%3D%2038%29%0A%0Aconst%20passing%20%3D%20collections.filter%28scores%2C%20%7Cvalue%2C%20index%7C%20value%20%3E%3D%2010%29%0Aassert%28passing%3A%3Alen%28%29%20%3D%3D%203%29%0A%0Aconst%20total%20%3D%20collections.reduce%28scores%2C%200%2C%0A%20%20%20%7Csum%2C%20value%2C%20index%7C%20sum%20%2B%20value%29%0Aassert%28total%20%3D%3D%2055%29%0A%0Alet%20indexed%20%3D%20%7B%7D%0Acollections.each%28scores%2C%20%7Cvalue%2C%20index%7C%20%7B%0A%20%20%20indexed%5Bindex%5D%20%3D%20value%0A%7D%29%0Aassert%28indexed%5B2%5D%20%3D%3D%2019%29%0A%0Aassert%28collections.any%28scores%2C%20%7Cvalue%2C%20index%7C%20value%20%3E%2015%29%29%0Aassert%28collections.all%28scores%2C%20%7Cvalue%2C%20index%7C%20value%20%3E%3D%200%29%29%0Aassert%28collections.find%28scores%2C%20%7Cvalue%2C%20index%7C%20value%20%25%202%20%3D%3D%201%29%20%3D%3D%207%29%0A%0Aconst%20records%20%3D%20%5B%0A%20%20%20%7Bname%3A%20%22Ada%22%2C%20score%3A%2012%7D%2C%0A%20%20%20%7Bname%3A%20%22Grace%22%2C%20score%3A%207%7D%2C%0A%20%20%20%7Bname%3A%20%22Lin%22%2C%20score%3A%2012%7D%0A%5D%0Aconst%20ordered%20%3D%20collections.sort%28records%2C%0A%20%20%20%7Cleft%2C%20right%7C%20left.score%20%3C%20right.score%29%0Aassert%28ordered%5B0%5D.name%20%3D%3D%20%22Grace%22%29%0Aassert%28ordered%5B1%5D.name%20%3D%3D%20%22Ada%22%29%0Aassert%28ordered%5B2%5D.name%20%3D%3D%20%22Lin%22%29%0Aassert%28records%5B0%5D.name%20%3D%3D%20%22Ada%22%29%0A%0Aconst%20names%20%3D%20collections.keys%28inventory%29%0Aconst%20counts%20%3D%20collections.values%28inventory%29%0Aassert%28names%3A%3Alen%28%29%20%3D%3D%203%20%26%26%20counts%3A%3Alen%28%29%20%3D%3D%203%29%0A%0Aconst%20assignments%20%3D%20collections.zip%28%0A%20%20%20%5B%22Ada%22%2C%20%22Grace%22%2C%20%22Lin%22%5D%2C%0A%20%20%20%5B%22parser%22%2C%20%22runtime%22%5D%0A%29%0Aassert%28assignments%3A%3Alen%28%29%20%3D%3D%202%29%0Aassert%28assignments%5B0%5D%5B0%5D%20%3D%3D%20%22Ada%22%29%0Aassert%28assignments%5B0%5D%5B1%5D%20%3D%3D%20%22parser%22%29%0A%0Aprint%28%22score%20total%22%2C%20total%29%0Aprint%28%22passing%22%2C%20passing%3A%3Alen%28%29%29%0Aprint%28%22assignments%22%2C%20assignments%3A%3Alen%28%29%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-lightning">import "array" as arrays
+import collections
+import "table" as tables
+
+# Tables provide hashed keys and arrays provide contiguous positional storage.
+let inventory = {apples: 4, pears: 2}
+tables.reserve(inventory, 32)
+inventory["oranges"] = 6
+inventory.apples += 1
+assert(inventory.apples == 5)
+assert(inventory["oranges"] == 6)
+
+let queue = ["parse", "compile"]
+arrays.reserve(queue, 16)
+queue::push("execute")
+assert(queue::len() == 3)
+
+arrays.resize(queue, 5)
+assert(queue[3] == nil &amp;&amp; queue[4] == nil)
+arrays.fill(queue, "pending", 3, 5)
+assert(queue[3] == "pending" &amp;&amp; queue[4] == "pending")
+arrays.resize(queue, 3)
+
+const scores = [12, 7, 19, 10, 7]
+const doubled = collections.map(scores, |value, index| value * 2)
+assert(doubled[0] == 24 &amp;&amp; doubled[2] == 38)
+
+const passing = collections.filter(scores, |value, index| value &gt;= 10)
+assert(passing::len() == 3)
+
+const total = collections.reduce(scores, 0,
+   |sum, value, index| sum + value)
+assert(total == 55)
+
+let indexed = {}
+collections.each(scores, |value, index| {
+   indexed[index] = value
+})
+assert(indexed[2] == 19)
+
+assert(collections.any(scores, |value, index| value &gt; 15))
+assert(collections.all(scores, |value, index| value &gt;= 0))
+assert(collections.find(scores, |value, index| value % 2 == 1) == 7)
+
+const records = [
+   {name: "Ada", score: 12},
+   {name: "Grace", score: 7},
+   {name: "Lin", score: 12}
+]
+const ordered = collections.sort(records,
+   |left, right| left.score &lt; right.score)
+assert(ordered[0].name == "Grace")
+assert(ordered[1].name == "Ada")
+assert(ordered[2].name == "Lin")
+assert(records[0].name == "Ada")
+
+const names = collections.keys(inventory)
+const counts = collections.values(inventory)
+assert(names::len() == 3 &amp;&amp; counts::len() == 3)
+
+const assignments = collections.zip(
+   ["Ada", "Grace", "Lin"],
+   ["parser", "runtime"]
+)
+assert(assignments::len() == 2)
+assert(assignments[0][0] == "Ada")
+assert(assignments[0][1] == "parser")
+
+print("score total", total)
+print("passing", passing::len())
+print("assignments", assignments::len())
+</code></pre>
+</div>
+
+<h2 id="example-08-typed-arrays-li">08 Typed Arrays <code>08_typed_arrays.li</code></h2>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LIGHTNING</span>
+    <div class="code-actions">
+      <a href="../index.html?code=import%20math%0Aimport%20typed%0A%0A%23%20A%20byte%20buffer%20stores%20values%20densely%20and%20validates%20every%20write.%0Alet%20packet%20%3D%20u8%5B%5D%28%5B76%2C%2073%2C%201%2C%200%5D%29%0Aassert%28typed.len%28packet%29%20%3D%3D%204%29%0Aassert%28packet%3A%3Alen%28%29%20%3D%3D%204%29%0Aassert%28typed.capacity%28packet%29%20%3D%3D%204%29%0Aassert%28typed.element_size%28packet%29%20%3D%3D%201%29%0Aassert%28typed.kind%28packet%29%20%3D%3D%20%22u8%22%29%0Aassert%28typed.get%28packet%2C%200%29%20%3D%3D%2076%29%0A%0Atyped.set%28packet%2C%203%2C%207%29%0Aassert%28packet%5B3%5D%20%3D%3D%207%29%0Atyped.reserve%28packet%2C%2032%29%0Aassert%28packet%3A%3Alen%28%29%20%3D%3D%204%29%0Aassert%28typed.capacity%28packet%29%20%3E%3D%2032%29%0A%0Atyped.resize%28packet%2C%208%29%0Aassert%28packet%3A%3Alen%28%29%20%3D%3D%208%29%0Aassert%28packet%5B4%5D%20%3D%3D%200%20%26%26%20packet%5B7%5D%20%3D%3D%200%29%0A%0Alet%20packet_copy%20%3D%20typed.dup%28packet%29%0Apacket_copy%5B0%5D%20%3D%200%0Aassert%28packet%5B0%5D%20%3D%3D%2076%29%0Aassert%28packet_copy%5B0%5D%20%3D%3D%200%29%0A%0A%23%20Integer%20arrays%20never%20wrap%20or%20truncate%20their%20inputs.%0Alet%20signed_samples%20%3D%20i16%5B%5D%28%5B-32768%2C%20-10%2C%200%2C%2032767%5D%29%0Alet%20counters%20%3D%20u32%5B%5D%28%5B0%2C%201000%2C%204294967295%5D%29%0Aassert%28signed_samples%5B0%5D%20%3D%3D%20-32768%29%0Aassert%28counters%5B2%5D%20%3D%3D%204294967295%29%0A%0Alet%20safe_signed%20%3D%20i64%5B%5D%28%5B-9007199254740991%2C%209007199254740991%5D%29%0Alet%20safe_unsigned%20%3D%20u64%5B%5D%28%5B0%2C%209007199254740991%5D%29%0Aassert%28safe_signed%5B1%5D%20%3D%3D%209007199254740991%29%0Aassert%28safe_unsigned%5B1%5D%20%3D%3D%209007199254740991%29%0A%0A%23%20f32%20stores%20round%20once%20to%20binary32%3B%20f64%20preserves%20binary64%20values.%0Alet%20positions%20%3D%20f32%5B%5D%28%5B0.1%2C%2016777217%2C%20-0.1%5D%29%0Aassert%28positions%5B1%5D%20%3D%3D%2016777216%29%0A%0Alet%20measurements%20%3D%20f64%5B%5D%28%5Bmath.pi%2C%20math.inf%2C%20math.nan%5D%29%0Aassert%28measurements%5B0%5D%20%3D%3D%20math.pi%29%0Aassert%28measurements%5B1%5D%20%3D%3D%20math.inf%29%0Aassert%28math.isnan%28measurements%5B2%5D%29%29%0A%0Alet%20gains%20%3D%20f32%5B%5D%284%29%0Atyped.fill%28gains%2C%200.5%29%0Aassert%28gains%5B0%5D%20%3D%3D%200.5%20%26%26%20gains%5B3%5D%20%3D%3D%200.5%29%0A%0A%23%20All%20packed%20numeric%20element%20kinds%20are%20available%20through%20T%5B%5D%20constructors.%0Aassert%28i8%5B%5D%28%5B-128%2C%20127%5D%29%3A%3Alen%28%29%20%3D%3D%202%29%0Aassert%28u16%5B%5D%28%5B0%2C%2065535%5D%29%5B1%5D%20%3D%3D%2065535%29%0Aassert%28i32%5B%5D%28%5B-2147483648%2C%202147483647%5D%29%5B1%5D%20%3D%3D%202147483647%29%0A%0Aprint%28%22packet%20bytes%22%2C%20packet%3A%3Alen%28%29%2C%20typed.capacity%28packet%29%29%0Aprint%28%22f32%20rounded%22%2C%20positions%5B1%5D%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-lightning">import math
+import typed
+
+# A byte buffer stores values densely and validates every write.
+let packet = u8[]([76, 73, 1, 0])
+assert(typed.len(packet) == 4)
+assert(packet::len() == 4)
+assert(typed.capacity(packet) == 4)
+assert(typed.element_size(packet) == 1)
+assert(typed.kind(packet) == "u8")
+assert(typed.get(packet, 0) == 76)
+
+typed.set(packet, 3, 7)
+assert(packet[3] == 7)
+typed.reserve(packet, 32)
+assert(packet::len() == 4)
+assert(typed.capacity(packet) &gt;= 32)
+
+typed.resize(packet, 8)
+assert(packet::len() == 8)
+assert(packet[4] == 0 &amp;&amp; packet[7] == 0)
+
+let packet_copy = typed.dup(packet)
+packet_copy[0] = 0
+assert(packet[0] == 76)
+assert(packet_copy[0] == 0)
+
+# Integer arrays never wrap or truncate their inputs.
+let signed_samples = i16[]([-32768, -10, 0, 32767])
+let counters = u32[]([0, 1000, 4294967295])
+assert(signed_samples[0] == -32768)
+assert(counters[2] == 4294967295)
+
+let safe_signed = i64[]([-9007199254740991, 9007199254740991])
+let safe_unsigned = u64[]([0, 9007199254740991])
+assert(safe_signed[1] == 9007199254740991)
+assert(safe_unsigned[1] == 9007199254740991)
+
+# f32 stores round once to binary32; f64 preserves binary64 values.
+let positions = f32[]([0.1, 16777217, -0.1])
+assert(positions[1] == 16777216)
+
+let measurements = f64[]([math.pi, math.inf, math.nan])
+assert(measurements[0] == math.pi)
+assert(measurements[1] == math.inf)
+assert(math.isnan(measurements[2]))
+
+let gains = f32[](4)
+typed.fill(gains, 0.5)
+assert(gains[0] == 0.5 &amp;&amp; gains[3] == 0.5)
+
+# All packed numeric element kinds are available through T[] constructors.
+assert(i8[]([-128, 127])::len() == 2)
+assert(u16[]([0, 65535])[1] == 65535)
+assert(i32[]([-2147483648, 2147483647])[1] == 2147483647)
+
+print("packet bytes", packet::len(), typed.capacity(packet))
+print("f32 rounded", positions[1])
+</code></pre>
+</div>
+
+<h2 id="example-09-coroutines-li">09 Coroutines <code>09_coroutines.li</code></h2>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LIGHTNING</span>
+    <div class="code-actions">
+      <a href="../index.html?code=import%20coroutine%0A%0A//%20A%20resume%20value%20is%20returned%20from%20the%20suspended%20yield%20expression.%0Aconst%20conversation%20%3D%20coroutine.create%28%7C%7C%20%7B%0A%20%20%20const%20first_reply%20%3D%20coroutine.yield%28%22ready%22%29%0A%20%20%20const%20second_reply%20%3D%20coroutine.yield%28%60first%20reply%3A%20%7Bfirst_reply%7D%60%29%0A%20%20%20return%20%60second%20reply%3A%20%7Bsecond_reply%7D%60%0A%7D%29%0A%0Aassert%28coroutine.status%28conversation%29%20%3D%3D%20%22created%22%29%0Aassert%28coroutine.resume%28conversation%29%20%3D%3D%20%22ready%22%29%0Aassert%28coroutine.status%28conversation%29%20%3D%3D%20%22suspended%22%29%0Aassert%28coroutine.resume%28conversation%2C%20%22hello%22%29%20%3D%3D%20%22first%20reply%3A%20hello%22%29%0Aassert%28coroutine.resume%28conversation%2C%20%22goodbye%22%29%20%3D%3D%20%22second%20reply%3A%20goodbye%22%29%0Aassert%28coroutine.status%28conversation%29%20%3D%3D%20%22dead%22%29%0A%0A//%20Closing%20a%20suspended%20coroutine%20unwinds%20it%20and%20executes%20deferred%20cleanup.%0Alet%20cleanup%20%3D%20%5B%5D%0Aconst%20worker%20%3D%20coroutine.create%28%7C%7C%20%7B%0A%20%20%20defer%20%7B%20cleanup%3A%3Apush%28%22outer%22%29%20%7D%0A%20%20%20defer%20%7B%20cleanup%3A%3Apush%28%22inner%22%29%20%7D%0A%20%20%20coroutine.yield%281%29%0A%20%20%20cleanup%3A%3Apush%28%22unreachable%22%29%0A%7D%29%0A%0Aassert%28coroutine.resume%28worker%29%20%3D%3D%201%29%0Acoroutine.close%28worker%29%0Aassert%28coroutine.status%28worker%29%20%3D%3D%20%22dead%22%29%0Aassert%28cleanup%3A%3Alen%28%29%20%3D%3D%202%29%0Aassert%28cleanup%5B0%5D%20%3D%3D%20%22inner%22%29%0Aassert%28cleanup%5B1%5D%20%3D%3D%20%22outer%22%29%0A%0Aprint%28%22coroutines%3A%20ok%22%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-lightning">import coroutine
+
+// A resume value is returned from the suspended yield expression.
+const conversation = coroutine.create(|| {
+   const first_reply = coroutine.yield("ready")
+   const second_reply = coroutine.yield(`first reply: {first_reply}`)
+   return `second reply: {second_reply}`
+})
+
+assert(coroutine.status(conversation) == "created")
+assert(coroutine.resume(conversation) == "ready")
+assert(coroutine.status(conversation) == "suspended")
+assert(coroutine.resume(conversation, "hello") == "first reply: hello")
+assert(coroutine.resume(conversation, "goodbye") == "second reply: goodbye")
+assert(coroutine.status(conversation) == "dead")
+
+// Closing a suspended coroutine unwinds it and executes deferred cleanup.
+let cleanup = []
+const worker = coroutine.create(|| {
+   defer { cleanup::push("outer") }
+   defer { cleanup::push("inner") }
+   coroutine.yield(1)
+   cleanup::push("unreachable")
+})
+
+assert(coroutine.resume(worker) == 1)
+coroutine.close(worker)
+assert(coroutine.status(worker) == "dead")
+assert(cleanup::len() == 2)
+assert(cleanup[0] == "inner")
+assert(cleanup[1] == "outer")
+
+print("coroutines: ok")
+</code></pre>
+</div>
+
+<h2 id="example-10-math-vectors-li">10 Math Vectors <code>10_math_vectors.li</code></h2>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LIGHTNING</span>
+    <div class="code-actions">
+      <a href="../index.html?code=import%20math%0Aimport%20vec3%0A%0Afn%20close%28actual%2C%20expected%29%20%7B%0A%20%20%20math.abs%28actual%20-%20expected%29%20%3C%200.000001%0A%7D%0A%0A%23%20Constants%20and%20elementary%20functions%20use%20IEEE%20754%20binary64%20numbers.%0Aassert%28math.pi%20%3E%203.14%20%26%26%20math.pi%20%3C%203.15%29%0Aassert%28math.e%20%3E%202.71%20%26%26%20math.e%20%3C%202.72%29%0Aassert%28math.inf%20%3E%20math.huge%29%0Aassert%28math.nan%20%21%3D%20math.nan%29%0Aassert%28math.epsilon%20%3E%200%29%0Aassert%28math.small%20%3E%200%29%0A%0Aassert%28close%28math.sin%28math.pi%20/%202%29%2C%201%29%29%0Aassert%28close%28math.cos%280%29%2C%201%29%29%0Aassert%28close%28math.tan%28math.pi%20/%204%29%2C%201%29%29%0Aassert%28close%28math.asin%281%29%2C%20math.pi%20/%202%29%29%0Aassert%28close%28math.acos%280%29%2C%20math.pi%20/%202%29%29%0Aassert%28close%28math.atan%281%29%2C%20math.pi%20/%204%29%29%0Aassert%28close%28math.atan2%281%2C%201%29%2C%20math.pi%20/%204%29%29%0A%0Aassert%28math.abs%28-9%29%20%3D%3D%209%29%0Aassert%28math.sqrt%2881%29%20%3D%3D%209%29%0Aassert%28math.ceil%282.1%29%20%3D%3D%203%29%0Aassert%28math.floor%282.9%29%20%3D%3D%202%29%0Aassert%28math.trunc%28-2.9%29%20%3D%3D%20-2%29%0Aassert%28math.min%284%2C%207%29%20%3D%3D%204%29%0Aassert%28math.max%284%2C%207%29%20%3D%3D%207%29%0Aassert%28math.clamp%2814%2C%200%2C%2010%29%20%3D%3D%2010%29%0Aassert%28math.lerp%2810%2C%2020%2C%200.25%29%20%3D%3D%2012.5%29%0Aassert%28math.sign%28-3%29%20%3D%3D%20-1%29%0Aassert%28math.gcd%2884%2C%2030%29%20%3D%3D%206%29%0Aassert%28math.lcm%2812%2C%2018%29%20%3D%3D%2036%29%0Aassert%28math.isnan%28math.nan%29%29%0Aassert%28math.isfinite%28math.pi%29%29%0Aassert%28math.isinteger%2842%29%29%0Aassert%28%21math.isinteger%2842.5%29%29%0A%0Aconst%20pseudorandom%20%3D%20math.random%28%29%0Aconst%20system_random%20%3D%20math.srandom%285%2C%208%29%0Aassert%28pseudorandom%20%3E%3D%200%20%26%26%20pseudorandom%20%3C%3D%201%29%0Aassert%28system_random%20%3E%3D%205%20%26%26%20system_random%20%3C%3D%208%29%0A%0A%23%20Native%20vec3%20values%20store%20f32%20components%20and%20support%20vector%20arithmetic.%0Aconst%20position%20%3D%20vec3%3A%3Anew%281%2C%202%2C%203%29%0Aconst%20velocity%20%3D%20vec3%3A%3Anew%284%2C%20-1%2C%202%29%0Aconst%20next%20%3D%20position%20%2B%20velocity%20%2A%200.5%0Aassert%28next.x%20%3D%3D%203%20%26%26%20next.y%20%3D%3D%201.5%20%26%26%20next.z%20%3D%3D%204%29%0A%0Aassert%28position.dot%28velocity%29%20%3D%3D%208%29%0Aconst%20normal%20%3D%20vec3%3A%3Anew%281%2C%200%2C%200%29.cross%28vec3%3A%3Anew%280%2C%201%2C%200%29%29%0Aassert%28normal%20%3D%3D%20vec3%3A%3Anew%280%2C%200%2C%201%29%29%0A%0Aconst%20direction%20%3D%20vec3%3A%3Anew%283%2C%204%2C%200%29.normalize%28%29%0Aassert%28close%28direction.x%2C%200.6%29%29%0Aassert%28close%28direction.y%2C%200.8%29%29%0Aassert%28close%28direction.length%28%29%2C%201%29%29%0A%0Aconst%20midpoint%20%3D%20position.lerp%28velocity%2C%200.5%29%0Aassert%28midpoint%20%3D%3D%20vec3%3A%3Anew%282.5%2C%200.5%2C%202.5%29%29%0A%0Aprint%28%22next%20position%22%2C%20next%3A%3Astr%28%29%29%0Aprint%28%22unit%20direction%22%2C%20direction%3A%3Astr%28%29%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-lightning">import math
+import vec3
+
+fn close(actual, expected) {
+   math.abs(actual - expected) &lt; 0.000001
+}
+
+# Constants and elementary functions use IEEE 754 binary64 numbers.
+assert(math.pi &gt; 3.14 &amp;&amp; math.pi &lt; 3.15)
+assert(math.e &gt; 2.71 &amp;&amp; math.e &lt; 2.72)
+assert(math.inf &gt; math.huge)
+assert(math.nan != math.nan)
+assert(math.epsilon &gt; 0)
+assert(math.small &gt; 0)
+
+assert(close(math.sin(math.pi / 2), 1))
+assert(close(math.cos(0), 1))
+assert(close(math.tan(math.pi / 4), 1))
+assert(close(math.asin(1), math.pi / 2))
+assert(close(math.acos(0), math.pi / 2))
+assert(close(math.atan(1), math.pi / 4))
+assert(close(math.atan2(1, 1), math.pi / 4))
+
+assert(math.abs(-9) == 9)
+assert(math.sqrt(81) == 9)
+assert(math.ceil(2.1) == 3)
+assert(math.floor(2.9) == 2)
+assert(math.trunc(-2.9) == -2)
+assert(math.min(4, 7) == 4)
+assert(math.max(4, 7) == 7)
+assert(math.clamp(14, 0, 10) == 10)
+assert(math.lerp(10, 20, 0.25) == 12.5)
+assert(math.sign(-3) == -1)
+assert(math.gcd(84, 30) == 6)
+assert(math.lcm(12, 18) == 36)
+assert(math.isnan(math.nan))
+assert(math.isfinite(math.pi))
+assert(math.isinteger(42))
+assert(!math.isinteger(42.5))
+
+const pseudorandom = math.random()
+const system_random = math.srandom(5, 8)
+assert(pseudorandom &gt;= 0 &amp;&amp; pseudorandom &lt;= 1)
+assert(system_random &gt;= 5 &amp;&amp; system_random &lt;= 8)
+
+# Native vec3 values store f32 components and support vector arithmetic.
+const position = vec3::new(1, 2, 3)
+const velocity = vec3::new(4, -1, 2)
+const next = position + velocity * 0.5
+assert(next.x == 3 &amp;&amp; next.y == 1.5 &amp;&amp; next.z == 4)
+
+assert(position.dot(velocity) == 8)
+const normal = vec3::new(1, 0, 0).cross(vec3::new(0, 1, 0))
+assert(normal == vec3::new(0, 0, 1))
+
+const direction = vec3::new(3, 4, 0).normalize()
+assert(close(direction.x, 0.6))
+assert(close(direction.y, 0.8))
+assert(close(direction.length(), 1))
+
+const midpoint = position.lerp(velocity, 0.5)
+assert(midpoint == vec3::new(2.5, 0.5, 2.5))
+
+print("next position", next::str())
+print("unit direction", direction::str())
+</code></pre>
+</div>
+
+<h2 id="example-11-defer-errors-li">11 Defer Errors <code>11_defer_errors.li</code></h2>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LIGHTNING</span>
+    <div class="code-actions">
+      <a href="../index.html?code=//%20Deferred%20blocks%20run%20on%20normal%20return%20and%20exceptional%20unwind.%0Alet%20events%20%3D%20%5B%5D%0A%0Afn%20divide%28numerator%2C%20denominator%29%20%7B%0A%20%20%20defer%20%7B%20events%3A%3Apush%28%22leave%20divide%22%29%20%7D%0A%0A%20%20%20if%20denominator%20%3D%3D%200%20%7B%0A%20%20%20%20%20%20throw%20%22division%20by%20zero%22%0A%20%20%20%7D%0A%20%20%20return%20numerator%20/%20denominator%0A%7D%0A%0Aassert%28divide%2812%2C%203%29%20%3D%3D%204%29%0Aassert%28events%3A%3Alen%28%29%20%3D%3D%201%29%0Aassert%28events%5B0%5D%20%3D%3D%20%22leave%20divide%22%29%0A%0Alet%20caught%20%3D%20nil%0Atry%20%7B%0A%20%20%20divide%2812%2C%200%29%0A%7D%20catch%20error%20%7B%0A%20%20%20caught%20%3D%20error%0A%20%20%20events%3A%3Apush%28%22caught%20error%22%29%0A%7D%0A%0Aassert%28caught%20%3D%3D%20%22division%20by%20zero%22%29%0Aassert%28events%3A%3Alen%28%29%20%3D%3D%203%29%0Aassert%28events%5B1%5D%20%3D%3D%20%22leave%20divide%22%29%0Aassert%28events%5B2%5D%20%3D%3D%20%22caught%20error%22%29%0A%0A//%20Multiple%20deferred%20blocks%20in%20one%20scope%20run%20in%20last-in%2C%20first-out%20order.%0Afn%20nested_cleanup%28%29%20%7B%0A%20%20%20defer%20%7B%20events%3A%3Apush%28%22first%20defer%22%29%20%7D%0A%20%20%20defer%20%7B%20events%3A%3Apush%28%22second%20defer%22%29%20%7D%0A%20%20%20events%3A%3Apush%28%22body%22%29%0A%20%20%20return%2042%0A%7D%0A%0Aassert%28nested_cleanup%28%29%20%3D%3D%2042%29%0Aassert%28events%5B3%5D%20%3D%3D%20%22body%22%29%0Aassert%28events%5B4%5D%20%3D%3D%20%22second%20defer%22%29%0Aassert%28events%5B5%5D%20%3D%3D%20%22first%20defer%22%29%0A%0Aprint%28%22defer%20and%20errors%3A%20ok%22%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-lightning">// Deferred blocks run on normal return and exceptional unwind.
+let events = []
+
+fn divide(numerator, denominator) {
+   defer { events::push("leave divide") }
+
+   if denominator == 0 {
+      throw "division by zero"
+   }
+   return numerator / denominator
+}
+
+assert(divide(12, 3) == 4)
+assert(events::len() == 1)
+assert(events[0] == "leave divide")
+
+let caught = nil
+try {
+   divide(12, 0)
+} catch error {
+   caught = error
+   events::push("caught error")
+}
+
+assert(caught == "division by zero")
+assert(events::len() == 3)
+assert(events[1] == "leave divide")
+assert(events[2] == "caught error")
+
+// Multiple deferred blocks in one scope run in last-in, first-out order.
+fn nested_cleanup() {
+   defer { events::push("first defer") }
+   defer { events::push("second defer") }
+   events::push("body")
+   return 42
+}
+
+assert(nested_cleanup() == 42)
+assert(events[3] == "body")
+assert(events[4] == "second defer")
+assert(events[5] == "first defer")
+
+print("defer and errors: ok")
+</code></pre>
+</div>
+
+<h2 id="example-12-shared-concurrency-li">12 Shared Concurrency <code>12_shared_concurrency.li</code></h2>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LIGHTNING</span>
+    <div class="code-actions">
+      <a href="../index.html?code=import%20coroutine%0Aimport%20shared%0A%0A//%20Shared%20values%20live%20in%20the%20process-wide%20shared%20heap.%0Aconst%20state%20%3D%20shared%20%7Bcompleted%3A%200%2C%20checksum%3A%200%7D%0Aassert%28shared.is_shared%28state%29%29%0A%0A//%20A%20lock%20block%20protects%20a%20compound%20update%20and%20unlocks%20on%20every%20exit%20path.%0Afn%20record%28value%29%20%7B%0A%20%20%20lock%20state%20%7B%0A%20%20%20%20%20%20state.completed%20%2B%3D%201%0A%20%20%20%20%20%20state.checksum%20%2B%3D%20value%0A%20%20%20%7D%0A%7D%0A%0Arecord%2810%29%0Aassert%28state.completed%20%3D%3D%201%29%0Aassert%28state.checksum%20%3D%3D%2010%29%0A%0A//%20atomic_add%20performs%20one%20numeric%20field%20update%20and%20returns%20the%20new%20value.%0Aassert%28shared.atomic_add%28state%2C%20%22completed%22%2C%201%29%20%3D%3D%202%29%0A%0A//%20An%20atomic%20block%20commits%20related%20numeric%20updates%20together.%0Aatomic%20%7B%0A%20%20%20state.completed%20%2B%3D%203%0A%20%20%20state.checksum%20%3D%20state.checksum%20%2A%202%0A%7D%0Aassert%28state.completed%20%3D%3D%205%29%0Aassert%28state.checksum%20%3D%3D%2020%29%0A%0A//%20Coroutines%20are%20cooperative%20rather%20than%20parallel%2C%20but%20the%20same%20update%0A//%20functions%20are%20safe%20when%20shared%20values%20are%20published%20to%20host%20worker%20threads.%0Afn%20make_worker%28base%29%20%7B%0A%20%20%20coroutine.create%28%7C%7C%20%7B%0A%20%20%20%20%20%20for%20offset%20in%200..3%20%7B%0A%20%20%20%20%20%20%20%20%20record%28base%20%2B%20offset%29%0A%20%20%20%20%20%20%20%20%20coroutine.yield%28state.completed%29%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20return%20state.checksum%0A%20%20%20%7D%29%0A%7D%0A%0Aconst%20left%20%3D%20make_worker%281%29%0Aconst%20right%20%3D%20make_worker%28100%29%0Aassert%28coroutine.resume%28left%29%20%3D%3D%206%29%0Aassert%28coroutine.resume%28right%29%20%3D%3D%207%29%0Aassert%28coroutine.resume%28left%29%20%3D%3D%208%29%0Aassert%28coroutine.resume%28right%29%20%3D%3D%209%29%0Aassert%28coroutine.resume%28left%29%20%3D%3D%2010%29%0Aassert%28coroutine.resume%28right%29%20%3D%3D%2011%29%0A%0Aconst%20expected_checksum%20%3D%2020%20%2B%201%20%2B%20100%20%2B%202%20%2B%20101%20%2B%203%20%2B%20102%0Aassert%28coroutine.resume%28left%29%20%3D%3D%20expected_checksum%29%0Aassert%28coroutine.resume%28right%29%20%3D%3D%20expected_checksum%29%0Aassert%28coroutine.status%28left%29%20%3D%3D%20%22dead%22%29%0Aassert%28coroutine.status%28right%29%20%3D%3D%20%22dead%22%29%0Aassert%28state.completed%20%3D%3D%2011%29%0Aassert%28state.checksum%20%3D%3D%20expected_checksum%29%0A%0Aprint%28%22shared%20concurrency%3A%20ok%22%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-lightning">import coroutine
+import shared
+
+// Shared values live in the process-wide shared heap.
+const state = shared {completed: 0, checksum: 0}
+assert(shared.is_shared(state))
+
+// A lock block protects a compound update and unlocks on every exit path.
+fn record(value) {
+   lock state {
+      state.completed += 1
+      state.checksum += value
+   }
+}
+
+record(10)
+assert(state.completed == 1)
+assert(state.checksum == 10)
+
+// atomic_add performs one numeric field update and returns the new value.
+assert(shared.atomic_add(state, "completed", 1) == 2)
+
+// An atomic block commits related numeric updates together.
+atomic {
+   state.completed += 3
+   state.checksum = state.checksum * 2
+}
+assert(state.completed == 5)
+assert(state.checksum == 20)
+
+// Coroutines are cooperative rather than parallel, but the same update
+// functions are safe when shared values are published to host worker threads.
+fn make_worker(base) {
+   coroutine.create(|| {
+      for offset in 0..3 {
+         record(base + offset)
+         coroutine.yield(state.completed)
+      }
+      return state.checksum
+   })
+}
+
+const left = make_worker(1)
+const right = make_worker(100)
+assert(coroutine.resume(left) == 6)
+assert(coroutine.resume(right) == 7)
+assert(coroutine.resume(left) == 8)
+assert(coroutine.resume(right) == 9)
+assert(coroutine.resume(left) == 10)
+assert(coroutine.resume(right) == 11)
+
+const expected_checksum = 20 + 1 + 100 + 2 + 101 + 3 + 102
+assert(coroutine.resume(left) == expected_checksum)
+assert(coroutine.resume(right) == expected_checksum)
+assert(coroutine.status(left) == "dead")
+assert(coroutine.status(right) == "dead")
+assert(state.completed == 11)
+assert(state.checksum == expected_checksum)
+
+print("shared concurrency: ok")
+</code></pre>
+</div>
+
+
+      </article>
+
+      <nav class="chapter-nav">
+        <a href="12-embedding-api.html" class="chapter-btn">
+  <span class="nav-direction">← Previous</span>
+  <span class="nav-title">12. Embedding API</span>
+</a>
+        
+      </nav>
+    </main>
+  </div>
+
+  <script src="prism.min.js"></script>
+  <script src="prism-lightning.js"></script>
+  <script src="gitbook.js"></script>
+</body>
+</html>

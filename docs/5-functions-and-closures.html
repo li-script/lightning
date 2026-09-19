@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>5. Functions and Closures — Lightning Docs</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Crect width='256' height='256' rx='48' fill='%230a0a0b'/%3E%3Cpath d='M150 28 L64 150 H122 L106 228 L192 106 H134 Z' fill='%23f4f4f5'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="gitbook.css">
+</head>
+<body>
+  <aside class="sidebar" id="docs-sidebar" aria-label="Documentation navigation">
+    <div class="sidebar-header">
+      <span class="sidebar-title">Documentation</span>
+    </div>
+
+    <div class="search-box">
+      <input type="search" id="search-input" class="search-input" placeholder="Search pages" aria-label="Search documentation pages" autocomplete="off">
+    </div>
+
+    <div class="nav-groups">
+  <section class="nav-group">
+    <div class="nav-group-title">Getting Started</div>
+    <a href="index.html" class="nav-link">Overview</a>
+    <a href="1-getting-started.html" class="nav-link">1. Getting Started</a>
+    <a href="2-basic-concepts.html" class="nav-link">2. Basic Concepts</a>
+  </section>
+  <section class="nav-group">
+    <div class="nav-group-title">The Language</div>
+    <a href="3-language-syntax.html" class="nav-link">3. Language Syntax</a>
+    <a href="4-control-flow.html" class="nav-link">4. Control Flow</a>
+    <a href="5-functions-and-closures.html" class="nav-link active" aria-current="page">5. Functions and Closures</a>
+    <a href="6-structs-and-classes.html" class="nav-link">6. Structs and Classes</a>
+    <a href="7-strict-tier.html" class="nav-link">7. The Strict Tier</a>
+  </section>
+  <section class="nav-group">
+    <div class="nav-group-title">Standard Libraries</div>
+    <a href="8-stdlib-builtins.html" class="nav-link">8. Built-in Functions</a>
+    <a href="9-stdlib-collections.html" class="nav-link">9. Collections</a>
+    <a href="10-stdlib-math-and-typed.html" class="nav-link">10. Mathematics and Typed Values</a>
+    <a href="11-stdlib-system-and-concurrency.html" class="nav-link">11. System and Concurrency</a>
+  </section>
+  <section class="nav-group">
+    <div class="nav-group-title">Host Interface</div>
+    <a href="12-embedding-api.html" class="nav-link">12. Embedding API</a>
+    <a href="examples.html" class="nav-link">Examples</a>
+  </section>
+</div>
+  <p class="sidebar-empty">No matching pages</p>
+
+  </aside>
+  <button type="button" class="sidebar-backdrop" aria-label="Close navigation"></button>
+
+  <div class="main-wrapper">
+    <header class="top-nav">
+      <div class="top-nav-left">
+        <button type="button" id="menu-button" class="menu-button" aria-label="Open navigation" aria-controls="docs-sidebar" aria-expanded="false">
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
+        <a href="index.html" class="brand-link">
+          <svg class="brand-icon" viewBox="0 0 256 256" aria-hidden="true"><rect width="256" height="256" rx="48" fill="#0a0a0b"/><path d="M150 28 L64 150 H122 L106 228 L192 106 H134 Z" fill="#f4f4f5"/></svg>
+          <span>Lightning</span>
+        </a>
+        <span class="product-area">Docs</span>
+      </div>
+      <nav class="top-nav-right" aria-label="Product links">
+        <a href="../index.html" class="header-link">Playground</a>
+        <a href="https://github.com/li-script/lightning" class="header-link">GitHub</a>
+      </nav>
+    </header>
+
+    <main class="content-container">
+      <article class="markdown-body">
+        <h1 id="5-functions-and-closures">5. Functions and Closures</h1>
+<p>Functions are first-class Lightning values. A function may be declared by name, created anonymously, stored in a collection, passed as an argument, or returned from another function.</p>
+<h2 id="function-declarations">Function declarations</h2>
+<p>Declare a named function with <code>fn</code>:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=fn%20add%28left%2C%20right%29%20%7B%0A%20%20%20%20return%20left%20%2B%20right%0A%7D%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">fn add(left, right) {
+    return left + right
+}
+</code></pre>
+</div>
+<p>A function also returns its final expression implicitly:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=fn%20add%28left%2C%20right%29%20%7B%0A%20%20%20%20left%20%2B%20right%0A%7D%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">fn add(left, right) {
+    left + right
+}
+</code></pre>
+</div>
+<p>Parameters are lexical bindings local to the call. Calls are ordinary expressions. A plain <code>f(arguments...)</code> call supplies <code>nil</code> as <code>self</code>:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=fn%20add%28left%2C%20right%29%20%7B%0A%20%20%20%20assert%28self%20%3D%3D%20nil%29%0A%20%20%20%20left%20%2B%20right%0A%7D%0A%0Aconst%20total%20%3D%20add%2820%2C%2022%29%0Aassert%28total%20%3D%3D%2042%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">fn add(left, right) {
+    assert(self == nil)
+    left + right
+}
+
+const total = add(20, 22)
+assert(total == 42)
+</code></pre>
+</div>
+<p>Type annotations and a return annotation may constrain the call boundary:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=fn%20distance_squared%28x%3A%20number%2C%20y%3A%20number%29%20-%3E%20number%20%7B%0A%20%20%20%20x%20%2A%20x%20%2B%20y%20%2A%20y%0A%7D%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">fn distance_squared(x: number, y: number) -&gt; number {
+    x * x + y * y
+}
+</code></pre>
+</div>
+<p>The <code>-&gt;</code> token introduces the return type; it is not a receiver-call operator. In dynamic code, annotations check values at runtime and can guide optimization. They do not coerce an invalid value. A return annotation checks both explicit <code>return</code> values and the final implicit result.</p>
+<h2 id="anonymous-functions">Anonymous functions</h2>
+<p>Use <code>||</code> for an anonymous function with no parameters:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=const%20answer%20%3D%20%7C%7C%20%7B%0A%20%20%20%2042%0A%7D%0A%0Aprint%28answer%28%29%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">const answer = || {
+    42
+}
+
+print(answer())
+</code></pre>
+</div>
+<p>Use <code>|a, b|</code> for one or more parameters:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=const%20multiply%20%3D%20%7Ca%2C%20b%7C%20%7B%0A%20%20%20%20a%20%2A%20b%0A%7D%0A%0Aprint%28multiply%286%2C%207%29%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">const multiply = |a, b| {
+    a * b
+}
+
+print(multiply(6, 7))
+</code></pre>
+</div>
+<p>A short body may be written directly after the parameter list:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=const%20square%20%3D%20%7Cvalue%7C%20value%20%2A%20value%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">const square = |value| value * value
+</code></pre>
+</div>
+<p>Anonymous functions are useful as callbacks:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=import%20collections%0A%0Aconst%20doubled%20%3D%20collections.map%28%5B1%2C%202%2C%203%5D%2C%20%7Cvalue%2C%20index%7C%20value%20%2A%202%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">import collections
+
+const doubled = collections.map([1, 2, 3], |value, index| value * 2)
+</code></pre>
+</div>
+<h2 id="closures-and-upvalues">Closures and upvalues</h2>
+<p>An anonymous or nested function can refer to bindings from its lexical environment. Those captured values are its <strong>upvalues</strong>:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=fn%20make_adder%28amount%29%20%7B%0A%20%20%20%20%7Cvalue%7C%20value%20%2B%20amount%0A%7D%0A%0Aconst%20add_ten%20%3D%20make_adder%2810%29%0Aprint%28add_ten%285%29%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">fn make_adder(amount) {
+    |value| value + amount
+}
+
+const add_ten = make_adder(10)
+print(add_ten(5))
+</code></pre>
+</div>
+<h3 id="capture-by-value">Capture by value</h3>
+<p>Lightning captures each upvalue by value when the closure is created. Reassigning the outer binding later does not change the closure's captured slot:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=let%20label%20%3D%20%22before%22%0Aconst%20read_label%20%3D%20%7C%7C%20label%0Alabel%20%3D%20%22after%22%0A%0Aassert%28read_label%28%29%20%3D%3D%20%22before%22%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">let label = &quot;before&quot;
+const read_label = || label
+label = &quot;after&quot;
+
+assert(read_label() == &quot;before&quot;)
+</code></pre>
+</div>
+<p>If a captured binding was declared with <code>let</code>, the closure can update its own captured slot, and that updated value persists for later calls to that closure:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=fn%20make_counter%28start%29%20%7B%0A%20%20%20%20let%20current%20%3D%20start%0A%20%20%20%20%7C%7C%20%7B%0A%20%20%20%20%20%20%20%20current%20%2B%3D%201%0A%20%20%20%20%20%20%20%20current%0A%20%20%20%20%7D%0A%7D%0A%0Aconst%20first%20%3D%20make_counter%280%29%0Aconst%20second%20%3D%20make_counter%28100%29%0Aassert%28first%28%29%20%3D%3D%201%29%0Aassert%28first%28%29%20%3D%3D%202%29%0Aassert%28second%28%29%20%3D%3D%20101%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">fn make_counter(start) {
+    let current = start
+    || {
+        current += 1
+        current
+    }
+}
+
+const first = make_counter(0)
+const second = make_counter(100)
+assert(first() == 1)
+assert(first() == 2)
+assert(second() == 101)
+</code></pre>
+</div>
+<p>The counters do not share an implicit mutable cell. To share state deliberately, capture a reference to the same table or object:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=const%20shared%20%3D%20%7Bcount%3A%200%7D%0Aconst%20increment%20%3D%20%7C%7C%20%7B%20shared.count%20%2B%3D%201%20%7D%0Aconst%20read%20%3D%20%7C%7C%20shared.count%0A%0Aincrement%28%29%0Aassert%28read%28%29%20%3D%3D%201%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">const shared = {count: 0}
+const increment = || { shared.count += 1 }
+const read = || shared.count
+
+increment()
+assert(read() == 1)
+</code></pre>
+</div>
+<p>Captured heap values hold strong references. A closure therefore keeps its captured objects alive until the closure releases them. Duplicating a closure with <code>dup</code> copies the closure's captures at that moment; later mutations of either closure's captured slots remain independent.</p>
+<h3 id="closures-and-self">Closures and <code>self</code></h3>
+<p>A nested closure does not inherit the <code>self</code> supplied to the method that created it. Capture the receiver through an ordinary local when the closure needs it:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=class%20Source%20%7B%0A%20%20%20%20nested_receiver%28%29%20%7B%0A%20%20%20%20%20%20%20%20%7C%7C%20self%0A%20%20%20%20%7D%0A%0A%20%20%20%20captured_receiver%28%29%20%7B%0A%20%20%20%20%20%20%20%20const%20owner%20%3D%20self%0A%20%20%20%20%20%20%20%20%7C%7C%20owner%0A%20%20%20%20%7D%0A%7D%0A%0Alet%20source%20%3D%20Source%28%29%0Aassert%28source.nested_receiver%28%29%28%29%20%3D%3D%20nil%29%0Aassert%28source.captured_receiver%28%29%28%29%20%3D%3D%20source%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">class Source {
+    nested_receiver() {
+        || self
+    }
+
+    captured_receiver() {
+        const owner = self
+        || owner
+    }
+}
+
+let source = Source()
+assert(source.nested_receiver()() == nil)
+assert(source.captured_receiver()() == source)
+</code></pre>
+</div>
+<p>The nested functions above are called with ordinary <code>f()</code> syntax, so their own <code>self</code> is <code>nil</code>. The second closure reads the explicitly captured <code>owner</code> instead.</p>
+<h2 id="required-optional-and-defaulted-arguments">Required, optional, and defaulted arguments</h2>
+<p>Parameters are required by default:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=fn%20greet%28name%29%20%7B%0A%20%20%20%20%60Hello%2C%20%7Bname%7D%60%0A%7D%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">fn greet(name) {
+    `Hello, {name}`
+}
+</code></pre>
+</div>
+<p>Append <code>?</code> to permit omission. An omitted optional parameter receives <code>nil</code>:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=fn%20greet%28name%3F%29%20%7B%0A%20%20%20%20const%20actual_name%20%3D%20name%20%3F%3F%20%22world%22%0A%20%20%20%20%60Hello%2C%20%7Bactual_name%7D%60%0A%7D%0A%0Aassert%28greet%28%29%20%3D%3D%20%22Hello%2C%20world%22%29%0Aassert%28greet%28%22Mira%22%29%20%3D%3D%20%22Hello%2C%20Mira%22%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">fn greet(name?) {
+    const actual_name = name ?? &quot;world&quot;
+    `Hello, {actual_name}`
+}
+
+assert(greet() == &quot;Hello, world&quot;)
+assert(greet(&quot;Mira&quot;) == &quot;Hello, Mira&quot;)
+</code></pre>
+</div>
+<p>The <code>??</code> expression is the usual way to give an optional argument a default value. It chooses its right operand only when the left operand is <code>nil</code>:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=fn%20connect%28host%3F%2C%20port%3F%29%20%7B%0A%20%20%20%20const%20actual_host%20%3D%20host%20%3F%3F%20%22127.0.0.1%22%0A%20%20%20%20const%20actual_port%20%3D%20port%20%3F%3F%208080%0A%20%20%20%20%60%7Bactual_host%7D%3A%7Bactual_port%7D%60%0A%7D%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">fn connect(host?, port?) {
+    const actual_host = host ?? &quot;127.0.0.1&quot;
+    const actual_port = port ?? 8080
+    `{actual_host}:{actual_port}`
+}
+</code></pre>
+</div>
+<p>Optional parameters must follow required positional parameters. They can carry type annotations:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=fn%20scale%28value%3A%20number%2C%20factor%3F%3A%20number%29%20-%3E%20number%20%7B%0A%20%20%20%20value%20%2A%20%28factor%20%3F%3F%201%29%0A%7D%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">fn scale(value: number, factor?: number) -&gt; number {
+    value * (factor ?? 1)
+}
+</code></pre>
+</div>
+<p>Omission is distinct from explicitly passing <code>nil</code> when a non-nullable annotation is present: omission bypasses that parameter's guard, while an explicit <code>nil</code> is checked and rejected. Use a nullable annotation when explicit <code>nil</code> is valid.</p>
+<h2 id="rest-and-variadic-parameters">Rest and variadic parameters</h2>
+<p>A bare <code>...</code> accepts surplus arguments and exposes them through the function's <code>$VA</code> rest view:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=fn%20show_all%28...%29%20%7B%0A%20%20%20%20for%20index%20in%200..%24VA%3A%3Alen%28%29%20%7B%0A%20%20%20%20%20%20%20%20print%28index%2C%20%24VA%5Bindex%5D%29%0A%20%20%20%20%7D%0A%7D%0A%0Ashow_all%28%22one%22%2C%202%2C%20true%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">fn show_all(...) {
+    for index in 0..$VA::len() {
+        print(index, $VA[index])
+    }
+}
+
+show_all(&quot;one&quot;, 2, true)
+</code></pre>
+</div>
+<p>A named rest parameter is usually clearer:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=fn%20summarize%28label%2C%20values...%29%20%7B%0A%20%20%20%20print%28label%2C%20values%3A%3Alen%28%29%29%0A%20%20%20%20for%20index%20in%200..values%3A%3Alen%28%29%20%7B%0A%20%20%20%20%20%20%20%20print%28index%2C%20values%5Bindex%5D%29%0A%20%20%20%20%7D%0A%7D%0A%0Asummarize%28%22readings%22%2C%2010%2C%2020%2C%2030%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">fn summarize(label, values...) {
+    print(label, values::len())
+    for index in 0..values::len() {
+        print(index, values[index])
+    }
+}
+
+summarize(&quot;readings&quot;, 10, 20, 30)
+</code></pre>
+</div>
+<p>The rest parameter must be last. It contains only arguments beyond the fixed parameters and preserves explicit <code>nil</code> values.</p>
+<h2 id="uniform-function-call-syntax">Uniform Function Call Syntax</h2>
+<p>Lightning has two receiver call forms with distinct lookup rules.</p>
+<h3 id="member-calls-with">Member calls with <code>.</code></h3>
+<p><code>receiver.func(arguments...)</code> looks up <code>func</code> as a member of <code>receiver</code> and calls it with <code>self</code> set to the receiver:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=class%20Counter%20%7B%0A%20%20%20%20value%3A%20number%0A%0A%20%20%20%20new%21%28value%29%20%7B%0A%20%20%20%20%20%20%20%20self.value%20%3D%20value%0A%20%20%20%20%7D%0A%0A%20%20%20%20add%28amount%29%20%7B%0A%20%20%20%20%20%20%20%20self.value%20%2B%3D%20amount%0A%20%20%20%20%20%20%20%20self.value%0A%20%20%20%20%7D%0A%0A%20%20%20%20receiver%28%29%20%7B%0A%20%20%20%20%20%20%20%20self%0A%20%20%20%20%7D%0A%7D%0A%0Aconst%20counter%20%3D%20Counter%285%29%0Aassert%28counter.add%283%29%20%3D%3D%208%29%0A%0Aconst%20extracted%20%3D%20counter.receiver%0Aassert%28extracted%28%29%20%3D%3D%20nil%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">class Counter {
+    value: number
+
+    new!(value) {
+        self.value = value
+    }
+
+    add(amount) {
+        self.value += amount
+        self.value
+    }
+
+    receiver() {
+        self
+    }
+}
+
+const counter = Counter(5)
+assert(counter.add(3) == 8)
+
+const extracted = counter.receiver
+assert(extracted() == nil)
+</code></pre>
+</div>
+<p>Extracting a member does not permanently bind its receiver. In <code>counter.receiver()</code>, the member-call expression supplies <code>counter</code>; after extraction, the ordinary <code>extracted()</code> call supplies <code>nil</code>.</p>
+<h3 id="ufcs-calls-with">UFCS calls with <code>::</code></h3>
+<p><code>receiver::func(arguments...)</code> resolves a free or builtin function named <code>func</code> and supplies <code>receiver</code> as its <code>self</code> value. It does not perform member lookup. This lets free functions read naturally from left to right:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=const%20text%20%3D%2042%3A%3Astr%28%29%0Aconst%20parsed%20%3D%20%220xff%22%3A%3Anum%28%29%0A%0Alet%20values%20%3D%20%5B1%2C%202%5D%0Avalues%3A%3Apush%283%29%0Aconst%20length%20%3D%20values%3A%3Alen%28%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">const text = 42::str()
+const parsed = &quot;0xff&quot;::num()
+
+let values = [1, 2]
+values::push(3)
+const length = values::len()
+</code></pre>
+</div>
+<p>Conceptually, when a compatible free function is in scope, UFCS supplies the left operand as that function's <code>self</code>:</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=fn%20scaled_by%28factor%29%20%7B%0A%20%20%20%20self%20%2A%20factor%0A%7D%0A%0Aassert%286%3A%3Ascaled_by%287%29%20%3D%3D%2042%29%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">fn scaled_by(factor) {
+    self * factor
+}
+
+assert(6::scaled_by(7) == 42)
+</code></pre>
+</div>
+<p>UFCS is common throughout the standard library for string conversion and collection operations. Use <code>.</code> when invoking a member stored on the receiver; use <code>::</code> when invoking a free or builtin operation with a receiver.</p>
+<h2 id="higher-order-example">Higher-order example</h2>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang">LI</span>
+    <div class="code-actions">
+      <a href="../index.html?code=import%20collections%0A%0Afn%20make_threshold_filter%28minimum%3F%29%20%7B%0A%20%20%20%20const%20limit%20%3D%20minimum%20%3F%3F%200%0A%20%20%20%20%7Cvalue%2C%20index%7C%20value%20%3E%3D%20limit%0A%7D%0A%0Aconst%20keep%20%3D%20make_threshold_filter%2810%29%0Aconst%20selected%20%3D%20collections.filter%28%5B4%2C%2010%2C%2015%2C%203%5D%2C%20keep%29%0A%0Aprint%28%60kept%20%7Bselected%3A%3Alen%28%29%7D%20values%60%29%0Afor%20index%2C%20value%20in%20selected%20%7B%0A%20%20%20%20print%28index%2C%20value%29%0A%7D%0A" target="_blank" rel="noopener" class="btn-code-action btn-code-run" title="Open in the playground">Run in Playground</a>
+      <button type="button" class="btn-code-action btn-code-copy">Copy</button>
+    </div>
+  </div>
+  <pre><code class="language-li">import collections
+
+fn make_threshold_filter(minimum?) {
+    const limit = minimum ?? 0
+    |value, index| value &gt;= limit
+}
+
+const keep = make_threshold_filter(10)
+const selected = collections.filter([4, 10, 15, 3], keep)
+
+print(`kept {selected::len()} values`)
+for index, value in selected {
+    print(index, value)
+}
+</code></pre>
+</div>
+<p>See <a href="examples.html#example-05-closures-li"><code>docs/examples/05_closures.li</code></a> for a runnable example combining optional arguments, closure state, and UFCS.</p>
+      </article>
+
+      <nav class="chapter-nav">
+        <a href="4-control-flow.html" class="chapter-btn">
+  <span class="nav-direction">← Previous</span>
+  <span class="nav-title">4. Control Flow</span>
+</a>
+        <a href="6-structs-and-classes.html" class="chapter-btn next">
+  <span class="nav-direction">Next →</span>
+  <span class="nav-title">6. Structs and Classes</span>
+</a>
+      </nav>
+    </main>
+  </div>
+
+  <script src="prism.min.js"></script>
+  <script src="prism-lightning.js"></script>
+  <script src="gitbook.js"></script>
+</body>
+</html>
